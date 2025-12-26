@@ -152,6 +152,18 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL10)
 
+	migrationSQL11 := `
+	-- 檢查並添加 entry_timeframe 欄位 (進場時區)
+	ALTER TABLE trades ADD COLUMN entry_timeframe VARCHAR(10);
+	`
+	db.Exec(migrationSQL11)
+
+	migrationSQL12 := `
+	-- 檢查並添加 trend_type 欄位 (順勢/逆勢)
+	ALTER TABLE trades ADD COLUMN trend_type VARCHAR(20);
+	`
+	db.Exec(migrationSQL12)
+
 	return nil
 }
 

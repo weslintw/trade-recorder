@@ -21,7 +21,7 @@
     entry_strategy_image: '', // 進場種類圖片
     entry_signals: [], // 達人訊號（多選）
     entry_checklist: {}, // 菁英/傳奇檢查清單
-    trend_analysis: { // 當前趨勢
+    trend_analysis: { // 當前各時區趨勢
       M1: { direction: '', image: '' },
       M5: { direction: '', image: '' },
       M15: { direction: '', image: '' },
@@ -30,6 +30,8 @@
       H4: { direction: '', image: '' },
       D1: { direction: '', image: '' }
     },
+    entry_timeframe: '', // 進場時區
+    trend_type: '', // 順勢/逆勢
     market_session: '', // asian=亞盤, european=歐盤, us=美盤
     timezone_offset: new Date().getTimezoneOffset() / -60, // 預設系統時區
     entry_time: new Date().toISOString().slice(0, 16),
@@ -235,6 +237,8 @@
           H4: { direction: '', image: '' },
           D1: { direction: '', image: '' }
         },
+        entry_timeframe: response.data.entry_timeframe || '',
+        trend_type: response.data.trend_type || '',
         market_session: response.data.market_session || '',
         timezone_offset: response.data.timezone_offset !== null ? response.data.timezone_offset : new Date().getTimezoneOffset() / -60,
         entry_time: new Date(response.data.entry_time).toISOString().slice(0, 16),
@@ -347,6 +351,8 @@
         entry_checklist: JSON.stringify(formData.entry_checklist),
         trend_analysis: JSON.stringify(formData.trend_analysis),
         entry_strategy_image: formData.entry_strategy_image,
+        entry_timeframe: formData.entry_timeframe,
+        trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
         exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null
       };
@@ -625,9 +631,9 @@
       {/if}
     </div>
 
-    <!-- 當前趨勢 -->
+    <!-- 當前各時區趨勢 -->
     <div class="form-group trend-analysis-section">
-      <label class="trend-label">📊 當前趨勢</label>
+      <label class="trend-label">📊 當前各時區趨勢</label>
       <div class="trend-grid">
         {#each ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'] as timeframe}
           <div 
@@ -690,6 +696,32 @@
             {/if}
           </div>
         {/each}
+      </div>
+    </div>
+
+    <!-- 進場時區和趨勢類型 -->
+    <div class="form-row">
+      <div class="form-group">
+        <label for="entry_timeframe">🕒 進場時區</label>
+        <select id="entry_timeframe" class="form-control" bind:value={formData.entry_timeframe}>
+          <option value="">請選擇</option>
+          <option value="M1">M1</option>
+          <option value="M5">M5</option>
+          <option value="M15">M15</option>
+          <option value="M30">M30</option>
+          <option value="H1">H1</option>
+          <option value="H4">H4</option>
+          <option value="D1">D1</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="trend_type">📈 趨勢類型</label>
+        <select id="trend_type" class="form-control" bind:value={formData.trend_type}>
+          <option value="">請選擇</option>
+          <option value="with_trend">順勢</option>
+          <option value="against_trend">逆勢</option>
+        </select>
       </div>
     </div>
 

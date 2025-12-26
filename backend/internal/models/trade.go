@@ -21,6 +21,8 @@ type Trade struct {
 	EntrySignals   *string    `json:"entry_signals,omitempty"`   // JSON array of selected signals
 	EntryChecklist *string    `json:"entry_checklist,omitempty"` // JSON object of checklist items
 	TrendAnalysis  *string    `json:"trend_analysis,omitempty"`  // JSON object of trend per timeframe
+	EntryTimeframe *string    `json:"entry_timeframe,omitempty"` // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
+	TrendType      *string    `json:"trend_type,omitempty"`      // "with_trend"=順勢, "against_trend"=逆勢
 	MarketSession  *string    `json:"market_session,omitempty"`  // "asian"=亞盤, "european"=歐盤, "us"=美盤
 	TimezoneOffset *int       `json:"timezone_offset,omitempty"` // UTC 偏移，如 8 表示 UTC+8
 	EntryTime      time.Time  `json:"entry_time"`
@@ -65,6 +67,8 @@ type TradeCreate struct {
 	EntrySignals   string    `json:"entry_signals"`  // JSON array
 	EntryChecklist string    `json:"entry_checklist"` // JSON object
 	TrendAnalysis  string    `json:"trend_analysis"`  // JSON object
+	EntryTimeframe string    `json:"entry_timeframe"` // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
+	TrendType      string    `json:"trend_type"`      // "with_trend", "against_trend"
 	MarketSession  string    `json:"market_session"`  // "asian", "european", "us"
 	TimezoneOffset int       `json:"timezone_offset"` // UTC 偏移
 	EntryTime      time.Time `json:"entry_time" binding:"required"`
