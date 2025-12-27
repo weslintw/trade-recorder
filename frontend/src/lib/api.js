@@ -44,5 +44,14 @@ export const tagsAPI = {
   getAll: () => api.get('/tags'),
 };
 
+// 每日盤面規劃相關
+export const dailyPlansAPI = {
+  getAll: (params) => api.get('/daily-plans', { params }),
+  getOne: (id) => api.get(`/daily-plans/${id}`),
+  create: (data) => api.post('/daily-plans', data),
+  update: (id, data) => api.put(`/daily-plans/${id}`, data),
+  delete: (id) => api.delete(`/daily-plans/${id}`),
+};
+
 export default api;
 

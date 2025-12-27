@@ -164,6 +164,12 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL12)
 
+	migrationSQL13 := `
+	-- 檢查並添加 entry_pattern 欄位 (進場樣態，僅菁英使用)
+	ALTER TABLE trades ADD COLUMN entry_pattern VARCHAR(20);
+	`
+	db.Exec(migrationSQL13)
+
 	return nil
 }
 

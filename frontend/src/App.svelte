@@ -3,6 +3,8 @@
   import TradeForm from './components/TradeForm.svelte';
   import TradeList from './components/TradeList.svelte';
   import Dashboard from './components/Dashboard.svelte';
+  import DailyPlanList from './components/DailyPlanList.svelte';
+  import DailyPlanForm from './components/DailyPlanForm.svelte';
 
   let activeNav = 'list';
 </script>
@@ -17,6 +19,9 @@
         <Link to="/" class={activeNav === 'list' ? 'active' : ''} on:click={() => activeNav = 'list'}>
           📋 交易紀錄
         </Link>
+        <Link to="/plans" class={activeNav === 'plans' ? 'active' : ''} on:click={() => activeNav = 'plans'}>
+          📅 每日規劃
+        </Link>
         <Link to="/new" class={activeNav === 'new' ? 'active' : ''} on:click={() => activeNav = 'new'}>
           ➕ 新增交易
         </Link>
@@ -28,6 +33,9 @@
 
     <main class="container">
       <Route path="/" component={TradeList} />
+      <Route path="/plans" component={DailyPlanList} />
+      <Route path="/plans/new" component={DailyPlanForm} />
+      <Route path="/plans/edit/:id" component={DailyPlanForm} />
       <Route path="/new" component={TradeForm} />
       <Route path="/edit/:id" component={TradeForm} />
       <Route path="/dashboard" component={Dashboard} />

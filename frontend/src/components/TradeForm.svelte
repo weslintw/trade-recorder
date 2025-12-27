@@ -2,6 +2,7 @@
   import { navigate } from 'svelte-routing';
   import { tradesAPI } from '../lib/api';
   import RichTextEditor from './RichTextEditor.svelte';
+  import ImageAnnotator from './ImageAnnotator.svelte';
 
   export let id = null;
 
@@ -18,17 +19,17 @@
     entry_reason: '',
     exit_reason: '',
     entry_strategy: '', // expert=達人, elite=菁英, legend=傳奇
-    entry_strategy_image: '', // 進場種類圖片
-    entry_signals: [], // 達人訊號（多選）
+    entry_signals: [], // 達人訊號（多選），格式：[{name: "訊號名稱", image: "base64圖片", originalImage: "base64原始圖片"}]
     entry_checklist: {}, // 菁英/傳奇檢查清單
+    entry_pattern: '', // 進場樣態（僅菁英使用）
     trend_analysis: { // 當前各時區趨勢
-      M1: { direction: '', image: '' },
-      M5: { direction: '', image: '' },
-      M15: { direction: '', image: '' },
-      M30: { direction: '', image: '' },
-      H1: { direction: '', image: '' },
-      H4: { direction: '', image: '' },
-      D1: { direction: '', image: '' }
+      M1: { direction: '', image: '', originalImage: '' },
+      M5: { direction: '', image: '', originalImage: '' },
+      M15: { direction: '', image: '', originalImage: '' },
+      M30: { direction: '', image: '', originalImage: '' },
+      H1: { direction: '', image: '', originalImage: '' },
+      H4: { direction: '', image: '', originalImage: '' },
+      D1: { direction: '', image: '', originalImage: '' }
     },
     entry_timeframe: '', // 進場時區
     trend_type: '', // 順勢/逆勢
@@ -61,6 +62,9 @@
   
   // 根據方向選擇對應的訊號列表
   $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
+
+  // 訊號圖片緩存（保留所有訊號的圖片，即使取消勾選）
+  let signalImagesCache = {}; // { signalName: { image: '...', originalImage: '...' } }
   
   // 菁英/傳奇檢查清單
   const eliteChecklist = [
@@ -70,6 +74,9 @@
     { id: 'high_low', label: '不過高低了嗎?' },
     { id: 'sentiment', label: '情緒轉換了嗎?' }
   ];
+
+  // 進場樣態選項（僅菁英使用）
+  const entryPatterns = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
 
   // 時區選項 (UTC-12 到 UTC+14)
   const timezoneOptions = [];
@@ -209,6 +216,8 @@
   // 圖片放大查看
   let enlargedImage = null;
   let enlargedImageTitle = '';
+  let enlargedImageContext = null; // 記錄圖片來源上下文：{type: 'signal'|'trend', key: string}
+  let showAnnotator = false;
 
   const symbols = ['XAUUSD', 'NAS100', 'US30', 'EURUSD', 'GBPUSD', 'USDJPY'];
 
@@ -225,9 +234,16 @@
         exit_reason: response.data.exit_reason || '',
         notes: response.data.notes || '',
         entry_strategy: response.data.entry_strategy || '',
-        entry_strategy_image: response.data.entry_strategy_image || '',
-        entry_signals: response.data.entry_signals ? JSON.parse(response.data.entry_signals) : [],
+        entry_signals: response.data.entry_signals ? (() => {
+          const parsed = JSON.parse(response.data.entry_signals);
+          // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
+          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+            return parsed.map(name => ({ name, image: '' }));
+          }
+          return parsed;
+        })() : [],
         entry_checklist: response.data.entry_checklist ? JSON.parse(response.data.entry_checklist) : {},
+        entry_pattern: response.data.entry_pattern || '',
         trend_analysis: response.data.trend_analysis ? JSON.parse(response.data.trend_analysis) : {
           M1: { direction: '', image: '' },
           M5: { direction: '', image: '' },
@@ -245,6 +261,18 @@
         exit_time: response.data.exit_time ? new Date(response.data.exit_time).toISOString().slice(0, 16) : '',
         tags: response.data.tags?.map(t => t.name) || [],
       };
+      
+      // 初始化緩存：將已載入的訊號圖片也加入緩存
+      if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
+        formData.entry_signals.forEach(signal => {
+          if (signal.name && (signal.image || signal.originalImage)) {
+            signalImagesCache[signal.name] = {
+              image: signal.image || '',
+              originalImage: signal.originalImage || ''
+            };
+          }
+        });
+      }
     } catch (error) {
       console.error('載入交易失敗:', error);
       alert('載入交易資料失敗');
@@ -271,6 +299,124 @@
     }
   }
 
+  // 取得或建立訊號物件
+  function getSignalObject(signalName) {
+    const existing = formData.entry_signals.find(s => 
+      typeof s === 'string' ? s === signalName : s.name === signalName
+    );
+    if (existing) {
+      // 如果是舊格式（字串），轉換成物件
+      if (typeof existing === 'string') {
+        return { name: signalName, image: '' };
+      }
+      return existing;
+    }
+    return { name: signalName, image: '' };
+  }
+
+  // 檢查訊號是否被選中
+  function isSignalSelected(signalName) {
+    return formData.entry_signals.some(s => 
+      typeof s === 'string' ? s === signalName : s.name === signalName
+    );
+  }
+
+  // 切換訊號選擇
+  function toggleSignal(signalName) {
+    const index = formData.entry_signals.findIndex(s => 
+      typeof s === 'string' ? s === signalName : s.name === signalName
+    );
+    
+    if (index >= 0) {
+      // 取消選擇：將圖片保存到緩存，然後從 entry_signals 移除
+      const signal = formData.entry_signals[index];
+      if (signal.image || signal.originalImage) {
+        signalImagesCache[signalName] = {
+          image: signal.image || '',
+          originalImage: signal.originalImage || ''
+        };
+      }
+      formData.entry_signals = formData.entry_signals.filter((_, i) => i !== index);
+    } else {
+      // 新增選擇：如果緩存中有圖片，則使用緩存的圖片
+      const cachedImages = signalImagesCache[signalName];
+      if (cachedImages) {
+        formData.entry_signals = [...formData.entry_signals, { 
+          name: signalName, 
+          image: cachedImages.image, 
+          originalImage: cachedImages.originalImage 
+        }];
+      } else {
+        formData.entry_signals = [...formData.entry_signals, { 
+          name: signalName, 
+          image: '', 
+          originalImage: '' 
+        }];
+      }
+    }
+    formData = formData; // 觸發更新
+  }
+
+  // 處理訊號卡片圖片貼上
+  function handleSignalImagePaste(event, signalName) {
+    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    
+    for (let item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        event.preventDefault();
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+          const index = formData.entry_signals.findIndex(s => 
+            typeof s === 'string' ? s === signalName : s.name === signalName
+          );
+          
+          if (index >= 0) {
+            // 更新現有訊號的圖片（第一次上傳時同時設置 image 和 originalImage）
+            const signal = typeof formData.entry_signals[index] === 'string' 
+              ? { name: signalName, image: e.target.result, originalImage: e.target.result }
+              : { ...formData.entry_signals[index], image: e.target.result, originalImage: formData.entry_signals[index].originalImage || e.target.result };
+            formData.entry_signals[index] = signal;
+          } else {
+            // 如果訊號還沒被選中，先選中它
+            formData.entry_signals = [...formData.entry_signals, { name: signalName, image: e.target.result, originalImage: e.target.result }];
+          }
+          formData = formData; // 觸發更新
+        };
+        
+        reader.readAsDataURL(file);
+        break;
+      }
+    }
+  }
+
+  // 移除訊號圖片
+  function removeSignalImage(signalName) {
+    const index = formData.entry_signals.findIndex(s => 
+      typeof s === 'string' ? s === signalName : s.name === signalName
+    );
+    
+    if (index >= 0) {
+      const signal = typeof formData.entry_signals[index] === 'string'
+        ? { name: signalName, image: '', originalImage: '' }
+        : { ...formData.entry_signals[index], image: '', originalImage: '' };
+      formData.entry_signals[index] = signal;
+      formData = formData; // 觸發更新
+    }
+  }
+
+  // 取得訊號圖片
+  function getSignalImage(signalName) {
+    const signal = formData.entry_signals.find(s => 
+      typeof s === 'string' ? s === signalName : s.name === signalName
+    );
+    if (signal && typeof signal === 'object' && signal.image) {
+      return signal.image;
+    }
+    return '';
+  }
+
   // 處理趨勢圖片貼上
   function handleTrendImagePaste(event, timeframe) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
@@ -282,7 +428,11 @@
         const reader = new FileReader();
         
         reader.onload = (e) => {
+          // 第一次上傳時同時設置 image 和 originalImage
           formData.trend_analysis[timeframe].image = e.target.result;
+          if (!formData.trend_analysis[timeframe].originalImage) {
+            formData.trend_analysis[timeframe].originalImage = e.target.result;
+          }
           formData = formData; // 觸發更新
         };
         
@@ -295,51 +445,98 @@
   // 移除趨勢圖片
   function removeTrendImage(timeframe) {
     formData.trend_analysis[timeframe].image = '';
+    formData.trend_analysis[timeframe].originalImage = '';
     formData = formData;
   }
 
-  // 處理進場種類圖片貼上
-  function handleStrategyImagePaste(event) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+
+  // 放大查看圖片
+  let enlargedOriginalImage = null; // 保存當前放大圖片的原始版本
+
+  function enlargeImage(imageSrc, title, context = null) {
+    if (!imageSrc) return;
+    enlargedImage = imageSrc;
+    enlargedImageTitle = title;
+    enlargedImageContext = context;
+    showAnnotator = false; // 預設不顯示標註工具
     
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-          formData.entry_strategy_image = e.target.result;
-          formData = formData;
-        };
-        
-        reader.readAsDataURL(file);
-        break;
+    // 獲取原始圖片
+    if (context) {
+      const { type, key } = context;
+      if (type === 'signal') {
+        const signal = formData.entry_signals.find(s => 
+          typeof s === 'string' ? s === key : s.name === key
+        );
+        enlargedOriginalImage = signal?.originalImage || imageSrc;
+      } else if (type === 'trend') {
+        enlargedOriginalImage = formData.trend_analysis[key]?.originalImage || imageSrc;
       }
+    } else {
+      enlargedOriginalImage = imageSrc;
     }
   }
 
-  // 移除進場種類圖片
-  function removeStrategyImage() {
-    formData.entry_strategy_image = '';
-    formData = formData;
+  // 切換標註工具顯示
+  function toggleAnnotator() {
+    showAnnotator = !showAnnotator;
   }
 
-  // 放大查看圖片
-  function enlargeImage(imageSrc, title) {
-    enlargedImage = imageSrc;
-    enlargedImageTitle = title;
+  // 處理標註後的圖片保存
+  function handleAnnotatedImage(annotatedImageSrc) {
+    if (!enlargedImageContext) {
+      // 如果沒有上下文，只更新顯示的圖片
+      enlargedImage = annotatedImageSrc;
+      return;
+    }
+
+    const { type, key } = enlargedImageContext;
+
+    if (type === 'signal') {
+      // 更新訊號圖片（只更新 image，保持 originalImage 不變）
+      const index = formData.entry_signals.findIndex(s => 
+        typeof s === 'string' ? s === key : s.name === key
+      );
+      
+      if (index >= 0) {
+        const currentSignal = formData.entry_signals[index];
+        const signal = typeof currentSignal === 'string'
+          ? { name: key, image: annotatedImageSrc, originalImage: annotatedImageSrc }
+          : { ...currentSignal, image: annotatedImageSrc };
+        formData.entry_signals[index] = signal;
+        formData = formData;
+      }
+    } else if (type === 'trend') {
+      // 更新趨勢圖片（只更新 image，保持 originalImage 不變）
+      if (formData.trend_analysis[key]) {
+        formData.trend_analysis[key] = {
+          ...formData.trend_analysis[key],
+          image: annotatedImageSrc
+        };
+        formData = formData;
+      }
+    }
+
+    // 更新顯示的圖片
+    enlargedImage = annotatedImageSrc;
+    showAnnotator = false; // 保存後隱藏標註工具
   }
 
   // 關閉放大圖片
   function closeEnlargedImage() {
     enlargedImage = null;
     enlargedImageTitle = '';
+    enlargedImageContext = null;
+    showAnnotator = false;
   }
 
   async function handleSubmit() {
     try {
       saving = true;
+
+      // 確保 entry_signals 格式正確（轉換成物件陣列）
+      const normalizedSignals = formData.entry_signals.map(s => 
+        typeof s === 'string' ? { name: s, image: '' } : s
+      );
 
       // 從富文本編輯器取得內容
       const submitData = {
@@ -347,10 +544,10 @@
         entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
         exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
         notes: notesEditor ? notesEditor.getContent() : formData.notes,
-        entry_signals: JSON.stringify(formData.entry_signals),
+        entry_signals: JSON.stringify(normalizedSignals),
         entry_checklist: JSON.stringify(formData.entry_checklist),
         trend_analysis: JSON.stringify(formData.trend_analysis),
-        entry_strategy_image: formData.entry_strategy_image,
+        entry_strategy_image: '', // 不再使用，保留空字串以相容後端
         entry_timeframe: formData.entry_timeframe,
         trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
@@ -527,17 +724,7 @@
     </div>
 
     <!-- 進場種類選擇 -->
-    <div 
-      class="form-group entry-strategy-section"
-      tabindex="0"
-      on:paste={handleStrategyImagePaste}
-      on:click={(e) => {
-        // 如果點擊的不是 radio 按鈕或圖片相關元素，聚焦以便貼上
-        if (!e.target.closest('.strategy-options') && !e.target.closest('.strategy-image-preview')) {
-          e.currentTarget.focus();
-        }
-      }}
-    >
+    <div class="form-group entry-strategy-section">
       <label class="strategy-label">🎯 進場種類</label>
       <div class="strategy-options">
         <label class="strategy-option" class:active={formData.entry_strategy === 'expert'}>
@@ -554,53 +741,70 @@
         </label>
       </div>
 
-      <!-- 進場種類圖片預覽 -->
-      {#if formData.entry_strategy_image}
-        <div class="strategy-image-preview">
-          <img 
-            src={formData.entry_strategy_image} 
-            alt="進場種類圖"
-            on:click={(e) => {
-              e.stopPropagation();
-              enlargeImage(formData.entry_strategy_image, '進場種類圖');
-            }}
-            style="cursor: zoom-in;"
-          />
-          <button 
-            type="button" 
-            class="remove-strategy-image"
-            on:click={(e) => {
-              e.stopPropagation();
-              removeStrategyImage();
-            }}
-            title="移除圖片"
-          >
-            ×
-          </button>
-        </div>
-      {/if}
-
-      <!-- 達人訊號（多選） -->
+      <!-- 達人訊號（卡片形式，可貼圖） -->
       {#if formData.entry_strategy === 'expert'}
         <div class="signals-section">
           <label class="signals-label">選擇訊號（可多選）：</label>
-          <div class="signals-grid">
+          <div class="signals-card-grid">
             {#each expertSignals as signal}
-              <label class="checkbox-item">
-                <input 
-                  type="checkbox" 
-                  value={signal}
-                  checked={formData.entry_signals.includes(signal)}
-                  on:change={(e) => {
-                    if (e.target.checked) {
-                      formData.entry_signals = [...formData.entry_signals, signal];
-                    } else {
-                      formData.entry_signals = formData.entry_signals.filter(s => s !== signal);
-                    }
-                  }}
-                />
-                <span class="checkbox-label">{signal}</span>
-              </label>
+              {@const isSelected = isSignalSelected(signal)}
+              {@const signalImage = getSignalImage(signal)}
+              <div 
+                class="signal-card"
+                class:selected={isSelected}
+                tabindex="0"
+                on:paste={(e) => handleSignalImagePaste(e, signal)}
+                on:click={(e) => {
+                  // 如果點擊的是 checkbox 或圖片相關元素，不處理
+                  if (!e.target.closest('.signal-checkbox') && !e.target.closest('.signal-image-preview')) {
+                    toggleSignal(signal);
+                  }
+                }}
+              >
+                <label class="signal-checkbox-wrapper">
+                  <input 
+                    type="checkbox" 
+                    class="signal-checkbox"
+                    checked={isSelected}
+                    on:change={() => toggleSignal(signal)}
+                    on:click|stopPropagation
+                  />
+                  <span class="signal-name">{signal}</span>
+                </label>
+                
+                {#if isSelected}
+                  {#if signalImage}
+                    <div 
+                      class="signal-image-preview"
+                      on:click={(e) => {
+                        e.stopPropagation();
+                        enlargeImage(signalImage, signal + ' 圖', { type: 'signal', key: signal });
+                      }}
+                    >
+                      <img 
+                        src={signalImage} 
+                        alt="{signal} 圖"
+                        style="cursor: zoom-in; pointer-events: none;"
+                      />
+                      <button 
+                        type="button" 
+                        class="remove-signal-image"
+                        on:click={(e) => {
+                          e.stopPropagation();
+                          removeSignalImage(signal);
+                        }}
+                        title="移除圖片"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="signal-image-placeholder">
+                      <span class="placeholder-text">點擊此處或按 Ctrl+V 貼上圖片</span>
+                    </div>
+                  {/if}
+                {/if}
+              </div>
             {/each}
           </div>
         </div>
@@ -624,6 +828,25 @@
                   }}
                 />
                 <span class="checkbox-label">{item.label}</span>
+              </label>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <!-- 進場樣態（僅菁英使用） -->
+      {#if formData.entry_strategy === 'elite'}
+        <div class="entry-pattern-section">
+          <label class="entry-pattern-label">進場樣態：</label>
+          <div class="entry-pattern-options">
+            {#each entryPatterns as pattern}
+              <label class="pattern-option" class:active={formData.entry_pattern === pattern}>
+                <input 
+                  type="radio" 
+                  bind:group={formData.entry_pattern} 
+                  value={pattern}
+                />
+                <span class="pattern-name">{pattern}</span>
               </label>
             {/each}
           </div>
@@ -671,15 +894,17 @@
             
             <!-- 顯示已貼上的圖片 -->
             {#if formData.trend_analysis[timeframe].image}
-              <div class="trend-image-preview">
+              <div 
+                class="trend-image-preview"
+                on:click={(e) => {
+                  e.stopPropagation();
+                  enlargeImage(formData.trend_analysis[timeframe].image, timeframe + ' 趨勢圖', { type: 'trend', key: timeframe });
+                }}
+              >
                 <img 
                   src={formData.trend_analysis[timeframe].image} 
                   alt="{timeframe} 趨勢圖"
-                  on:click={(e) => {
-                    e.stopPropagation();
-                    enlargeImage(formData.trend_analysis[timeframe].image, timeframe + ' 趨勢圖');
-                  }}
-                  style="cursor: zoom-in;"
+                  style="cursor: zoom-in; pointer-events: none;"
                 />
                 <button 
                   type="button" 
@@ -786,9 +1011,33 @@
 {#if enlargedImage}
   <div class="image-modal" on:click={closeEnlargedImage}>
     <div class="image-modal-content" on:click={(e) => e.stopPropagation()}>
-      <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
-      <h3 class="image-modal-title">{enlargedImageTitle}</h3>
-      <img src={enlargedImage} alt={enlargedImageTitle} class="image-modal-img" />
+      <div class="image-modal-header">
+        <h3 class="image-modal-title">{enlargedImageTitle}</h3>
+        <div class="image-modal-actions">
+          <button 
+            class="annotator-toggle-btn" 
+            class:active={showAnnotator}
+            on:click={(e) => {
+              e.stopPropagation();
+              toggleAnnotator();
+            }}
+            title="標註工具"
+          >
+            {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
+          </button>
+          <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+        </div>
+      </div>
+      
+      {#if showAnnotator}
+        <ImageAnnotator 
+          imageSrc={enlargedImage} 
+          originalImageSrc={enlargedOriginalImage}
+          onSave={handleAnnotatedImage}
+        />
+      {:else}
+        <img src={enlargedImage} alt={enlargedImageTitle} class="image-modal-img" />
+      {/if}
     </div>
   </div>
 {/if}
@@ -892,19 +1141,6 @@
     background: #f7fafc;
     border-radius: 12px;
     border: 2px solid #e2e8f0;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-  }
-
-  .entry-strategy-section:hover {
-    border-color: #667eea;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .entry-strategy-section:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
   .strategy-label {
@@ -958,48 +1194,6 @@
     color: #667eea;
   }
 
-  /* 進場種類圖片預覽 */
-  .strategy-image-preview {
-    position: relative;
-    margin-top: 1rem;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-  }
-
-  .strategy-image-preview img {
-    width: 100%;
-    height: auto;
-    display: block;
-    max-height: 300px;
-    object-fit: contain;
-    background: white;
-  }
-
-  .remove-strategy-image {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 28px;
-    height: 28px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.3rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    padding: 0;
-  }
-
-  .remove-strategy-image:hover {
-    background: rgba(239, 68, 68, 0.9);
-    transform: scale(1.1);
-  }
 
   /* 訊號和檢查清單 */
   .signals-section,
@@ -1020,10 +1214,132 @@
     margin-bottom: 0.75rem;
   }
 
-  .signals-grid {
+  /* 訊號卡片網格 */
+  .signals-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  /* 訊號卡片 */
+  .signal-card {
+    background: white;
+    border: 2px solid #cbd5e0;
+    border-radius: 12px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+    display: flex;
+    flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .signal-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    transform: translateY(-2px);
+  }
+
+  .signal-card:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  .signal-card.selected {
+    border-color: #667eea;
+    background: #edf2f7;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  .signal-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .signal-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #667eea;
+  }
+
+  .signal-name {
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 0.95rem;
+  }
+
+  .signal-card.selected .signal-name {
+    color: #667eea;
+  }
+
+  /* 訊號圖片預覽 */
+  .signal-image-preview {
+    position: relative;
+    margin-top: 0.5rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .signal-image-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-height: 200px;
+    object-fit: contain;
+    background: white;
+  }
+
+  .remove-signal-image {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+
+  .remove-signal-image:hover {
+    background: rgba(239, 68, 68, 0.9);
+    transform: scale(1.1);
+  }
+
+  /* 訊號圖片佔位符 */
+  .signal-image-placeholder {
+    margin-top: 0.5rem;
+    padding: 2rem 1rem;
+    border: 2px dashed #cbd5e0;
+    border-radius: 8px;
+    text-align: center;
+    background: #f7fafc;
+    transition: all 0.2s ease;
+  }
+
+  .signal-card:hover .signal-image-placeholder {
+    border-color: #667eea;
+    background: #edf2f7;
+  }
+
+  .placeholder-text {
+    font-size: 0.85rem;
+    color: #718096;
+    display: block;
   }
 
   .checklist-items {
@@ -1057,6 +1373,65 @@
     font-size: 0.9rem;
     color: #2d3748;
     user-select: none;
+  }
+
+  /* 進場樣態 */
+  .entry-pattern-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .entry-pattern-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
+  }
+
+  .entry-pattern-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .pattern-option {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border: 2px solid #cbd5e0;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+  }
+
+  .pattern-option:hover {
+    border-color: #667eea;
+    background: #f7fafc;
+  }
+
+  .pattern-option.active {
+    border-color: #667eea;
+    background: #667eea;
+  }
+
+  .pattern-option input[type="radio"] {
+    display: none;
+  }
+
+  .pattern-name {
+    font-size: 0.9rem;
+    color: #2d3748;
+    font-weight: 500;
+  }
+
+  .pattern-option.active .pattern-name {
+    color: white;
   }
 
   /* 市場時段顯示 */
@@ -1224,6 +1599,7 @@
     border-radius: 6px;
     overflow: hidden;
     border: 1px solid #e2e8f0;
+    cursor: zoom-in;
   }
 
   .trend-image-preview img {
@@ -1291,11 +1667,48 @@
     max-height: 90vh;
     background: white;
     border-radius: 12px;
-    padding: 2rem;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
     animation: slideIn 0.3s ease-out;
+    overflow: hidden;
+  }
+
+  .image-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f7fafc;
+  }
+
+  .image-modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .annotator-toggle-btn {
+    padding: 0.5rem 1rem;
+    border: 2px solid #cbd5e0;
+    border-radius: 6px;
+    background: white;
+    color: #4a5568;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+  }
+
+  .annotator-toggle-btn:hover {
+    border-color: #667eea;
+    background: #edf2f7;
+  }
+
+  .annotator-toggle-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
   }
 
   @keyframes slideIn {
@@ -1310,9 +1723,6 @@
   }
 
   .image-modal-close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
     width: 36px;
     height: 36px;
     background: rgba(0, 0, 0, 0.7);
@@ -1327,7 +1737,6 @@
     justify-content: center;
     transition: all 0.2s ease;
     padding: 0;
-    z-index: 1;
   }
 
   .image-modal-close:hover {
@@ -1340,14 +1749,19 @@
     font-weight: 600;
     color: #2d3748;
     margin: 0;
-    padding-right: 3rem;
   }
 
   .image-modal-img {
     max-width: 100%;
     max-height: calc(90vh - 8rem);
     object-fit: contain;
-    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .image-modal-content :global(.annotator-container) {
+    padding: 1rem;
+    max-height: calc(90vh - 6rem);
+    overflow: auto;
   }
 
   .tag-input-wrapper {

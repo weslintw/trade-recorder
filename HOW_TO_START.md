@@ -1,5 +1,33 @@
 # 🎉 啟動指南
 
+## ⚠️ PowerShell 執行原則問題解決方案
+
+如果您遇到「因為這個系統上已停用指令碼執行」的錯誤，請使用以下任一方法：
+
+### 方法 A：使用批次檔（最簡單）✅
+直接雙擊或執行：
+```cmd
+start.bat
+```
+
+### 方法 B：使用 PowerShell 命令
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+### 方法 C：暫時改變執行原則（僅當前會話）
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\start.ps1
+```
+
+### 方法 D：永久改變執行原則（需要管理員權限）
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+---
+
 ## ✅ 當前狀態
 
 ### 後端

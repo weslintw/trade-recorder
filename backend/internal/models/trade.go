@@ -20,6 +20,7 @@ type Trade struct {
 	EntryStrategyImage *string `json:"entry_strategy_image,omitempty"` // 進場種類圖片(Base64)
 	EntrySignals   *string    `json:"entry_signals,omitempty"`   // JSON array of selected signals
 	EntryChecklist *string    `json:"entry_checklist,omitempty"` // JSON object of checklist items
+	EntryPattern   *string    `json:"entry_pattern,omitempty"`   // 進場樣態（僅菁英使用）
 	TrendAnalysis  *string    `json:"trend_analysis,omitempty"`  // JSON object of trend per timeframe
 	EntryTimeframe *string    `json:"entry_timeframe,omitempty"` // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
 	TrendType      *string    `json:"trend_type,omitempty"`      // "with_trend"=順勢, "against_trend"=逆勢
@@ -66,6 +67,7 @@ type TradeCreate struct {
 	EntryStrategyImage string `json:"entry_strategy_image"` // 進場種類圖片(Base64)
 	EntrySignals   string    `json:"entry_signals"`  // JSON array
 	EntryChecklist string    `json:"entry_checklist"` // JSON object
+	EntryPattern   string    `json:"entry_pattern"`   // 進場樣態
 	TrendAnalysis  string    `json:"trend_analysis"`  // JSON object
 	EntryTimeframe string    `json:"entry_timeframe"` // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
 	TrendType      string    `json:"trend_type"`      // "with_trend", "against_trend"
