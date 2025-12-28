@@ -40,9 +40,9 @@ func createTables(db *sql.DB) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		symbol VARCHAR(20) NOT NULL,
 		side VARCHAR(10) NOT NULL,
-		entry_price REAL NOT NULL,
+		entry_price REAL,
 		exit_price REAL,
-		lot_size REAL NOT NULL,
+		lot_size REAL,
 		pnl REAL,
 		pnl_points REAL,
 		notes TEXT,
@@ -83,6 +83,17 @@ func createTables(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_trades_entry_time ON trades(entry_time);
 	CREATE INDEX IF NOT EXISTS idx_trade_images_trade_id ON trade_images(trade_id);
 	CREATE INDEX IF NOT EXISTS idx_trade_tags_trade_id ON trade_tags(trade_id);
+
+	CREATE TABLE IF NOT EXISTS daily_plans (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		plan_date DATETIME NOT NULL,
+		symbol VARCHAR(20) DEFAULT 'XAUUSD',
+		market_session VARCHAR(20),
+		notes TEXT,
+		trend_analysis TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 
 	_, err := db.Exec(schema)
@@ -170,6 +181,33 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL13)
 
+	migrationSQL14 := `
+	-- 檢查並添加 entry_strategy_image_original 欄位
+	ALTER TABLE trades ADD COLUMN entry_strategy_image_original TEXT;
+	`
+	db.Exec(migrationSQL14)
+
+	migrationSQL15 := `
+	-- 檢查並添加 symbol 欄位到 daily_plans
+	ALTER TABLE daily_plans ADD COLUMN symbol VARCHAR(20) DEFAULT 'XAUUSD';
+	`
+	db.Exec(migrationSQL15)
+
+	// 刪除重複的規劃，只保留最新更新的一筆，以便建立唯一索引
+	cleanupSQL := `
+	DELETE FROM daily_plans 
+	WHERE id NOT IN (
+		SELECT MAX(id) 
+		FROM daily_plans 
+		GROUP BY date(plan_date), symbol
+	);`
+	db.Exec(cleanupSQL)
+
+	// 最後才建立唯一索引，確保同品種同一天只能有一組規劃
+	dropIdxSQL := `DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`
+	db.Exec(dropIdxSQL)
+	idxSQL := `CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol);`
+	db.Exec(idxSQL)
+
 	return nil
 }
-

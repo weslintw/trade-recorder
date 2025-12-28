@@ -1,6 +1,8 @@
 <script>
   import { navigate } from 'svelte-routing';
-  import { tradesAPI } from '../lib/api';
+  import { onMount } from 'svelte';
+  import { tradesAPI, dailyPlansAPI } from '../lib/api';
+  import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
   import RichTextEditor from './RichTextEditor.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
@@ -8,7 +10,7 @@
 
   let formData = {
     trade_type: 'actual', // actual=有進單, observation=純觀察
-    symbol: 'XAUUSD',
+    symbol: SYMBOLS[0],
     side: 'long',
     entry_price: '',
     exit_price: '',
@@ -20,59 +22,41 @@
     exit_reason: '',
     entry_strategy: '', // expert=達人, elite=菁英, legend=傳奇
     entry_signals: [], // 達人訊號（多選），格式：[{name: "訊號名稱", image: "base64圖片", originalImage: "base64原始圖片"}]
-    entry_checklist: {}, // 菁英/傳奇檢查清單
-    entry_pattern: '', // 進場樣態（僅菁英使用）
-    trend_analysis: { // 當前各時區趨勢
-      M1: { direction: '', image: '', originalImage: '' },
-      M5: { direction: '', image: '', originalImage: '' },
-      M15: { direction: '', image: '', originalImage: '' },
-      M30: { direction: '', image: '', originalImage: '' },
-      H1: { direction: '', image: '', originalImage: '' },
-      H4: { direction: '', image: '', originalImage: '' },
-      D1: { direction: '', image: '', originalImage: '' }
-    },
+    entry_checklist: {}, // 菁英/傳傳奇檢查清單
+    entry_pattern: [], // 進場樣態（僅菁英使用），格式：[{name: "名稱", image: "base64", originalImage: "base64"}]
     entry_timeframe: '', // 進場時區
     trend_type: '', // 順勢/逆勢
     market_session: '', // asian=亞盤, european=歐盤, us=美盤
     timezone_offset: new Date().getTimezoneOffset() / -60, // 預設系統時區
     entry_time: new Date().toISOString().slice(0, 16),
     exit_time: '',
-    tags: []
+    tags: [],
+    entry_strategy_image: '', // 用於儲存菁英/傳奇的樣態圖或觀察圖
+    entry_strategy_image_original: '',
   };
 
   // 響應式：根據交易類型判斷是否顯示交易相關欄位
   $: isActualTrade = formData.trade_type === 'actual';
-  
+
   // 達人訊號選項 - 根據做多/做空顯示不同訊號
-  const expertSignalsLong = [
-    '向下蘇美',
-    '起漲靠山',
-    '雙柱',
-    '倚天',
-    '攻城池上'
-  ];
-  
-  const expertSignalsShort = [
-    '起跌靠山',
-    '君臨城下',
-    '雙塔',
-    '向上蘇美',
-    '雷霆'
-  ];
-  
+  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
+
+  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
+
   // 根據方向選擇對應的訊號列表
   $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
 
   // 訊號圖片緩存（保留所有訊號的圖片，即使取消勾選）
   let signalImagesCache = {}; // { signalName: { image: '...', originalImage: '...' } }
-  
+  let patternImagesCache = {}; // { patternName: { image: '...', originalImage: '...' } }
+
   // 菁英/傳奇檢查清單
   const eliteChecklist = [
     { id: 'trend_line', label: '破趨勢線了嗎?' },
     { id: 'price_level', label: '破價位了嗎?' },
     { id: 'impulse_wave', label: '有驅動浪了嗎?' },
     { id: 'high_low', label: '不過高低了嗎?' },
-    { id: 'sentiment', label: '情緒轉換了嗎?' }
+    { id: 'sentiment', label: '情緒轉換了嗎?' },
   ];
 
   // 進場樣態選項（僅菁英使用）
@@ -83,63 +67,63 @@
   for (let i = -12; i <= 14; i++) {
     timezoneOptions.push({
       value: i,
-      label: i >= 0 ? `UTC+${i}` : `UTC${i}`
+      label: i >= 0 ? `UTC+${i}` : `UTC${i}`,
     });
   }
 
   // 市場時段判別函數
   function determineMarketSession(entryTime, timezoneOffset) {
     if (!entryTime) return '';
-    
+
     const date = new Date(entryTime);
     const month = date.getMonth() + 1; // 1-12
-    
+
     // 判斷是否為夏令時間（3月-11月）
     const isDST = month >= 3 && month <= 11;
-    
+
     // 轉換為 UTC 時間
     const utcHour = date.getUTCHours();
     const utcMinute = date.getUTCMinutes();
-    
+
     // 轉換為 GMT+8（台北時間）用於判斷
     const gmt8Hour = (utcHour + 8 + 24) % 24;
     const timeInMinutes = gmt8Hour * 60 + utcMinute;
-    
+
     // 時間範圍定義（以 GMT+8 為基準，單位：分鐘）
     // 亞盤（東京）：08:00 - 15:00（全年不變）
-    const asianStart = 8 * 60;   // 08:00
-    const asianEnd = 15 * 60;    // 15:00
-    
+    const asianStart = 8 * 60; // 08:00
+    const asianEnd = 15 * 60; // 15:00
+
     // 歐盤（倫敦）
     let europeanStart, europeanEnd;
     if (isDST) {
       // 夏令時間：15:00 - 23:00
-      europeanStart = 15 * 60;   // 15:00
-      europeanEnd = 23 * 60;     // 23:00
+      europeanStart = 15 * 60; // 15:00
+      europeanEnd = 23 * 60; // 23:00
     } else {
       // 冬令時間：16:00 - 00:00
-      europeanStart = 16 * 60;   // 16:00
-      europeanEnd = 24 * 60;     // 00:00 (midnight)
+      europeanStart = 16 * 60; // 16:00
+      europeanEnd = 24 * 60; // 00:00 (midnight)
     }
-    
+
     // 美盤（紐約）
     let usStart, usEnd;
     if (isDST) {
       // 夏令時間：20:00 - 04:00（跨日）
-      usStart = 20 * 60;         // 20:00
-      usEnd = 4 * 60;            // 04:00
+      usStart = 20 * 60; // 20:00
+      usEnd = 4 * 60; // 04:00
     } else {
       // 冬令時間：21:00 - 05:00（跨日）
-      usStart = 21 * 60;         // 21:00
-      usEnd = 5 * 60;            // 05:00
+      usStart = 21 * 60; // 21:00
+      usEnd = 5 * 60; // 05:00
     }
-    
+
     // 判斷市場時段
     // 亞盤：08:00 - 15:00
     if (timeInMinutes >= asianStart && timeInMinutes < asianEnd) {
       return 'asian';
     }
-    
+
     // 歐盤
     if (isDST) {
       // 夏令時間：15:00 - 23:00
@@ -152,39 +136,82 @@
         return 'european';
       }
     }
-    
+
     // 美盤（處理跨日情況）
     if (timeInMinutes >= usStart || timeInMinutes < usEnd) {
       return 'us';
     }
-    
+
     // 其他時間（間隙）預設為亞盤
     return 'asian';
+  }
+
+  // 取得交易日（處理美盤跨日：凌晨的時間算前一天的交易日）
+  function getTradingDate(entryTime) {
+    if (!entryTime) return '';
+    const date = new Date(entryTime);
+
+    // 轉換為 GMT+8 用於判斷
+    const utcHour = date.getUTCHours();
+    const gmt8Hour = (utcHour + 8 + 24) % 24;
+
+    // 如果是凌晨 00:00 - 06:00 且不是亞盤時間，通常屬於前一天的美盤
+    // 這裡我們簡化處理：如果是 00:00 - 06:00，我們回傳前一天的日期字串
+    if (gmt8Hour >= 0 && gmt8Hour < 6) {
+      const prevDay = new Date(date);
+      prevDay.setDate(date.getDate() - 1);
+      return prevDay.toLocaleDateString('en-CA'); // YYYY-MM-DD
+    }
+
+    return date.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  }
+
+  // 盈虧點數自動計算
+  $: {
+    const { trade_type, entry_price, exit_price, symbol, side } = formData;
+    if (trade_type === 'actual' && entry_price && exit_price) {
+      const entry = parseFloat(entry_price);
+      const exit = parseFloat(exit_price);
+      if (!isNaN(entry) && !isNaN(exit)) {
+        let multiplier = 100; // 預設 (金子, 指數)
+        if (symbol === 'USDJPY') multiplier = 1000;
+        else if (symbol === 'EURUSD' || symbol === 'GBPUSD') multiplier = 100000;
+
+        const diff = exit - entry;
+        const result = Math.round(diff * (side === 'long' ? 1 : -1) * multiplier * 10) / 10;
+
+        if (formData.pnl_points !== result) {
+          formData.pnl_points = result;
+        }
+      }
+    }
   }
 
   // 監聽進場時間和時區變化，自動更新市場時段
   $: {
     if (formData.entry_time && formData.timezone_offset !== null) {
-      formData.market_session = determineMarketSession(formData.entry_time, formData.timezone_offset);
+      formData.market_session = determineMarketSession(
+        formData.entry_time,
+        formData.timezone_offset
+      );
     }
   }
 
   // 市場時段顯示名稱
-  const marketSessionNames = {
-    asian: '亞盤',
-    european: '歐盤',
-    us: '美盤'
-  };
+  const marketSessionNames = MARKET_SESSIONS.reduce((acc, current) => {
+    acc[current.value] = current.label;
+    return acc;
+  }, {});
 
   // 取得市場時段時間範圍文字
   function getMarketSessionTime(session) {
     if (!session || !formData.entry_time) return '';
-    
+
     const date = new Date(formData.entry_time);
     const month = date.getMonth() + 1;
     const isDST = month >= 3 && month <= 11;
-    
-    switch(session) {
+
+    switch (session) {
       case 'asian':
         return '08:00 - 15:00';
       case 'european':
@@ -205,6 +232,18 @@
     return isDST ? '夏令時間' : '冬令時間';
   }
 
+  // 格式化日期為本地 ISO 格式 (YYYY-MM-DDTHH:mm)
+  function formatToLocalISO(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
   let tagInput = '';
   let saving = false;
 
@@ -219,11 +258,67 @@
   let enlargedImageContext = null; // 記錄圖片來源上下文：{type: 'signal'|'trend', key: string}
   let showAnnotator = false;
 
-  const symbols = ['XAUUSD', 'NAS100', 'US30', 'EURUSD', 'GBPUSD', 'USDJPY'];
+  let allPlans = [];
 
-  if (id) {
-    loadTrade();
+  const symbols = SYMBOLS;
+
+  onMount(() => {
+    const params = new URLSearchParams(window.location.search);
+    const symbolParam = params.get('symbol');
+    if (symbolParam) formData.symbol = symbolParam;
+
+    if (id) {
+      loadTrade();
+    }
+    loadPlans();
+  });
+
+  async function loadPlans() {
+    try {
+      const response = await dailyPlansAPI.getAll({ page_size: 100 });
+      allPlans = response.data.data || [];
+    } catch (error) {
+      console.error('載入規劃失敗:', error);
+    }
   }
+
+  // 響應式：取得相匹配的每日規劃
+  $: matchedPlan = (() => {
+    if (!formData.entry_time || !formData.market_session || allPlans.length === 0) return null;
+
+    try {
+      const tradeDate = new Date(formData.entry_time).toISOString().slice(0, 10);
+      return allPlans.find(plan => {
+        const planDate = new Date(plan.plan_date).toISOString().slice(0, 10);
+        if (planDate !== tradeDate) return false;
+
+        // 同時匹配品種 (如果有 symbol 欄位的話，舊資料預設 XAUUSD)
+        const planSymbol = plan.symbol || SYMBOLS[0];
+        if (planSymbol !== formData.symbol) return false;
+
+        if (plan.market_session === 'all') {
+          // 新格式：檢查該時段在 JSON 中是否有任何趨勢或備註
+          try {
+            const trendData = JSON.parse(plan.trend_analysis || '{}');
+            const sessionData = trendData[formData.market_session];
+            // 如果該時段有備註或任何時區有方向，視為匹配
+            return (
+              sessionData &&
+              (sessionData.notes ||
+                (sessionData.trends && Object.values(sessionData.trends).some(t => t.direction)))
+            );
+          } catch (e) {
+            return false;
+          }
+        } else {
+          // 舊格式：直接匹配時段
+          return plan.market_session === formData.market_session;
+        }
+      });
+    } catch (e) {
+      return null;
+    }
+  })();
 
   async function loadTrade() {
     try {
@@ -234,41 +329,54 @@
         exit_reason: response.data.exit_reason || '',
         notes: response.data.notes || '',
         entry_strategy: response.data.entry_strategy || '',
-        entry_signals: response.data.entry_signals ? (() => {
-          const parsed = JSON.parse(response.data.entry_signals);
-          // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
-          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
-            return parsed.map(name => ({ name, image: '' }));
-          }
-          return parsed;
-        })() : [],
-        entry_checklist: response.data.entry_checklist ? JSON.parse(response.data.entry_checklist) : {},
+        entry_signals: response.data.entry_signals
+          ? (() => {
+              const parsed = JSON.parse(response.data.entry_signals);
+              // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
+              if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+                return parsed.map(name => ({ name, image: '' }));
+              }
+              return parsed;
+            })()
+          : [],
+        entry_checklist: response.data.entry_checklist
+          ? JSON.parse(response.data.entry_checklist)
+          : {},
         entry_pattern: response.data.entry_pattern || '',
-        trend_analysis: response.data.trend_analysis ? JSON.parse(response.data.trend_analysis) : {
-          M1: { direction: '', image: '' },
-          M5: { direction: '', image: '' },
-          M15: { direction: '', image: '' },
-          M30: { direction: '', image: '' },
-          H1: { direction: '', image: '' },
-          H4: { direction: '', image: '' },
-          D1: { direction: '', image: '' }
-        },
         entry_timeframe: response.data.entry_timeframe || '',
         trend_type: response.data.trend_type || '',
         market_session: response.data.market_session || '',
-        timezone_offset: response.data.timezone_offset !== null ? response.data.timezone_offset : new Date().getTimezoneOffset() / -60,
-        entry_time: new Date(response.data.entry_time).toISOString().slice(0, 16),
-        exit_time: response.data.exit_time ? new Date(response.data.exit_time).toISOString().slice(0, 16) : '',
+        timezone_offset:
+          response.data.timezone_offset !== null
+            ? response.data.timezone_offset
+            : new Date().getTimezoneOffset() / -60,
+        entry_time: formatToLocalISO(response.data.entry_time),
+        exit_time: response.data.exit_time ? formatToLocalISO(response.data.exit_time) : '',
+        entry_strategy_image: response.data.entry_strategy_image || '',
+        entry_strategy_image_original: response.data.entry_strategy_image_original || '',
+        entry_pattern: parseJSONSafe(response.data.entry_pattern, []),
         tags: response.data.tags?.map(t => t.name) || [],
       };
-      
+
       // 初始化緩存：將已載入的訊號圖片也加入緩存
       if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
         formData.entry_signals.forEach(signal => {
           if (signal.name && (signal.image || signal.originalImage)) {
             signalImagesCache[signal.name] = {
               image: signal.image || '',
-              originalImage: signal.originalImage || ''
+              originalImage: signal.originalImage || '',
+            };
+          }
+        });
+      }
+
+      // 初始化樣態緩存
+      if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
+        formData.entry_pattern.forEach(pattern => {
+          if (pattern.name && (pattern.image || pattern.originalImage)) {
+            patternImagesCache[pattern.name] = {
+              image: pattern.image || '',
+              originalImage: pattern.originalImage || '',
             };
           }
         });
@@ -301,7 +409,7 @@
 
   // 取得或建立訊號物件
   function getSignalObject(signalName) {
-    const existing = formData.entry_signals.find(s => 
+    const existing = formData.entry_signals.find(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
     if (existing) {
@@ -316,24 +424,33 @@
 
   // 檢查訊號是否被選中
   function isSignalSelected(signalName) {
-    return formData.entry_signals.some(s => 
+    return formData.entry_signals.some(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
   }
 
-  // 切換訊號選擇
+  function parseJSONSafe(str, defaultValue) {
+    if (!str) return defaultValue;
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      return defaultValue;
+    }
+  }
+
+  // 達人訊號相關功能
   function toggleSignal(signalName) {
-    const index = formData.entry_signals.findIndex(s => 
+    const index = formData.entry_signals.findIndex(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
-    
+
     if (index >= 0) {
       // 取消選擇：將圖片保存到緩存，然後從 entry_signals 移除
       const signal = formData.entry_signals[index];
       if (signal.image || signal.originalImage) {
         signalImagesCache[signalName] = {
           image: signal.image || '',
-          originalImage: signal.originalImage || ''
+          originalImage: signal.originalImage || '',
         };
       }
       formData.entry_signals = formData.entry_signals.filter((_, i) => i !== index);
@@ -341,50 +458,92 @@
       // 新增選擇：如果緩存中有圖片，則使用緩存的圖片
       const cachedImages = signalImagesCache[signalName];
       if (cachedImages) {
-        formData.entry_signals = [...formData.entry_signals, { 
-          name: signalName, 
-          image: cachedImages.image, 
-          originalImage: cachedImages.originalImage 
-        }];
+        formData.entry_signals = [
+          ...formData.entry_signals,
+          {
+            name: signalName,
+            image: cachedImages.image,
+            originalImage: cachedImages.originalImage,
+          },
+        ];
       } else {
-        formData.entry_signals = [...formData.entry_signals, { 
-          name: signalName, 
-          image: '', 
-          originalImage: '' 
-        }];
+        formData.entry_signals = [
+          ...formData.entry_signals,
+          {
+            name: signalName,
+            image: '',
+            originalImage: '',
+          },
+        ];
       }
     }
     formData = formData; // 觸發更新
   }
 
+  function togglePattern(patternName) {
+    const index = formData.entry_pattern.findIndex(p => p.name === patternName);
+
+    if (index >= 0) {
+      // 取消選擇：保存到緩存
+      const pattern = formData.entry_pattern[index];
+      if (pattern.image || pattern.originalImage) {
+        patternImagesCache[patternName] = {
+          image: pattern.image || '',
+          originalImage: pattern.originalImage || '',
+        };
+      }
+      formData.entry_pattern = formData.entry_pattern.filter((_, i) => i !== index);
+    } else {
+      // 新增選擇：從緩存恢復
+      const cached = patternImagesCache[patternName];
+      formData.entry_pattern = [
+        ...formData.entry_pattern,
+        {
+          name: patternName,
+          image: cached ? cached.image : '',
+          originalImage: cached ? cached.originalImage : '',
+        },
+      ];
+    }
+    formData = formData;
+  }
+
   // 處理訊號卡片圖片貼上
   function handleSignalImagePaste(event, signalName) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    
+
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         event.preventDefault();
         const file = item.getAsFile();
         const reader = new FileReader();
-        
-        reader.onload = (e) => {
-          const index = formData.entry_signals.findIndex(s => 
+
+        reader.onload = e => {
+          const index = formData.entry_signals.findIndex(s =>
             typeof s === 'string' ? s === signalName : s.name === signalName
           );
-          
+
           if (index >= 0) {
             // 更新現有訊號的圖片（第一次上傳時同時設置 image 和 originalImage）
-            const signal = typeof formData.entry_signals[index] === 'string' 
-              ? { name: signalName, image: e.target.result, originalImage: e.target.result }
-              : { ...formData.entry_signals[index], image: e.target.result, originalImage: formData.entry_signals[index].originalImage || e.target.result };
+            const signal =
+              typeof formData.entry_signals[index] === 'string'
+                ? { name: signalName, image: e.target.result, originalImage: e.target.result }
+                : {
+                    ...formData.entry_signals[index],
+                    image: e.target.result,
+                    originalImage: formData.entry_signals[index].originalImage || e.target.result,
+                  };
             formData.entry_signals[index] = signal;
           } else {
             // 如果訊號還沒被選中，先選中它
-            formData.entry_signals = [...formData.entry_signals, { name: signalName, image: e.target.result, originalImage: e.target.result }];
+            formData.entry_signals = [
+              ...formData.entry_signals,
+              { name: signalName, image: e.target.result, originalImage: e.target.result },
+            ];
           }
           formData = formData; // 觸發更新
         };
-        
+
         reader.readAsDataURL(file);
         break;
       }
@@ -393,14 +552,15 @@
 
   // 移除訊號圖片
   function removeSignalImage(signalName) {
-    const index = formData.entry_signals.findIndex(s => 
+    const index = formData.entry_signals.findIndex(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
-    
+
     if (index >= 0) {
-      const signal = typeof formData.entry_signals[index] === 'string'
-        ? { name: signalName, image: '', originalImage: '' }
-        : { ...formData.entry_signals[index], image: '', originalImage: '' };
+      const signal =
+        typeof formData.entry_signals[index] === 'string'
+          ? { name: signalName, image: '', originalImage: '' }
+          : { ...formData.entry_signals[index], image: '', originalImage: '' };
       formData.entry_signals[index] = signal;
       formData = formData; // 觸發更新
     }
@@ -408,7 +568,7 @@
 
   // 取得訊號圖片
   function getSignalImage(signalName) {
-    const signal = formData.entry_signals.find(s => 
+    const signal = formData.entry_signals.find(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
     if (signal && typeof signal === 'object' && signal.image) {
@@ -416,39 +576,6 @@
     }
     return '';
   }
-
-  // 處理趨勢圖片貼上
-  function handleTrendImagePaste(event, timeframe) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-          // 第一次上傳時同時設置 image 和 originalImage
-          formData.trend_analysis[timeframe].image = e.target.result;
-          if (!formData.trend_analysis[timeframe].originalImage) {
-            formData.trend_analysis[timeframe].originalImage = e.target.result;
-          }
-          formData = formData; // 觸發更新
-        };
-        
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  }
-
-  // 移除趨勢圖片
-  function removeTrendImage(timeframe) {
-    formData.trend_analysis[timeframe].image = '';
-    formData.trend_analysis[timeframe].originalImage = '';
-    formData = formData;
-  }
-
 
   // 放大查看圖片
   let enlargedOriginalImage = null; // 保存當前放大圖片的原始版本
@@ -459,17 +586,20 @@
     enlargedImageTitle = title;
     enlargedImageContext = context;
     showAnnotator = false; // 預設不顯示標註工具
-    
+
     // 獲取原始圖片
     if (context) {
       const { type, key } = context;
       if (type === 'signal') {
-        const signal = formData.entry_signals.find(s => 
+        const signal = formData.entry_signals.find(s =>
           typeof s === 'string' ? s === key : s.name === key
         );
         enlargedOriginalImage = signal?.originalImage || imageSrc;
       } else if (type === 'trend') {
         enlargedOriginalImage = formData.trend_analysis[key]?.originalImage || imageSrc;
+      } else if (type === 'pattern') {
+        const pattern = formData.entry_pattern.find(p => p.name === key);
+        enlargedOriginalImage = pattern?.originalImage || imageSrc;
       }
     } else {
       enlargedOriginalImage = imageSrc;
@@ -493,15 +623,16 @@
 
     if (type === 'signal') {
       // 更新訊號圖片（只更新 image，保持 originalImage 不變）
-      const index = formData.entry_signals.findIndex(s => 
+      const index = formData.entry_signals.findIndex(s =>
         typeof s === 'string' ? s === key : s.name === key
       );
-      
+
       if (index >= 0) {
         const currentSignal = formData.entry_signals[index];
-        const signal = typeof currentSignal === 'string'
-          ? { name: key, image: annotatedImageSrc, originalImage: annotatedImageSrc }
-          : { ...currentSignal, image: annotatedImageSrc };
+        const signal =
+          typeof currentSignal === 'string'
+            ? { name: key, image: annotatedImageSrc, originalImage: annotatedImageSrc }
+            : { ...currentSignal, image: annotatedImageSrc };
         formData.entry_signals[index] = signal;
         formData = formData;
       }
@@ -510,7 +641,18 @@
       if (formData.trend_analysis[key]) {
         formData.trend_analysis[key] = {
           ...formData.trend_analysis[key],
-          image: annotatedImageSrc
+          image: annotatedImageSrc,
+        };
+        formData = formData;
+      }
+    } else if (type === 'pattern') {
+      const index = formData.entry_pattern.findIndex(p => p.name === key);
+      if (index >= 0) {
+        formData.entry_pattern[index].image = annotatedImageSrc;
+        // 同步到緩存
+        patternImagesCache[key] = {
+          ...patternImagesCache[key],
+          image: annotatedImageSrc,
         };
         formData = formData;
       }
@@ -534,7 +676,7 @@
       saving = true;
 
       // 確保 entry_signals 格式正確（轉換成物件陣列）
-      const normalizedSignals = formData.entry_signals.map(s => 
+      const normalizedSignals = formData.entry_signals.map(s =>
         typeof s === 'string' ? { name: s, image: '' } : s
       );
 
@@ -546,12 +688,13 @@
         notes: notesEditor ? notesEditor.getContent() : formData.notes,
         entry_signals: JSON.stringify(normalizedSignals),
         entry_checklist: JSON.stringify(formData.entry_checklist),
-        trend_analysis: JSON.stringify(formData.trend_analysis),
-        entry_strategy_image: '', // 不再使用，保留空字串以相容後端
+        entry_pattern: JSON.stringify(formData.entry_pattern),
+        entry_strategy_image: formData.entry_strategy_image,
+        entry_strategy_image_original: formData.entry_strategy_image_original,
         entry_timeframe: formData.entry_timeframe,
         trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
-        exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null
+        exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
       };
 
       // 如果是實際交易，添加交易相關欄位
@@ -568,6 +711,7 @@
         submitData.lot_size = null;
         submitData.pnl = null;
         submitData.pnl_points = null;
+        submitData.exit_time = null;
       }
 
       if (id) {
@@ -639,49 +783,86 @@
       </div>
 
       {#if isActualTrade}
-      <div class="form-group">
-        <label for="lot_size">手數</label>
-        <input type="number" step="0.01" id="lot_size" class="form-control" 
-               bind:value={formData.lot_size} required />
-      </div>
+        <div class="form-group">
+          <label for="lot_size">手數</label>
+          <input
+            type="number"
+            step="0.01"
+            id="lot_size"
+            class="form-control"
+            bind:value={formData.lot_size}
+            required
+          />
+        </div>
       {/if}
     </div>
 
     {#if isActualTrade}
-    <div class="form-row">
-      <div class="form-group">
-        <label for="entry_price">進場價格</label>
-        <input type="number" step="0.00001" id="entry_price" class="form-control" 
-               bind:value={formData.entry_price} required />
+      <div class="form-row">
+        <div class="form-group">
+          <label for="entry_price">進場價格</label>
+          <input
+            type="number"
+            step="0.00001"
+            id="entry_price"
+            class="form-control"
+            bind:value={formData.entry_price}
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="exit_price">平倉價格</label>
+          <input
+            type="number"
+            step="0.00001"
+            id="exit_price"
+            class="form-control"
+            bind:value={formData.exit_price}
+          />
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="exit_price">平倉價格</label>
-        <input type="number" step="0.00001" id="exit_price" class="form-control" 
-               bind:value={formData.exit_price} />
-      </div>
-    </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="pnl">盈虧金額</label>
+          <input
+            type="number"
+            step="0.01"
+            id="pnl"
+            class="form-control"
+            bind:value={formData.pnl}
+          />
+        </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label for="pnl">盈虧金額</label>
-        <input type="number" step="0.01" id="pnl" class="form-control" 
-               bind:value={formData.pnl} />
+        <div class="form-group">
+          <label for="pnl_points">盈虧點數</label>
+          <input
+            type="number"
+            step="0.1"
+            id="pnl_points"
+            class="form-control readonly-calc"
+            bind:value={formData.pnl_points}
+            readonly
+            placeholder="填寫進場與平倉價格後自動計算"
+          />
+          {#if !formData.entry_price || !formData.exit_price}
+            <small class="form-hint">💡 請填寫進場與平倉價格以自動計算點數</small>
+          {/if}
+        </div>
       </div>
-
-      <div class="form-group">
-        <label for="pnl_points">盈虧點數</label>
-        <input type="number" step="0.1" id="pnl_points" class="form-control" 
-               bind:value={formData.pnl_points} />
-      </div>
-    </div>
     {/if}
 
     <div class="form-row">
       <div class="form-group">
         <label for="entry_time">開倉時間</label>
-        <input type="datetime-local" id="entry_time" class="form-control" 
-               bind:value={formData.entry_time} required />
+        <input
+          type="datetime-local"
+          id="entry_time"
+          class="form-control"
+          bind:value={formData.entry_time}
+          required
+        />
       </div>
 
       <div class="form-group">
@@ -694,8 +875,8 @@
       </div>
 
       {#if formData.market_session}
-        <div class="form-group">
-          <label>市場時段</label>
+        <div class="form-group" style="flex: 2;">
+          <label>市場時段 & 盤面規劃</label>
           <div class="market-session-display">
             <div class="market-session-info">
               <span class="market-session-badge {formData.market_session}">
@@ -711,34 +892,172 @@
       {/if}
     </div>
 
-    <div class="form-row">
-      <div class="form-group">
-        <label for="exit_time">平倉時間</label>
-        <input type="datetime-local" id="exit_time" class="form-control" 
-               bind:value={formData.exit_time} />
+    {#if isActualTrade}
+      <div class="form-row">
+        <div class="form-group">
+          <label for="exit_time">平倉時間</label>
+          <input
+            type="datetime-local"
+            id="exit_time"
+            class="form-control"
+            bind:value={formData.exit_time}
+          />
+        </div>
       </div>
-    </div>
+    {/if}
 
-    <div class="form-group">
+    <div class="form-group highlight-label">
       <label>📍 進場分析</label>
     </div>
 
     <!-- 進場種類選擇 -->
     <div class="form-group entry-strategy-section">
-      <label class="strategy-label">🎯 進場種類</label>
-      <div class="strategy-options">
-        <label class="strategy-option" class:active={formData.entry_strategy === 'expert'}>
-          <input type="radio" bind:group={formData.entry_strategy} value="expert" />
-          <span class="strategy-name">達人</span>
-        </label>
-        <label class="strategy-option" class:active={formData.entry_strategy === 'elite'}>
-          <input type="radio" bind:group={formData.entry_strategy} value="elite" />
-          <span class="strategy-name">菁英</span>
-        </label>
-        <label class="strategy-option" class:active={formData.entry_strategy === 'legend'}>
-          <input type="radio" bind:group={formData.entry_strategy} value="legend" />
-          <span class="strategy-name">傳奇</span>
-        </label>
+      <!-- 盤面規劃狀態 (從上方移至此處) -->
+      <div class="trade-plan-status-section">
+        <div class="section-label-group">
+          <label class="strategy-label">🗺️ 盤面規劃</label>
+          {#if matchedPlan}
+            <button
+              type="button"
+              class="plan-status-badge linked"
+              on:click={() => navigate(`/plans/edit/${matchedPlan.id}`)}
+            >
+              ✅ 已有規劃 <span class="view-link">查看 ↗</span>
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="plan-status-badge missing"
+              on:click={() => {
+                const date = new Date(formData.entry_time).toISOString().slice(0, 10);
+                navigate(
+                  `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
+                );
+              }}
+            >
+              ❓ 尚無規劃 <span class="add-link">建立 ➕</span>
+            </button>
+          {/if}
+        </div>
+
+        {#if matchedPlan}
+          <div class="plan-details-summary">
+            {#if matchedPlan.notes && matchedPlan.notes !== 'Session-based unified plan'}
+              <div class="plan-general-notes">{matchedPlan.notes}</div>
+            {/if}
+
+            {#if matchedPlan.market_session === 'all'}
+              {@const trendData = JSON.parse(matchedPlan.trend_analysis || '{}')}
+              <div class="progression-view">
+                {#each ['M5', 'M15', 'M30', 'H1', 'H4', 'D1'] as tf}
+                  {@const asianTrend = trendData.asian?.trends?.[tf]}
+                  {@const europeanTrend = trendData.european?.trends?.[tf]}
+                  {@const usTrend = trendData.us?.trends?.[tf]}
+
+                  {#if asianTrend?.direction || europeanTrend?.direction || usTrend?.direction}
+                    <div class="progression-row">
+                      <span class="tf-name">{tf}:</span>
+                      <div class="steps">
+                        {#if asianTrend?.direction}
+                          <span
+                            class="step"
+                            class:long={asianTrend.direction === 'long'}
+                            class:short={asianTrend.direction === 'short'}
+                          >
+                            亞盤 {asianTrend.direction === 'long' ? '多' : '空'}
+                          </span>
+                        {/if}
+
+                        {#if europeanTrend?.direction}
+                          {#if asianTrend?.direction}<span class="arrow">=></span>{/if}
+                          <span
+                            class="step"
+                            class:long={europeanTrend.direction === 'long'}
+                            class:short={europeanTrend.direction === 'short'}
+                          >
+                            歐盤 {europeanTrend.direction === 'long' ? '多' : '空'}
+                          </span>
+                        {/if}
+
+                        {#if usTrend?.direction}
+                          {#if asianTrend?.direction || europeanTrend?.direction}<span class="arrow"
+                              >=></span
+                            >{/if}
+                          <span
+                            class="step"
+                            class:long={usTrend.direction === 'long'}
+                            class:short={usTrend.direction === 'short'}
+                          >
+                            美盤 {usTrend.direction === 'long' ? '多' : '空'}
+                          </span>
+                        {/if}
+                      </div>
+                    </div>
+                  {/if}
+                {/each}
+              </div>
+
+              {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
+                <div class="plan-session-notes">
+                  {#each ['asian', 'european', 'us'] as session}
+                    {#if trendData[session]?.notes}
+                      <div class="plan-note-item">
+                        <span class="session-tag {session}"
+                          >{marketSessionNames[session]}備註：</span
+                        >
+                        <span class="note-text">{trendData[session].notes}</span>
+                      </div>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      <div class="strategy-header">
+        <label class="strategy-label">🎯 進場種類</label>
+        <div class="strategy-options">
+          <label class="strategy-option" class:active={formData.entry_strategy === 'expert'}>
+            <input type="radio" bind:group={formData.entry_strategy} value="expert" />
+            <span class="strategy-name">達人</span>
+          </label>
+          <label class="strategy-option" class:active={formData.entry_strategy === 'elite'}>
+            <input type="radio" bind:group={formData.entry_strategy} value="elite" />
+            <span class="strategy-name">菁英</span>
+          </label>
+          <label class="strategy-option" class:active={formData.entry_strategy === 'legend'}>
+            <input type="radio" bind:group={formData.entry_strategy} value="legend" />
+            <span class="strategy-name">傳奇</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 進場時區和趨勢類型 -->
+      <div class="form-row timeframe-trend-row">
+        <div class="form-group">
+          <label for="entry_timeframe">🕒 進場時區</label>
+          <select id="entry_timeframe" class="form-control" bind:value={formData.entry_timeframe}>
+            <option value="">請選擇</option>
+            <option value="M1">M1</option>
+            <option value="M5">M5</option>
+            <option value="M15">M15</option>
+            <option value="M30">M30</option>
+            <option value="H1">H1</option>
+            <option value="H4">H4</option>
+            <option value="D1">D1</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="trend_type">📈 趨勢類型</label>
+          <select id="trend_type" class="form-control" bind:value={formData.trend_type}>
+            <option value="">請選擇</option>
+            <option value="with_trend">順勢</option>
+            <option value="against_trend">逆勢</option>
+          </select>
+        </div>
       </div>
 
       <!-- 達人訊號（卡片形式，可貼圖） -->
@@ -749,21 +1068,24 @@
             {#each expertSignals as signal}
               {@const isSelected = isSignalSelected(signal)}
               {@const signalImage = getSignalImage(signal)}
-              <div 
+              <div
                 class="signal-card"
                 class:selected={isSelected}
                 tabindex="0"
-                on:paste={(e) => handleSignalImagePaste(e, signal)}
-                on:click={(e) => {
+                on:paste={e => handleSignalImagePaste(e, signal)}
+                on:click={e => {
                   // 如果點擊的是 checkbox 或圖片相關元素，不處理
-                  if (!e.target.closest('.signal-checkbox') && !e.target.closest('.signal-image-preview')) {
+                  if (
+                    !e.target.closest('.signal-checkbox') &&
+                    !e.target.closest('.signal-image-preview')
+                  ) {
                     toggleSignal(signal);
                   }
                 }}
               >
                 <label class="signal-checkbox-wrapper">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     class="signal-checkbox"
                     checked={isSelected}
                     on:change={() => toggleSignal(signal)}
@@ -771,25 +1093,28 @@
                   />
                   <span class="signal-name">{signal}</span>
                 </label>
-                
+
                 {#if isSelected}
                   {#if signalImage}
-                    <div 
+                    <div
                       class="signal-image-preview"
-                      on:click={(e) => {
+                      on:click={e => {
                         e.stopPropagation();
-                        enlargeImage(signalImage, signal + ' 圖', { type: 'signal', key: signal });
+                        enlargeImage(signalImage, signal + ' 圖', {
+                          type: 'signal',
+                          key: signal,
+                        });
                       }}
                     >
-                      <img 
-                        src={signalImage} 
+                      <img
+                        src={signalImage}
                         alt="{signal} 圖"
                         style="cursor: zoom-in; pointer-events: none;"
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         class="remove-signal-image"
-                        on:click={(e) => {
+                        on:click={e => {
                           e.stopPropagation();
                           removeSignalImage(signal);
                         }}
@@ -817,13 +1142,13 @@
           <div class="checklist-items">
             {#each eliteChecklist as item}
               <label class="checkbox-item">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={formData.entry_checklist[item.id] || false}
-                  on:change={(e) => {
+                  on:change={e => {
                     formData.entry_checklist = {
                       ...formData.entry_checklist,
-                      [item.id]: e.target.checked
+                      [item.id]: e.target.checked,
                     };
                   }}
                 />
@@ -839,115 +1164,85 @@
         <div class="entry-pattern-section">
           <label class="entry-pattern-label">進場樣態：</label>
           <div class="entry-pattern-options">
-            {#each entryPatterns as pattern}
-              <label class="pattern-option" class:active={formData.entry_pattern === pattern}>
-                <input 
-                  type="radio" 
-                  bind:group={formData.entry_pattern} 
-                  value={pattern}
-                />
-                <span class="pattern-name">{pattern}</span>
-              </label>
+            {#each entryPatterns as patternName}
+              {@const isSelected = formData.entry_pattern.some(p => p.name === patternName)}
+              <div
+                class="pattern-option"
+                class:active={isSelected}
+                on:click={() => togglePattern(patternName)}
+              >
+                <span class="pattern-name">{patternName}</span>
+              </div>
             {/each}
           </div>
+
+          {#if formData.entry_pattern.length > 0}
+            <div class="pattern-cards-grid">
+              {#each formData.entry_pattern as pattern}
+                <div
+                  class="pattern-image-card"
+                  on:paste={e => {
+                    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                    for (let item of items) {
+                      if (item.type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        const file = item.getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = event => {
+                          const imgData = event.target.result;
+                          pattern.image = imgData;
+                          pattern.originalImage = imgData;
+                          // 同步到緩存
+                          patternImagesCache[pattern.name] = {
+                            image: imgData,
+                            originalImage: imgData,
+                          };
+                          formData = formData;
+                        };
+                        reader.readAsDataURL(file);
+                        break;
+                      }
+                    }
+                  }}
+                >
+                  <div class="pattern-card-header">
+                    <span class="pattern-card-title">{pattern.name}</span>
+                  </div>
+                  <div class="pattern-card-body">
+                    {#if pattern.image}
+                      <div
+                        class="pattern-image-preview"
+                        on:click={() =>
+                          enlargeImage(pattern.image, pattern.name + ' 樣態圖', {
+                            type: 'pattern',
+                            key: pattern.name,
+                          })}
+                      >
+                        <img src={pattern.image} alt={pattern.name} />
+                        <button
+                          type="button"
+                          class="remove-pattern-image"
+                          on:click|stopPropagation={() => {
+                            pattern.image = '';
+                            pattern.originalImage = '';
+                            formData = formData;
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    {:else}
+                      <div class="pattern-image-placeholder">
+                        <span class="placeholder-text">點擊此處按 Ctrl+V 貼上圖</span>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
-    </div>
-
-    <!-- 當前各時區趨勢 -->
-    <div class="form-group trend-analysis-section">
-      <label class="trend-label">📊 當前各時區趨勢</label>
-      <div class="trend-grid">
-        {#each ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'] as timeframe}
-          <div 
-            class="trend-item"
-            tabindex="0"
-            on:paste={(e) => handleTrendImagePaste(e, timeframe)}
-            on:click={(e) => {
-              // 如果點擊的是 radio 按鈕區域，不要聚焦
-              if (!e.target.closest('.trend-options')) {
-                e.currentTarget.focus();
-              }
-            }}
-          >
-            <label class="timeframe-label">{timeframe}</label>
-            <div class="trend-options">
-              <label class="trend-option" class:active={formData.trend_analysis[timeframe].direction === 'long'}>
-                <input 
-                  type="radio" 
-                  name="trend_{timeframe}"
-                  value="long"
-                  bind:group={formData.trend_analysis[timeframe].direction}
-                />
-                <span class="trend-name">多</span>
-              </label>
-              <label class="trend-option" class:active={formData.trend_analysis[timeframe].direction === 'short'}>
-                <input 
-                  type="radio" 
-                  name="trend_{timeframe}"
-                  value="short"
-                  bind:group={formData.trend_analysis[timeframe].direction}
-                />
-                <span class="trend-name">空</span>
-              </label>
-            </div>
-            
-            <!-- 顯示已貼上的圖片 -->
-            {#if formData.trend_analysis[timeframe].image}
-              <div 
-                class="trend-image-preview"
-                on:click={(e) => {
-                  e.stopPropagation();
-                  enlargeImage(formData.trend_analysis[timeframe].image, timeframe + ' 趨勢圖', { type: 'trend', key: timeframe });
-                }}
-              >
-                <img 
-                  src={formData.trend_analysis[timeframe].image} 
-                  alt="{timeframe} 趨勢圖"
-                  style="cursor: zoom-in; pointer-events: none;"
-                />
-                <button 
-                  type="button" 
-                  class="remove-trend-image"
-                  on:click={(e) => {
-                    e.stopPropagation();
-                    removeTrendImage(timeframe);
-                  }}
-                  title="移除圖片"
-                >
-                  ×
-                </button>
-              </div>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <!-- 進場時區和趨勢類型 -->
-    <div class="form-row">
-      <div class="form-group">
-        <label for="entry_timeframe">🕒 進場時區</label>
-        <select id="entry_timeframe" class="form-control" bind:value={formData.entry_timeframe}>
-          <option value="">請選擇</option>
-          <option value="M1">M1</option>
-          <option value="M5">M5</option>
-          <option value="M15">M15</option>
-          <option value="M30">M30</option>
-          <option value="H1">H1</option>
-          <option value="H4">H4</option>
-          <option value="D1">D1</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="trend_type">📈 趨勢類型</label>
-        <select id="trend_type" class="form-control" bind:value={formData.trend_type}>
-          <option value="">請選擇</option>
-          <option value="with_trend">順勢</option>
-          <option value="against_trend">逆勢</option>
-        </select>
-      </div>
     </div>
 
     <div class="form-group">
@@ -955,7 +1250,7 @@
         🎯 平倉理由
         <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
       </label>
-      <RichTextEditor 
+      <RichTextEditor
         bind:this={exitReasonEditor}
         bind:value={formData.exit_reason}
         placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
@@ -968,7 +1263,7 @@
         📝 交易復盤
         <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
       </label>
-      <RichTextEditor 
+      <RichTextEditor
         bind:this={notesEditor}
         bind:value={formData.notes}
         placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
@@ -979,9 +1274,13 @@
     <div class="form-group">
       <label>標籤</label>
       <div class="tag-input-wrapper">
-        <input type="text" class="form-control" bind:value={tagInput} 
-               placeholder="輸入標籤（如：突破、回踩、新聞單）" 
-               on:keypress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())} />
+        <input
+          type="text"
+          class="form-control"
+          bind:value={tagInput}
+          placeholder="輸入標籤（如：突破、回踩、新聞單）"
+          on:keypress={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
+        />
         <button type="button" class="btn btn-primary" on:click={addTag}>新增</button>
       </div>
       <div class="tags-container">
@@ -1010,14 +1309,14 @@
 <!-- 圖片放大查看模態視窗 -->
 {#if enlargedImage}
   <div class="image-modal" on:click={closeEnlargedImage}>
-    <div class="image-modal-content" on:click={(e) => e.stopPropagation()}>
+    <div class="image-modal-content" on:click={e => e.stopPropagation()}>
       <div class="image-modal-header">
         <h3 class="image-modal-title">{enlargedImageTitle}</h3>
         <div class="image-modal-actions">
-          <button 
-            class="annotator-toggle-btn" 
+          <button
+            class="annotator-toggle-btn"
             class:active={showAnnotator}
-            on:click={(e) => {
+            on:click={e => {
               e.stopPropagation();
               toggleAnnotator();
             }}
@@ -1028,10 +1327,10 @@
           <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
         </div>
       </div>
-      
+
       {#if showAnnotator}
-        <ImageAnnotator 
-          imageSrc={enlargedImage} 
+        <ImageAnnotator
+          imageSrc={enlargedImage}
           originalImageSrc={enlargedOriginalImage}
           onSave={handleAnnotatedImage}
         />
@@ -1094,7 +1393,7 @@
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
-  .radio-option input[type="radio"] {
+  .radio-option input[type='radio'] {
     position: absolute;
     opacity: 0;
     width: 0;
@@ -1134,27 +1433,239 @@
     gap: 1rem;
   }
 
-  /* 進場種類選擇 */
+  .readonly-calc {
+    background-color: #f8fafc;
+    color: #4a5568;
+    cursor: default;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+  }
+
+  .form-hint {
+    display: block;
+    margin-top: 0.4rem;
+    color: #718096;
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+
+  /* 進場分析區塊 */
+  .highlight-label {
+    margin-bottom: 1rem;
+    border-left: 4px solid #667eea;
+    padding-left: 0.75rem;
+  }
+
+  .highlight-label label {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+  }
+
   .entry-strategy-section {
     margin: 1.5rem 0;
     padding: 1.5rem;
-    background: #f7fafc;
+    background: #f8fafc;
     border-radius: 12px;
     border: 2px solid #e2e8f0;
   }
 
-  .strategy-label {
-    display: block;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #2d3748;
+  .trade-plan-status-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px dashed #cbd5e0;
+  }
+
+  .section-label-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 1rem;
+  }
+
+  .plan-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .plan-status-badge.linked {
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #bcf0da;
+  }
+
+  .plan-status-badge.linked:hover {
+    background: #dcfce7;
+  }
+
+  .plan-status-badge.missing {
+    background: #fff5f5;
+    color: #c53030;
+    border-color: #feb2b2;
+  }
+
+  .plan-status-badge.missing:hover {
+    background: #fff5f5;
+  }
+
+  .view-link,
+  .add-link {
+    font-size: 0.75rem;
+    text-decoration: underline;
+    opacity: 0.8;
+  }
+
+  .plan-details-summary {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .plan-general-notes {
+    font-size: 0.9rem;
+    color: #4a5568;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid #edf2f7;
+    font-style: italic;
+  }
+
+  /* 時序進展視圖 */
+  .progression-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .progression-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .tf-name {
+    font-weight: 700;
+    color: #475569;
+    min-width: 40px;
+  }
+
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .step {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .step.long {
+    background: #f0fdf4;
+    color: #166534;
+  }
+
+  .step.short {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .arrow {
+    color: #94a3b8;
+    font-weight: bold;
+    font-size: 0.8rem;
+  }
+
+  .plan-session-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #edf2f7;
+  }
+
+  .plan-note-item {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .session-tag {
+    font-weight: 700;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+
+  .session-tag.asian {
+    color: #2b6cb0;
+  }
+  .session-tag.european {
+    color: #975a16;
+  }
+  .session-tag.us {
+    color: #c53030;
+  }
+
+  .note-text {
+    color: #4a5568;
+  }
+
+  .strategy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .strategy-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #4a5568;
+    margin-bottom: 0;
+  }
+
+  .timeframe-trend-row {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .timeframe-trend-row .form-group {
+    margin-bottom: 0;
+  }
+
+  .timeframe-trend-row label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #718096;
+    margin-bottom: 0.4rem;
+    display: block;
   }
 
   .strategy-options {
     display: flex;
     gap: 1rem;
-    margin-bottom: 1.5rem;
     flex-wrap: wrap;
   }
 
@@ -1180,7 +1691,7 @@
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   }
 
-  .strategy-option input[type="radio"] {
+  .strategy-option input[type='radio'] {
     position: absolute;
     opacity: 0;
   }
@@ -1193,7 +1704,6 @@
   .strategy-option.active .strategy-name {
     color: #667eea;
   }
-
 
   /* 訊號和檢查清單 */
   .signals-section,
@@ -1362,7 +1872,7 @@
     background: #f7fafc;
   }
 
-  .checkbox-item input[type="checkbox"] {
+  .checkbox-item input[type='checkbox'] {
     width: 18px;
     height: 18px;
     cursor: pointer;
@@ -1420,26 +1930,130 @@
     background: #667eea;
   }
 
-  .pattern-option input[type="radio"] {
+  .pattern-option input[type='radio'] {
     display: none;
   }
 
   .pattern-name {
-    font-size: 0.9rem;
-    color: #2d3748;
-    font-weight: 500;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
   }
 
   .pattern-option.active .pattern-name {
     color: white;
   }
 
+  .pattern-cards-grid {
+    margin-top: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+
+  .pattern-image-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease;
+  }
+
+  .pattern-image-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .pattern-card-header {
+    padding: 0.5rem 0.75rem;
+    background: #edf2f7;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .pattern-card-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4a5568;
+  }
+
+  .pattern-card-body {
+    padding: 0.75rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 120px;
+    position: relative;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .pattern-image-preview {
+    width: 100%;
+    cursor: zoom-in;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .pattern-image-preview img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+  }
+
+  .remove-pattern-image {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    line-height: 1;
+    padding-bottom: 2px;
+  }
+
+  .remove-pattern-image:hover {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  .pattern-image-placeholder {
+    width: 100%;
+    height: 120px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border: 2px dashed #cbd5e0;
+    border-radius: 8px;
+    padding: 0.5rem;
+  }
+
+  .placeholder-text {
+    font-size: 0.75rem;
+    color: #a0aec0;
+    line-height: 1.4;
+  }
+
   /* 市場時段顯示 */
   .market-session-display {
     display: flex;
     align-items: center;
+    gap: 2rem;
     height: auto;
     padding: 0.5rem 0;
+    flex-wrap: wrap;
   }
 
   .market-session-info {
@@ -1493,6 +2107,100 @@
   .session-season::before {
     content: '•';
     margin-right: 0.5rem;
+  }
+
+  .plan-link-section {
+    display: flex;
+    align-items: center;
+  }
+
+  .plan-status {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  .plan-status.linked {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #166534;
+  }
+
+  .plan-status.linked:hover {
+    background: #dcfce7;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(22, 101, 52, 0.1);
+  }
+
+  .plan-status.missing {
+    background: #fffaf0;
+    border-color: #fbd38d;
+    color: #9c4221;
+  }
+
+  .plan-status.missing:hover {
+    background: #fff0d6;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(156, 66, 33, 0.1);
+  }
+
+  .status-icon {
+    font-size: 1.1rem;
+    margin-top: 0.1rem;
+  }
+
+  .status-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: left;
+  }
+
+  .status-top {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .plan-mini-summary {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .mini-trend {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0px 4px;
+    border-radius: 4px;
+  }
+
+  .mini-trend.bulls {
+    color: #166534;
+    background: #dcfce7;
+  }
+
+  .mini-trend.bears {
+    color: #991b1b;
+    background: #fee2e2;
+  }
+
+  .view-link,
+  .add-link {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-left: 0.25rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid currentColor;
   }
 
   /* 當前趨勢選擇 */
@@ -1577,7 +2285,7 @@
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
-  .trend-option input[type="radio"] {
+  .trend-option input[type='radio'] {
     position: absolute;
     opacity: 0;
   }

@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"trade-journal/internal/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetDailyPlans 取得每日規劃清單
@@ -29,7 +30,7 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		// 建立查詢
 		sqlQuery := `
-			SELECT id, plan_date, market_session, notes, trend_analysis, created_at, updated_at
+			SELECT id, plan_date, symbol, market_session, notes, trend_analysis, created_at, updated_at
 			FROM daily_plans
 			WHERE 1=1
 		`
@@ -47,8 +48,13 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		}
 
 		if query.MarketSession != "" {
-			sqlQuery += " AND market_session = ?"
+			sqlQuery += " AND (market_session = ? OR market_session = 'all')"
 			args = append(args, query.MarketSession)
+		}
+
+		if query.Symbol != "" {
+			sqlQuery += " AND symbol = ?"
+			args = append(args, query.Symbol)
 		}
 
 		sqlQuery += " ORDER BY plan_date DESC LIMIT ? OFFSET ?"
@@ -65,7 +71,7 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		for rows.Next() {
 			var plan models.DailyPlan
 			err := rows.Scan(
-				&plan.ID, &plan.PlanDate, &plan.MarketSession, &plan.Notes,
+				&plan.ID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
 				&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
 			)
 			if err != nil {
@@ -91,16 +97,21 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		}
 
 		if query.MarketSession != "" {
-			countQuery += " AND market_session = ?"
+			countQuery += " AND (market_session = ? OR market_session = 'all')"
 			countArgs = append(countArgs, query.MarketSession)
+		}
+
+		if query.Symbol != "" {
+			countQuery += " AND symbol = ?"
+			countArgs = append(countArgs, query.Symbol)
 		}
 
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
 
 		c.JSON(http.StatusOK, gin.H{
-			"data":  plans,
-			"total": total,
-			"page":  query.Page,
+			"data":      plans,
+			"total":     total,
+			"page":      query.Page,
 			"page_size": query.PageSize,
 		})
 	}
@@ -113,10 +124,10 @@ func GetDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		var plan models.DailyPlan
 		err := db.QueryRow(`
-			SELECT id, plan_date, market_session, notes, trend_analysis, created_at, updated_at
+			SELECT id, plan_date, symbol, market_session, notes, trend_analysis, created_at, updated_at
 			FROM daily_plans WHERE id = ?
 		`, id).Scan(
-			&plan.ID, &plan.PlanDate, &plan.MarketSession, &plan.Notes,
+			&plan.ID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
 			&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
 		)
 
@@ -142,13 +153,37 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 檢查是否已存在同日期、同品種的規劃
+		var existsID int64
+		// 使用 date() 函數確保只比較日期部分
+		err := db.QueryRow(`
+			SELECT id FROM daily_plans 
+			WHERE date(plan_date) = date(?) AND symbol = ?
+		`, req.PlanDate, req.Symbol).Scan(&existsID)
+
+		if err == nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "該日期與品種的規劃已存在，請直接編輯原有的規劃"})
+			return
+		}
+
+		if err != sql.ErrNoRows {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "資料庫查詢錯誤: " + err.Error()})
+			return
+		}
+
 		result, err := db.Exec(`
-			INSERT INTO daily_plans (plan_date, market_session, notes, trend_analysis)
-			VALUES (?, ?, ?, ?)
-		`, req.PlanDate, req.MarketSession, req.Notes, req.TrendAnalysis)
+			INSERT INTO daily_plans (plan_date, symbol, market_session, notes, trend_analysis)
+			VALUES (?, ?, ?, ?, ?)
+		`, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis)
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			// 檢查是否為唯一索引衝突 (SQLite 錯誤碼 2067 或檢查錯誤字串)
+			errStr := err.Error()
+			if errStr != "" && (errStr[0:10] == "UNIQUE con" || errStr[0:15] == "constraint fail") {
+				c.JSON(http.StatusConflict, gin.H{"error": "該日期與品種的規劃已存在，請直接編輯原有的規劃"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "儲存失敗: " + err.Error()})
 			return
 		}
 
@@ -170,9 +205,9 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		_, err := db.Exec(`
 			UPDATE daily_plans 
-			SET plan_date=?, market_session=?, notes=?, trend_analysis=?, updated_at=CURRENT_TIMESTAMP
+			SET plan_date=?, symbol=?, market_session=?, notes=?, trend_analysis=?, updated_at=CURRENT_TIMESTAMP
 			WHERE id=?
-		`, req.PlanDate, req.MarketSession, req.Notes, req.TrendAnalysis, id)
+		`, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis, id)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -197,4 +232,3 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"message": "規劃刪除成功"})
 	}
 }
-

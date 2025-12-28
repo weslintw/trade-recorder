@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"trade-journal/internal/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 // GetTrades 取得交易清單
@@ -25,13 +26,13 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			query.PageSize = 20
 		}
 
-	offset := (query.Page - 1) * query.PageSize
+		offset := (query.Page - 1) * query.PageSize
 
-	// 建立查詢
-	sqlQuery := `
+		// 建立查詢
+		sqlQuery := `
 		SELECT DISTINCT t.id, t.trade_type, t.symbol, t.side, t.entry_price, t.exit_price, 
 			   t.lot_size, t.pnl, t.pnl_points, t.notes, t.entry_reason, t.exit_reason,
-			   t.entry_strategy, t.entry_strategy_image, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
+			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
 			   t.entry_timeframe, t.trend_type, t.market_session, t.timezone_offset,
 			   t.entry_time, t.exit_time, t.created_at, t.updated_at
 		FROM trades t
@@ -40,35 +41,35 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		WHERE 1=1
 	`
 
-	args := []interface{}{}
+		args := []interface{}{}
 
-	if query.Symbol != "" {
-		sqlQuery += " AND t.symbol = ?"
-		args = append(args, query.Symbol)
-	}
+		if query.Symbol != "" {
+			sqlQuery += " AND t.symbol = ?"
+			args = append(args, query.Symbol)
+		}
 
-	if query.Side != "" {
-		sqlQuery += " AND t.side = ?"
-		args = append(args, query.Side)
-	}
+		if query.Side != "" {
+			sqlQuery += " AND t.side = ?"
+			args = append(args, query.Side)
+		}
 
-	if query.Tag != "" {
-		sqlQuery += " AND tg.name = ?"
-		args = append(args, query.Tag)
-	}
+		if query.Tag != "" {
+			sqlQuery += " AND tg.name = ?"
+			args = append(args, query.Tag)
+		}
 
-	if query.StartDate != "" {
-		sqlQuery += " AND t.entry_time >= ?"
-		args = append(args, query.StartDate)
-	}
+		if query.StartDate != "" {
+			sqlQuery += " AND t.entry_time >= ?"
+			args = append(args, query.StartDate)
+		}
 
-	if query.EndDate != "" {
-		sqlQuery += " AND t.entry_time <= ?"
-		args = append(args, query.EndDate)
-	}
+		if query.EndDate != "" {
+			sqlQuery += " AND t.entry_time <= ?"
+			args = append(args, query.EndDate)
+		}
 
-	sqlQuery += " ORDER BY t.entry_time DESC LIMIT ? OFFSET ?"
-	args = append(args, query.PageSize, offset)
+		sqlQuery += " ORDER BY t.entry_time DESC LIMIT ? OFFSET ?"
+		args = append(args, query.PageSize, offset)
 
 		rows, err := db.Query(sqlQuery, args...)
 		if err != nil {
@@ -83,7 +84,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			err := rows.Scan(
 				&trade.ID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
-				&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
+				&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 				&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.TimezoneOffset,
 				&trade.EntryTime, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt,
 			)
@@ -102,7 +103,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			LEFT JOIN trade_tags tt ON t.id = tt.trade_id
 			LEFT JOIN tags tg ON tt.tag_id = tg.id
 			WHERE 1=1`
-		
+
 		countArgs := []interface{}{}
 		if query.Symbol != "" {
 			countQuery += " AND t.symbol = ?"
@@ -139,13 +140,13 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 		var trade models.Trade
 		err := db.QueryRow(`
 			SELECT id, trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points,
-				   notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_signals, entry_checklist,
+				   notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist,
 				   entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time, created_at, updated_at
 			FROM trades WHERE id = ?
 		`, id).Scan(
 			&trade.ID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 			&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
-			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
+			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 			&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.TimezoneOffset,
 			&trade.EntryTime, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt,
 		)
@@ -173,6 +174,18 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 如果是觀察記錄，且價格為空，給予預設值 0 避免資料庫 NOT NULL 限制
+		if req.TradeType == "observation" {
+			if req.EntryPrice == nil {
+				zero := 0.0
+				req.EntryPrice = &zero
+			}
+			if req.LotSize == nil {
+				zero := 0.0
+				req.LotSize = &zero
+			}
+		}
+
 		// 開始交易
 		tx, err := db.Begin()
 		if err != nil {
@@ -183,10 +196,10 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		// 插入交易紀錄
 		result, err := tx.Exec(`
-			INSERT INTO trades (trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime)
-		
+			INSERT INTO trades (trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime)
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -231,6 +244,18 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 如果是觀察記錄，且價格為空，給予預設值 0 避免資料庫 NOT NULL 限制
+		if req.TradeType == "observation" {
+			if req.EntryPrice == nil {
+				zero := 0.0
+				req.EntryPrice = &zero
+			}
+			if req.LotSize == nil {
+				zero := 0.0
+				req.LotSize = &zero
+			}
+		}
+
 		tx, err := db.Begin()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -240,11 +265,11 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 
 		_, err = tx.Exec(`
 			UPDATE trades SET trade_type=?, symbol=?, side=?, entry_price=?, exit_price=?, lot_size=?, 
-				   pnl=?, pnl_points=?, notes=?, entry_reason=?, exit_reason=?, entry_strategy=?, entry_strategy_image=?, entry_signals=?, entry_checklist=?,
+				   pnl=?, pnl_points=?, notes=?, entry_reason=?, exit_reason=?, entry_strategy=?, entry_strategy_image=?, entry_strategy_image_original=?, entry_signals=?, entry_checklist=?,
 				   entry_pattern=?, trend_analysis=?, entry_timeframe=?, trend_type=?, market_session=?, timezone_offset=?, entry_time=?, exit_time=?, updated_at=CURRENT_TIMESTAMP
 			WHERE id=?
-		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, 
-			req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntrySignals, req.EntryChecklist,
+		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL,
+			req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist,
 			req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime, id)
 
 		if err != nil {
@@ -345,4 +370,3 @@ func GetTags(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, tags)
 	}
 }
-

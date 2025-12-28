@@ -4,11 +4,12 @@ import (
 	"log"
 	"os"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"trade-journal/internal/database"
 	"trade-journal/internal/handlers"
 	"trade-journal/internal/minio"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -73,6 +74,16 @@ func main() {
 		{
 			tags.GET("", handlers.GetTags(db))
 		}
+
+		// 每日規劃
+		dailyPlans := api.Group("/daily-plans")
+		{
+			dailyPlans.GET("", handlers.GetDailyPlans(db))
+			dailyPlans.GET("/:id", handlers.GetDailyPlan(db))
+			dailyPlans.POST("", handlers.CreateDailyPlan(db))
+			dailyPlans.PUT("/:id", handlers.UpdateDailyPlan(db))
+			dailyPlans.DELETE("/:id", handlers.DeleteDailyPlan(db))
+		}
 	}
 
 	// 啟動伺服器
@@ -86,4 +97,3 @@ func main() {
 		log.Fatal("伺服器啟動失敗:", err)
 	}
 }
-
