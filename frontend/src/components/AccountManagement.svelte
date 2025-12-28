@@ -1,7 +1,8 @@
 <script>
+  import { navigate } from 'svelte-routing';
   import { onMount } from 'svelte';
   import { accountsAPI } from '../lib/api';
-  import { accounts } from '../lib/stores';
+  import { accounts, selectedAccountId } from '../lib/stores';
 
   let loading = true;
   let showAddModal = false;
@@ -118,6 +119,42 @@
       importing = false;
     }
   }
+
+  // --- 帳號重新命名相關 ---
+  let editingId = null;
+  let editingName = '';
+
+  function startEditing(acc) {
+    editingId = acc.id;
+    editingName = acc.name;
+  }
+
+  function cancelEditing() {
+    editingId = null;
+    editingName = '';
+  }
+
+  async function saveName(id) {
+    if (!editingName.trim()) {
+      alert('名稱不能為空');
+      return;
+    }
+    try {
+      await accountsAPI.update(id, { name: editingName.trim() });
+      editingId = null;
+      fetchAccounts();
+    } catch (e) {
+      console.error(e);
+      alert('更新名稱失敗');
+    }
+  }
+
+  // --- 選取帳號相關 ---
+  function selectAccount(id) {
+    if (editingId) return;
+    selectedAccountId.set(id);
+    navigate('/');
+  }
 </script>
 
 <div class="account-mgmt">
@@ -131,9 +168,36 @@
   {:else}
     <div class="account-grid">
       {#each $accounts as acc}
-        <div class="account-card card" class:mt5={acc.type === 'metatrader'}>
+        <div
+          class="account-card card"
+          class:mt5={acc.type === 'metatrader'}
+          on:click={() => selectAccount(acc.id)}
+        >
           <div class="acc-info">
-            <h3>{acc.name}</h3>
+            {#if editingId === acc.id}
+              <div class="edit-name-wrapper" on:click|stopPropagation>
+                <input
+                  type="text"
+                  class="form-control edit-name-input"
+                  bind:value={editingName}
+                  on:keypress={e => e.key === 'Enter' && saveName(acc.id)}
+                  autoFocus
+                />
+                <button class="btn-icon save" on:click={() => saveName(acc.id)} title="儲存"
+                  >✅</button
+                >
+                <button class="btn-icon cancel" on:click={cancelEditing} title="取消">❌</button>
+              </div>
+            {:else}
+              <div class="name-display">
+                <h3>{acc.name}</h3>
+                <button
+                  class="btn-edit-small"
+                  on:click|stopPropagation={() => startEditing(acc)}
+                  title="重新命名">✏️</button
+                >
+              </div>
+            {/if}
             <div class="badges">
               <span class="badge {acc.type === 'local' ? 'badge-info' : 'badge-mt5'}">
                 {acc.type === 'local' ? '本地帳號' : 'MetaTrader 5'}
@@ -160,14 +224,19 @@
             {/if}
           </div>
           <div class="acc-actions">
-            <button class="btn btn-secondary" on:click={() => openImportModal(acc.id)}
-              >📤 匯入 CSV</button
+            <button
+              class="btn btn-secondary"
+              on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
             {#if acc.type === 'metatrader'}
-              <button class="btn btn-sync" on:click={() => syncAccount(acc.id)}>🔄 同步</button>
+              <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}
+                >🔄 同步</button
+              >
             {/if}
             {#if acc.id !== 1}
-              <button class="btn btn-danger" on:click={() => deleteAccount(acc.id)}>刪除</button>
+              <button class="btn btn-danger" on:click|stopPropagation={() => deleteAccount(acc.id)}
+                >刪除</button
+              >
             {/if}
           </div>
         </div>
@@ -274,6 +343,15 @@
     flex-direction: column;
     justify-content: space-between;
     min-height: 180px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 2px solid transparent;
+  }
+
+  .account-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-color: #e2e8f0;
   }
 
   .acc-info h3 {
@@ -433,5 +511,50 @@
     100% {
       opacity: 1;
     }
+  }
+
+  /* 重新命名樣式 */
+  .name-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn-edit-small {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 2px;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+  }
+
+  .account-card:hover .btn-edit-small {
+    opacity: 1;
+  }
+
+  .edit-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .edit-name-input {
+    margin: 0 !important;
+    padding: 0.25rem 0.5rem !important;
+    font-size: 1.1rem !important;
+    font-weight: 600;
+  }
+
+  .btn-icon {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0;
+    line-height: 1;
   }
 </style>

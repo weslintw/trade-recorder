@@ -57,43 +57,64 @@
   .selector-wrapper {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.4rem 0.8rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 0.6rem;
+    background: #f1f5f9;
+    padding: 0.4rem 0.75rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+  }
+
+  .selector-wrapper:hover {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: var(--shadow-sm);
   }
 
   .label {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--text-muted);
     white-space: nowrap;
+    font-weight: 600;
   }
 
   select {
     background: transparent;
-    color: white;
+    color: var(--text-main);
     border: none;
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 0.95rem;
+    font-weight: 700;
     cursor: pointer;
     outline: none;
-    padding-right: 0.5rem;
+    padding: 2px 4px;
+    border-radius: 6px;
+  }
+
+  select:focus {
+    background: rgba(0, 0, 0, 0.05);
   }
 
   option {
-    background: #1a1a1a;
-    color: white;
+    background: white;
+    color: var(--text-main);
   }
 
   .manage-btn {
     text-decoration: none;
-    font-size: 1rem;
-    opacity: 0.6;
-    transition: opacity 0.2s;
+    font-size: 1.1rem;
+    opacity: 0.7;
+    transition:
+      transform 0.2s,
+      opacity 0.2s;
+    display: flex;
+    align-items: center;
+    padding-left: 0.5rem;
+    margin-left: 0.2rem;
+    border-left: 1px solid var(--border-color);
   }
 
   .manage-btn:hover {
     opacity: 1;
+    transform: rotate(30deg);
   }
 </style>
