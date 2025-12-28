@@ -3,6 +3,7 @@
   import { navigate } from 'svelte-routing';
   import { dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, TIMEFRAMES, MARKET_SESSIONS } from '../lib/constants';
+  import { selectedAccountId } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   export let id = null;
@@ -38,6 +39,7 @@
   const symbols = SYMBOLS;
 
   let formData = {
+    account_id: $selectedAccountId,
     plan_date: new Date().toISOString().slice(0, 10),
     symbol: SYMBOLS[0],
     sessions: {
@@ -198,6 +200,7 @@
   async function handleSubmit() {
     try {
       const submitData = {
+        account_id: $selectedAccountId,
         plan_date: new Date(formData.plan_date).toISOString(),
         symbol: formData.symbol,
         market_session: 'all', // 標記為整合格式

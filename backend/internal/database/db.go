@@ -36,8 +36,20 @@ func InitDB() (*sql.DB, error) {
 
 func createTables(db *sql.DB) error {
 	schema := `
+	CREATE TABLE IF NOT EXISTS accounts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(100) NOT NULL,
+		type VARCHAR(20) DEFAULT 'local', -- 'local' or 'metatrader'
+		mt5_account_id VARCHAR(100),    -- MetaApi Account ID
+		mt5_token TEXT,                 -- MetaApi Token
+		status VARCHAR(20) DEFAULT 'active',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE TABLE IF NOT EXISTS trades (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		account_id INTEGER NOT NULL DEFAULT 1,
 		symbol VARCHAR(20) NOT NULL,
 		side VARCHAR(10) NOT NULL,
 		entry_price REAL,
@@ -51,7 +63,8 @@ func createTables(db *sql.DB) error {
 		entry_time DATETIME NOT NULL,
 		exit_time DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS trade_images (
@@ -86,13 +99,15 @@ func createTables(db *sql.DB) error {
 
 	CREATE TABLE IF NOT EXISTS daily_plans (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		account_id INTEGER NOT NULL DEFAULT 1,
 		plan_date DATETIME NOT NULL,
 		symbol VARCHAR(20) DEFAULT 'XAUUSD',
 		market_session VARCHAR(20),
 		notes TEXT,
 		trend_analysis TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 	);
 	`
 
@@ -193,21 +208,36 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL15)
 
+	// 遷移：添加 account_id 欄位到舊表 (忽略錯誤，因為 SQLite 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS)
+	db.Exec("ALTER TABLE trades ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;")
+	db.Exec("ALTER TABLE daily_plans ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;")
+
+	// 確保至少有一個預設帳號
+	db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type) VALUES (1, '預設帳號', 'local');`)
+
 	// 刪除重複的規劃，只保留最新更新的一筆，以便建立唯一索引
 	cleanupSQL := `
 	DELETE FROM daily_plans 
 	WHERE id NOT IN (
 		SELECT MAX(id) 
 		FROM daily_plans 
-		GROUP BY date(plan_date), symbol
+		GROUP BY date(plan_date), symbol, account_id
 	);`
 	db.Exec(cleanupSQL)
 
 	// 最後才建立唯一索引，確保同品種同一天只能有一組規劃
 	dropIdxSQL := `DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`
 	db.Exec(dropIdxSQL)
-	idxSQL := `CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol);`
+	idxSQL := `CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol, account_id);`
 	db.Exec(idxSQL)
+
+	migrationSQL16 := `
+	-- 檢查並添加同步相關欄位到 accounts
+	ALTER TABLE accounts ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle';
+	ALTER TABLE accounts ADD COLUMN last_synced_at DATETIME;
+	ALTER TABLE accounts ADD COLUMN last_sync_error TEXT;
+	`
+	db.Exec(migrationSQL16)
 
 	return nil
 }

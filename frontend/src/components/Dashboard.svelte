@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { statsAPI } from '../lib/api';
+  import { selectedAccountId } from '../lib/stores';
   import EquityChart from './EquityChart.svelte';
 
   let summary = {
@@ -12,31 +13,33 @@
     average_pnl: 0,
     largest_win: 0,
     largest_loss: 0,
-    profit_factor: 0
+    profit_factor: 0,
   };
 
   let symbolStats = [];
   let equityCurve = [];
   let loading = true;
 
-  onMount(() => {
+  $: if ($selectedAccountId) {
     loadStats();
-  });
+  }
 
   async function loadStats() {
     try {
       loading = true;
 
+      const params = { account_id: $selectedAccountId };
+
       // 載入統計摘要
-      const summaryResponse = await statsAPI.getSummary();
+      const summaryResponse = await statsAPI.getSummary(params);
       summary = summaryResponse.data;
 
       // 載入品種統計
-      const symbolResponse = await statsAPI.getBySymbol();
+      const symbolResponse = await statsAPI.getBySymbol(params);
       symbolStats = symbolResponse.data;
 
       // 載入淨值曲線
-      const equityResponse = await statsAPI.getEquityCurve();
+      const equityResponse = await statsAPI.getEquityCurve(params);
       equityCurve = equityResponse.data;
     } catch (error) {
       console.error('載入統計資料失敗:', error);
@@ -91,7 +94,9 @@
         <div class="stat-icon">💰</div>
         <div class="stat-content">
           <div class="stat-label">總盈虧</div>
-          <div class="stat-value">{summary.total_pnl >= 0 ? '+' : ''}{summary.total_pnl.toFixed(2)}</div>
+          <div class="stat-value">
+            {summary.total_pnl >= 0 ? '+' : ''}{summary.total_pnl.toFixed(2)}
+          </div>
         </div>
       </div>
 
@@ -223,7 +228,9 @@
     align-items: center;
     gap: 1rem;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease;
   }
 
   .stat-card:hover {
@@ -301,7 +308,8 @@
     background: #f7fafc;
   }
 
-  th, td {
+  th,
+  td {
     padding: 1rem;
     text-align: left;
     border-bottom: 1px solid #e2e8f0;
@@ -349,4 +357,3 @@
     margin-bottom: 0.5rem;
   }
 </style>
-

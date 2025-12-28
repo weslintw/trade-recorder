@@ -3,7 +3,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { selectedSymbol } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId } from '../lib/stores';
 
   export let isCompact = false;
 
@@ -33,7 +33,7 @@
   });
 
   // 當全局品種改變時，更新篩選器並重新載入
-  $: if ($selectedSymbol) {
+  $: if ($selectedSymbol || $selectedAccountId) {
     filters.symbol = $selectedSymbol;
     pagination.page = 1;
     loadTrades();
@@ -42,7 +42,10 @@
 
   async function loadPlans() {
     try {
-      const response = await dailyPlansAPI.getAll({ page_size: 100 });
+      const response = await dailyPlansAPI.getAll({
+        account_id: $selectedAccountId,
+        page_size: 100,
+      });
       allPlans = response.data.data || [];
     } catch (error) {
       console.error('載入規劃失敗:', error);
@@ -95,6 +98,7 @@
     try {
       loading = true;
       const params = {
+        account_id: $selectedAccountId,
         page: pagination.page,
         page_size: pagination.page_size,
         ...filters,

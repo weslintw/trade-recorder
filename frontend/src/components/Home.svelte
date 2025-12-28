@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { navigate, Link } from 'svelte-routing';
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
-  import { selectedSymbol } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
 
   let groupedData = [];
@@ -16,8 +16,8 @@
 
       // 獲取最近 20 天的規劃和最近 50 筆交易
       const [plansRes, tradesRes] = await Promise.all([
-        dailyPlansAPI.getAll({ symbol, page_size: 20 }),
-        tradesAPI.getAll({ symbol, page_size: 50 }),
+        dailyPlansAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 20 }),
+        tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 }),
       ]);
 
       const plans = plansRes.data.data || [];
@@ -47,8 +47,8 @@
     }
   }
 
-  // 監聽品種變更
-  $: if ($selectedSymbol) {
+  // 監聽品種或帳號變更
+  $: if ($selectedSymbol || $selectedAccountId) {
     loadData();
   }
 

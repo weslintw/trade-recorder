@@ -3,7 +3,7 @@
   import { navigate } from 'svelte-routing';
   import { dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS, TIMEFRAMES } from '../lib/constants';
-  import { selectedSymbol } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId } from '../lib/stores';
 
   export let isCompact = false;
 
@@ -21,14 +21,16 @@
   });
 
   // 當全局品種改變時，更新篩選器並重新載入
-  $: if ($selectedSymbol) {
+  $: if ($selectedSymbol || $selectedAccountId) {
     filters.symbol = $selectedSymbol;
     loadPlans();
   }
 
   async function loadPlans() {
     try {
-      const params = {};
+      const params = {
+        account_id: $selectedAccountId,
+      };
       if (filters.startDate) params.start_date = filters.startDate;
       if (filters.endDate) params.end_date = filters.endDate;
       if (filters.symbol) params.symbol = filters.symbol;

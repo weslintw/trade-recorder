@@ -6,6 +6,8 @@
   import DailyPlanList from './components/DailyPlanList.svelte';
   import DailyPlanForm from './components/DailyPlanForm.svelte';
   import Home from './components/Home.svelte';
+  import AccountSelector from './components/AccountSelector.svelte';
+  import AccountManagement from './components/AccountManagement.svelte';
   import { SYMBOLS } from './lib/constants';
   import { selectedSymbol } from './lib/stores';
 
@@ -27,15 +29,19 @@
           </div>
         </Link>
 
-        <!-- 全局交易品種切換 -->
-        <div class="symbol-selector-wrapper">
-          <div class="symbol-selector">
-            <span class="selector-icon">📊</span>
-            <select bind:value={$selectedSymbol}>
-              {#each SYMBOLS as sym}
-                <option value={sym}>{sym}</option>
-              {/each}
-            </select>
+        <!-- 全局交易品種與帳號切換 -->
+        <div class="header-tools">
+          <AccountSelector />
+
+          <div class="symbol-selector-wrapper">
+            <div class="symbol-selector">
+              <span class="selector-icon">📊</span>
+              <select bind:value={$selectedSymbol}>
+                {#each SYMBOLS as sym}
+                  <option value={sym}>{sym}</option>
+                {/each}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -81,6 +87,7 @@
       <Route path="/new" component={TradeForm} />
       <Route path="/edit/:id" component={TradeForm} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/accounts" component={AccountManagement} />
     </main>
   </div>
 </Router>
@@ -236,11 +243,16 @@
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
   }
 
-  .symbol-selector-wrapper {
+  .header-tools {
     flex: 1;
     display: flex;
-    justify-content: flex-start;
+    align-items: center;
     padding-left: 2rem;
+  }
+
+  .symbol-selector-wrapper {
+    display: flex;
+    justify-content: flex-start;
   }
 
   .symbol-selector {

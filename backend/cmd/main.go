@@ -44,6 +44,16 @@ func main() {
 	// API路由
 	api := r.Group("/api/v1")
 	{
+		// 帳號管理
+		accounts := api.Group("/accounts")
+		{
+			accounts.GET("", handlers.GetAccounts(db))
+			accounts.POST("", handlers.CreateAccount(db))
+			accounts.PUT("/:id", handlers.UpdateAccount(db))
+			accounts.DELETE("/:id", handlers.DeleteAccount(db))
+			accounts.POST("/:id/sync", handlers.SyncAccountHistory(db))
+		}
+
 		// 交易紀錄
 		trades := api.Group("/trades")
 		{

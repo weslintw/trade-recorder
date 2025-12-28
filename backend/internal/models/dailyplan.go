@@ -5,6 +5,7 @@ import "time"
 // DailyPlan 每日規劃模型
 type DailyPlan struct {
 	ID            int64     `json:"id"`
+	AccountID     int64     `json:"account_id"`
 	PlanDate      time.Time `json:"plan_date"`
 	Symbol        string    `json:"symbol"`
 	MarketSession string    `json:"market_session"`
@@ -16,6 +17,7 @@ type DailyPlan struct {
 
 // DailyPlanCreate 建立每日規劃請求
 type DailyPlanCreate struct {
+	AccountID     int64     `json:"account_id" binding:"required"`
 	PlanDate      time.Time `json:"plan_date" binding:"required"`
 	Symbol        string    `json:"symbol"`
 	MarketSession string    `json:"market_session"`
@@ -25,6 +27,7 @@ type DailyPlanCreate struct {
 
 // DailyPlanQuery 查詢參數
 type DailyPlanQuery struct {
+	AccountID     int64  `form:"account_id"`
 	StartDate     string `form:"start_date"`
 	EndDate       string `form:"end_date"`
 	Symbol        string `form:"symbol"`

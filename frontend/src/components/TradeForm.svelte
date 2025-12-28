@@ -3,12 +3,14 @@
   import { onMount } from 'svelte';
   import { tradesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
+  import { selectedAccountId } from '../lib/stores';
   import RichTextEditor from './RichTextEditor.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   export let id = null;
 
   let formData = {
+    account_id: $selectedAccountId,
     trade_type: 'actual', // actual=有進單, observation=純觀察
     symbol: SYMBOLS[0],
     side: 'long',
@@ -275,7 +277,10 @@
 
   async function loadPlans() {
     try {
-      const response = await dailyPlansAPI.getAll({ page_size: 100 });
+      const response = await dailyPlansAPI.getAll({
+        account_id: $selectedAccountId,
+        page_size: 100,
+      });
       allPlans = response.data.data || [];
     } catch (error) {
       console.error('載入規劃失敗:', error);
@@ -683,6 +688,7 @@
       // 從富文本編輯器取得內容
       const submitData = {
         ...formData,
+        account_id: $selectedAccountId,
         entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
         exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
         notes: notesEditor ? notesEditor.getContent() : formData.notes,

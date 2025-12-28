@@ -30,12 +30,17 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		// 建立查詢
 		sqlQuery := `
-			SELECT id, plan_date, symbol, market_session, notes, trend_analysis, created_at, updated_at
+			SELECT id, account_id, plan_date, symbol, market_session, COALESCE(notes, ''), COALESCE(trend_analysis, '{}'), created_at, updated_at
 			FROM daily_plans
 			WHERE 1=1
 		`
 
 		args := []interface{}{}
+
+		if query.AccountID > 0 {
+			sqlQuery += " AND account_id = ?"
+			args = append(args, query.AccountID)
+		}
 
 		if query.StartDate != "" {
 			sqlQuery += " AND plan_date >= ?"
@@ -71,7 +76,7 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		for rows.Next() {
 			var plan models.DailyPlan
 			err := rows.Scan(
-				&plan.ID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
+				&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
 				&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
 			)
 			if err != nil {
@@ -85,6 +90,11 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		var total int
 		countQuery := `SELECT COUNT(*) FROM daily_plans WHERE 1=1`
 		countArgs := []interface{}{}
+
+		if query.AccountID > 0 {
+			countQuery += " AND account_id = ?"
+			countArgs = append(countArgs, query.AccountID)
+		}
 
 		if query.StartDate != "" {
 			countQuery += " AND plan_date >= ?"
@@ -124,10 +134,10 @@ func GetDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		var plan models.DailyPlan
 		err := db.QueryRow(`
-			SELECT id, plan_date, symbol, market_session, notes, trend_analysis, created_at, updated_at
+			SELECT id, account_id, plan_date, symbol, market_session, COALESCE(notes, ''), COALESCE(trend_analysis, '{}'), created_at, updated_at
 			FROM daily_plans WHERE id = ?
 		`, id).Scan(
-			&plan.ID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
+			&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
 			&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
 		)
 
@@ -158,8 +168,8 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		// 使用 date() 函數確保只比較日期部分
 		err := db.QueryRow(`
 			SELECT id FROM daily_plans 
-			WHERE date(plan_date) = date(?) AND symbol = ?
-		`, req.PlanDate, req.Symbol).Scan(&existsID)
+			WHERE date(plan_date) = date(?) AND symbol = ? AND account_id = ?
+		`, req.PlanDate, req.Symbol, req.AccountID).Scan(&existsID)
 
 		if err == nil {
 			c.JSON(http.StatusConflict, gin.H{"error": "該日期與品種的規劃已存在，請直接編輯原有的規劃"})
@@ -172,9 +182,9 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		}
 
 		result, err := db.Exec(`
-			INSERT INTO daily_plans (plan_date, symbol, market_session, notes, trend_analysis)
-			VALUES (?, ?, ?, ?, ?)
-		`, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis)
+			INSERT INTO daily_plans (account_id, plan_date, symbol, market_session, notes, trend_analysis)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, req.AccountID, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis)
 
 		if err != nil {
 			// 檢查是否為唯一索引衝突 (SQLite 錯誤碼 2067 或檢查錯誤字串)
@@ -205,9 +215,9 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		_, err := db.Exec(`
 			UPDATE daily_plans 
-			SET plan_date=?, symbol=?, market_session=?, notes=?, trend_analysis=?, updated_at=CURRENT_TIMESTAMP
+			SET account_id=?, plan_date=?, symbol=?, market_session=?, notes=?, trend_analysis=?, updated_at=CURRENT_TIMESTAMP
 			WHERE id=?
-		`, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis, id)
+		`, req.AccountID, req.PlanDate, req.Symbol, req.MarketSession, req.Notes, req.TrendAnalysis, id)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

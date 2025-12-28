@@ -30,8 +30,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 
 		// 建立查詢
 		sqlQuery := `
-		SELECT DISTINCT t.id, t.trade_type, t.symbol, t.side, t.entry_price, t.exit_price, 
-			   t.lot_size, t.pnl, t.pnl_points, t.notes, t.entry_reason, t.exit_reason,
+		SELECT DISTINCT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, 
+			   t.lot_size, t.pnl, t.pnl_points, COALESCE(t.notes, ''), t.entry_reason, t.exit_reason,
 			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
 			   t.entry_timeframe, t.trend_type, t.market_session, t.timezone_offset,
 			   t.entry_time, t.exit_time, t.created_at, t.updated_at
@@ -40,8 +40,12 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		LEFT JOIN tags tg ON tt.tag_id = tg.id
 		WHERE 1=1
 	`
-
 		args := []interface{}{}
+
+		if query.AccountID > 0 {
+			sqlQuery += " AND t.account_id = ?"
+			args = append(args, query.AccountID)
+		}
 
 		if query.Symbol != "" {
 			sqlQuery += " AND t.symbol = ?"
@@ -82,7 +86,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		for rows.Next() {
 			var trade models.Trade
 			err := rows.Scan(
-				&trade.ID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
+				&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
 				&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 				&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.TimezoneOffset,
@@ -105,6 +109,10 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			WHERE 1=1`
 
 		countArgs := []interface{}{}
+		if query.AccountID > 0 {
+			countQuery += " AND t.account_id = ?"
+			countArgs = append(countArgs, query.AccountID)
+		}
 		if query.Symbol != "" {
 			countQuery += " AND t.symbol = ?"
 			countArgs = append(countArgs, query.Symbol)
@@ -139,12 +147,12 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 
 		var trade models.Trade
 		err := db.QueryRow(`
-			SELECT id, trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points,
-				   notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist,
+			SELECT id, account_id, COALESCE(trade_type, 'actual'), symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points,
+				   COALESCE(notes, ''), entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist,
 				   entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time, created_at, updated_at
 			FROM trades WHERE id = ?
 		`, id).Scan(
-			&trade.ID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
+			&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 			&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
 			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 			&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.TimezoneOffset,
@@ -196,9 +204,9 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		// 插入交易紀錄
 		result, err := tx.Exec(`
-			INSERT INTO trades (trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime)
+			INSERT INTO trades (account_id, trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, timezone_offset, entry_time, exit_time)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, req.AccountID, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -264,11 +272,11 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 		defer tx.Rollback()
 
 		_, err = tx.Exec(`
-			UPDATE trades SET trade_type=?, symbol=?, side=?, entry_price=?, exit_price=?, lot_size=?, 
+			UPDATE trades SET account_id=?, trade_type=?, symbol=?, side=?, entry_price=?, exit_price=?, lot_size=?, 
 				   pnl=?, pnl_points=?, notes=?, entry_reason=?, exit_reason=?, entry_strategy=?, entry_strategy_image=?, entry_strategy_image_original=?, entry_signals=?, entry_checklist=?,
 				   entry_pattern=?, trend_analysis=?, entry_timeframe=?, trend_type=?, market_session=?, timezone_offset=?, entry_time=?, exit_time=?, updated_at=CURRENT_TIMESTAMP
 			WHERE id=?
-		`, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL,
+		`, req.AccountID, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL,
 			req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist,
 			req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.TimezoneOffset, req.EntryTime, req.ExitTime, id)
 

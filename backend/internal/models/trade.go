@@ -5,6 +5,7 @@ import "time"
 // Trade 交易紀錄模型
 type Trade struct {
 	ID                         int64      `json:"id"`
+	AccountID                  int64      `json:"account_id"`
 	TradeType                  string     `json:"trade_type"` // "actual"=實際交易 或 "observation"=純觀察
 	Symbol                     string     `json:"symbol"`
 	Side                       string     `json:"side"` // "long" 或 "short"
@@ -53,6 +54,7 @@ type Tag struct {
 
 // TradeCreate 建立交易請求
 type TradeCreate struct {
+	AccountID                  int64         `json:"account_id" binding:"required"`
 	TradeType                  string        `json:"trade_type" binding:"required,oneof=actual observation"`
 	Symbol                     string        `json:"symbol" binding:"required"`
 	Side                       string        `json:"side" binding:"required,oneof=long short"`
@@ -89,6 +91,7 @@ type ImageUpload struct {
 
 // TradeQuery 查詢參數
 type TradeQuery struct {
+	AccountID int64  `form:"account_id"`
 	Symbol    string `form:"symbol"`
 	Side      string `form:"side"`
 	Tag       string `form:"tag"`

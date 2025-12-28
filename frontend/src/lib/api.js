@@ -34,9 +34,9 @@ export const imagesAPI = {
 
 // 統計相關
 export const statsAPI = {
-  getSummary: () => api.get('/stats/summary'),
-  getEquityCurve: () => api.get('/stats/equity-curve'),
-  getBySymbol: () => api.get('/stats/by-symbol'),
+  getSummary: (params) => api.get('/stats/summary', { params }),
+  getEquityCurve: (params) => api.get('/stats/equity-curve', { params }),
+  getBySymbol: (params) => api.get('/stats/by-symbol', { params }),
 };
 
 // 標籤相關
@@ -51,6 +51,15 @@ export const dailyPlansAPI = {
   create: (data) => api.post('/daily-plans', data),
   update: (id, data) => api.put(`/daily-plans/${id}`, data),
   delete: (id) => api.delete(`/daily-plans/${id}`),
+};
+
+// 帳號管理相關
+export const accountsAPI = {
+  getAll: () => api.get('/accounts'),
+  create: (data) => api.post('/accounts', data),
+  update: (id, data) => api.put(`/accounts/${id}`, data),
+  delete: (id) => api.delete(`/accounts/${id}`),
+  sync: (id) => api.post(`/accounts/${id}/sync`),
 };
 
 export default api;
