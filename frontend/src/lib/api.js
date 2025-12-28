@@ -60,6 +60,12 @@ export const accountsAPI = {
   update: (id, data) => api.put(`/accounts/${id}`, data),
   delete: (id) => api.delete(`/accounts/${id}`),
   sync: (id) => api.post(`/accounts/${id}/sync`),
+  importCSV: (id, formData) =>
+    api.post(`/accounts/${id}/import-csv`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
 };
 
 export default api;

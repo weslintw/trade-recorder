@@ -52,6 +52,7 @@ func main() {
 			accounts.PUT("/:id", handlers.UpdateAccount(db))
 			accounts.DELETE("/:id", handlers.DeleteAccount(db))
 			accounts.POST("/:id/sync", handlers.SyncAccountHistory(db))
+			accounts.POST("/:id/import-csv", handlers.ImportTradesCSV(db))
 		}
 
 		// 交易紀錄

@@ -84,6 +84,40 @@
       alert('觸發同步失敗: ' + errorMsg);
     }
   }
+
+  // --- CSV 匯入相關 ---
+  let showImportModal = false;
+  let importingAccountId = null;
+  let importFile = null;
+  let importing = false;
+
+  function openImportModal(id) {
+    importingAccountId = id;
+    showImportModal = true;
+    importFile = null;
+  }
+
+  async function handleImportCSV() {
+    if (!importFile) {
+      alert('請選擇 CSV 檔案');
+      return;
+    }
+    importing = true;
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const res = await accountsAPI.importCSV(importingAccountId, formData);
+      alert(res.data.message);
+      showImportModal = false;
+      importFile = null;
+    } catch (e) {
+      console.error(e);
+      const errorMsg = e.response?.data?.error || e.message || '未知錯誤';
+      alert('匯入失敗: ' + errorMsg);
+    } finally {
+      importing = false;
+    }
+  }
 </script>
 
 <div class="account-mgmt">
@@ -126,6 +160,9 @@
             {/if}
           </div>
           <div class="acc-actions">
+            <button class="btn btn-secondary" on:click={() => openImportModal(acc.id)}
+              >📤 匯入 CSV</button
+            >
             {#if acc.type === 'metatrader'}
               <button class="btn btn-sync" on:click={() => syncAccount(acc.id)}>🔄 同步</button>
             {/if}
@@ -137,7 +174,6 @@
       {/each}
     </div>
   {/if}
-
   {#if showAddModal}
     <div class="modal-overlay" on:click|self={() => (showAddModal = false)}>
       <div class="modal card">
@@ -181,6 +217,37 @@
         <div class="modal-actions">
           <button class="btn" on:click={() => (showAddModal = false)}>取消</button>
           <button class="btn btn-primary" on:click={addAccount}>確認新增</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+  {#if showImportModal}
+    <div class="modal-overlay" on:click|self={() => (showImportModal = false)}>
+      <div class="modal card">
+        <h2>匯入交易紀錄 (CSV)</h2>
+        <div class="import-instructions">
+          <p>目前支援格式：<strong>FTMO CSV</strong></p>
+          <p class="help-text">請從 FTMO 交易控制面板下載完整交易紀錄 CSV。</p>
+        </div>
+
+        <div class="form-group">
+          <label for="csvFile">選擇檔案</label>
+          <input
+            type="file"
+            id="csvFile"
+            accept=".csv"
+            class="form-control"
+            on:change={e => (importFile = e.target.files[0])}
+          />
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" on:click={() => (showImportModal = false)} disabled={importing}
+            >取消</button
+          >
+          <button class="btn btn-primary" on:click={handleImportCSV} disabled={importing}>
+            {importing ? '⌛ 處理中...' : '開始匯入'}
+          </button>
         </div>
       </div>
     </div>
@@ -296,6 +363,20 @@
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
+  }
+
+  .import-instructions {
+    background: #f0fdf4;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border-left: 4px solid #16a34a;
+  }
+
+  .import-instructions p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #166534;
   }
 
   /* 同步狀態樣式 */
