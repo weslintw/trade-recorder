@@ -1,35 +1,36 @@
-# Backend
-backend/storage/
-backend/*.db
-backend/*.sqlite
-backend/tmp/
-backend/*.exe
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend/backend.exe
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with Litmus
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# SQLite databases
+*.db
+*.db-journal
 
 # Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.svelte-kit/
+node_modules/
+.svelte-kit/
+dist/
+build/
+.env
+.env.*
+!.env.example
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-
 # Logs
 *.log
-
-# Executables
-*.exe
-
-# MinIO data
-minio-data/
-

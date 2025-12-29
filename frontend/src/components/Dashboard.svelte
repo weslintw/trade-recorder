@@ -17,6 +17,7 @@
   };
 
   let symbolStats = [];
+  let strategyStats = [];
   let equityCurve = [];
   let loading = true;
 
@@ -27,333 +28,538 @@
   async function loadStats() {
     try {
       loading = true;
-
       const params = { account_id: $selectedAccountId };
 
-      // 載入統計摘要
-      const summaryResponse = await statsAPI.getSummary(params);
-      summary = summaryResponse.data;
+      const [summaryRes, symbolRes, strategyRes, equityRes] = await Promise.all([
+        statsAPI.getSummary(params).catch(e => ({ data: summary })),
+        statsAPI.getBySymbol(params).catch(e => ({ data: [] })),
+        statsAPI.getByStrategy(params).catch(e => ({ data: [] })),
+        statsAPI.getEquityCurve(params).catch(e => ({ data: [] }))
+      ]);
 
-      // 載入品種統計
-      const symbolResponse = await statsAPI.getBySymbol(params);
-      symbolStats = symbolResponse.data;
-
-      // 載入淨值曲線
-      const equityResponse = await statsAPI.getEquityCurve(params);
-      equityCurve = equityResponse.data;
+      summary = summaryRes?.data || summary;
+      symbolStats = symbolRes?.data || [];
+      strategyStats = strategyRes?.data || [];
+      equityCurve = equityRes?.data || [];
     } catch (error) {
       console.error('載入統計資料失敗:', error);
-      alert('載入統計資料失敗');
     } finally {
       loading = false;
     }
   }
+
+  function getStrategyName(strategy) {
+    const map = {
+      expert: '🏅 達人',
+      elite: '💎 菁英',
+      legend: '🔥 傳奇',
+      unspecified: '⚪ 未指定'
+    };
+    return map[strategy] || strategy;
+  }
+
+  function formatPnl(val) {
+    if (val === undefined || val === null) return '0.00';
+    return (parseFloat(val) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function safeFixed(val, digits = 2) {
+    if (val === undefined || val === null) return '0';
+    return (parseFloat(val) || 0).toFixed(digits);
+  }
 </script>
 
-<div class="dashboard">
-  <h2>📈 交易統計儀表板</h2>
+<div class="dashboard-container">
+  <header class="dashboard-header">
+    <h1>📈 數據洞察儀表板</h1>
+    <p class="subtitle">深度分析您的交易績效與行為樣態</p>
+  </header>
 
   {#if loading}
-    <div class="loading">載入中...</div>
+    <div class="loading-overlay">
+      <div class="loader"></div>
+      <p>正在解析數據...</p>
+    </div>
   {:else}
-    <!-- 統計卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon">📊</div>
-        <div class="stat-content">
-          <div class="stat-label">總交易數</div>
-          <div class="stat-value">{summary.total_trades}</div>
+    <!-- 頂部核心指標 -->
+    <div class="metrics-grid">
+      <div class="metric-card glass">
+        <span class="metric-icon">📊</span>
+        <div class="metric-info">
+          <span class="label">總交易數</span>
+          <span class="value">{summary?.total_trades || 0}</span>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon success">✅</div>
-        <div class="stat-content">
-          <div class="stat-label">勝場數</div>
-          <div class="stat-value success">{summary.winning_trades}</div>
+      <div class="metric-card glass success-glow">
+        <span class="metric-icon">✅</span>
+        <div class="metric-info">
+          <span class="label">勝場</span>
+          <span class="value text-success">{summary?.winning_trades || 0}</span>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon danger">❌</div>
-        <div class="stat-content">
-          <div class="stat-label">敗場數</div>
-          <div class="stat-value danger">{summary.losing_trades}</div>
+      <div class="metric-card glass danger-glow">
+        <span class="metric-icon">❌</span>
+        <div class="metric-info">
+          <span class="label">敗場</span>
+          <span class="value text-danger">{summary?.losing_trades || 0}</span>
         </div>
       </div>
 
-      <div class="stat-card highlight">
-        <div class="stat-icon">🎯</div>
-        <div class="stat-content">
-          <div class="stat-label">勝率</div>
-          <div class="stat-value">{summary.win_rate.toFixed(2)}%</div>
+      <div class="metric-card glass primary-gradient">
+        <span class="metric-icon">🎯</span>
+        <div class="metric-info">
+          <span class="label">勝率</span>
+          <span class="value">{safeFixed(summary?.win_rate, 2)}%</span>
         </div>
       </div>
 
-      <div class="stat-card {summary.total_pnl >= 0 ? 'success-bg' : 'danger-bg'}">
-        <div class="stat-icon">💰</div>
-        <div class="stat-content">
-          <div class="stat-label">總盈虧</div>
-          <div class="stat-value">
-            {summary.total_pnl >= 0 ? '+' : ''}{summary.total_pnl.toFixed(2)}
-          </div>
+      <div class="metric-card glass {(summary?.total_pnl || 0) >= 0 ? 'success-gradient' : 'danger-gradient'}">
+        <span class="metric-icon">💰</span>
+        <div class="metric-info">
+          <span class="label">總盈虧</span>
+          <span class="value">
+            {(summary?.total_pnl || 0) >= 0 ? '+' : ''}{formatPnl(summary?.total_pnl)}
+          </span>
         </div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-icon">📈</div>
-        <div class="stat-content">
-          <div class="stat-label">平均盈虧</div>
-          <div class="stat-value">{summary.average_pnl.toFixed(2)}</div>
-        </div>
-      </div>
-
-      <div class="stat-card success-bg">
-        <div class="stat-icon">🏆</div>
-        <div class="stat-content">
-          <div class="stat-label">最大盈利</div>
-          <div class="stat-value">+{summary.largest_win.toFixed(2)}</div>
-        </div>
-      </div>
-
-      <div class="stat-card danger-bg">
-        <div class="stat-icon">⚠️</div>
-        <div class="stat-content">
-          <div class="stat-label">最大虧損</div>
-          <div class="stat-value">{summary.largest_loss.toFixed(2)}</div>
-        </div>
-      </div>
-
-      <div class="stat-card highlight">
-        <div class="stat-icon">⚖️</div>
-        <div class="stat-content">
-          <div class="stat-label">盈虧比</div>
-          <div class="stat-value">{summary.profit_factor.toFixed(2)}</div>
+      <div class="metric-card glass">
+        <span class="metric-icon">⚖️</span>
+        <div class="metric-info">
+          <span class="label">盈虧比</span>
+          <span class="value">{safeFixed(summary?.profit_factor, 2)}</span>
         </div>
       </div>
     </div>
 
-    <!-- 淨值曲線圖 -->
-    {#if equityCurve.length > 0}
-      <div class="card chart-card">
-        <h3>📉 淨值曲線</h3>
-        <EquityChart data={equityCurve} />
-      </div>
-    {/if}
+    <div class="dashboard-body">
+      <!-- 左側欄位 -->
+      <div class="main-column">
+        <!-- 淨值曲線 -->
+        {#if equityCurve && equityCurve.length > 0}
+          <div class="chart-section glass-card">
+            <div class="section-header">
+              <h3>📉 淨值曲線 (Equity)</h3>
+            </div>
+            <EquityChart data={equityCurve} />
+          </div>
+        {/if}
 
-    <!-- 品種統計表 -->
-    {#if symbolStats.length > 0}
-      <div class="card">
-        <h3>🎲 各品種統計</h3>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>品種</th>
-                <th>交易數</th>
-                <th>勝場數</th>
-                <th>勝率</th>
-                <th>總盈虧</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each symbolStats as stat}
-                <tr>
-                  <td class="symbol">{stat.symbol}</td>
-                  <td>{stat.total_trades}</td>
-                  <td class="success">{stat.winning_trades}</td>
-                  <td>
-                    <span class="badge {stat.win_rate >= 50 ? 'badge-success' : 'badge-danger'}">
-                      {stat.win_rate.toFixed(1)}%
-                    </span>
-                  </td>
-                  <td class={stat.total_pnl >= 0 ? 'profit' : 'loss'}>
-                    {stat.total_pnl >= 0 ? '+' : ''}{stat.total_pnl.toFixed(2)}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+        <!-- 品種統計 -->
+        {#if symbolStats && symbolStats.length > 0}
+          <div class="table-section glass-card">
+            <div class="section-header">
+              <h3>🎲 各品種績效</h3>
+            </div>
+            <div class="modern-table-wrapper">
+              <table class="modern-table">
+                <thead>
+                  <tr>
+                    <th>品種</th>
+                    <th>次數</th>
+                    <th>勝場</th>
+                    <th>勝率</th>
+                    <th>累積盈虧</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each symbolStats as stat}
+                    <tr>
+                      <td class="symbol-cell"><strong>{stat.symbol}</strong></td>
+                      <td>{stat.total_trades}</td>
+                      <td class="text-success">{stat.winning_trades}</td>
+                      <td>
+                        <div class="progress-bar-container">
+                          <div class="progress-bar {(stat.win_rate || 0) >= 50 ? 'bg-success' : 'bg-danger'}" style="width: {stat.win_rate || 0}%"></div>
+                          <span class="progress-text">{safeFixed(stat.win_rate, 1)}%</span>
+                        </div>
+                      </td>
+                      <td class={(stat.total_pnl || 0) >= 0 ? 'text-success' : 'text-danger'}>
+                        {(stat.total_pnl || 0) >= 0 ? '+' : ''}{safeFixed(stat.total_pnl, 2)}
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- 右側欄位 -->
+      <div class="sidebar-column">
+        <div class="strategy-analysis-section glass-card">
+          <div class="section-header">
+            <h3>🎯 策略體系分析</h3>
+          </div>
+          
+          {#if strategyStats && strategyStats.length > 0}
+            {#each strategyStats as s}
+              <div class="strategy-group">
+                <div class="strategy-header-row">
+                  <span class="strategy-badge {s.strategy}">{getStrategyName(s.strategy)}</span>
+                  <span class="strategy-stats-summary">
+                    {s.total_trades} 筆 | 勝率 {safeFixed(s.win_rate, 1)}% | <strong class={(s.total_pnl || 0) >= 0 ? 'text-success' : 'text-danger'}>{(s.total_pnl || 0) >= 0 ? '+' : ''}{safeFixed(s.total_pnl, 1)}</strong>
+                  </span>
+                </div>
+                
+                <div class="sub-item-stats">
+                  {#if s.sub_item_stats && s.sub_item_stats.length > 0}
+                    {#each s.sub_item_stats as sub}
+                      <div class="sub-item-row">
+                        <div class="sub-item-name">{sub.name}</div>
+                        <div class="sub-item-meta">
+                          <span class="sub-count">{sub.total_trades} 筆</span>
+                          <span class="sub-winrate">{safeFixed(sub.win_rate, 0)}% Win</span>
+                          <span class="sub-pnl {(sub.total_pnl || 0) >= 0 ? 'pos' : 'neg'}">
+                            {(sub.total_pnl || 0) >= 0 ? '+' : ''}{safeFixed(sub.total_pnl, 1)}
+                          </span>
+                        </div>
+                      </div>
+                    {/each}
+                  {:else}
+                    <div class="empty-mini">尚無子項目數據</div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          {:else}
+            <div class="empty-mini">尚無策略標籤紀錄</div>
+          {/if}
         </div>
       </div>
-    {/if}
-
-    {#if summary.total_trades === 0}
-      <div class="empty">
-        <p>📭 尚無交易資料</p>
-        <p>開始記錄交易後，統計資料將顯示在這裡</p>
-      </div>
-    {/if}
+    </div>
   {/if}
 </div>
 
 <style>
-  .dashboard {
-    max-width: 1400px;
+  :root {
+    --dashboard-bg: #f0f4f8;
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.4);
+    --primary: #6366f1;
+    --success: #10b981;
+    --danger: #ef4444;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
   }
 
-  h2 {
-    color: white;
-    text-align: center;
-    margin-bottom: 2rem;
-    font-size: 2rem;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  .dashboard-container {
+    padding: 2rem;
+    color: var(--text-main);
   }
 
-  h3 {
-    margin-bottom: 1.5rem;
-    color: #2d3748;
-    font-size: 1.25rem;
+  .dashboard-header {
+    margin-bottom: 2.5rem;
+    text-align: left;
   }
 
-  .loading {
-    text-align: center;
-    padding: 3rem;
-    color: white;
-    font-size: 1.5rem;
+  .dashboard-header h1 {
+    font-size: 2.25rem;
+    font-weight: 800;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #4f46e5, #9333ea);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
-  .stats-grid {
+  .subtitle {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+  }
+
+  /* 頂部指標卡片 */
+  .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2.5rem;
   }
 
-  .stat-card {
-    background: white;
-    border-radius: 16px;
-    padding: 1.5rem;
+  .metric-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 1.25rem;
     display: flex;
     align-items: center;
     gap: 1rem;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
-    transition:
-      transform 0.3s ease,
-      box-shadow 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
   }
 
-  .stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  .metric-card:hover {
+    transform: translateY(-5px);
   }
 
-  .stat-card.highlight {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  .metric-icon {
+    font-size: 2rem;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+  }
+
+  .metric-info {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .metric-info .label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .metric-info .value {
+    font-size: 1.5rem;
+    font-weight: 800;
+  }
+
+  /* 特殊樣式卡片 */
+  .primary-gradient { 
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); 
     color: white;
   }
-
-  .stat-card.success-bg {
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  .success-gradient { 
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%); 
     color: white;
   }
-
-  .stat-card.danger-bg {
-    background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+  .danger-gradient { 
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); 
     color: white;
   }
+  
+  .primary-gradient .label, .success-gradient .label, .danger-gradient .label { color: rgba(255, 255, 255, 0.8); }
 
-  .stat-icon {
-    font-size: 2.5rem;
-    opacity: 0.9;
+  /* 佈局主體 */
+  .dashboard-body {
+    display: grid;
+    grid-template-columns: 2fr 1.2fr;
+    gap: 2rem;
   }
 
-  .stat-icon.success {
-    filter: drop-shadow(0 2px 4px rgba(72, 187, 120, 0.4));
+  /* 響應式優化 */
+  @media (max-width: 1200px) {
+    .dashboard-body {
+      grid-template-columns: 1fr;
+    }
   }
 
-  .stat-icon.danger {
-    filter: drop-shadow(0 2px 4px rgba(245, 101, 101, 0.4));
-  }
-
-  .stat-content {
-    flex: 1;
-  }
-
-  .stat-label {
-    font-size: 0.875rem;
-    opacity: 0.8;
-    margin-bottom: 0.25rem;
-    font-weight: 500;
-  }
-
-  .stat-value {
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .stat-value.success {
-    color: #38a169;
-  }
-
-  .stat-value.danger {
-    color: #e53e3e;
-  }
-
-  .chart-card {
+  .glass-card {
+    background: white;
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+    border: 1px solid #edf2f7;
     margin-bottom: 2rem;
   }
 
-  .table-container {
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+  }
+
+  .section-header h3 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #1e293b;
+    position: relative;
+    padding-bottom: 0.5rem;
+  }
+
+  .section-header h3::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+
+  /* 表格樣式 */
+  .modern-table-wrapper {
     overflow-x: auto;
   }
 
-  table {
+  .modern-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0 10px;
   }
 
-  thead {
-    background: #f7fafc;
-  }
-
-  th,
-  td {
+  .modern-table th {
     padding: 1rem;
     text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  th {
+    color: var(--text-muted);
     font-weight: 600;
-    color: #4a5568;
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
   }
 
-  td.symbol {
+  .modern-table td {
+    padding: 1.25rem 1rem;
+    background: #f8fafc;
+    border-top: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .modern-table td:first-child { border-left: 1px solid #f1f5f9; border-radius: 12px 0 0 12px; }
+  .modern-table td:last-child { border-right: 1px solid #f1f5f9; border-radius: 0 12px 12px 0; }
+
+  .symbol-cell strong { color: var(--primary); }
+
+  /* 進度條勝率樣式 */
+  .progress-bar-container {
+    width: 120px;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .progress-bar {
+    height: 100%;
+    border-radius: 4px;
+  }
+
+  .progress-text {
+    position: absolute;
+    left: 130px;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: #667eea;
+    color: var(--text-main);
   }
 
-  td.success {
-    color: #38a169;
-    font-weight: 600;
+  /* 策略分析樣式 */
+  .strategy-analysis-section {
+    position: sticky;
+    top: 2rem;
   }
 
-  td.profit {
-    color: #38a169;
-    font-weight: 700;
+  .strategy-group {
+    margin-bottom: 2.5rem;
   }
 
-  td.loss {
-    color: #e53e3e;
-    font-weight: 700;
+  .strategy-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
   }
 
-  tbody tr:hover {
-    background: #f7fafc;
-  }
-
-  .empty {
-    text-align: center;
-    padding: 3rem;
+  .strategy-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 8px;
+    font-weight: 800;
+    font-size: 0.9rem;
     color: white;
   }
 
-  .empty p {
-    font-size: 1.25rem;
-    margin-bottom: 0.5rem;
+  .strategy-badge.expert { background: #059669; }
+  .strategy-badge.elite { background: #1e3a8a; }
+  .strategy-badge.legend { background: #78350f; }
+
+  .strategy-stats-summary {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .sub-item-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-left: 0.5rem;
+  }
+
+  .sub-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0;
+    border-bottom: 1px dashed #e2e8f0;
+  }
+
+  .sub-item-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: #334155;
+  }
+
+  .sub-item-meta {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+    align-items: center;
+  }
+
+  .sub-count { color: var(--text-muted); }
+  .sub-winrate { font-weight: 700; color: var(--text-main); }
+  .sub-pnl { 
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: right;
+  }
+  .sub-pnl.pos { background: #dcfce7; color: #166534; }
+  .sub-pnl.neg { background: #fee2e2; color: #991b1b; }
+
+  /* 輔助工具 */
+  .text-success { color: var(--success); }
+  .text-danger { color: var(--danger); }
+  .bg-success { background: var(--success); }
+  .bg-danger { background: var(--danger); }
+  
+  .empty-mini {
+    padding: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+
+  .loading-overlay {
+    height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid var(--primary);
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+    margin-bottom: 1.5rem;
+  }
+
+  @keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 </style>

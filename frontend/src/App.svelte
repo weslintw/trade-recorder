@@ -1,5 +1,6 @@
 <script>
-  import { Router, Route, Link } from 'svelte-routing';
+  import { Router, Route, Link, navigate } from 'svelte-routing';
+  import { onMount, onDestroy } from 'svelte';
   import TradeForm from './components/TradeForm.svelte';
   import TradeList from './components/TradeList.svelte';
   import Dashboard from './components/Dashboard.svelte';
@@ -8,10 +9,34 @@
   import Home from './components/Home.svelte';
   import AccountSelector from './components/AccountSelector.svelte';
   import AccountManagement from './components/AccountManagement.svelte';
-  import { SYMBOLS } from './lib/constants';
+  import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
+  import { determineMarketSession } from './lib/utils';
   import { selectedSymbol } from './lib/stores';
 
   let activeNav = 'home';
+  let currentTime = new Date();
+  let timer;
+
+  onMount(() => {
+    timer = setInterval(() => {
+      currentTime = new Date();
+    }, 1000); // 1秒更新一次秒針，或60000更新分
+  });
+
+  onDestroy(() => {
+    if (timer) clearInterval(timer);
+  });
+
+  $: currentSessionValue = determineMarketSession(currentTime);
+  $: currentSession = MARKET_SESSIONS.find(s => s.value === currentSessionValue);
+
+  function formatTime(date) {
+    return date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatDate(date) {
+    return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
+  }
 </script>
 
 <Router>
@@ -19,20 +44,12 @@
     <nav class="navbar">
       <div class="navbar-content">
         <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
-          <div class="modern-logo">
-            <div class="logo-bars">
-              <div class="bar bar-short"></div>
-              <div class="bar bar-tall"></div>
-              <div class="bar bar-medium"></div>
-            </div>
-            <div class="logo-accent"></div>
+          <div class="logo-image-container">
+            <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
           </div>
         </Link>
 
-        <!-- 全局交易品種與帳號切換 -->
         <div class="header-tools">
-          <AccountSelector />
-
           <div class="symbol-selector-wrapper">
             <div class="symbol-selector">
               <span class="selector-icon">📊</span>
@@ -45,34 +62,35 @@
           </div>
         </div>
 
+        <div class="market-status">
+          <div class="current-time-box">
+            <span class="date">{formatDate(currentTime)}</span>
+            <span class="time">{formatTime(currentTime)}</span>
+          </div>
+          {#if currentSession}
+            <div class="current-session-tag {currentSessionValue}">
+              <span class="session-icon">{currentSession.icon}</span>
+              <span class="session-label">{currentSession.label}</span>
+            </div>
+          {/if}
+        </div>
+
         <div class="nav-links">
-          <Link
-            to="/trades"
-            class={activeNav === 'list' ? 'active' : ''}
-            on:click={() => (activeNav = 'list')}
-          >
-            交易紀錄
-          </Link>
-          <Link
-            to="/plans"
-            class={activeNav === 'plans' ? 'active' : ''}
-            on:click={() => (activeNav = 'plans')}
-          >
-            每日規劃
-          </Link>
-          <Link
-            to="/new"
-            class={activeNav === 'new' ? 'active' : ''}
-            on:click={() => (activeNav = 'new')}
-          >
-            新增交易
-          </Link>
           <Link
             to="/dashboard"
             class={activeNav === 'dashboard' ? 'active' : ''}
             on:click={() => (activeNav = 'dashboard')}
           >
             統計面板
+          </Link>
+          <AccountSelector />
+          <Link
+            to="/accounts"
+            class={activeNav === 'accounts' ? 'nav-settings-btn active' : 'nav-settings-btn'}
+            on:click={() => (activeNav = 'accounts')}
+            title="帳號管理"
+          >
+            ⚙️
           </Link>
         </div>
       </div>
@@ -164,58 +182,24 @@
     text-decoration: none !important;
   }
 
-  .modern-logo {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border-radius: 12px;
+  .logo-image-container {
+    height: 60px; /* 增加高度以放大視覺內容 */
+    width: 320px; /* 橫向加寬，與內容比例契合 */
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
   }
 
-  .modern-logo:hover {
-    transform: scale(1.05) rotate(-2deg);
-    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  .brand-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 自動裁切掉圖片上下的無效區域，聚焦中間品牌名 */
+    object-position: center;
+    mix-blend-mode: multiply;
+    pointer-events: none; /* 防止遮擋點擊 */
   }
 
-  .logo-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 3px;
-    height: 18px;
-  }
-
-  .bar {
-    width: 4px;
-    background: white;
-    border-radius: 2px;
-    transition: height 0.3s ease;
-  }
-
-  .bar-short {
-    height: 8px;
-  }
-  .bar-tall {
-    height: 18px;
-  }
-  .bar-medium {
-    height: 13px;
-  }
-
-  .logo-accent {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 6px;
-    height: 6px;
-    background: #fbbf24;
-    border-radius: 50%;
-    box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
-  }
 
   .nav-links {
     display: flex;
@@ -237,17 +221,106 @@
     background: #f1f5f9;
   }
 
+  .nav-links .active {
+    color: var(--primary);
+  }
+
+  .nav-settings-btn {
+    text-decoration: none;
+    font-size: 1.2rem;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-radius: 8px;
+  }
+
+  /* 市場狀態樣式 */
+  .market-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.4rem 1rem;
+    background: #f8fafc;
+    border-radius: 50px;
+    border: 1px solid #e2e8f0;
+    margin: 0 1rem;
+  }
+
+  .current-time-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+    border-right: 1px solid #e2e8f0;
+    padding-right: 0.8rem;
+  }
+
+  .current-time-box .date {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .current-time-box .time {
+    font-size: 0.95rem;
+    color: #1e293b;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .current-session-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 0.2rem 0.6rem;
+    border-radius: 8px;
+  }
+
+  .current-session-tag.asian { background: #e0f2fe; color: #0369a1; }
+  .current-session-tag.european { background: #fef3c7; color: #b45309; }
+  .current-session-tag.us { background: #fce7f3; color: #be185d; }
+
+  .session-icon {
+    font-size: 1rem;
+  }
+
+  .nav-settings-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.05);
+    transform: rotate(30deg);
+  }
+
+  .nav-settings-btn.active {
+    opacity: 1;
+    color: var(--primary);
+  }
+
   .nav-links :global(a.active) {
     background: var(--primary);
     color: white;
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
   }
 
+
   .header-tools {
     flex: 1;
     display: flex;
     align-items: center;
     padding-left: 2rem;
+    gap: 1rem;
+  }
+
+  .navbar-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+    padding-right: 1.5rem;
+    border-right: 1px solid var(--border-color);
   }
 
   .symbol-selector-wrapper {
@@ -289,7 +362,7 @@
 
   .container {
     max-width: 1400px;
-    margin: 2rem auto;
+    margin: 1rem auto 2rem;
     padding: 0 2rem;
   }
 
@@ -314,6 +387,12 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    white-space: nowrap;
+  }
+
+  :global(.btn-sm) {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
   }
 
   :global(.btn-primary) {
@@ -336,8 +415,17 @@
     background: #e53e3e;
   }
 
+  :global(.btn-warning) {
+    background: #ed8936;
+    color: white;
+  }
+
+  :global(.btn-warning:hover) {
+    background: #dd6b20;
+  }
+
   :global(.form-group) {
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
   }
 
   :global(.form-group label) {

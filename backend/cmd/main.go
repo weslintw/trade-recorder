@@ -51,6 +51,7 @@ func main() {
 			accounts.POST("", handlers.CreateAccount(db))
 			accounts.PUT("/:id", handlers.UpdateAccount(db))
 			accounts.DELETE("/:id", handlers.DeleteAccount(db))
+			accounts.DELETE("/:id/data", handlers.ClearAccountData(db))
 			accounts.POST("/:id/sync", handlers.SyncAccountHistory(db))
 			accounts.POST("/:id/import-csv", handlers.ImportTradesCSV(db))
 		}
@@ -78,6 +79,7 @@ func main() {
 			stats.GET("/summary", handlers.GetStatsSummary(db))
 			stats.GET("/equity-curve", handlers.GetEquityCurve(db))
 			stats.GET("/by-symbol", handlers.GetStatsBySymbol(db))
+			stats.GET("/by-strategy", handlers.GetStatsByStrategy(db))
 		}
 
 		// 標籤管理

@@ -239,5 +239,31 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL16)
 
+	migrationSQL17 := `
+	-- 檢查並添加 initial_sl, bullet_size, rr_ratio 欄位
+	ALTER TABLE trades ADD COLUMN initial_sl REAL;
+	ALTER TABLE trades ADD COLUMN bullet_size REAL;
+	ALTER TABLE trades ADD COLUMN rr_ratio REAL;
+	`
+	db.Exec(migrationSQL17)
+
+	migrationSQL18 := `
+	-- 檢查並添加 timezone_offset 欄位到 accounts
+	ALTER TABLE accounts ADD COLUMN timezone_offset INTEGER DEFAULT 8;
+	`
+	db.Exec(migrationSQL18)
+
+	migrationSQL19 := `
+	-- 檢查並添加 ticket 欄位到 trades
+	ALTER TABLE trades ADD COLUMN ticket VARCHAR(50);
+	`
+	db.Exec(migrationSQL19)
+
+	migrationSQL20 := `
+	-- 檢查並添加 exit_sl 欄位到 trades
+	ALTER TABLE trades ADD COLUMN exit_sl REAL;
+	`
+	db.Exec(migrationSQL20)
+
 	return nil
 }

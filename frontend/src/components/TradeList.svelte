@@ -3,6 +3,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
+  import { determineMarketSession } from '../lib/utils';
   import { selectedSymbol, selectedAccountId } from '../lib/stores';
 
   export let isCompact = false;
@@ -89,9 +90,23 @@
     }
   }
 
-  function getMarketSessionLabel(session) {
+  function getMarketSessionLabel(trade) {
+    let session = trade.market_session;
+    // 如果資料庫中沒有時段資料，根據時間即時計算
+    if (!session && trade.entry_time) {
+      session = determineMarketSession(trade.entry_time);
+    }
     const s = MARKET_SESSIONS.find(s => s.value === session);
-    return s ? s.label : '';
+    return s ? s.label : session || '未設定';
+  }
+
+  function getStrategyLabel(strategy) {
+    const map = {
+      expert: '🏅 達人',
+      elite: '💎 菁英',
+      legend: '🔥 傳奇',
+    };
+    return map[strategy] || '';
   }
 
   async function loadTrades() {
@@ -287,9 +302,14 @@
           <div class="trade-header-compact">
             <div class="compact-left">
               <h3>{trade.symbol}</h3>
-              <span class="badge {trade.side === 'long' ? 'badge-info' : 'badge-danger'}">
+              <span class="badge {trade.side === 'long' ? 'badge-danger' : 'badge-success'}">
                 {trade.side === 'long' ? '📈 做多' : '📉 做空'}
               </span>
+              {#if trade.entry_strategy}
+                <span class="strategy-badge {trade.entry_strategy}">
+                  {getStrategyLabel(trade.entry_strategy)}
+                </span>
+              {/if}
               <span class="compact-item">
                 <span class="compact-label">進場:</span>
                 <span class="compact-value">{trade.entry_price}</span>
@@ -299,6 +319,24 @@
                   <span class="compact-label">平倉:</span>
                   <span class="compact-value">{trade.exit_price}</span>
                 </span>
+              {/if}
+              {#if trade.initial_sl}
+                <span class="compact-item">
+                  <span class="compact-label">停損:</span>
+                  <span class="compact-value">{trade.initial_sl}</span>
+                </span>
+                {#if trade.bullet_size}
+                  <span class="compact-item">
+                    <span class="compact-label">子彈:</span>
+                    <span class="compact-value">{trade.bullet_size.toFixed(1)}</span>
+                  </span>
+                {/if}
+                {#if trade.rr_ratio}
+                  <span class="compact-item">
+                    <span class="compact-label">風報:</span>
+                    <span class="compact-value">{trade.rr_ratio.toFixed(2)}</span>
+                  </span>
+                {/if}
               {/if}
               <span class="compact-item">
                 <span class="compact-label">手數:</span>
@@ -319,7 +357,7 @@
           <!-- 盤面規劃整合區 -->
           <div class="daily-plan-match-section">
             <span class="session-label-inline">
-              時段：<strong>{getMarketSessionLabel(trade.market_session)}</strong>
+              時段：<strong>{getMarketSessionLabel(trade)}</strong>
             </span>
             {#if matchedPlan}
               <div
@@ -714,7 +752,7 @@
   }
 
   .pnl.profit {
-    color: #059669;
+    color: #3b82f6;
   }
 
   .pnl.loss {
@@ -806,6 +844,31 @@
     color: #991b1b;
   }
 
+  .strategy-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+
+  .strategy-badge.expert {
+    background: #059669;
+    color: white;
+    border: none;
+  }
+
+  .strategy-badge.elite {
+    background: #1e3a8a;
+    color: white;
+    border: none;
+  }
+
+  .strategy-badge.legend {
+    background: #78350f;
+    color: white;
+    border: none;
+  }
+
   .plan-summary-group {
     display: flex;
     gap: 0.5rem;
@@ -822,13 +885,13 @@
   }
 
   .trend-item.bullish {
-    background: #dcfce7;
-    color: #166534;
+    background: #fee2e2;
+    color: #991b1b;
   }
 
   .trend-item.bearish {
-    background: #fee2e2;
-    color: #991b1b;
+    background: #dcfce7;
+    color: #166534;
   }
 
   .btn-sm {

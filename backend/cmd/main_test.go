@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"trade-journal/internal/database"
 	"trade-journal/internal/handlers"
 	"trade-journal/internal/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 func setupTestRouter() (*gin.Engine, error) {
@@ -65,11 +66,13 @@ func TestCreateTrade(t *testing.T) {
 		t.Fatalf("設定路由失敗: %v", err)
 	}
 
+	floatPtr := func(f float64) *float64 { return &f }
+
 	trade := models.TradeCreate{
 		Symbol:     "XAUUSD",
 		Side:       "long",
-		EntryPrice: 2000.50,
-		LotSize:    0.1,
+		EntryPrice: floatPtr(2000.50),
+		LotSize:    floatPtr(0.1),
 		EntryTime:  time.Now(),
 		Tags:       []string{"測試"},
 	}

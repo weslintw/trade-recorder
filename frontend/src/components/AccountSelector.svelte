@@ -44,14 +44,13 @@
           </option>
         {/each}
       </select>
-      <a href="/accounts" class="manage-btn" title="管理帳號">⚙️</a>
     </div>
   {/if}
 </div>
 
 <style>
   .account-selector {
-    margin-right: 1.5rem;
+    /* 移動到 nav-links 後不需要額外 margin */
   }
 
   .selector-wrapper {

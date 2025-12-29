@@ -505,13 +505,13 @@
   }
 
   .step.long {
-    background: #f0fdf4;
-    color: #166534;
+    background: #fef2f2;
+    color: #991b1b;
   }
 
   .step.short {
-    background: #fef2f2;
-    color: #991b1b;
+    background: #f0fdf4;
+    color: #166534;
   }
 
   .arrow {
@@ -618,13 +618,21 @@
     border-radius: 4px;
   }
 
-  .trend-outlook.long {
+  .trend-outlook.long, .direction.long {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .trend-outlook.short, .direction.short {
     background: #f0fdf4;
     color: #166534;
   }
 
-  .trend-outlook.short {
-    background: #fef2f2;
-    color: #991b1b;
+  .direction {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-block;
   }
 </style>

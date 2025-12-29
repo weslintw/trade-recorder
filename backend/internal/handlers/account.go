@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,7 +19,7 @@ import (
 // GetAccounts 取得所有帳號
 func GetAccounts(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, COALESCE(sync_status, 'idle'), last_synced_at, COALESCE(last_sync_error, ''), created_at, updated_at FROM accounts ORDER BY created_at ASC")
+		rows, err := db.Query("SELECT id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, COALESCE(last_sync_error, ''), created_at, updated_at FROM accounts ORDER BY created_at ASC")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -28,7 +29,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 		var accounts []models.Account
 		for rows.Next() {
 			var acc models.Account
-			err := rows.Scan(&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.Status, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, &acc.CreatedAt, &acc.UpdatedAt)
+			err := rows.Scan(&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.Status, &acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, &acc.CreatedAt, &acc.UpdatedAt)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -49,8 +50,8 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token) VALUES (?, ?, ?, ?)",
-			req.Name, req.Type, req.MT5AccountID, req.MT5Token)
+		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, timezone_offset) VALUES (?, ?, ?, ?, ?)",
+			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.TimezoneOffset)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -78,8 +79,8 @@ func UpdateAccount(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// 這裡為了簡化先做全量更新，實際上應該檢查 nil
-		_, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-			req.Name, req.MT5AccountID, req.MT5Token, id)
+		_, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+			req.Name, req.MT5AccountID, req.MT5Token, req.TimezoneOffset, id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -159,11 +160,76 @@ func parseTradeTime(timeStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("無法解析時間字串: %s", timeStr)
 }
 
+// determineMarketSession 根據時間判斷市場時段 (與前端邏輯保持一致)
+func determineMarketSession(t time.Time) string {
+	// 轉為 GMT+8 (台灣/香港時間) 進行判斷
+	loc := time.FixedZone("GMT", 8*3600)
+	t8 := t.In(loc)
+
+	hour := t8.Hour()
+	minute := t8.Minute()
+	timeInMinutes := hour*60 + minute
+
+	// 判斷是否為夏令時間 (3月~11月) - 簡單判斷
+	month := t8.Month()
+	isDST := month >= 3 && month <= 11
+
+	// 亞盤：08:00 - 15:00
+	if timeInMinutes >= 8*60 && timeInMinutes < 15*60 {
+		return "asian"
+	}
+
+	// 歐盤
+	var euroStart, euroEnd int
+	if isDST {
+		euroStart = 15 * 60
+		euroEnd = 23 * 60
+	} else {
+		euroStart = 16 * 60
+		euroEnd = 24 * 60
+	}
+	if timeInMinutes >= euroStart && (timeInMinutes < euroEnd || euroEnd == 24*60) {
+		return "european"
+	}
+
+	// 美盤 (處理跨日)
+	var usStart, usEnd int
+	if isDST {
+		usStart = 20 * 60
+		usEnd = 4 * 60
+	} else {
+		usStart = 21 * 60
+		usEnd = 5 * 60
+	}
+
+	if usStart > usEnd { // 跨日
+		if timeInMinutes >= usStart || timeInMinutes < usEnd {
+			return "us"
+		}
+	} else {
+		if timeInMinutes >= usStart && timeInMinutes < usEnd {
+			return "us"
+		}
+	}
+
+	return "asian" // 預設
+}
+
 // ImportTradesCSV 從 CSV 匯入交易紀錄 (支援 FTMO 格式)
 func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		accountIDStr := c.Param("id")
 		accountID, _ := strconv.ParseInt(accountIDStr, 10, 64)
+
+		source := c.PostForm("source")
+		if source == "" {
+			source = "ftmo" // 預設為 ftmo
+		}
+
+		if source != "ftmo" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "目前僅支援 FTMO 格式匯入"})
+			return
+		}
 
 		file, err := c.FormFile("file")
 		if err != nil {
@@ -196,8 +262,9 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		var importedCount int
-		var skippedCount int
+		var importedTickets []string
+		var duplicateTickets []string
+		var errorTickets []string
 
 		for i, row := range records {
 			if i == 0 {
@@ -206,6 +273,7 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 
 			// 列數檢查
 			if len(row) < 14 {
+				errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
 				continue
 			}
 
@@ -216,18 +284,18 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			volumeStr := row[3]
 			symbol := row[4]
 			entryPriceStr := row[5]
+			slPriceStr := row[6]
 			closeTimeStr := row[8]
 			exitPriceStr := row[9]
 			swapStr := row[10]
 			commissionStr := row[11]
 			profitStr := row[12]
-			pipsStr := row[13]
 
 			// 解析時間
 			openTime, err := parseTradeTime(openTimeStr)
 			if err != nil {
 				log.Printf("Parse openTime error for ticket %s: %v", ticket, err)
-				skippedCount++
+				errorTickets = append(errorTickets, ticket)
 				continue
 			}
 
@@ -241,10 +309,10 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			volume, _ := strconv.ParseFloat(volumeStr, 64)
 			entryPrice, _ := strconv.ParseFloat(entryPriceStr, 64)
 			exitPrice, _ := strconv.ParseFloat(exitPriceStr, 64)
+			exitSl, _ := strconv.ParseFloat(slPriceStr, 64)
 			swap, _ := strconv.ParseFloat(swapStr, 64)
 			commission, _ := strconv.ParseFloat(commissionStr, 64)
 			profit, _ := strconv.ParseFloat(profitStr, 64)
-			pips, _ := strconv.ParseFloat(pipsStr, 64)
 
 			side := "long"
 			if sideStr == "sell" {
@@ -253,36 +321,117 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 
 			totalPnL := profit + swap + commission
 
-			// 去重檢查
+			// 計算合約乘數
+			multiplier := 100.0 // 預設 (黃金 XAUUSD: $1 = 100點, 指數: 1.0 = 100點)
+			symbolUpper := strings.ToUpper(symbol)
+			if strings.Contains(symbolUpper, "JPY") {
+				multiplier = 1000.0 // JPY 貨幣對 (0.001 = 1點)
+			} else if strings.Contains(symbolUpper, "EUR") || strings.Contains(symbolUpper, "GBP") || strings.Contains(symbolUpper, "AUD") || (strings.Contains(symbolUpper, "USD") && !strings.Contains(symbolUpper, "XAU")) {
+				multiplier = 100000.0 // 預設外匯 (0.00001 = 1點)
+			}
+
+			// 重新計算盈虧點數 (根據使用者定義：1點 = 最小價格單位)
+			diff := exitPrice - entryPrice
+			if side == "short" {
+				diff = entryPrice - exitPrice
+			}
+			calculatedPips := math.Round(diff*multiplier*100) / 100
+
+			// 計算子彈大小與風報比 (CSV 匯入暫時不提供初始 SL，因此不計算)
+			var bulletSize interface{} = nil
+			var rrRatio interface{} = nil
+			var initialSl interface{} = nil
+
+			// 自動判斷時段
+			marketSession := determineMarketSession(openTime)
+
+			// 去重檢查 (優先使用 Ticket)
 			var exists bool
-			err = db.QueryRow(`
-				SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
-			`, accountID, symbol, openTime, volume).Scan(&exists)
+			if ticket != "" {
+				err = db.QueryRow(`
+					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND ticket = ?)
+				`, accountID, ticket).Scan(&exists)
+			} else {
+				// 如果沒有 Ticket，才使用 entry_time + lot_size
+				err = db.QueryRow(`
+					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
+				`, accountID, symbol, openTime, volume).Scan(&exists)
+			}
 
 			if exists {
-				skippedCount++
+				duplicateTickets = append(duplicateTickets, ticket)
 				continue
 			}
 
-			// 寫入資料庫，加入 timezone_offset 預設為 8 (台灣)
-			// 同時讓 market_session 為空，交給前端 Svelte 在第一次載入編輯時自動判斷
+			// 寫入資料庫
 			_, err = db.Exec(`
-				INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, entry_time, exit_time, trade_type, notes, timezone_offset)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, accountID, symbol, side, entryPrice, exitPrice, volume, totalPnL, pips, openTime, closeTime, "actual", "FTMO CSV 匯入: Ticket "+ticket, 8)
+				INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, entry_time, exit_time, trade_type, notes, timezone_offset, market_session, initial_sl, bullet_size, rr_ratio, ticket, exit_sl)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, accountID, symbol, side, entryPrice, exitPrice, volume, totalPnL, calculatedPips, openTime, closeTime, "actual", "FTMO CSV 匯入: Ticket "+ticket, 8, marketSession, initialSl, bulletSize, rrRatio, ticket, exitSl)
 
 			if err != nil {
 				log.Printf("Import failed for ticket %s: %v", ticket, err)
-				skippedCount++
+				errorTickets = append(errorTickets, ticket)
 			} else {
-				importedCount++
+				importedTickets = append(importedTickets, ticket)
 			}
 		}
 
+		message := fmt.Sprintf("匯入完成：成功 %d 筆", len(importedTickets))
+		if len(duplicateTickets) > 0 || len(errorTickets) > 0 {
+			message += " (跳過："
+			if len(duplicateTickets) > 0 {
+				message += fmt.Sprintf("重複 %d 筆 ", len(duplicateTickets))
+			}
+			if len(errorTickets) > 0 {
+				message += fmt.Sprintf("錯誤 %d 筆", len(errorTickets))
+			}
+			message += ")"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"message":  fmt.Sprintf("匯入完成：成功 %d 筆，跳過 %d 筆（重複或失敗）", importedCount, skippedCount),
-			"imported": importedCount,
-			"skipped":  skippedCount,
+			"message":           message,
+			"imported_count":    len(importedTickets),
+			"duplicate_count":   len(duplicateTickets),
+			"error_count":       len(errorTickets),
+			"imported_tickets":  importedTickets,
+			"duplicate_tickets": duplicateTickets,
+			"error_tickets":     errorTickets,
 		})
+	}
+}
+
+// ClearAccountData 清除帳號的所有交易紀錄與規劃
+func ClearAccountData(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		tx, err := db.Begin()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer tx.Rollback()
+
+		// 刪除交易紀錄（這也會透過 CASCADE 刪除相關圖片與標籤）
+		_, err = tx.Exec("DELETE FROM trades WHERE account_id = ?", id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除交易紀錄失敗: " + err.Error()})
+			return
+		}
+
+		// 刪除每日規劃
+		_, err = tx.Exec("DELETE FROM daily_plans WHERE account_id = ?", id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除每日規劃失敗: " + err.Error()})
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "帳號資料已完成清除"})
 	}
 }

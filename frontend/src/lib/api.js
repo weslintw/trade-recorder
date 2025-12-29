@@ -37,6 +37,7 @@ export const statsAPI = {
   getSummary: (params) => api.get('/stats/summary', { params }),
   getEquityCurve: (params) => api.get('/stats/equity-curve', { params }),
   getBySymbol: (params) => api.get('/stats/by-symbol', { params }),
+  getByStrategy: (params) => api.get('/stats/by-strategy', { params }),
 };
 
 // 標籤相關
@@ -66,6 +67,7 @@ export const accountsAPI = {
         'Content-Type': 'multipart/form-data',
       },
     }),
+  clearData: (id) => api.delete(`/accounts/${id}/data`),
 };
 
 export default api;

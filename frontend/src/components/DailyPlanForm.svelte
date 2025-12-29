@@ -6,9 +6,11 @@
   import { selectedAccountId } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
+  import { determineMarketSession } from '../lib/utils';
+
   export let id = null;
 
-  let activeSession = 'asian'; // 當前切換的分頁
+  let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
 
   // 使用從 constants 引入的時限
   const timeframes = TIMEFRAMES;
@@ -19,7 +21,9 @@
     timeframes.forEach(tf => {
       trends[tf] = {
         direction: '',
+        has_signals: false,
         signals: [],
+        has_wave: false,
         wave_numbers: [],
         wave_highlight: '',
         image: '',
@@ -63,21 +67,15 @@
     if (symbolParam) formData.symbol = symbolParam;
   });
 
-  // 達人訊號選項 - 根據做多/做空顯示不同訊號
+  // 達人訊號選項
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
-
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
+  
+  // 全部訊號清單
+  const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
 
   // 波浪數字選項
   const waveNumbers = ['1', '2', '3', '4', '5'];
-
-  // 根據時區的方向獲取對應的訊號列表
-  function getSignalsForTimeframe(timeframe) {
-    const direction = currentTrends[timeframe].direction;
-    if (direction === 'long') return expertSignalsLong;
-    if (direction === 'short') return expertSignalsShort;
-    return [];
-  }
 
   // 切換時區的訊號選擇
   function toggleTimeframeSignal(timeframe, signalName) {
@@ -141,6 +139,18 @@
     waveButtonKey++;
   }
 
+  // 切換趨勢方向 (多/空)，再次點選可取消
+  function toggleTrendDirection(timeframe, direction) {
+    if (currentTrends[timeframe].direction === direction) {
+      currentTrends[timeframe].direction = '';
+    } else {
+      currentTrends[timeframe].direction = direction;
+    }
+    // 強制觸發 Svelte 響應式更新
+    formData = formData;
+    waveButtonKey++;
+  }
+
   // 檢查波浪數字是否被選中（綠色）
   function isWaveNumberSelected(timeframe, number) {
     const selectedNumbers = currentTrends[timeframe]?.wave_numbers || [];
@@ -190,6 +200,18 @@
           trends: trendAnalysis,
         };
       }
+
+      // 檢查並補足 has_signals / has_wave 標記 (用於相容舊資料)
+      Object.keys(formData.sessions).forEach(s => {
+        const sess = formData.sessions[s];
+        if (sess && sess.trends) {
+          Object.keys(sess.trends).forEach(tf => {
+            const t = sess.trends[tf];
+            if (t.signals?.length > 0 || t.signals_image) t.has_signals = true;
+            if (t.wave_numbers?.length > 0 || t.wave_image) t.has_wave = true;
+          });
+        }
+      });
       formData = formData;
     } catch (error) {
       console.error('載入規劃失敗:', error);
@@ -212,11 +234,15 @@
         await dailyPlansAPI.update(id, submitData);
         alert('規劃已更新');
       } else {
-        await dailyPlansAPI.create(submitData);
+        const response = await dailyPlansAPI.create(submitData);
         alert('規劃已建立');
+        // 如果 API 有回傳新建立的 ID，跳轉到編輯頁面以繼續編輯
+        if (response.data && response.data.id) {
+          navigate(`/plans/edit/${response.data.id}`, { replace: true });
+        } else {
+          navigate('/plans');
+        }
       }
-
-      navigate('/plans');
     } catch (error) {
       console.error('保存失敗:', error);
       const errorMessage = error.response?.data?.error || '保存規劃失敗';
@@ -349,7 +375,17 @@
 </script>
 
 <div class="card">
-  <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
+  <div class="card-header-actions">
+    <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
+    <div class="header-btns">
+      <button type="button" class="btn btn-primary" on:click={handleSubmit}>
+        {id ? '💾 更新規劃' : '✅ 建立規劃'}
+      </button>
+      <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
+        🔙 返回
+      </button>
+    </div>
+  </div>
 
   <form on:submit|preventDefault={handleSubmit}>
     <!-- 基本資料 -->
@@ -444,139 +480,143 @@
 
             <!-- 多空選擇 -->
             <div class="trend-options">
-              <label
-                class="trend-option"
+              <button
+                type="button"
+                class="trend-option long"
                 class:active={currentTrends[timeframe].direction === 'long'}
+                on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
               >
-                <input
-                  type="radio"
-                  name="trend_{timeframe}_{activeSession}"
-                  value="long"
-                  bind:group={currentTrends[timeframe].direction}
-                />
                 <span class="trend-name">多</span>
-              </label>
-              <label
-                class="trend-option"
+              </button>
+              <button
+                type="button"
+                class="trend-option short"
                 class:active={currentTrends[timeframe].direction === 'short'}
+                on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
               >
-                <input
-                  type="radio"
-                  name="trend_{timeframe}_{activeSession}"
-                  value="short"
-                  bind:group={currentTrends[timeframe].direction}
-                />
                 <span class="trend-name">空</span>
-              </label>
+              </button>
             </div>
 
             <!-- 達人訊號選擇 -->
             <div class="timeframe-signals">
-              <label class="section-label">達人訊號：</label>
-              <div class="signal-chips">
-                {#each getSignalsForTimeframe(timeframe) as signal (waveButtonKey + '-' + timeframe + '-signal-' + signal)}
-                  <button
-                    type="button"
-                    class="signal-chip"
-                    class:active={isTimeframeSignalSelected(timeframe, signal)}
-                    on:click|stopPropagation={() => toggleTimeframeSignal(timeframe, signal)}
-                  >
-                    {signal}
-                  </button>
-                {/each}
-              </div>
+              <label class="section-label inline-check">
+                <input type="checkbox" bind:checked={currentTrends[timeframe].has_signals} />
+                達人訊號
+              </label>
+              
+              {#if currentTrends[timeframe].has_signals}
+                <div class="signal-chips">
+                  {#each allExpertSignals as signal (waveButtonKey + '-' + timeframe + '-signal-' + signal)}
+                    <button
+                      type="button"
+                      class="signal-chip"
+                      class:active={isTimeframeSignalSelected(timeframe, signal)}
+                      on:click|stopPropagation={() => toggleTimeframeSignal(timeframe, signal)}
+                    >
+                      {signal}
+                    </button>
+                  {/each}
+                </div>
 
-              <!-- 達人訊號圖片 -->
-              {#if currentTrends[timeframe].signals_image}
-                <div
-                  class="trend-image-preview"
-                  on:click|stopPropagation={() =>
-                    enlargeImage(
-                      currentTrends[timeframe].signals_image,
-                      `${timeframe} 達人訊號圖`,
-                      { type: 'signals', key: timeframe }
-                    )}
-                >
-                  <img
-                    src={currentTrends[timeframe].signals_image}
-                    alt="{timeframe} 達人訊號"
-                    style="pointer-events: none;"
-                  />
-                  <button
-                    type="button"
-                    class="remove-image-btn"
-                    on:click|stopPropagation={() => removeTrendImage(timeframe, 'signals')}
-                    title="移除圖片"
+                <!-- 達人訊號圖片 -->
+                {#if currentTrends[timeframe].signals_image}
+                  <div
+                    class="trend-image-preview"
+                    on:click|stopPropagation={() =>
+                      enlargeImage(
+                        currentTrends[timeframe].signals_image,
+                        `${timeframe} 達人訊號圖`,
+                        { type: 'signals', key: timeframe }
+                      )}
                   >
-                    ×
-                  </button>
-                </div>
-              {:else}
-                <div
-                  class="trend-image-placeholder"
-                  tabindex="0"
-                  on:paste|preventDefault|stopPropagation={e =>
-                    handleTrendImagePaste(e, timeframe, 'signals')}
-                  on:click|stopPropagation={e => e.target.focus()}
-                  role="textbox"
-                >
-                  📋 Ctrl+V 貼上達人訊號圖片
-                </div>
+                    <img
+                      src={currentTrends[timeframe].signals_image}
+                      alt="{timeframe} 達人訊號"
+                      style="pointer-events: none;"
+                    />
+                    <button
+                      type="button"
+                      class="remove-image-btn"
+                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'signals')}
+                      title="移除圖片"
+                    >
+                      ×
+                    </button>
+                  </div>
+                {:else}
+                  <div
+                    class="trend-image-placeholderSmall"
+                    tabindex="0"
+                    on:paste|preventDefault|stopPropagation={e =>
+                      handleTrendImagePaste(e, timeframe, 'signals')}
+                    on:click|stopPropagation={e => e.target.focus()}
+                    role="textbox"
+                  >
+                    📋 貼上訊號圖
+                  </div>
+                {/if}
               {/if}
             </div>
 
             <!-- 波浪浪數選擇 -->
             <div class="timeframe-wave">
-              <label class="section-label">波浪浪數：</label>
-              <div class="wave-numbers">
-                {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + num)}
-                  <button
-                    type="button"
-                    class="wave-number-btn"
-                    class:selected={isWaveNumberSelected(timeframe, num)}
-                    class:highlighted={isWaveNumberHighlighted(timeframe, num)}
-                    on:click|stopPropagation={() => clickWaveNumber(timeframe, num)}
-                  >
-                    {num}
-                  </button>
-                {/each}
-              </div>
+              <label class="section-label inline-check">
+                <input type="checkbox" bind:checked={currentTrends[timeframe].has_wave} />
+                波浪浪數
+              </label>
 
-              <!-- 波浪圖片 -->
-              {#if currentTrends[timeframe].wave_image}
-                <div
-                  class="trend-image-preview"
-                  on:click|stopPropagation={() =>
-                    enlargeImage(currentTrends[timeframe].wave_image, `${timeframe} 波浪圖`, {
-                      type: 'wave',
-                      key: timeframe,
-                    })}
-                >
-                  <img
-                    src={currentTrends[timeframe].wave_image}
-                    alt="{timeframe} 波浪"
-                    style="pointer-events: none;"
-                  />
-                  <button
-                    type="button"
-                    class="remove-image-btn"
-                    on:click|stopPropagation={() => removeTrendImage(timeframe, 'wave')}
-                    title="移除圖片"
+              {#if currentTrends[timeframe].has_wave}
+                <div class="wave-numbers">
+                  {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + num)}
+                    <button
+                      type="button"
+                      class="wave-number-btn"
+                      class:selected={isWaveNumberSelected(timeframe, num)}
+                      class:highlighted={isWaveNumberHighlighted(timeframe, num)}
+                      on:click|stopPropagation={() => clickWaveNumber(timeframe, num)}
+                    >
+                      {num}
+                    </button>
+                  {/each}
+                </div>
+
+                <!-- 波浪圖片 -->
+                {#if currentTrends[timeframe].wave_image}
+                  <div
+                    class="trend-image-preview"
+                    on:click|stopPropagation={() =>
+                      enlargeImage(currentTrends[timeframe].wave_image, `${timeframe} 波浪圖`, {
+                        type: 'wave',
+                        key: timeframe,
+                      })}
                   >
-                    ×
-                  </button>
-                </div>
-              {:else}
-                <div
-                  class="trend-image-placeholder"
-                  tabindex="0"
-                  on:paste|preventDefault|stopPropagation={e =>
-                    handleTrendImagePaste(e, timeframe, 'wave')}
-                  on:click|stopPropagation={e => e.target.focus()}
-                  role="textbox"
-                >
-                  📋 Ctrl+V 貼上波浪圖片
-                </div>
+                    <img
+                      src={currentTrends[timeframe].wave_image}
+                      alt="{timeframe} 波浪"
+                      style="pointer-events: none;"
+                    />
+                    <button
+                      type="button"
+                      class="remove-image-btn"
+                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'wave')}
+                      title="移除圖片"
+                    >
+                      ×
+                    </button>
+                  </div>
+                {:else}
+                  <div
+                    class="trend-image-placeholderSmall"
+                    tabindex="0"
+                    on:paste|preventDefault|stopPropagation={e =>
+                      handleTrendImagePaste(e, timeframe, 'wave')}
+                    on:click|stopPropagation={e => e.target.focus()}
+                    role="textbox"
+                  >
+                    📋 貼上波浪圖
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>
@@ -589,8 +629,8 @@
       <button type="submit" class="btn btn-primary">
         {id ? '💾 更新規劃' : '✅ 建立規劃'}
       </button>
-      <button type="button" class="btn btn-secondary" on:click={() => navigate('/plans')}>
-        ❌ 取消
+      <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
+        🔙 返回
       </button>
     </div>
   </form>
@@ -624,8 +664,20 @@
 {/if}
 
 <style>
-  h2 {
+  .card-header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 2rem;
+  }
+
+  .header-btns {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  h2 {
+    margin-bottom: 0;
     color: #2d3748;
   }
 
@@ -733,10 +785,12 @@
     justify-content: center;
     padding: 0.5rem;
     border: 2px solid #cbd5e0;
+    background: white;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
+    outline: none;
   }
 
   .trend-option:hover {
@@ -744,9 +798,14 @@
     background: #f7fafc;
   }
 
-  .trend-option.active {
-    border-color: #667eea;
-    background: #667eea;
+  .trend-option.active.long {
+    border-color: #ef4444;
+    background: #ef4444;
+  }
+
+  .trend-option.active.short {
+    border-color: #10b981;
+    background: #10b981;
   }
 
   .trend-option input[type='radio'] {
@@ -774,6 +833,20 @@
     font-weight: 600;
     color: #4a5568;
     margin-bottom: 0.5rem;
+  }
+
+  .section-label.inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .section-label.inline-check input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
   }
 
   .signal-chips {
@@ -919,6 +992,7 @@
   /* 操作按鈕 */
   .form-actions {
     display: flex;
+    justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
     padding-top: 2rem;
@@ -1029,5 +1103,26 @@
   textarea.form-control {
     resize: vertical;
     font-family: inherit;
+  }
+
+  .trend-image-placeholderSmall {
+    border: 1.5px dashed #cbd5e0;
+    border-radius: 8px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #718096;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .trend-image-placeholderSmall:hover,
+  .trend-image-placeholderSmall:focus {
+    background: #edf2f7;
+    border-color: #667eea;
+    color: #667eea;
   }
 </style>

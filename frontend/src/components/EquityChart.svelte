@@ -25,24 +25,27 @@
     if (!chartCanvas || data.length === 0) return;
 
     const ctx = chartCanvas.getContext('2d');
+    const chartGradient = ctx.createLinearGradient(0, 0, 0, 400);
+    chartGradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+    chartGradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
 
     chartInstance = new Chart(ctx, {
       type: 'line',
       data: {
         labels: data.map(d => d.date),
         datasets: [{
-          label: '累積盈虧',
+          label: '累積盈虧 (Equity)',
           data: data.map(d => d.equity),
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          borderWidth: 3,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#667eea',
+          borderColor: '#6366f1',
+          borderWidth: 4,
+          pointBackgroundColor: '#6366f1',
           pointBorderColor: '#fff',
-          pointBorderWidth: 2
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 8,
+          backgroundColor: chartGradient,
+          fill: true,
+          tension: 0.4
         }]
       },
       options: {

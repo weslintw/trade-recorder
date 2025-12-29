@@ -27,7 +27,12 @@ type Trade struct {
 	EntryTimeframe             *string    `json:"entry_timeframe,omitempty"`               // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
 	TrendType                  *string    `json:"trend_type,omitempty"`                    // "with_trend"=順勢, "against_trend"=逆勢
 	MarketSession              *string    `json:"market_session,omitempty"`                // "asian"=亞盤, "european"=歐盤, "us"=美盤
+	InitialSL                  *float64   `json:"initial_sl,omitempty"`                    // 初始停損價
+	BulletSize                 *float64   `json:"bullet_size,omitempty"`                   // 子彈大小 (風險金額)
+	RRRatio                    *float64   `json:"rr_ratio,omitempty"`                      // 風報比
 	TimezoneOffset             *int       `json:"timezone_offset,omitempty"`               // UTC 偏移，如 8 表示 UTC+8
+	Ticket                     *string    `json:"ticket,omitempty"`                        // 平台成交編號
+	ExitSL                     *float64   `json:"exit_sl,omitempty"`                       // 平倉時的停損價
 	EntryTime                  time.Time  `json:"entry_time"`
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
 	CreatedAt                  time.Time  `json:"created_at"`
@@ -76,7 +81,11 @@ type TradeCreate struct {
 	EntryTimeframe             string        `json:"entry_timeframe"`               // "M1", "M5", "M15", "M30", "H1", "H4", "D1"
 	TrendType                  string        `json:"trend_type"`                    // "with_trend", "against_trend"
 	MarketSession              string        `json:"market_session"`                // "asian", "european", "us"
-	TimezoneOffset             int           `json:"timezone_offset"`               // UTC 偏移
+	InitialSL                  *float64      `json:"initial_sl"`
+	BulletSize                 *float64      `json:"bullet_size"`
+	RRRatio                    *float64      `json:"rr_ratio"`
+	TimezoneOffset             int           `json:"timezone_offset"` // UTC 偏移
+	ExitSL                     *float64      `json:"exit_sl"`         // 平倉時的停損價
 	EntryTime                  time.Time     `json:"entry_time" binding:"required"`
 	ExitTime                   *time.Time    `json:"exit_time"`
 	Tags                       []string      `json:"tags"`
@@ -123,6 +132,25 @@ type EquityPoint struct {
 // SymbolStats 品種統計
 type SymbolStats struct {
 	Symbol        string  `json:"symbol"`
+	TotalTrades   int     `json:"total_trades"`
+	WinningTrades int     `json:"winning_trades"`
+	WinRate       float64 `json:"win_rate"`
+	TotalPnL      float64 `json:"total_pnl"`
+}
+
+// StrategyStats 策略統計 (達人/菁英/傳奇)
+type StrategyStats struct {
+	Strategy      string            `json:"strategy"`
+	TotalTrades   int               `json:"total_trades"`
+	WinningTrades int               `json:"winning_trades"`
+	WinRate       float64           `json:"win_rate"`
+	TotalPnL      float64           `json:"total_pnl"`
+	SubItemStats  []SubItemStats    `json:"sub_item_stats"`
+}
+
+// SubItemStats 策略子項目統計 (訊號/樣態/檢查項)
+type SubItemStats struct {
+	Name          string  `json:"name"`
 	TotalTrades   int     `json:"total_trades"`
 	WinningTrades int     `json:"winning_trades"`
 	WinRate       float64 `json:"win_rate"`

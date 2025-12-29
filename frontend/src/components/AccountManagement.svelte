@@ -11,6 +11,7 @@
     type: 'local',
     mt5_account_id: '',
     mt5_token: '',
+    timezone_offset: 8,
   };
 
   async function fetchAccounts() {
@@ -42,7 +43,7 @@
     try {
       await accountsAPI.create(newAccount);
       showAddModal = false;
-      newAccount = { name: '', type: 'local', mt5_account_id: '', mt5_token: '' };
+      newAccount = { name: '', type: 'local', mt5_account_id: '', mt5_token: '', timezone_offset: 8 };
       fetchAccounts();
     } catch (e) {
       console.error(e);
@@ -60,6 +61,17 @@
       console.error(e);
       const errorMsg = e.response?.data?.error || e.message || '未知錯誤';
       alert('刪除帳號失敗: ' + errorMsg);
+    }
+  }
+
+  async function clearAccountData(id) {
+    if (!confirm('🚨 警告：確定要清除此帳號的所有交易紀錄與規劃嗎？\n此動作將刪除所有數據且無法撤回！')) return;
+    try {
+      await accountsAPI.clearData(id);
+      alert('帳號資料已清除成功');
+    } catch (e) {
+      console.error(e);
+      alert('清除資料失敗');
     }
   }
 
@@ -91,11 +103,15 @@
   let importingAccountId = null;
   let importFile = null;
   let importing = false;
+  let importSource = 'ftmo';
+  let importResult = null;
 
   function openImportModal(id) {
     importingAccountId = id;
     showImportModal = true;
     importFile = null;
+    importSource = 'ftmo';
+    importResult = null;
   }
 
   async function handleImportCSV() {
@@ -107,9 +123,11 @@
     try {
       const formData = new FormData();
       formData.append('file', importFile);
+      formData.append('source', importSource);
       const res = await accountsAPI.importCSV(importingAccountId, formData);
-      alert(res.data.message);
-      showImportModal = false;
+      importResult = res.data;
+      // alert(res.data.message); // 改用內嵌顯示
+      // showImportModal = false; // 暫不關閉，顯示結果
       importFile = null;
     } catch (e) {
       console.error(e);
@@ -123,10 +141,12 @@
   // --- 帳號重新命名相關 ---
   let editingId = null;
   let editingName = '';
+  let editingOffset = 8;
 
   function startEditing(acc) {
     editingId = acc.id;
     editingName = acc.name;
+    editingOffset = acc.timezone_offset;
   }
 
   function cancelEditing() {
@@ -140,7 +160,7 @@
       return;
     }
     try {
-      await accountsAPI.update(id, { name: editingName.trim() });
+      await accountsAPI.update(id, { name: editingName.trim(), timezone_offset: parseInt(editingOffset) });
       editingId = null;
       fetchAccounts();
     } catch (e) {
@@ -173,6 +193,15 @@
           class:mt5={acc.type === 'metatrader'}
           on:click={() => selectAccount(acc.id)}
         >
+          {#if acc.id !== 1}
+            <button
+              class="delete-acc-btn"
+              on:click|stopPropagation={() => deleteAccount(acc.id)}
+              title="刪除帳號"
+            >
+              ✕
+            </button>
+          {/if}
           <div class="acc-info">
             {#if editingId === acc.id}
               <div class="edit-name-wrapper" on:click|stopPropagation>
@@ -183,6 +212,11 @@
                   on:keypress={e => e.key === 'Enter' && saveName(acc.id)}
                   autoFocus
                 />
+                <select class="form-control edit-offset-select" bind:value={editingOffset}>
+                  {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
+                    <option value={offset}>UTC{offset >= 0 ? '+' : ''}{offset}</option>
+                  {/each}
+                </select>
                 <button class="btn-icon save" on:click={() => saveName(acc.id)} title="儲存"
                   >✅</button
                 >
@@ -205,6 +239,7 @@
               <span class="badge {acc.status === 'active' ? 'badge-success' : 'badge-danger'}">
                 {acc.status}
               </span>
+              <span class="badge badge-utc">UTC{acc.timezone_offset >= 0 ? '+' : ''}{acc.timezone_offset}</span>
             </div>
             {#if acc.type === 'metatrader'}
               <div class="mt5-detail">
@@ -233,11 +268,11 @@
                 >🔄 同步</button
               >
             {/if}
-            {#if acc.id !== 1}
-              <button class="btn btn-danger" on:click|stopPropagation={() => deleteAccount(acc.id)}
-                >刪除</button
-              >
-            {/if}
+            <button
+              class="btn btn-warning"
+              on:click|stopPropagation={() => clearAccountData(acc.id)}
+              title="清除所有交易與規劃">🧹 清除資料</button
+            >
           </div>
         </div>
       {/each}
@@ -260,28 +295,20 @@
           <label>帳號類型</label>
           <div class="type-selector">
             <label class="radio-label">
-              <input type="radio" bind:group={newAccount.type} value="local" /> 本地記錄 (完全手動)
-            </label>
-            <label class="radio-label">
-              <input type="radio" bind:group={newAccount.type} value="metatrader" /> MetaTrader 5 Cloud
-              API
+              <input type="radio" bind:group={newAccount.type} value="local" checked /> 本地記錄 (完全手動)
             </label>
           </div>
         </div>
 
-        {#if newAccount.type === 'metatrader'}
-          <div class="mt5-fields">
-            <div class="form-group">
-              <label>MetaApi Account ID</label>
-              <input type="text" class="form-control" bind:value={newAccount.mt5_account_id} />
-            </div>
-            <div class="form-group">
-              <label>MetaApi Token (API Key)</label>
-              <input type="password" class="form-control" bind:value={newAccount.mt5_token} />
-            </div>
-            <p class="help-text">註：目前系統對接 MetaApi.cloud 服務以實現 MT5 雲端連線。</p>
-          </div>
-        {/if}
+        <div class="form-group">
+          <label>時區設定 (UTC)</label>
+          <select class="form-control" bind:value={newAccount.timezone_offset}>
+            {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
+              <option value={offset}>UTC{offset >= 0 ? '+' : ''}{offset}</option>
+            {/each}
+          </select>
+          <p class="help-text">此設定將套用於此帳號下的所有交易紀錄時間。</p>
+        </div>
 
         <div class="modal-actions">
           <button class="btn" on:click={() => (showAddModal = false)}>取消</button>
@@ -294,9 +321,18 @@
     <div class="modal-overlay" on:click|self={() => (showImportModal = false)}>
       <div class="modal card">
         <h2>匯入交易紀錄 (CSV)</h2>
+        <div class="form-group">
+          <label for="importSource">匯入來源</label>
+          <select id="importSource" class="form-control" bind:value={importSource}>
+            <option value="ftmo">FTMO</option>
+          </select>
+        </div>
+
         <div class="import-instructions">
-          <p>目前支援格式：<strong>FTMO CSV</strong></p>
-          <p class="help-text">請從 FTMO 交易控制面板下載完整交易紀錄 CSV。</p>
+          {#if importSource === 'ftmo'}
+            <p>目前支援格式：<strong>FTMO CSV</strong></p>
+            <p class="help-text">請從 FTMO 交易控制面板下載完整交易紀錄 CSV。</p>
+          {/if}
         </div>
 
         <div class="form-group">
@@ -311,13 +347,52 @@
         </div>
 
         <div class="modal-actions">
-          <button class="btn" on:click={() => (showImportModal = false)} disabled={importing}
-            >取消</button
-          >
-          <button class="btn btn-primary" on:click={handleImportCSV} disabled={importing}>
-            {importing ? '⌛ 處理中...' : '開始匯入'}
-          </button>
+          {#if importResult}
+            <button class="btn btn-primary" on:click={() => (showImportModal = false)}>完成</button>
+          {:else}
+            <button class="btn" on:click={() => (showImportModal = false)} disabled={importing}
+              >取消</button
+            >
+            <button class="btn btn-primary" on:click={handleImportCSV} disabled={importing}>
+              {importing ? '⌛ 處理中...' : '開始匯入'}
+            </button>
+          {/if}
         </div>
+
+        {#if importResult}
+          <div class="import-result-details">
+            <div class="summary-banner">
+              {importResult.message}
+            </div>
+
+            {#if importResult.imported_tickets?.length > 0}
+              <div class="ticket-section imported">
+                <h4>🟢 新匯入 ({importResult.imported_count})</h4>
+                <div class="ticket-list">
+                  {importResult.imported_tickets.join(', ')}
+                </div>
+              </div>
+            {/if}
+
+            {#if importResult.duplicate_tickets?.length > 0}
+              <div class="ticket-section duplicate">
+                <h4>🟡 重複跳過 ({importResult.duplicate_count})</h4>
+                <div class="ticket-list">
+                  {importResult.duplicate_tickets.join(', ')}
+                </div>
+              </div>
+            {/if}
+
+            {#if importResult.error_tickets?.length > 0}
+              <div class="ticket-section error">
+                <h4>🔴 匯入失敗 ({importResult.error_count})</h4>
+                <div class="ticket-list">
+                  {importResult.error_tickets.join(', ')}
+                </div>
+              </div>
+            {/if}
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -369,6 +444,12 @@
     color: #4338ca;
   }
 
+  .badge-utc {
+    background: #f3f4f6;
+    color: #4b5563;
+    border: 1px solid #e5e7eb;
+  }
+
   .mt5-detail {
     font-size: 0.85rem;
     color: #64748b;
@@ -376,9 +457,9 @@
 
   .acc-actions {
     display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1rem;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
   }
 
   .btn-sync {
@@ -547,6 +628,15 @@
     padding: 0.25rem 0.5rem !important;
     font-size: 1.1rem !important;
     font-weight: 600;
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .edit-offset-select {
+    width: 90px !important;
+    padding: 2px 4px !important;
+    font-size: 0.85rem !important;
+    height: auto !important;
   }
 
   .btn-icon {
@@ -557,4 +647,78 @@
     padding: 0;
     line-height: 1;
   }
+
+  /* 刪除帳號叉叉按鈕 */
+  .delete-acc-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0.4;
+    z-index: 5;
+  }
+
+  .account-card:hover .delete-acc-btn {
+    opacity: 1;
+  }
+
+  .delete-acc-btn:hover {
+    background: #fee2e2;
+    color: #ef4444;
+    transform: rotate(90deg);
+  }
+  /* 匯入結果詳情樣式 */
+  .import-result-details {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .summary-banner {
+    padding: 0.75rem;
+    background: #f1f5f9;
+    border-radius: 8px;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    text-align: center;
+    color: var(--text-color);
+  }
+
+  .ticket-section {
+    margin-bottom: 1rem;
+  }
+
+  .ticket-section h4 {
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  .ticket-list {
+    font-family: monospace;
+    font-size: 0.8rem;
+    padding: 0.6rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    color: #64748b;
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  .ticket-section.imported h4 { color: #059669; }
+  .ticket-section.duplicate h4 { color: #d97706; }
+  .ticket-section.error h4 { color: #dc2626; }
 </style>

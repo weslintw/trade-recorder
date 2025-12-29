@@ -6,4 +6,4 @@ export const MARKET_SESSIONS = [
     { value: 'us', label: '美盤', icon: '🇺🇸' }
 ];
 
-export const TIMEFRAMES = ['M5', 'M15', 'M30', 'H1', 'H4', 'D1'];
+export const TIMEFRAMES = ['M5', 'M15', 'H1', 'H4', 'D1'];
