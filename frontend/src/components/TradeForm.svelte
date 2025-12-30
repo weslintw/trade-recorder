@@ -866,6 +866,18 @@
           {id ? '更新' : '儲存'}交易
         {/if}
       </button>
+
+      <div class="merge-action-container header-merge">
+        {#if formData.trade_type === 'actual'}
+          <button type="button" class="btn-merge btn-sm" on:click={openWatchlistModal} title="從過去的觀察單匯入分析資料">
+            <span class="icon">📋</span> 併入觀察單
+          </button>
+        {:else}
+          <button type="button" class="btn-merge btn-sm" on:click={openActualTradesModal} title="併入現有的實單交易">
+            <span class="icon">💰</span> 併入實單
+          </button>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -894,18 +906,6 @@
             </span>
           </span>
         </label>
-        
-        <div class="merge-action-container">
-          {#if formData.trade_type === 'actual'}
-            <button type="button" class="btn-merge" on:click={openWatchlistModal} title="從過去的觀察單匯入分析資料">
-              <span class="icon">📋</span> 從觀察單併入
-            </button>
-          {:else}
-            <button type="button" class="btn-merge" on:click={openActualTradesModal} title="併入現有的實單交易">
-              <span class="icon">💰</span> 併入實單
-            </button>
-          {/if}
-        </div>
       </div>
     </div>
 
@@ -1721,17 +1721,23 @@
     border-left: 1.5px dashed #e2e8f0;
   }
 
+  .merge-action-container.header-merge {
+    border-left: none;
+    padding-left: 0.5rem;
+    margin-left: 0.5rem;
+  }
+
   .btn-merge {
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    padding: 0.6rem 1.2rem;
+    padding: 0.5rem 1rem;
     background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
     border: 1px solid #c4b5fd;
-    border-radius: 12px;
+    border-radius: 10px;
     color: #6d28d9;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 6px -1px rgba(109, 40, 217, 0.05), 0 2px 4px -1px rgba(109, 40, 217, 0.03);
