@@ -51,11 +51,17 @@ func main() {
 	// 從環境變數讀取允許的來源，預設包含本地開發環境
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:5174"}
 	if extraOrigins := os.Getenv("ALLOW_ORIGINS"); extraOrigins != "" {
-		origins := strings.Split(extraOrigins, ",")
-		allowedOrigins = append(allowedOrigins, origins...)
+		if extraOrigins == "*" {
+			config.AllowAllOrigins = true
+		} else {
+			origins := strings.Split(extraOrigins, ",")
+			allowedOrigins = append(allowedOrigins, origins...)
+		}
 	}
 	
-	config.AllowOrigins = allowedOrigins
+	if !config.AllowAllOrigins {
+		config.AllowOrigins = allowedOrigins
+	}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
 	config.AllowCredentials = true

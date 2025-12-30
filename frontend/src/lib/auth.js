@@ -27,6 +27,7 @@ auth.subscribe(value => {
 });
 
 export const login = async (username, password) => {
+    console.log('[DEBUG] Attempting login to:', `${API_BASE_URL}/auth/login`);
     try {
         const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
         const { token, user } = response.data;
@@ -43,6 +44,7 @@ export const login = async (username, password) => {
 };
 
 export const register = async (username, password) => {
+    console.log('[DEBUG] Attempting register to:', `${API_BASE_URL}/auth/register`);
     try {
         const response = await axios.post(`${API_BASE_URL}/auth/register`, { username, password });
         const { token, user } = response.data;
