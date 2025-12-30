@@ -175,6 +175,15 @@
     selectedAccountId.set(id);
     navigate('/');
   }
+
+  function formatBytes(bytes, decimals = 2) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
 </script>
 
 <div class="account-mgmt">
@@ -242,6 +251,9 @@
                 {acc.status}
               </span>
               <span class="badge badge-utc">UTC{acc.timezone_offset >= 0 ? '+' : ''}{acc.timezone_offset}</span>
+            </div>
+            <div class="storage-usage-info">
+              <span class="icon">📊</span> 圖文佔用：<strong>{formatBytes(acc.storage_usage)}</strong>
             </div>
             {#if acc.type === 'metatrader'}
               <div class="mt5-detail">
@@ -469,6 +481,24 @@
   .btn-sync {
     background: #f1f5f9;
     color: #475569;
+  }
+
+  .storage-usage-info {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #f8fafc;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    width: fit-content;
+    border: 1px solid #f1f5f9;
+  }
+
+  .storage-usage-info strong {
+    color: #4338ca;
   }
 
   .btn-sync:hover {

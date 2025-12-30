@@ -20,7 +20,41 @@ import (
 func GetAccounts(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetInt64("user_id")
-		rows, err := db.Query("SELECT id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, COALESCE(last_sync_error, ''), created_at, updated_at FROM accounts WHERE user_id = ? ORDER BY created_at ASC", userID)
+		query := `
+			SELECT 
+				id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, 
+				COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, 
+				COALESCE(last_sync_error, ''), created_at, updated_at,
+				(
+					SELECT COALESCE(SUM(
+						LENGTH(COALESCE(entry_strategy_image, '')) +
+						LENGTH(COALESCE(entry_strategy_image_original, '')) +
+						LENGTH(COALESCE(legend_king_image, '')) +
+						LENGTH(COALESCE(legend_king_image_original, '')) +
+						LENGTH(COALESCE(legend_htf_image, '')) +
+						LENGTH(COALESCE(legend_htf_image_original, '')) +
+						LENGTH(COALESCE(entry_signals, '')) +
+						LENGTH(COALESCE(entry_checklist, '')) +
+						LENGTH(COALESCE(trend_analysis, '')) +
+						LENGTH(COALESCE(notes, '')) +
+						LENGTH(COALESCE(entry_reason, '')) +
+						LENGTH(COALESCE(exit_reason, ''))
+					), 0) FROM trades WHERE account_id = a.id
+				) + (
+					SELECT COALESCE(SUM(LENGTH(COALESCE(image_path, ''))), 0) 
+					FROM trade_images 
+					WHERE trade_id IN (SELECT id FROM trades WHERE account_id = a.id)
+				) + (
+					SELECT COALESCE(SUM(
+						LENGTH(COALESCE(notes, '')) +
+						LENGTH(COALESCE(trend_analysis, ''))
+					), 0) FROM daily_plans WHERE account_id = a.id
+				) AS storage_usage
+			FROM accounts a 
+			WHERE user_id = ? 
+			ORDER BY created_at ASC`
+
+		rows, err := db.Query(query, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -30,7 +64,11 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 		var accounts []models.Account
 		for rows.Next() {
 			var acc models.Account
-			err := rows.Scan(&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.Status, &acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, &acc.CreatedAt, &acc.UpdatedAt)
+			err := rows.Scan(
+				&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.Status, 
+				&acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, 
+				&acc.CreatedAt, &acc.UpdatedAt, &acc.StorageUsage,
+			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return

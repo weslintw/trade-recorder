@@ -16,6 +16,7 @@ type Account struct {
 	LastSyncError  string     `json:"last_sync_error"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+	StorageUsage   int64      `json:"storage_usage"` // 儲存空間使用量 (Bytes)
 }
 
 // AccountCreate 建立帳號請求
