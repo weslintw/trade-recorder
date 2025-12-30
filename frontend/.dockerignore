@@ -1,0 +1,10 @@
+.git
+.vscode
+node_modules
+dist
+.svelte-kit
+*.exe
+*.log
+.env
+.env.*
+pnpm-debug.log

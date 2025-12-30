@@ -1,0 +1,15 @@
+.git
+.vscode
+*.exe
+*.db
+*.db-journal
+*.log
+.env
+.env.*
+vendor
+backend_debug.log
+main
+server
+trade-journal
+check_db
+gen_hash

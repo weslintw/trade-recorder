@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # 編譯
-RUN CGO_ENABLED=1 GOOS=linux go build -o main ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
 
 # 最終映像
 FROM alpine:latest
