@@ -524,6 +524,13 @@
         entry_strategy_image: response.data.entry_strategy_image || '',
         entry_strategy_image_original: response.data.entry_strategy_image_original || '',
         entry_pattern: parseJSONSafe(response.data.entry_pattern, []),
+        legend_king_htf: response.data.legend_king_htf || '',
+        legend_king_image: response.data.legend_king_image || '',
+        legend_king_image_original: response.data.legend_king_image_original || '',
+        legend_htf: response.data.legend_htf || '',
+        legend_htf_image: response.data.legend_htf_image || '',
+        legend_htf_image_original: response.data.legend_htf_image_original || '',
+        legend_de_htf: response.data.legend_de_htf || '',
         tags: response.data.tags?.map(t => t.name) || [],
       };
 

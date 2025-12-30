@@ -82,6 +82,14 @@ func createTables(db *sql.DB) error {
 		notes TEXT,
 		entry_reason TEXT,
 		exit_reason TEXT,
+		exit_sl REAL,
+		legend_king_htf VARCHAR(20),
+		legend_king_image TEXT,
+		legend_king_image_original TEXT,
+		legend_htf VARCHAR(20),
+		legend_htf_image TEXT,
+		legend_htf_image_original TEXT,
+		legend_de_htf VARCHAR(20),
 		entry_time DATETIME NOT NULL,
 		exit_time DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -275,6 +283,14 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE trades ADD COLUMN rr_ratio REAL;")
 	db.Exec("ALTER TABLE trades ADD COLUMN ticket VARCHAR(50);")
 	db.Exec("ALTER TABLE trades ADD COLUMN exit_sl REAL;")
+
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_king_htf VARCHAR(20);")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_king_image TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_king_image_original TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_htf VARCHAR(20);")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_htf_image TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_htf_image_original TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_de_htf VARCHAR(20);")
 
 	return nil
 }

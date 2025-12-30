@@ -33,6 +33,13 @@ type Trade struct {
 	TimezoneOffset             *int       `json:"timezone_offset,omitempty"`               // UTC 偏移，如 8 表示 UTC+8
 	Ticket                     *string    `json:"ticket,omitempty"`                        // 平台成交編號
 	ExitSL                     *float64   `json:"exit_sl,omitempty"`                       // 平倉時的停損價
+	LegendKingHTF              *string    `json:"legend_king_htf,omitempty"`               // 傳奇：王者回調時區
+	LegendKingImage            *string    `json:"legend_king_image,omitempty"`             // 傳奇：王者回調圖片
+	LegendKingImageOriginal    *string    `json:"legend_king_image_original,omitempty"`
+	LegendHTF                  *string    `json:"legend_htf,omitempty"`                    // 傳奇：大時區破測破時區
+	LegendHTFImage             *string    `json:"legend_htf_image,omitempty"`              // 傳奇：大時區圖片
+	LegendHTFImageOriginal     *string    `json:"legend_htf_image_original,omitempty"`
+	LegendDeHTF                *string    `json:"legend_de_htf,omitempty"`                 // 傳奇：整理段時區
 	EntryTime                  time.Time  `json:"entry_time"`
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
 	CreatedAt                  time.Time  `json:"created_at"`
@@ -86,6 +93,13 @@ type TradeCreate struct {
 	RRRatio                    *float64      `json:"rr_ratio"`
 	TimezoneOffset             int           `json:"timezone_offset"` // UTC 偏移
 	ExitSL                     *float64      `json:"exit_sl"`         // 平倉時的停損價
+	LegendKingHTF              string        `json:"legend_king_htf"`
+	LegendKingImage            string        `json:"legend_king_image"`
+	LegendKingImageOriginal    string        `json:"legend_king_image_original"`
+	LegendHTF                  string        `json:"legend_htf"`
+	LegendHTFImage             string        `json:"legend_htf_image"`
+	LegendHTFImageOriginal     string        `json:"legend_htf_image_original"`
+	LegendDeHTF                string        `json:"legend_de_htf"`
 	EntryTime                  time.Time     `json:"entry_time" binding:"required"`
 	ExitTime                   *time.Time    `json:"exit_time"`
 	Tags                       []string      `json:"tags"`
