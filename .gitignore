@@ -38,3 +38,16 @@ Thumbs.db
 # Data and IDE
 minio-data/
 .vscode/
+
+# Build artifacts
+release/
+release_frontend/
+release.zip
+temp_build.bat
+backend/main
+backend/server
+backend/trade-journal
+backend/check_db
+backend/gen_hash
+frontend/dist_build/
+frontend/dist_release/

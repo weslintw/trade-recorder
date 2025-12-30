@@ -19,7 +19,8 @@ import (
 // GetAccounts 取得所有帳號
 func GetAccounts(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, COALESCE(last_sync_error, ''), created_at, updated_at FROM accounts ORDER BY created_at ASC")
+		userID := c.GetInt64("user_id")
+		rows, err := db.Query("SELECT id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), status, COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, COALESCE(last_sync_error, ''), created_at, updated_at FROM accounts WHERE user_id = ? ORDER BY created_at ASC", userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -50,8 +51,9 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, timezone_offset) VALUES (?, ?, ?, ?, ?)",
-			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.TimezoneOffset)
+		userID := c.GetInt64("user_id")
+		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, timezone_offset, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.TimezoneOffset, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -78,11 +80,18 @@ func UpdateAccount(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		userID := c.GetInt64("user_id")
 		// 這裡為了簡化先做全量更新，實際上應該檢查 nil
-		_, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-			req.Name, req.MT5AccountID, req.MT5Token, req.TimezoneOffset, id)
+		res, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+			req.Name, req.MT5AccountID, req.MT5Token, req.TimezoneOffset, id, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "找不到該帳號或無權限更新"})
 			return
 		}
 
@@ -94,16 +103,17 @@ func UpdateAccount(db *sql.DB) gin.HandlerFunc {
 func DeleteAccount(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
-		// 不允許刪除 ID 為 1 的預設帳號
-		if id == "1" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "無法刪除預設帳號"})
+		res, err := db.Exec("DELETE FROM accounts WHERE id = ? AND user_id = ?", id, userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		_, err := db.Exec("DELETE FROM accounts WHERE id = ?", id)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		rowsAffected, _ := res.RowsAffected()
+		if rowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "找不到該帳號或無權限刪除"})
 			return
 		}
 
@@ -115,9 +125,10 @@ func DeleteAccount(db *sql.DB) gin.HandlerFunc {
 func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
 		var acc models.Account
-		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, '') FROM accounts WHERE id = ?", id).
+		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, '') FROM accounts WHERE id = ? AND user_id = ?", id, userID).
 			Scan(&acc.ID, &acc.Type, &acc.MT5AccountID, &acc.MT5Token)
 
 		if err != nil {
@@ -228,6 +239,15 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 
 		if source != "ftmo" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "目前僅支援 FTMO 格式匯入"})
+			return
+		}
+
+		userID := c.GetInt64("user_id")
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
 			return
 		}
 
@@ -405,6 +425,15 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 func ClearAccountData(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", id, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
+		}
 
 		tx, err := db.Begin()
 		if err != nil {

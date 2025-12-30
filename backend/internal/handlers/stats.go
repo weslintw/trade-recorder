@@ -14,9 +14,19 @@ import (
 // GetStatsSummary 取得統計摘要
 func GetStatsSummary(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		accountID := c.Query("account_id")
 		if accountID == "" {
-			accountID = "1"
+			c.JSON(http.StatusBadRequest, gin.H{"error": "請提供 account_id"})
+			return
+		}
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
 		}
 
 		var stats models.StatsSummary
@@ -63,9 +73,19 @@ func GetStatsSummary(db *sql.DB) gin.HandlerFunc {
 // GetEquityCurve 取得淨值曲線
 func GetEquityCurve(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		accountID := c.Query("account_id")
 		if accountID == "" {
-			accountID = "1"
+			c.JSON(http.StatusBadRequest, gin.H{"error": "請提供 account_id"})
+			return
+		}
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
 		}
 
 		rows, err := db.Query(`
@@ -103,9 +123,19 @@ func GetEquityCurve(db *sql.DB) gin.HandlerFunc {
 // GetStatsBySymbol 取得各品種統計
 func GetStatsBySymbol(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		accountID := c.Query("account_id")
 		if accountID == "" {
-			accountID = "1"
+			c.JSON(http.StatusBadRequest, gin.H{"error": "請提供 account_id"})
+			return
+		}
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
 		}
 
 		rows, err := db.Query(`
@@ -144,9 +174,19 @@ func GetStatsBySymbol(db *sql.DB) gin.HandlerFunc {
 // GetStatsByStrategy 取得各策略統計 (包含子項目)
 func GetStatsByStrategy(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		accountID := c.Query("account_id")
 		if accountID == "" {
-			accountID = "1"
+			c.JSON(http.StatusBadRequest, gin.H{"error": "請提供 account_id"})
+			return
+		}
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
 		}
 
 		rows, err := db.Query(`

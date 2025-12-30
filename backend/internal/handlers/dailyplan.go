@@ -12,6 +12,7 @@ import (
 // GetDailyPlans 取得每日規劃清單
 func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		var query models.DailyPlanQuery
 		if err := c.ShouldBindQuery(&query); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -30,16 +31,25 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		// 建立查詢
 		sqlQuery := `
-			SELECT id, account_id, plan_date, symbol, market_session, COALESCE(notes, ''), COALESCE(trend_analysis, '{}'), created_at, updated_at
-			FROM daily_plans
-			WHERE 1=1
+			SELECT p.id, p.account_id, p.plan_date, p.symbol, p.market_session, COALESCE(p.notes, ''), COALESCE(p.trend_analysis, '{}'), p.created_at, p.updated_at
+			FROM daily_plans p
+			JOIN accounts a ON p.account_id = a.id
+			WHERE a.user_id = ?
 		`
 
-		args := []interface{}{}
+		args := []interface{}{userID}
 
 		if query.AccountID > 0 {
-			sqlQuery += " AND account_id = ?"
+			sqlQuery += " AND p.account_id = ?"
 			args = append(args, query.AccountID)
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"data":      []models.DailyPlan{},
+				"total":     0,
+				"page":      query.Page,
+				"page_size": query.PageSize,
+			})
+			return
 		}
 
 		if query.StartDate != "" {
@@ -88,11 +98,11 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		// 計算總數
 		var total int
-		countQuery := `SELECT COUNT(*) FROM daily_plans WHERE 1=1`
-		countArgs := []interface{}{}
+		countQuery := `SELECT COUNT(*) FROM daily_plans p JOIN accounts a ON p.account_id = a.id WHERE a.user_id = ?`
+		countArgs := []interface{}{userID}
 
 		if query.AccountID > 0 {
-			countQuery += " AND account_id = ?"
+			countQuery += " AND p.account_id = ?"
 			countArgs = append(countArgs, query.AccountID)
 		}
 
@@ -131,12 +141,15 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 func GetDailyPlan(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
 		var plan models.DailyPlan
 		err := db.QueryRow(`
-			SELECT id, account_id, plan_date, symbol, market_session, COALESCE(notes, ''), COALESCE(trend_analysis, '{}'), created_at, updated_at
-			FROM daily_plans WHERE id = ?
-		`, id).Scan(
+			SELECT p.id, p.account_id, p.plan_date, p.symbol, p.market_session, COALESCE(p.notes, ''), COALESCE(p.trend_analysis, '{}'), p.created_at, p.updated_at
+			FROM daily_plans p
+			JOIN accounts a ON p.account_id = a.id
+			WHERE p.id = ? AND a.user_id = ?
+		`, id, userID).Scan(
 			&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
 			&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
 		)
@@ -160,6 +173,16 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		var req models.DailyPlanCreate
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		userID := c.GetInt64("user_id")
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", req.AccountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
 			return
 		}
 
@@ -213,6 +236,23 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		userID := c.GetInt64("user_id")
+
+		// 檢查規劃所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM daily_plans p JOIN accounts a ON p.account_id = a.id WHERE p.id = ? AND a.user_id = ?", id, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限更新此規劃"})
+			return
+		}
+
+		// 檢查目標帳號所屬權
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", req.AccountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限將規劃移動到此帳號"})
+			return
+		}
+
 		_, err := db.Exec(`
 			UPDATE daily_plans 
 			SET account_id=?, plan_date=?, symbol=?, market_session=?, notes=?, trend_analysis=?, updated_at=CURRENT_TIMESTAMP
@@ -232,10 +272,17 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
-		_, err := db.Exec("DELETE FROM daily_plans WHERE id = ?", id)
+		res, err := db.Exec("DELETE FROM daily_plans WHERE id = ? AND id IN (SELECT p.id FROM daily_plans p JOIN accounts a ON p.account_id = a.id WHERE a.user_id = ?)", id, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		rows, _ := res.RowsAffected()
+		if rows == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "規劃不存在或無權限刪除"})
 			return
 		}
 

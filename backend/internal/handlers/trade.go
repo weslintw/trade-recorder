@@ -12,6 +12,7 @@ import (
 // GetTrades 取得交易清單
 func GetTrades(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
 		var query models.TradeQuery
 		if err := c.ShouldBindQuery(&query); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -39,13 +40,17 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN trade_tags tt ON t.id = tt.trade_id
 		LEFT JOIN tags tg ON tt.tag_id = tg.id
-		WHERE 1=1
+		WHERE a.user_id = ?
 	`
-		args := []interface{}{}
+		args := []interface{}{userID}
 
 		if query.AccountID > 0 {
 			sqlQuery += " AND t.account_id = ?"
 			args = append(args, query.AccountID)
+		} else {
+			// 如果沒有提供帳號 ID，目前邏輯不返回任何交易以避免混合不同帳號資料
+			c.JSON(http.StatusOK, []models.Trade{})
+			return
 		}
 
 		if query.Symbol != "" {
@@ -105,11 +110,12 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 
 		// 計算總數
 		countQuery := `SELECT COUNT(DISTINCT t.id) FROM trades t
+			LEFT JOIN accounts a ON t.account_id = a.id
 			LEFT JOIN trade_tags tt ON t.id = tt.trade_id
 			LEFT JOIN tags tg ON tt.tag_id = tg.id
-			WHERE 1=1`
+			WHERE a.user_id = ?`
 
-		countArgs := []interface{}{}
+		countArgs := []interface{}{userID}
 		if query.AccountID > 0 {
 			countQuery += " AND t.account_id = ?"
 			countArgs = append(countArgs, query.AccountID)
@@ -145,6 +151,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 func GetTrade(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
 		var trade models.Trade
 		err := db.QueryRow(`
@@ -153,8 +160,8 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 				   t.entry_pattern, t.trend_analysis, t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl, t.entry_time, t.exit_time, t.created_at, t.updated_at
 			FROM trades t
 			LEFT JOIN accounts a ON t.account_id = a.id
-			WHERE t.id = ?
-		`, id).Scan(
+			WHERE t.id = ? AND a.user_id = ?
+		`, id, userID).Scan(
 			&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 			&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
 			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
@@ -182,6 +189,16 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 		var req models.TradeCreate
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		userID := c.GetInt64("user_id")
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", req.AccountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
 			return
 		}
 
@@ -218,12 +235,12 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		tradeID, _ := result.LastInsertId()
 
-		// 插入標籤
+		// 插入標籤 (現在標籤是使用者專屬的)
 		for _, tagName := range req.Tags {
 			var tagID int64
-			err = tx.QueryRow("SELECT id FROM tags WHERE name = ?", tagName).Scan(&tagID)
+			err = tx.QueryRow("SELECT id FROM tags WHERE name = ? AND user_id = ?", tagName, userID).Scan(&tagID)
 			if err == sql.ErrNoRows {
-				result, _ := tx.Exec("INSERT INTO tags (name) VALUES (?)", tagName)
+				result, _ := tx.Exec("INSERT INTO tags (name, user_id) VALUES (?, ?)", tagName, userID)
 				tagID, _ = result.LastInsertId()
 			}
 			tx.Exec("INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)", tradeID, tagID)
@@ -252,6 +269,23 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 		var req models.TradeCreate
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		userID := c.GetInt64("user_id")
+
+		// 檢查交易所屬權 (透過 join accounts)
+		var exists int
+		db.QueryRow("SELECT 1 FROM trades t JOIN accounts a ON t.account_id = a.id WHERE t.id = ? AND a.user_id = ?", id, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限更新此交易"})
+			return
+		}
+
+		// 檢查目標帳號所屬權
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", req.AccountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限將交易移動到此帳號"})
 			return
 		}
 
@@ -292,9 +326,9 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 		tx.Exec("DELETE FROM trade_tags WHERE trade_id = ?", id)
 		for _, tagName := range req.Tags {
 			var tagID int64
-			err = tx.QueryRow("SELECT id FROM tags WHERE name = ?", tagName).Scan(&tagID)
+			err = tx.QueryRow("SELECT id FROM tags WHERE name = ? AND user_id = ?", tagName, userID).Scan(&tagID)
 			if err == sql.ErrNoRows {
-				result, _ := tx.Exec("INSERT INTO tags (name) VALUES (?)", tagName)
+				result, _ := tx.Exec("INSERT INTO tags (name, user_id) VALUES (?, ?)", tagName, userID)
 				tagID, _ = result.LastInsertId()
 			}
 			tx.Exec("INSERT INTO trade_tags (trade_id, tag_id) VALUES (?, ?)", id, tagID)
@@ -313,8 +347,9 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
+		userID := c.GetInt64("user_id")
 
-		result, err := db.Exec("DELETE FROM trades WHERE id = ?", id)
+		result, err := db.Exec("DELETE FROM trades WHERE id = ? AND id IN (SELECT t.id FROM trades t JOIN accounts a ON t.account_id = a.id WHERE a.user_id = ?)", id, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -364,7 +399,8 @@ func loadTradeRelations(db *sql.DB, trade *models.Trade) {
 // GetTags 取得所有標籤
 func GetTags(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		rows, err := db.Query("SELECT id, name, created_at FROM tags ORDER BY name")
+		userID := c.GetInt64("user_id")
+		rows, err := db.Query("SELECT id, name, created_at FROM tags WHERE user_id = ? ORDER BY name", userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

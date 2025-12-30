@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"log"
 	"os"
+	"path/filepath"
 
+	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
 )
 
@@ -14,6 +16,9 @@ func InitDB() (*sql.DB, error) {
 	if dbPath == "" {
 		dbPath = "./trade_journal.db"
 	}
+	
+	absPath, _ := filepath.Abs(dbPath)
+	log.Printf("[DB] 資料庫路徑: %s (Absolute: %s)", dbPath, absPath)
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -36,15 +41,26 @@ func InitDB() (*sql.DB, error) {
 
 func createTables(db *sql.DB) error {
 	schema := `
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username VARCHAR(50) UNIQUE NOT NULL,
+		password TEXT NOT NULL,
+		is_admin BOOLEAN DEFAULT FALSE,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE TABLE IF NOT EXISTS accounts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL DEFAULT 1,
 		name VARCHAR(100) NOT NULL,
 		type VARCHAR(20) DEFAULT 'local', -- 'local' or 'metatrader'
 		mt5_account_id VARCHAR(100),    -- MetaApi Account ID
 		mt5_token TEXT,                 -- MetaApi Token
 		status VARCHAR(20) DEFAULT 'active',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 	);
 
 	CREATE TABLE IF NOT EXISTS trades (
@@ -80,8 +96,11 @@ func createTables(db *sql.DB) error {
 
 	CREATE TABLE IF NOT EXISTS tags (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name VARCHAR(50) UNIQUE NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		user_id INTEGER NOT NULL DEFAULT 1,
+		name VARCHAR(50) NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		UNIQUE(user_id, name)
 	);
 
 	CREATE TABLE IF NOT EXISTS trade_tags (
@@ -96,6 +115,7 @@ func createTables(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_trades_entry_time ON trades(entry_time);
 	CREATE INDEX IF NOT EXISTS idx_trade_images_trade_id ON trade_images(trade_id);
 	CREATE INDEX IF NOT EXISTS idx_trade_tags_trade_id ON trade_tags(trade_id);
+	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
 	CREATE TABLE IF NOT EXISTS daily_plans (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,11 +137,31 @@ func createTables(db *sql.DB) error {
 	}
 
 	// 遷移：為舊資料庫添加新欄位（如果不存在）
+	// SQLite 不支援 IF NOT EXISTS 於 ALTER TABLE，所以這裡忽略錯誤
+	db.Exec("ALTER TABLE accounts ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;")
+	db.Exec("ALTER TABLE tags ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;")
+
+	// 確保至少有一個預設管理員使用者 (username='admin')
+	var adminID int64
+	var currentHash string
+	err = db.QueryRow("SELECT id, password FROM users WHERE username = 'admin'").Scan(&adminID, &currentHash)
+	if err == sql.ErrNoRows {
+		log.Println("[DB] 找不到 admin 使用者，正在建立預設管理員帳號...")
+		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 10)
+		_, err = db.Exec(`INSERT INTO users (username, password, is_admin) VALUES ('admin', ?, 1);`, string(hashedPassword))
+		if err != nil {
+			log.Println("[DB] 建立管理員帳號失敗:", err)
+		} else {
+			log.Println("[DB] 預設管理員帳號建立成功 (admin/admin123)")
+		}
+	} else {
+		log.Printf("[DB] 找到 admin 使用者 (ID: %d)", adminID)
+	}
+
 	migrationSQL := `
 	-- 檢查並添加 entry_reason 欄位
 	ALTER TABLE trades ADD COLUMN entry_reason TEXT;
 	`
-	// 忽略錯誤（如果欄位已存在會報錯，這是正常的）
 	db.Exec(migrationSQL)
 
 	migrationSQL2 := `
@@ -208,62 +248,27 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL15)
 
-	// 遷移：添加 account_id 欄位到舊表 (忽略錯誤，因為 SQLite 不支持 ALTER TABLE ADD COLUMN IF NOT EXISTS)
+	// 遷移：添加 account_id 欄位到舊表
 	db.Exec("ALTER TABLE trades ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;")
 	db.Exec("ALTER TABLE daily_plans ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;")
 
-	// 確保至少有一個預設帳號
-	db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type) VALUES (1, '預設帳號', 'local');`)
+	// 確保至少有一個預設帳號，並關聯到使用者 1
+	db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type, user_id) VALUES (1, '預設帳號', 'local', 1);`)
 
-	// 刪除重複的規劃，只保留最新更新的一筆，以便建立唯一索引
-	cleanupSQL := `
-	DELETE FROM daily_plans 
-	WHERE id NOT IN (
-		SELECT MAX(id) 
-		FROM daily_plans 
-		GROUP BY date(plan_date), symbol, account_id
-	);`
-	db.Exec(cleanupSQL)
+	// 建立唯一索引，確保同品種同一天只能有一組規劃
+	db.Exec(`DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`)
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol, account_id);`)
 
-	// 最後才建立唯一索引，確保同品種同一天只能有一組規劃
-	dropIdxSQL := `DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`
-	db.Exec(dropIdxSQL)
-	idxSQL := `CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol, account_id);`
-	db.Exec(idxSQL)
+	db.Exec("ALTER TABLE accounts ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle';")
+	db.Exec("ALTER TABLE accounts ADD COLUMN last_synced_at DATETIME;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN last_sync_error TEXT;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN timezone_offset INTEGER DEFAULT 8;")
 
-	migrationSQL16 := `
-	-- 檢查並添加同步相關欄位到 accounts
-	ALTER TABLE accounts ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle';
-	ALTER TABLE accounts ADD COLUMN last_synced_at DATETIME;
-	ALTER TABLE accounts ADD COLUMN last_sync_error TEXT;
-	`
-	db.Exec(migrationSQL16)
-
-	migrationSQL17 := `
-	-- 檢查並添加 initial_sl, bullet_size, rr_ratio 欄位
-	ALTER TABLE trades ADD COLUMN initial_sl REAL;
-	ALTER TABLE trades ADD COLUMN bullet_size REAL;
-	ALTER TABLE trades ADD COLUMN rr_ratio REAL;
-	`
-	db.Exec(migrationSQL17)
-
-	migrationSQL18 := `
-	-- 檢查並添加 timezone_offset 欄位到 accounts
-	ALTER TABLE accounts ADD COLUMN timezone_offset INTEGER DEFAULT 8;
-	`
-	db.Exec(migrationSQL18)
-
-	migrationSQL19 := `
-	-- 檢查並添加 ticket 欄位到 trades
-	ALTER TABLE trades ADD COLUMN ticket VARCHAR(50);
-	`
-	db.Exec(migrationSQL19)
-
-	migrationSQL20 := `
-	-- 檢查並添加 exit_sl 欄位到 trades
-	ALTER TABLE trades ADD COLUMN exit_sl REAL;
-	`
-	db.Exec(migrationSQL20)
+	db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL;")
+	db.Exec("ALTER TABLE trades ADD COLUMN bullet_size REAL;")
+	db.Exec("ALTER TABLE trades ADD COLUMN rr_ratio REAL;")
+	db.Exec("ALTER TABLE trades ADD COLUMN ticket VARCHAR(50);")
+	db.Exec("ALTER TABLE trades ADD COLUMN exit_sl REAL;")
 
 	return nil
 }
