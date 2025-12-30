@@ -21,7 +21,7 @@
   });
 
   // 當全局品種改變時，更新篩選器並重新載入
-  $: if ($selectedSymbol || $selectedAccountId) {
+  $: if ($selectedSymbol && $selectedAccountId) {
     filters.symbol = $selectedSymbol;
     loadPlans();
   }

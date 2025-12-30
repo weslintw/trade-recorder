@@ -5,12 +5,17 @@
   import { SYMBOLS, TIMEFRAMES, MARKET_SESSIONS } from '../lib/constants';
   import { selectedAccountId } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
+  import PlanSelectionModal from './PlanSelectionModal.svelte';
 
   import { determineMarketSession } from '../lib/utils';
 
   export let id = null;
 
   let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
+  
+  // 複製規劃相關狀態
+  let showPlanSelectionModal = false;
+  let plansToSelect = [];
 
   // 使用從 constants 引入的時限
   const timeframes = TIMEFRAMES;
@@ -372,6 +377,92 @@
 
     enlargedImage = annotatedImageSrc;
   }
+  // 複製上一次的規劃 (開啟選單)
+  async function copyLastPlan() {
+    try {
+      const response = await dailyPlansAPI.getAll({
+        page: 1,
+        page_size: 3, // 取最近的 3 筆讓使用者選
+        account_id: formData.account_id, // 必須指定帳號
+        symbol: formData.symbol, // 必須指定品種
+        sort: 'plan_date', // 假設後端預設就是依日期排序
+        desc: true
+      });
+
+      if (response.data && response.data.data && response.data.data.length > 0) {
+        plansToSelect = response.data.data;
+        showPlanSelectionModal = true;
+      } else {
+        alert('找不到該帳號與品種過去的規劃紀錄。');
+      }
+    } catch (error) {
+      console.error('複製規劃失敗:', error);
+      alert('無法取得上一筆規劃資料');
+    }
+  }
+
+  // 處理選單確認後的動作
+  function handlePlanSelection({ plan, sourceContent, targetSession, sourceSessionKey }) {
+    if (plan && sourceContent && targetSession) {
+      executeCopyPlan(plan, sourceContent, targetSession, sourceSessionKey);
+    }
+  }
+
+  // 執行複製邏輯
+  function executeCopyPlan(lastPlan, sourceContent, targetSession, sourceSessionKey) {
+    if (sourceContent) {
+      // 深拷貝以確保圖片字串是複製的，非引用
+      const copiedData = JSON.parse(JSON.stringify(sourceContent));
+      
+      // 這裡的 copiedData 應該是單一個 Session 的資料結構 { notes:..., trends:... }
+      // 或者如果是舊格式 (sourceSessionKey === 'all')，可能是包含 trends 的大物件
+
+      if (sourceSessionKey === 'all') {
+         // 舊格式處理：嘗試把整包舊資料塞進目標 session
+         // 如果舊資料結構像 { asian:..., european:... } 則無法直接塞
+         // 但如果是更舊的 { notes:..., trends: { H1:..., H4:... } } 則可以
+         if (copiedData.trends && !copiedData.asian) {
+             formData.sessions[targetSession] = copiedData;
+         } else {
+             // 結構複雜，無法精確轉換，提示使用者
+             alert('該規劃格式過舊，無法精確複製到單一時段。');
+             return;
+         }
+      } else {
+         // 新格式：直接覆蓋目標 session
+         // 保險起見，檢查一下結構
+         if (copiedData.trends) {
+            formData.sessions[targetSession] = copiedData;
+         } else {
+            console.error("複製來源結構異常", copiedData);
+            alert('複製來源資料結構異常。');
+            return;
+         }
+      }
+      
+      // 重新計算 has_signals / has_wave 標記，確保 UI 正確顯示
+      const sess = formData.sessions[targetSession];
+      if (sess && sess.trends) {
+        Object.keys(sess.trends).forEach(tf => {
+          const t = sess.trends[tf];
+          // 處理可能有 null 的情況
+          if (!t) return;
+          if (t.signals?.length > 0 || t.signals_image) t.has_signals = true;
+          if (t.wave_numbers?.length > 0 || t.wave_image) t.has_wave = true;
+        });
+      }
+
+      formData = formData; // 觸發更新
+      waveButtonKey++; // 強制刷新 UI 元件
+      
+      // 切換到目標分頁，讓使用者立刻看到結果
+      activeSession = targetSession;
+
+      alert(`已成功將 ${new Date(lastPlan.plan_date).toLocaleDateString()} 的內容複製到 ${targetSession} 時段！`);
+    } else {
+      alert('該筆規劃沒有詳細內容可複製。');
+    }
+  }
 </script>
 
 <div class="card">
@@ -395,13 +486,18 @@
       <!-- 規劃日期 -->
       <div class="form-group">
         <label for="plan_date">規劃日期</label>
-        <input
-          type="date"
-          id="plan_date"
-          class="form-control"
-          bind:value={formData.plan_date}
-          required
-        />
+        <div class="date-input-group">
+          <input
+            type="date"
+            id="plan_date"
+            class="form-control"
+            bind:value={formData.plan_date}
+            required
+          />
+          <button type="button" class="btn btn-outline-info" on:click={copyLastPlan} title="複製上一筆規劃的內容（含圖片）">
+             📋 複製上次規劃
+          </button>
+        </div>
       </div>
 
       <!-- 交易品種 -->
@@ -663,6 +759,15 @@
   </div>
 {/if}
 
+<!-- 規劃選擇模態框 -->
+<PlanSelectionModal
+  show={showPlanSelectionModal}
+  plans={plansToSelect}
+  activeSession={activeSession} 
+  onConfirm={handlePlanSelection}
+  onClose={() => (showPlanSelectionModal = false)}
+/>
+
 <style>
   .card-header-actions {
     display: flex;
@@ -796,6 +901,28 @@
   .trend-option:hover {
     border-color: #667eea;
     background: #f7fafc;
+  }
+  
+  .date-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .date-input-group input {
+    flex: 1;
+  }
+
+  .btn-outline-info {
+    background: white;
+    border: 1px solid #0bc5ea;
+    color: #0bc5ea;
+    padding: 0.625rem 1rem;
+    white-space: nowrap;
+  }
+  
+  .btn-outline-info:hover {
+    background: #e6fffa;
   }
 
   .trend-option.active.long {

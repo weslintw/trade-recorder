@@ -192,6 +192,9 @@
           class="account-card card"
           class:mt5={acc.type === 'metatrader'}
           on:click={() => selectAccount(acc.id)}
+          role="button"
+          tabindex="0"
+          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && selectAccount(acc.id)}
         >
           {#if acc.id !== 1}
             <button
@@ -204,13 +207,12 @@
           {/if}
           <div class="acc-info">
             {#if editingId === acc.id}
-              <div class="edit-name-wrapper" on:click|stopPropagation>
+              <div class="edit-name-wrapper" on:click|stopPropagation role="presentation">
                 <input
                   type="text"
                   class="form-control edit-name-input"
                   bind:value={editingName}
                   on:keypress={e => e.key === 'Enter' && saveName(acc.id)}
-                  autoFocus
                 />
                 <select class="form-control edit-offset-select" bind:value={editingOffset}>
                   {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
@@ -279,12 +281,13 @@
     </div>
   {/if}
   {#if showAddModal}
-    <div class="modal-overlay" on:click|self={() => (showAddModal = false)}>
+    <div class="modal-overlay" on:click|self={() => (showAddModal = false)} role="presentation">
       <div class="modal card">
         <h2>新增交易帳號</h2>
         <div class="form-group">
-          <label>帳號名稱</label>
+          <label for="new-acc-name">帳號名稱</label>
           <input
+            id="new-acc-name"
             type="text"
             class="form-control"
             bind:value={newAccount.name}
@@ -301,8 +304,8 @@
         </div>
 
         <div class="form-group">
-          <label>時區設定 (UTC)</label>
-          <select class="form-control" bind:value={newAccount.timezone_offset}>
+          <label for="new-acc-timezone">時區設定 (UTC)</label>
+          <select id="new-acc-timezone" class="form-control" bind:value={newAccount.timezone_offset}>
             {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
               <option value={offset}>UTC{offset >= 0 ? '+' : ''}{offset}</option>
             {/each}
@@ -318,7 +321,7 @@
     </div>
   {/if}
   {#if showImportModal}
-    <div class="modal-overlay" on:click|self={() => (showImportModal = false)}>
+    <div class="modal-overlay" on:click|self={() => (showImportModal = false)} role="presentation">
       <div class="modal card">
         <h2>匯入交易紀錄 (CSV)</h2>
         <div class="form-group">
@@ -421,6 +424,7 @@
     cursor: pointer;
     transition: all 0.2s ease;
     border: 2px solid transparent;
+    position: relative;
   }
 
   .account-card:hover {

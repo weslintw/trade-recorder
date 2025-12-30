@@ -3,9 +3,15 @@
   import { onMount } from 'svelte';
   import { tradesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { selectedAccountId, accounts } from '../lib/stores';
+  import { selectedAccountId, accounts, selectedSymbol } from '../lib/stores';
   import RichTextEditor from './RichTextEditor.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
+  import WatchlistSelectionModal from './WatchlistSelectionModal.svelte';
+  import TradePlanStatus from './trade-form/TradePlanStatus.svelte';
+  import EntryStrategySelector from './trade-form/EntryStrategySelector.svelte';
+  import ExpertStrategy from './trade-form/ExpertStrategy.svelte';
+  import EliteStrategy from './trade-form/EliteStrategy.svelte';
+  import LegendStrategy from './trade-form/LegendStrategy.svelte';
 
   export let id = null;
   const symbols = SYMBOLS;
@@ -13,7 +19,7 @@
   let formData = {
     account_id: $selectedAccountId,
     trade_type: 'observation', // actual=有進單, observation=純觀察
-    symbol: 'XAUUSD',
+    symbol: $selectedSymbol || 'XAUUSD',
     side: 'long',
     entry_price: '',
     exit_price: '',
@@ -57,61 +63,127 @@
     exit_sl: '', // 平倉時的停損價
   };
 
+  // 觀察單併入相關
+  let showWatchlistModal = false;
+  let watchlistTrades = [];
+
+  // 開啟觀察單選擇視窗
+  async function openWatchlistModal() {
+      if (!formData.symbol) {
+          alert('請先選擇交易品種');
+          return;
+      }
+
+      try {
+          // 取得觀察單資料
+          const response = await tradesAPI.getAll({
+              account_id: formData.account_id,
+              symbol: formData.symbol,
+              page: 1,
+              page_size: 50, 
+          });
+          
+          if (response.data && response.data.data) {
+              // 過濾出 "observation" 且 symbol 相同的單子
+              watchlistTrades = response.data.data.filter(t => 
+                  t.trade_type === 'observation' && 
+                  t.symbol === formData.symbol
+              );
+              
+              // 排序：最新的在最上面
+              watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+
+              if (watchlistTrades.length > 0) {
+                  showWatchlistModal = true;
+              } else {
+                  alert(`找不到 ${formData.symbol} 的觀察單。`);
+              }
+          } else {
+             alert('無法取得交易紀錄。');
+          }
+
+      } catch (error) {
+          console.error("Fetch trades error:", error);
+          alert('讀取觀察單失敗');
+      }
+  }
+
+  // 處理確認併入
+  function handleMergeWatchlist(sourceTrade) {
+      if (!sourceTrade) return;
+
+      if (confirm(`確定要併入觀察單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`)) {
+          // 1. 併入進場分析 (Entry Analysis)
+          formData.entry_reason = sourceTrade.entry_reason || '';
+          formData.entry_strategy = sourceTrade.entry_strategy || '';
+          formData.entry_strategy_image = sourceTrade.entry_strategy_image || '';
+          formData.entry_strategy_image_original = sourceTrade.entry_strategy_image_original || '';
+          
+          if (sourceTrade.entry_signals) {
+             try {
+                // 如果是字串就 parse，如果是物件就直接用
+                formData.entry_signals = typeof sourceTrade.entry_signals === 'string' ? JSON.parse(sourceTrade.entry_signals) : sourceTrade.entry_signals;
+             } catch(e) { formData.entry_signals = []; }
+          } else {
+             formData.entry_signals = [];
+          }
+          
+           if (sourceTrade.entry_checklist) {
+             try {
+                formData.entry_checklist = typeof sourceTrade.entry_checklist === 'string' ? JSON.parse(sourceTrade.entry_checklist) : sourceTrade.entry_checklist;
+             } catch(e) { formData.entry_checklist = {}; }
+          }
+          
+           if (sourceTrade.entry_pattern) {
+             try {
+                formData.entry_pattern = typeof sourceTrade.entry_pattern === 'string' ? JSON.parse(sourceTrade.entry_pattern) : sourceTrade.entry_pattern;
+             } catch(e) { formData.entry_pattern = []; }
+          }
+
+          // 2. 併入平倉理由、標籤
+          formData.exit_reason = sourceTrade.exit_reason || '';
+          
+          // 標籤處理
+          if (sourceTrade.tags && Array.isArray(sourceTrade.tags)) {
+              formData.tags = sourceTrade.tags.map(t => (t && typeof t === 'object') ? t.name : t).filter(t => t);
+          } else {
+              formData.tags = [];
+          }
+          
+          // 3. 併入初始停損
+          if (sourceTrade.initial_sl) {
+              formData.initial_sl = sourceTrade.initial_sl;
+          }
+
+          formData = formData; // Trigger update
+          alert('資料併入完成！');
+      }
+  }
+
   // 根據選擇的帳號自動同步時區設定
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
   $: if (currentAccount) {
     formData.timezone_offset = currentAccount.timezone_offset;
   }
+  
+  // 確保當前選中的帳號 ID 與表單同步
+  $: if ($selectedAccountId) {
+    formData.account_id = $selectedAccountId;
+  }
+
+  // 確保當前選中的品種與表單同步（僅限新增模式）
+  $: if (!id && $selectedSymbol) {
+    formData.symbol = $selectedSymbol;
+  }
 
   // 響應式：根據交易類型判斷是否顯示交易相關欄位
   $: isActualTrade = formData.trade_type === 'actual';
-
-  // 達人訊號選項 - 根據做多/做空顯示不同訊號
-  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
-
-  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
-
-  // 根據方向選擇對應的訊號列表
-  $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
-
-  // 動態進場時區清單
-  $: availableTimeframes = [
-    { label: '1分', value: 'M1' },
-    { label: '5分', value: 'M5' },
-    { label: '15分', value: 'M15' },
-    { label: '1小時', value: 'H1' },
-    { label: '4小時', value: 'H4' },
-    { label: '天', value: 'D1' },
-    ...(formData.entry_strategy === 'legend' ? [{ label: '超k', value: 'SuperK' }] : [])
-  ];
-
-  // 如果切換離傳奇模式，重置「超k」選擇
-  $: if (formData.entry_strategy !== 'legend' && formData.entry_timeframe === 'SuperK') {
-    formData.entry_timeframe = '';
-  }
 
   // 訊號圖片緩存（保留所有訊號的圖片，即使取消勾選）
   let signalImagesCache = {}; // { signalName: { image: '...', originalImage: '...' } }
   let patternImagesCache = {}; // { patternName: { image: '...', originalImage: '...' } }
 
-  // 菁英檢查清單
-  const eliteChecklist = [
-    { id: 'trend_line', label: '破趨勢線了嗎?' },
-    { id: 'price_level', label: '破價位了嗎?' },
-    { id: 'impulse_wave', label: '有驅動浪了嗎?' },
-    { id: 'high_low', label: '不過高低了嗎?' },
-    { id: 'sentiment', label: '情緒轉換了嗎?' },
-  ];
-
-  // 傳奇檢查清單
-  const legendChecklist = [
-    { id: 'item_618_786', label: '王者出現回調618或786' },
-    { id: 'item_che', label: '大時區破[測]破' },
-    { id: 'item_de', label: '整理段的ABC[D][E]' },
-  ];
-
-  // 進場樣態選項（僅菁英使用）
-  const entryPatterns = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
+  // 時區選項 (UTC-12 到 UTC+14)
 
   // 時區選項 (UTC-12 到 UTC+14)
   const timezoneOptions = [];
@@ -311,12 +383,18 @@
   function formatToLocalISO(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    if (isNaN(date.getTime())) return '';
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  }
+
+  function parseJSONSafe(str, defaultValue) {
+    if (!str) return defaultValue;
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      return defaultValue;
+    }
   }
 
   let tagInput = '';
@@ -411,6 +489,7 @@
     }
   })();
 
+
   async function loadTrade() {
     try {
       const response = await tradesAPI.getOne(id);
@@ -423,19 +502,15 @@
         exit_reason: response.data.exit_reason || '',
         notes: response.data.notes || '',
         entry_strategy: response.data.entry_strategy || '',
-        entry_signals: response.data.entry_signals
-          ? (() => {
-              const parsed = JSON.parse(response.data.entry_signals);
-              // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
-              if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
-                return parsed.map(name => ({ name, image: '' }));
-              }
-              return parsed;
-            })()
-          : [],
-        entry_checklist: response.data.entry_checklist
-          ? JSON.parse(response.data.entry_checklist)
-          : {},
+        entry_signals: (() => {
+          const parsed = parseJSONSafe(response.data.entry_signals, []);
+          // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
+          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
+            return parsed.map(name => ({ name, image: '' }));
+          }
+          return parsed;
+        })(),
+        entry_checklist: parseJSONSafe(response.data.entry_checklist, {}),
         entry_pattern: response.data.entry_pattern || '',
         entry_timeframe: response.data.entry_timeframe || '',
         trend_type: response.data.trend_type || '',
@@ -481,7 +556,8 @@
         symbol: formData.symbol,
         page_size: 100
       });
-      groupTrades = allTradesRes.data.data
+      const allTradesData = (Array.isArray(allTradesRes.data) ? allTradesRes.data : allTradesRes.data?.data) || [];
+      groupTrades = allTradesData
         .filter(t => t.entry_time === response.data.entry_time)
         .sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
       isGroup = groupTrades.length > 1;
@@ -512,253 +588,7 @@
     }
   }
 
-  // 取得或建立訊號物件
-  function getSignalObject(signalName) {
-    const existing = formData.entry_signals.find(s =>
-      typeof s === 'string' ? s === signalName : s.name === signalName
-    );
-    if (existing) {
-      // 如果是舊格式（字串），轉換成物件
-      if (typeof existing === 'string') {
-        return { name: signalName, image: '' };
-      }
-      return existing;
-    }
-    return { name: signalName, image: '' };
-  }
 
-  // 檢查訊號是否被選中
-  function isSignalSelected(signalName) {
-    return formData.entry_signals.some(s =>
-      typeof s === 'string' ? s === signalName : s.name === signalName
-    );
-  }
-
-  function parseJSONSafe(str, defaultValue) {
-    if (!str) return defaultValue;
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      return defaultValue;
-    }
-  }
-
-  // 達人訊號相關功能
-  function toggleSignal(signalName) {
-    const index = formData.entry_signals.findIndex(s =>
-      typeof s === 'string' ? s === signalName : s.name === signalName
-    );
-
-    if (index >= 0) {
-      // 取消選擇：將圖片保存到緩存，然後從 entry_signals 移除
-      const signal = formData.entry_signals[index];
-      if (signal.image || signal.originalImage) {
-        signalImagesCache[signalName] = {
-          image: signal.image || '',
-          originalImage: signal.originalImage || '',
-        };
-      }
-      formData.entry_signals = formData.entry_signals.filter((_, i) => i !== index);
-    } else {
-      // 新增選擇：如果緩存中有圖片，則使用緩存的圖片
-      const cachedImages = signalImagesCache[signalName];
-      if (cachedImages) {
-        formData.entry_signals = [
-          ...formData.entry_signals,
-          {
-            name: signalName,
-            image: cachedImages.image,
-            originalImage: cachedImages.originalImage,
-          },
-        ];
-      } else {
-        formData.entry_signals = [
-          ...formData.entry_signals,
-          {
-            name: signalName,
-            image: '',
-            originalImage: '',
-          },
-        ];
-      }
-    }
-    formData = formData; // 觸發更新
-  }
-
-  function togglePattern(patternName) {
-    const index = formData.entry_pattern.findIndex(p => p.name === patternName);
-
-    if (index >= 0) {
-      // 取消選擇：保存到緩存
-      const pattern = formData.entry_pattern[index];
-      if (pattern.image || pattern.originalImage) {
-        patternImagesCache[patternName] = {
-          image: pattern.image || '',
-          originalImage: pattern.originalImage || '',
-        };
-      }
-      formData.entry_pattern = formData.entry_pattern.filter((_, i) => i !== index);
-    } else {
-      // 新增選擇：從緩存恢復
-      const cached = patternImagesCache[patternName];
-      formData.entry_pattern = [
-        ...formData.entry_pattern,
-        {
-          name: patternName,
-          image: cached ? cached.image : '',
-          originalImage: cached ? cached.originalImage : '',
-        },
-      ];
-    }
-    formData = formData;
-  }
-
-  // 處理訊號卡片圖片貼上
-  function handleSignalImagePaste(event, signalName) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-
-        reader.onload = e => {
-          const index = formData.entry_signals.findIndex(s =>
-            typeof s === 'string' ? s === signalName : s.name === signalName
-          );
-
-          if (index >= 0) {
-            // 更新現有訊號的圖片（第一次上傳時同時設置 image 和 originalImage）
-            const signal =
-              typeof formData.entry_signals[index] === 'string'
-                ? { name: signalName, image: e.target.result, originalImage: e.target.result }
-                : {
-                    ...formData.entry_signals[index],
-                    image: e.target.result,
-                    originalImage: formData.entry_signals[index].originalImage || e.target.result,
-                  };
-            formData.entry_signals[index] = signal;
-          } else {
-            // 如果訊號還沒被選中，先選中它
-            formData.entry_signals = [
-              ...formData.entry_signals,
-              { name: signalName, image: e.target.result, originalImage: e.target.result },
-            ];
-          }
-          formData = formData; // 觸發更新
-        };
-
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  }
-
-  // 移除訊號圖片
-  function removeSignalImage(signalName) {
-    const index = formData.entry_signals.findIndex(s =>
-      typeof s === 'string' ? s === signalName : s.name === signalName
-    );
-
-    if (index >= 0) {
-      const signal =
-        typeof formData.entry_signals[index] === 'string'
-          ? { name: signalName, image: '', originalImage: '' }
-          : { ...formData.entry_signals[index], image: '', originalImage: '' };
-      formData.entry_signals[index] = signal;
-      formData = formData; // 觸發更新
-    }
-  }
-
-  // 處理策略圖片貼上（用於傳奇等自定義圖片）
-  function handleStrategyImagePaste(event) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = e => {
-          formData.entry_strategy_image = e.target.result;
-          formData.entry_strategy_image_original = e.target.result;
-          formData = formData;
-        };
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  }
-
-  // 移除策略圖片
-  function removeStrategyImage() {
-    formData.entry_strategy_image = '';
-    formData.entry_strategy_image_original = '';
-    formData = formData;
-  }
-
-  // 處理傳奇大時區圖片貼上
-  function handleLegendHTFImagePaste(event) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = e => {
-          formData.legend_htf_image = e.target.result;
-          formData.legend_htf_image_original = e.target.result;
-          formData = formData;
-        };
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  }
-
-  // 移除傳奇大時區圖片
-  function removeLegendHTFImage() {
-    formData.legend_htf_image = '';
-    formData.legend_htf_image_original = '';
-    formData = formData;
-  }
-
-  // 處理傳奇王者圖片貼上
-  function handleLegendKingImagePaste(event) {
-    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        event.preventDefault();
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = e => {
-          formData.legend_king_image = e.target.result;
-          formData.legend_king_image_original = e.target.result;
-          formData = formData;
-        };
-        reader.readAsDataURL(file);
-        break;
-      }
-    }
-  }
-
-  // 移除傳奇王者圖片
-  function removeLegendKingImage() {
-    formData.legend_king_image = '';
-    formData.legend_king_image_original = '';
-    formData = formData;
-  }
-
-  // 取得訊號圖片
-  function getSignalImage(signalName) {
-    const signal = formData.entry_signals.find(s =>
-      typeof s === 'string' ? s === signalName : s.name === signalName
-    );
-    if (signal && typeof signal === 'object' && signal.image) {
-      return signal.image;
-    }
-    return '';
-  }
 
   // 放大查看圖片
   let enlargedOriginalImage = null; // 保存當前放大圖片的原始版本
@@ -1006,6 +836,12 @@
             </span>
           </span>
         </label>
+        
+        {#if isActualTrade}
+          <button type="button" class="btn-icon" on:click={openWatchlistModal} title="從觀察單匯入進場分析" style="margin-left: 1rem; align-self: center;">
+             📋 從觀察單併入
+          </button>
+        {/if}
       </div>
     </div>
 
@@ -1259,582 +1095,35 @@
     <!-- 進場種類選擇 -->
     <div class="form-group entry-strategy-section">
       <!-- 盤面規劃狀態 (從上方移至此處) -->
-      <div class="trade-plan-status-section">
-        <div class="section-label-group">
-          <label class="strategy-label">🗺️ 盤面規劃</label>
-          {#if matchedPlan}
-            <button
-              type="button"
-              class="plan-status-badge linked"
-              on:click={() => navigate(`/plans/edit/${matchedPlan.id}`)}
-            >
-              ✅ 已有規劃 <span class="view-link">查看 ↗</span>
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="plan-status-badge missing"
-              on:click={() => {
-                const date = new Date(formData.entry_time).toISOString().slice(0, 10);
-                navigate(
-                  `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
-                );
-              }}
-            >
-              ❓ 尚無規劃 <span class="add-link">建立 ➕</span>
-            </button>
-          {/if}
-        </div>
-
-        {#if matchedPlan}
-          <div class="plan-details-summary">
-            {#if matchedPlan.notes && matchedPlan.notes !== 'Session-based unified plan'}
-              <div class="plan-general-notes">{matchedPlan.notes}</div>
-            {/if}
-
-            {#if matchedPlan.market_session === 'all'}
-              {@const trendData = JSON.parse(matchedPlan.trend_analysis || '{}')}
-              <div class="progression-view">
-                {#each ['M5', 'M15', 'M30', 'H1', 'H4', 'D1'] as tf}
-                  {@const asianTrend = trendData.asian?.trends?.[tf]}
-                  {@const europeanTrend = trendData.european?.trends?.[tf]}
-                  {@const usTrend = trendData.us?.trends?.[tf]}
-
-                  {#if asianTrend?.direction || europeanTrend?.direction || usTrend?.direction}
-                    <div class="progression-row">
-                      <span class="tf-name">{tf}:</span>
-                      <div class="steps">
-                        {#if asianTrend?.direction}
-                          <span
-                            class="step"
-                            class:long={asianTrend.direction === 'long'}
-                            class:short={asianTrend.direction === 'short'}
-                          >
-                            亞盤 {asianTrend.direction === 'long' ? '多' : '空'}
-                          </span>
-                        {/if}
-
-                        {#if europeanTrend?.direction}
-                          {#if asianTrend?.direction}<span class="arrow">=></span>{/if}
-                          <span
-                            class="step"
-                            class:long={europeanTrend.direction === 'long'}
-                            class:short={europeanTrend.direction === 'short'}
-                          >
-                            歐盤 {europeanTrend.direction === 'long' ? '多' : '空'}
-                          </span>
-                        {/if}
-
-                        {#if usTrend?.direction}
-                          {#if asianTrend?.direction || europeanTrend?.direction}<span class="arrow"
-                              >=></span
-                            >{/if}
-                          <span
-                            class="step"
-                            class:long={usTrend.direction === 'long'}
-                            class:short={usTrend.direction === 'short'}
-                          >
-                            美盤 {usTrend.direction === 'long' ? '多' : '空'}
-                          </span>
-                        {/if}
-                      </div>
-                    </div>
-                  {/if}
-                {/each}
-              </div>
-
-              {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
-                <div class="plan-session-notes">
-                  {#each ['asian', 'european', 'us'] as session}
-                    {#if trendData[session]?.notes}
-                      <div class="plan-note-item">
-                        <span class="session-tag {session}"
-                          >{marketSessionNames[session]}備註：</span
-                        >
-                        <span class="note-text">{trendData[session].notes}</span>
-                      </div>
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
-            {/if}
-          </div>
-        {/if}
-      </div>
+      <TradePlanStatus {matchedPlan} {formData} />
 
       <!-- 進場種類和進場時區 -->
-      <div class="form-row timeframe-trend-row">
-        <div class="form-group">
-          <label>🎯 進場種類</label>
-          <div class="strategy-options mini">
-            <label class="strategy-option" class:active={formData.entry_strategy === 'expert'}>
-              <input type="radio" bind:group={formData.entry_strategy} value="expert" />
-              <span class="strategy-name">達人</span>
-            </label>
-            <label class="strategy-option" class:active={formData.entry_strategy === 'elite'}>
-              <input type="radio" bind:group={formData.entry_strategy} value="elite" />
-              <span class="strategy-name">菁英</span>
-            </label>
-            <label class="strategy-option" class:active={formData.entry_strategy === 'legend'}>
-              <input type="radio" bind:group={formData.entry_strategy} value="legend" />
-              <span class="strategy-name">傳奇</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>🕒 進場時區</label>
-          <div class="timeframe-options">
-            {#each availableTimeframes as tf}
-              <button
-                type="button"
-                class="timeframe-btn"
-                class:active={formData.entry_timeframe === tf.value}
-                on:click={() => (formData.entry_timeframe = tf.value)}
-              >
-                {tf.label}
-              </button>
-            {/each}
-          </div>
-        </div>
-      </div>
+      <!-- 進場種類和進場時區 -->
+      <EntryStrategySelector bind:formData={formData} />
 
       <!-- 達人訊號（卡片形式，可貼圖） -->
       {#if formData.entry_strategy === 'expert'}
-        <div class="signals-section">
-          <label class="signals-label">選擇訊號（可多選）：</label>
-          <div class="signals-card-grid">
-            {#each expertSignals as signal}
-              {@const isSelected = isSignalSelected(signal)}
-              {@const signalImage = getSignalImage(signal)}
-              <div
-                class="signal-card"
-                class:selected={isSelected}
-                tabindex="0"
-                on:paste={e => handleSignalImagePaste(e, signal)}
-                on:click={e => {
-                  // 如果點擊的是 checkbox 或圖片相關元素，不處理
-                  if (
-                    !e.target.closest('.signal-checkbox') &&
-                    !e.target.closest('.signal-image-preview')
-                  ) {
-                    toggleSignal(signal);
-                  }
-                }}
-              >
-                <label class="signal-checkbox-wrapper">
-                  <input
-                    type="checkbox"
-                    class="signal-checkbox"
-                    checked={isSelected}
-                    on:change={() => toggleSignal(signal)}
-                    on:click|stopPropagation
-                  />
-                  <span class="signal-name">{signal}</span>
-                </label>
-
-                {#if isSelected}
-                  {#if signalImage}
-                    <div
-                      class="signal-image-preview"
-                      on:click={e => {
-                        e.stopPropagation();
-                        enlargeImage(signalImage, signal + ' 圖', {
-                          type: 'signal',
-                          key: signal,
-                        });
-                      }}
-                    >
-                      <img
-                        src={signalImage}
-                        alt="{signal} 圖"
-                        style="cursor: zoom-in; pointer-events: none;"
-                      />
-                      <button
-                        type="button"
-                        class="remove-signal-image"
-                        on:click={e => {
-                          e.stopPropagation();
-                          removeSignalImage(signal);
-                        }}
-                        title="移除圖片"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  {:else}
-                    <div class="signal-image-placeholder">
-                      <span class="placeholder-text">點擊此處或按 Ctrl+V 貼上圖片</span>
-                    </div>
-                  {/if}
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-      <!-- 菁英/傳奇檢查清單 -->
-      {#if formData.entry_strategy === 'elite' || formData.entry_strategy === 'legend'}
-        <div class="checklist-section">
-          <label class="checklist-label">
-            {formData.entry_strategy === 'elite' ? '菁英' : '傳奇'}檢查清單：
-          </label>
-          <div class="checklist-items">
-            {#each (formData.entry_strategy === 'elite' ? eliteChecklist : legendChecklist) as item}
-              <label class="checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={formData.entry_checklist[item.id] || false}
-                  on:change={e => {
-                    formData.entry_checklist = {
-                      ...formData.entry_checklist,
-                      [item.id]: e.target.checked,
-                    };
-                  }}
-                />
-                <span class="checkbox-label">{item.label}</span>
-              </label>
-            {/each}
-          </div>
-        </div>
-
-        {#if formData.entry_strategy === 'legend' && formData.entry_checklist['item_618_786']}
-          <div class="signals-section nested king-section">
-            <label class="signals-label">王者出現回調618或786 - 請選擇時區並貼圖：</label>
-            
-            <div class="htf-selector-row">
-              <div class="timeframe-options">
-                {#each [
-                  { label: '1分', value: 'M1' },
-                  { label: '5分', value: 'M5' },
-                  { label: '15分', value: 'M15' },
-                  { label: '30分', value: 'M30' },
-                  { label: '1小時', value: 'H1' },
-                  { label: '4小時', value: 'H4' },
-                  { label: '天', value: 'D1' }
-                ] as tf}
-                  <button
-                    type="button"
-                    class="timeframe-btn"
-                    class:active={formData.legend_king_htf === tf.value}
-                    on:click={() => (formData.legend_king_htf = tf.value)}
-                  >
-                    {tf.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-
-            <div
-              class="signal-card htf-image-card"
-              tabindex="0"
-              on:paste={handleLegendKingImagePaste}
-              on:click={() => {
-                if (formData.legend_king_image) {
-                  enlargeImage(formData.legend_king_image, `王者回調 (${formData.legend_king_htf || '未選擇'})`, { type: 'legend_king' });
-                }
-              }}
-            >
-              {#if formData.legend_king_image}
-                <div class="signal-image-preview">
-                  <img src={formData.legend_king_image} alt="王者回調截圖" />
-                  <button
-                    type="button"
-                    class="remove-signal-image"
-                    on:click={e => {
-                      e.stopPropagation();
-                      removeLegendKingImage();
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              {:else}
-                <div class="signal-image-placeholder">
-                  <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上王者回調截圖</span>
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        {#if formData.entry_strategy === 'legend' && formData.entry_checklist['item_che']}
-          <div class="signals-section nested htf-section">
-            <label class="signals-label">大時區破"測"破 - 請選擇大時區並貼圖：</label>
-            
-            <div class="htf-selector-row">
-              <div class="timeframe-options">
-                {#each [
-                  { label: '1分', value: 'M1' },
-                  { label: '5分', value: 'M5' },
-                  { label: '15分', value: 'M15' },
-                  { label: '30分', value: 'M30' },
-                  { label: '1小時', value: 'H1' },
-                  { label: '4小時', value: 'H4' },
-                  { label: '天', value: 'D1' }
-                ] as tf}
-                  <button
-                    type="button"
-                    class="timeframe-btn"
-                    class:active={formData.legend_htf === tf.value}
-                    on:click={() => (formData.legend_htf = tf.value)}
-                  >
-                    {tf.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-
-            <div
-              class="signal-card htf-image-card"
-              tabindex="0"
-              on:paste={handleLegendHTFImagePaste}
-              on:click={() => {
-                if (formData.legend_htf_image) {
-                  enlargeImage(formData.legend_htf_image, `大時區破"測"破 (${formData.legend_htf || '未選擇'})`, { type: 'legend_htf' });
-                }
-              }}
-            >
-              {#if formData.legend_htf_image}
-                <div class="signal-image-preview">
-                  <img src={formData.legend_htf_image} alt="大時區截圖" />
-                  <button
-                    type="button"
-                    class="remove-signal-image"
-                    on:click={e => {
-                      e.stopPropagation();
-                      removeLegendHTFImage();
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              {:else}
-                <div class="signal-image-placeholder">
-                  <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上大時區截圖</span>
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        {#if formData.entry_strategy === 'legend' && formData.entry_checklist['item_de']}
-          <div class="signals-section nested">
-            <label class="signals-label">達人整理段訊號 (ABC[D][E]):</label>
-            
-            <div class="htf-selector-row" style="margin-bottom: 1.5rem;">
-              <div class="timeframe-options">
-                {#each [
-                  { label: '1分', value: 'M1' },
-                  { label: '5分', value: 'M5' },
-                  { label: '15分', value: 'M15' },
-                  { label: '30分', value: 'M30' },
-                  { label: '1小時', value: 'H1' },
-                  { label: '4小時', value: 'H4' },
-                  { label: '天', value: 'D1' }
-                ] as tf}
-                  <button
-                    type="button"
-                    class="timeframe-btn"
-                    class:active={formData.legend_de_htf === tf.value}
-                    on:click={() => (formData.legend_de_htf = tf.value)}
-                  >
-                    {tf.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-
-            <div class="signals-card-grid">
-              {#each expertSignals as signal}
-                {@const isSelected = isSignalSelected(signal)}
-                {@const signalImage = getSignalImage(signal)}
-                <div
-                  class="signal-card"
-                  class:selected={isSelected}
-                  tabindex="0"
-                  on:paste={e => handleSignalImagePaste(e, signal)}
-                  on:click={e => {
-                    if (
-                      !e.target.closest('.signal-checkbox') &&
-                      !e.target.closest('.signal-image-preview')
-                    ) {
-                      toggleSignal(signal);
-                    }
-                  }}
-                >
-                  <label class="signal-checkbox-wrapper">
-                    <input
-                      type="checkbox"
-                      class="signal-checkbox"
-                      checked={isSelected}
-                      on:change={() => toggleSignal(signal)}
-                      on:click|stopPropagation
-                    />
-                    <span class="signal-name">{signal}</span>
-                  </label>
-
-                  {#if isSelected}
-                    {#if signalImage}
-                      <div
-                        class="signal-image-preview"
-                        on:click={e => {
-                          e.stopPropagation();
-                          enlargeImage(signalImage, signal + ' 圖', {
-                            type: 'signal',
-                            key: signal,
-                          });
-                        }}
-                      >
-                        <img
-                          src={signalImage}
-                          alt="{signal} 圖"
-                          style="cursor: zoom-in; pointer-events: none;"
-                        />
-                        <button
-                          type="button"
-                          class="remove-signal-image"
-                          on:click={e => {
-                            e.stopPropagation();
-                            removeSignalImage(signal);
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    {:else}
-                      <div class="signal-image-placeholder">
-                        <span class="placeholder-text">按 Ctrl+V 貼上圖片</span>
-                      </div>
-                    {/if}
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
+        <ExpertStrategy
+          bind:formData={formData}
+          bind:signalImagesCache={signalImagesCache}
+          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+        />
       {/if}
 
-      <!-- 傳奇貼圖區 -->
-      {#if formData.entry_strategy === 'legend'}
-        <div class="signals-section">
-          <label class="signals-label">傳奇觀察圖 (Ctrl+V 貼上)：</label>
-          <div
-            class="signal-card legend-image-card"
-            tabindex="0"
-            on:paste={handleStrategyImagePaste}
-            on:click={() => {
-              if (formData.entry_strategy_image) {
-                enlargeImage(formData.entry_strategy_image, '傳奇觀察圖', { type: 'strategy' });
-              }
-            }}
-          >
-            {#if formData.entry_strategy_image}
-              <div class="signal-image-preview">
-                <img src={formData.entry_strategy_image} alt="傳奇觀察圖" />
-                <button
-                  type="button"
-                  class="remove-signal-image"
-                  on:click={e => {
-                    e.stopPropagation();
-                    removeStrategyImage();
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            {:else}
-              <div class="signal-image-placeholder">
-                <span class="placeholder-text">點擊此處或按 Ctrl+V 貼上圖片</span>
-              </div>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <!-- 進場樣態（僅菁英使用） -->
       {#if formData.entry_strategy === 'elite'}
-        <div class="entry-pattern-section">
-          <label class="entry-pattern-label">進場樣態：</label>
-          <div class="entry-pattern-options">
-            {#each entryPatterns as patternName}
-              {@const isSelected = formData.entry_pattern.some(p => p.name === patternName)}
-              <div
-                class="pattern-option"
-                class:active={isSelected}
-                on:click={() => togglePattern(patternName)}
-              >
-                <span class="pattern-name">{patternName}</span>
-              </div>
-            {/each}
-          </div>
+        <EliteStrategy
+          bind:formData={formData}
+          bind:patternImagesCache={patternImagesCache}
+          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+        />
+      {/if}
 
-          {#if formData.entry_pattern.length > 0}
-            <div class="pattern-cards-grid">
-              {#each formData.entry_pattern as pattern}
-                <div
-                  class="pattern-image-card"
-                  on:paste={e => {
-                    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-                    for (let item of items) {
-                      if (item.type.indexOf('image') !== -1) {
-                        e.preventDefault();
-                        const file = item.getAsFile();
-                        const reader = new FileReader();
-                        reader.onload = event => {
-                          const imgData = event.target.result;
-                          pattern.image = imgData;
-                          pattern.originalImage = imgData;
-                          // 同步到緩存
-                          patternImagesCache[pattern.name] = {
-                            image: imgData,
-                            originalImage: imgData,
-                          };
-                          formData = formData;
-                        };
-                        reader.readAsDataURL(file);
-                        break;
-                      }
-                    }
-                  }}
-                >
-                  <div class="pattern-card-header">
-                    <span class="pattern-card-title">{pattern.name}</span>
-                  </div>
-                  <div class="pattern-card-body">
-                    {#if pattern.image}
-                      <div
-                        class="pattern-image-preview"
-                        on:click={() =>
-                          enlargeImage(pattern.image, pattern.name + ' 樣態圖', {
-                            type: 'pattern',
-                            key: pattern.name,
-                          })}
-                      >
-                        <img src={pattern.image} alt={pattern.name} />
-                        <button
-                          type="button"
-                          class="remove-pattern-image"
-                          on:click|stopPropagation={() => {
-                            pattern.image = '';
-                            pattern.originalImage = '';
-                            formData = formData;
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    {:else}
-                      <div class="pattern-image-placeholder">
-                        <span class="placeholder-text">點擊此處按 Ctrl+V 貼上圖</span>
-                      </div>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-        </div>
+      {#if formData.entry_strategy === 'legend'}
+        <LegendStrategy
+          bind:formData={formData}
+          bind:signalImagesCache={signalImagesCache}
+          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+        />
       {/if}
     </div>
 
@@ -1865,9 +1154,10 @@
     </div>
 
     <div class="form-group">
-      <label>標籤</label>
+      <label for="trade-tags">標籤</label>
       <div class="tag-input-wrapper">
         <input
+          id="trade-tags"
           type="text"
           class="form-control"
           bind:value={tagInput}
@@ -1901,8 +1191,8 @@
 
 <!-- 圖片放大查看模態視窗 -->
 {#if enlargedImage}
-  <div class="image-modal" on:click={closeEnlargedImage}>
-    <div class="image-modal-content" on:click={e => e.stopPropagation()}>
+  <div class="image-modal" on:click={closeEnlargedImage} role="presentation">
+    <div class="image-modal-content" on:click={e => e.stopPropagation()} role="presentation">
       <div class="image-modal-header">
         <h3 class="image-modal-title">{enlargedImageTitle}</h3>
         <div class="image-modal-actions">
@@ -1933,6 +1223,15 @@
     </div>
   </div>
 {/if}
+
+<!-- 觀察單選擇模態框 -->
+<WatchlistSelectionModal
+  show={showWatchlistModal}
+  trades={watchlistTrades}
+  currentSymbol={formData.symbol}
+  onConfirm={handleMergeWatchlist}
+  onClose={() => (showWatchlistModal = false)}
+/>
 
 <style>
   .card-header-actions {
@@ -3335,4 +2634,21 @@
   .badge-mini.pnl.profit { color: #059669; background: #ecfdf5; }
   .badge-mini.pnl.loss { color: #dc2626; background: #fef2f2; }
   .badge-mini.ticket { font-family: monospace; color: #94a3b8; }
+  /* 圖片放大模態框相關 styles ...略... */
+  
+  .btn-icon {
+    background: none;
+    border: 1px solid #63b3ed;
+    color: #3182ce;
+    border-radius: 4px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-left: 1rem;
+    transition: all 0.2s;
+  }
+
+  .btn-icon:hover {
+    background: #ebf8ff;
+  }
 </style>

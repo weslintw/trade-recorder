@@ -322,7 +322,7 @@
   <div class="annotator-toolbar">
     <!-- 工具選擇 -->
     <div class="tool-group">
-      <label class="tool-label">工具：</label>
+      <span class="tool-label">工具：</span>
       <div class="tool-buttons">
         <button 
           class="tool-btn" 
@@ -353,7 +353,7 @@
 
     <!-- 顏色選擇 -->
     <div class="tool-group">
-      <label class="tool-label">顏色：</label>
+      <span class="tool-label">顏色：</span>
       <div class="color-picker">
         {#each colors as c}
           <button
@@ -375,7 +375,7 @@
 
     <!-- 線條粗度 -->
     <div class="tool-group">
-      <label class="tool-label">粗度：</label>
+      <span class="tool-label">粗度：</span>
       <div class="line-width-selector">
         {#each lineWidths as w}
           <button
@@ -415,7 +415,6 @@
           if (e.key === 'Enter') addText();
           if (e.key === 'Escape') cancelText();
         }}
-        autofocus
       />
       <div class="text-dialog-buttons">
         <button class="text-btn confirm" on:click={addText}>✓ 確定</button>

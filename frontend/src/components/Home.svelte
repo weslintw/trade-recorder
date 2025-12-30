@@ -21,37 +21,49 @@
         tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 }),
       ]);
 
-      const plans = plansRes.data.data || [];
-      const trades = tradesRes.data.data || [];
+      const plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+      const trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+
+      console.log('Loaded plans:', plans);
+      console.log('Loaded trades:', trades);
 
       // 按日期分組 (YYYY-MM-DD)
       const dateMap = {};
 
       plans.forEach(plan => {
-        const date = new Date(plan.plan_date).toISOString().slice(0, 10);
-        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-        dateMap[date].plans.push(plan);
+        try {
+          if (!plan.plan_date) return;
+          const date = new Date(plan.plan_date).toISOString().slice(0, 10);
+          if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
+          dateMap[date].plans.push(plan);
+        } catch (e) { console.warn('Skipping invalid plan:', plan, e); }
       });
 
       trades.forEach(trade => {
-        const date = new Date(trade.entry_time).toISOString().slice(0, 10);
-        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-        
-        // 尋找是否已有相同開倉時間的群組
-        const entryTimeKey = trade.entry_time;
-        let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
-        
-        if (!timeGroup) {
-          timeGroup = { 
-            entry_time: entryTimeKey, 
-            trades: [],
-            summary: { totalPnl: 0, totalLot: 0, symbol: trade.symbol, entry_price: trade.entry_price, side: trade.side } 
-          };
-          dateMap[date].groupedTrades.push(timeGroup);
-        }
-        timeGroup.trades.push(trade);
-        timeGroup.summary.totalPnl += (trade.pnl || 0);
-        timeGroup.summary.totalLot += (trade.lot_size || 0);
+        try {
+          if (!trade.entry_time) return; // Skip if no entry time
+          const dateObj = new Date(trade.entry_time);
+          if (isNaN(dateObj.getTime())) return; // Skip invalid date
+
+          const date = dateObj.toISOString().slice(0, 10);
+          if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
+          
+          // 尋找是否已有相同開倉時間的群組
+          const entryTimeKey = trade.entry_time;
+          let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
+          
+          if (!timeGroup) {
+            timeGroup = { 
+              entry_time: entryTimeKey, 
+              trades: [],
+              summary: { totalPnl: 0, totalLot: 0, symbol: trade.symbol, entry_price: trade.entry_price, side: trade.side } 
+            };
+            dateMap[date].groupedTrades.push(timeGroup);
+          }
+          timeGroup.trades.push(trade);
+          timeGroup.summary.totalPnl += (trade.pnl || 0);
+          timeGroup.summary.totalLot += (trade.lot_size || 0);
+        } catch (e) { console.warn('Skipping invalid trade:', trade, e); }
       });
 
       // 轉換為陣列並排序（日期降序，群組內按時間排序通常已由 API 處理）
@@ -65,6 +77,7 @@
           }
         });
       });
+      console.log('Final groupedData:', groupedData);
     } catch (error) {
       console.error('載入首頁資料失敗:', error);
     } finally {
@@ -73,26 +86,31 @@
   }
 
   // 監聽品種或帳號變更
-  $: if ($selectedSymbol || $selectedAccountId) {
+  $: if ($selectedSymbol && $selectedAccountId) {
     loadData();
   }
 
   onMount(() => {
-    loadData();
+    // 初始載入由下面的 $: 響應式語句處理
   });
 
   function formatDate(dateString) {
-    return new Date(dateString).toLocaleString('zh-TW', {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    return date.toLocaleString('zh-TW', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: false
     });
   }
 
   function formatDay(dateString) {
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
     const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
     return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} (週${weekdays[date.getDay()]})`;
   }
@@ -287,7 +305,7 @@
                           </div>
                           <div class="group-pnl">
                             <span class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}">
-                              {timeGroup.summary.totalPnl >= 0 ? '+' : ''}{timeGroup.summary.totalPnl.toFixed(2)}
+                              {timeGroup.summary.totalPnl >= 0 ? '+' : ''}{timeGroup.summary.totalPnl?.toFixed?.(2) || '0.00'}
                             </span>
                             <button class="icon-btn delete" on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}>🗑️</button>
                           </div>
@@ -317,9 +335,9 @@
                             {#if trade.ticket}<span class="ticket-tag">#{trade.ticket}</span>{/if}
                           </div>
                           <div class="trade-right">
-                            {#if trade.pnl !== null}
+                            {#if trade.pnl !== null && trade.pnl !== undefined}
                               <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
-                                {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                                {trade.pnl >= 0 ? '+' : ''}{(typeof trade.pnl === 'number' ? trade.pnl.toFixed(2) : trade.pnl)}
                               </span>
                             {/if}
                             <button class="icon-btn delete" on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}>🗑️</button>

@@ -2,28 +2,45 @@
   import { onMount } from 'svelte';
   import { accountsAPI } from '../lib/api';
   import { selectedAccountId, accounts } from '../lib/stores';
+  import { auth } from '../lib/auth';
 
   let loading = true;
+  let firstLoad = true;
 
   async function fetchAccounts() {
+    if (!$auth.isAuthenticated) return;
+    
     try {
+      loading = true;
       const res = await accountsAPI.getAll();
       const data = res.data;
-      console.log('Fetched accounts:', data);
       accounts.set(data);
 
-      // 如果目前選擇的帳號不在列表中，預設選擇第一個
-      if (data.length > 0 && !data.find(a => a.id === $selectedAccountId)) {
-        selectedAccountId.set(data[0].id);
+      if (data.length > 0) {
+        // 如果目前沒有選擇帳號，或目前選擇的帳號不在清單中，則預設選擇第一個
+        const exists = data.find(a => a.id === $selectedAccountId);
+        if (!$selectedAccountId || !exists) {
+          selectedAccountId.set(data[0].id);
+        }
       }
     } catch (e) {
       console.error('Failed to fetch accounts:', e);
     } finally {
       loading = false;
+      firstLoad = false;
     }
   }
 
-  onMount(fetchAccounts);
+  // 當登入狀態改變時重新獲取帳號
+  $: if ($auth.isAuthenticated) {
+    fetchAccounts();
+  }
+
+  onMount(() => {
+    if ($auth.isAuthenticated) {
+      fetchAccounts();
+    }
+  });
 
   function handleAccountChange(e) {
     selectedAccountId.set(parseInt(e.target.value));
@@ -33,7 +50,7 @@
 </script>
 
 <div class="account-selector">
-  {#if !loading}
+  {#if !loading || !firstLoad}
     <div class="selector-wrapper">
       <span class="label">切換帳號:</span>
       <select value={$selectedAccountId} on:change={handleAccountChange}>

@@ -12,12 +12,17 @@
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
   import { selectedSymbol } from './lib/stores';
+  import { auth, logout, checkAuth } from './lib/auth';
+  import Login from './components/Login.svelte';
+  import ChangePasswordModal from './components/ChangePasswordModal.svelte';
 
   let activeNav = 'home';
   let currentTime = new Date();
   let timer;
+  let showChangePassword = false;
 
-  onMount(() => {
+  onMount(async () => {
+    await checkAuth();
     timer = setInterval(() => {
       currentTime = new Date();
     }, 1000); // 1秒更新一次秒針，或60000更新分
@@ -37,6 +42,11 @@
   function formatDate(date) {
     return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
   }
+  function handleLogout() {
+    if (confirm('確定要登出嗎？')) {
+      logout();
+    }
+  }
 </script>
 
 <Router>
@@ -47,6 +57,7 @@
           <div class="logo-image-container">
             <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
           </div>
+          <span class="app-version-tag">v1.0.0</span>
         </Link>
 
         <div class="header-tools">
@@ -92,23 +103,36 @@
           >
             ⚙️
           </Link>
+          
+          {#if $auth.isAuthenticated}
+            <div class="user-profile">
+              <span class="username" title="修改密碼" on:click={() => showChangePassword = true} role="button" tabindex="0">👤 {$auth.user?.username}</span>
+              <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
+            </div>
+          {/if}
         </div>
       </div>
     </nav>
 
-    <main class="container">
-      <Route path="/" component={Home} />
-      <Route path="/trades" component={TradeList} />
-      <Route path="/plans" component={DailyPlanList} />
-      <Route path="/plans/new" component={DailyPlanForm} />
-      <Route path="/plans/edit/:id" component={DailyPlanForm} />
-      <Route path="/new" component={TradeForm} />
-      <Route path="/edit/:id" component={TradeForm} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/accounts" component={AccountManagement} />
-    </main>
+    {#if $auth.isAuthenticated}
+      <main class="container">
+        <Route path="/" component={Home} />
+        <Route path="/trades" component={TradeList} />
+        <Route path="/plans" component={DailyPlanList} />
+        <Route path="/plans/new" component={DailyPlanForm} />
+        <Route path="/plans/edit/:id" component={DailyPlanForm} />
+        <Route path="/new" component={TradeForm} />
+        <Route path="/edit/:id" component={TradeForm} />
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/accounts" component={AccountManagement} />
+      </main>
+    {:else}
+      <Login />
+    {/if}
   </div>
 </Router>
+
+<ChangePasswordModal show={showChangePassword} onClose={() => showChangePassword = false} />
 
 <style>
   :global(:root) {
@@ -168,23 +192,20 @@
     align-items: center;
   }
 
-  .nav-brand {
-    display: flex;
+  /* 使用 :global 確保樣式能套用到 svelte-routing 的 Link 組件 */
+  :global(.nav-brand) {
+    display: flex !important;
     align-items: center;
     text-decoration: none !important;
     outline: none;
     user-select: none;
-  }
-
-  .nav-brand:hover,
-  .nav-brand:focus,
-  .nav-brand:active {
-    text-decoration: none !important;
+    gap: 0.75rem;
+    padding: 2px 0;
   }
 
   .logo-image-container {
-    height: 60px; /* 增加高度以放大視覺內容 */
-    width: 320px; /* 橫向加寬，與內容比例契合 */
+    height: 85px; /* 進一步提高到 85px，確保齒輪頂部與底部完全不被裁切 */
+    width: 280px; 
     display: flex;
     align-items: center;
     justify-content: center;
@@ -194,10 +215,22 @@
   .brand-logo-img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 自動裁切掉圖片上下的無效區域，聚焦中間品牌名 */
-    object-position: center;
+    object-fit: cover; 
+    object-position: center 48%; /* 稍微下移，確保頂部不被切到 */
     mix-blend-mode: multiply;
-    pointer-events: none; /* 防止遮擋點擊 */
+    pointer-events: none;
+    transform: scale(1.1); 
+  }
+
+  :global(.app-version-tag) {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 600;
+    pointer-events: none;
+    margin-top: 3.2rem; /* 配合容器加高，版號位置再次微調 */
   }
 
 
@@ -303,7 +336,53 @@
   .nav-links :global(a.active) {
     background: var(--primary);
     color: white;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+  }
+
+  .user-profile {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border-color);
+  }
+
+  .username {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    background: #f1f5f9;
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .username:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+  }
+
+  .logout-btn {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+    opacity: 0.6;
+  }
+
+  .logout-btn:hover {
+    background: #fee2e2;
+    opacity: 1;
+    transform: scale(1.1);
   }
 
 
