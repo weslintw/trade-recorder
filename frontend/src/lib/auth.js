@@ -3,7 +3,7 @@ import axios from 'axios';
 import { selectedAccountId } from './stores';
 
 // API 基礎路徑
-const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:8080/api/v1' : '/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8080/api/v1' : '/api/v1');
 
 // 初始化時從 localStorage 讀取
 const initialToken = localStorage.getItem('token');
@@ -37,7 +37,7 @@ export const login = async (username, password) => {
     } catch (error) {
         return { 
             success: false, 
-            error: error.response?.data?.error || '登入失敗，請檢查網路連線' 
+            error: error.response?.data?.error || error.message || '登入失敗，請檢查網路連線' 
         };
     }
 };
@@ -53,7 +53,7 @@ export const register = async (username, password) => {
     } catch (error) {
         return { 
             success: false, 
-            error: error.response?.data?.error || '註冊失敗' 
+            error: error.response?.data?.error || error.message || '註冊失敗' 
         };
     }
 };
