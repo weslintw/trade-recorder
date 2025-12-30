@@ -108,7 +108,7 @@
       }
   }
 
-  // 處理確認併入
+  // 處理確認併入觀察單資料
   function handleMergeWatchlist(sourceTrade) {
       if (!sourceTrade) return;
 
@@ -121,42 +121,112 @@
           
           if (sourceTrade.entry_signals) {
              try {
-                // 如果是字串就 parse，如果是物件就直接用
                 formData.entry_signals = typeof sourceTrade.entry_signals === 'string' ? JSON.parse(sourceTrade.entry_signals) : sourceTrade.entry_signals;
              } catch(e) { formData.entry_signals = []; }
-          } else {
-             formData.entry_signals = [];
           }
           
-           if (sourceTrade.entry_checklist) {
+          if (sourceTrade.entry_checklist) {
              try {
                 formData.entry_checklist = typeof sourceTrade.entry_checklist === 'string' ? JSON.parse(sourceTrade.entry_checklist) : sourceTrade.entry_checklist;
              } catch(e) { formData.entry_checklist = {}; }
           }
           
-           if (sourceTrade.entry_pattern) {
+          if (sourceTrade.entry_pattern) {
              try {
                 formData.entry_pattern = typeof sourceTrade.entry_pattern === 'string' ? JSON.parse(sourceTrade.entry_pattern) : sourceTrade.entry_pattern;
              } catch(e) { formData.entry_pattern = []; }
           }
 
-          // 2. 併入平倉理由、標籤
           formData.exit_reason = sourceTrade.exit_reason || '';
-          
-          // 標籤處理
           if (sourceTrade.tags && Array.isArray(sourceTrade.tags)) {
               formData.tags = sourceTrade.tags.map(t => (t && typeof t === 'object') ? t.name : t).filter(t => t);
-          } else {
-              formData.tags = [];
           }
           
-          // 3. 併入初始停損
           if (sourceTrade.initial_sl) {
               formData.initial_sl = sourceTrade.initial_sl;
           }
 
+          formData = formData; 
+          alert('觀察單資料併入完成！');
+      }
+  }
+
+  // 處理從實單併入交易數據
+  function handleMergeActualTrade(sourceTrade) {
+      if (!sourceTrade) return;
+
+      if (confirm(`確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步價格、手數與盈虧，並將本紀錄轉為「實單」。`)) {
+          formData.entry_price = sourceTrade.entry_price;
+          formData.exit_price = sourceTrade.exit_price;
+          formData.lot_size = sourceTrade.lot_size;
+          formData.pnl = sourceTrade.pnl;
+          formData.pnl_points = sourceTrade.pnl_points;
+          formData.initial_sl = sourceTrade.initial_sl;
+          formData.exit_sl = sourceTrade.exit_sl;
+          formData.ticket = sourceTrade.ticket;
+          formData.trade_type = 'actual';
+
+          formData = formData;
+          alert('實單資料併入成功，已自動轉為「有進單」模式。');
+      }
+  }
+
+  // 開啟實單選擇視窗
+  async function openActualTradesModal() {
+      if (!formData.symbol) {
+          alert('請先選擇交易品種');
+          return;
+      }
+
+      try {
+          const response = await tradesAPI.getAll({
+              account_id: formData.account_id,
+              symbol: formData.symbol,
+              page: 1,
+              page_size: 50, 
+          });
+          
+          if (response.data && response.data.data) {
+              // 過濾出 "actual" 且 symbol 相同的單子
+              watchlistTrades = response.data.data.filter(t => 
+                  t.trade_type === 'actual' && 
+                  t.symbol === formData.symbol
+              );
+              
+              watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+
+              if (watchlistTrades.length > 0) {
+                  showWatchlistModal = true;
+              } else {
+                  alert(`找不到 ${formData.symbol} 的實單紀錄。`);
+              }
+          }
+      } catch (error) {
+          console.error("Fetch actual trades error:", error);
+          alert('讀取實單失敗');
+      }
+  }
+
+  // 處理從實單併入資料
+  function handleMergeActualTrade(sourceTrade) {
+      if (!sourceTrade) return;
+
+      if (confirm(`確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步進場價格、手數與盈虧，並將本紀錄轉為「實單」。`)) {
+          // 同步實單的核心數據
+          formData.entry_price = sourceTrade.entry_price;
+          formData.exit_price = sourceTrade.exit_price;
+          formData.lot_size = sourceTrade.lot_size;
+          formData.pnl = sourceTrade.pnl;
+          formData.pnl_points = sourceTrade.pnl_points;
+          formData.initial_sl = sourceTrade.initial_sl;
+          formData.exit_sl = sourceTrade.exit_sl;
+          formData.ticket = sourceTrade.ticket;
+
+          // 自動轉為實單類型
+          formData.trade_type = 'actual';
+
           formData = formData; // Trigger update
-          alert('資料併入完成！');
+          alert('實單資料併入成功，已自動轉為「有進單」模式。');
       }
   }
 
@@ -844,11 +914,17 @@
           </span>
         </label>
         
-        {#if isActualTrade}
-          <button type="button" class="btn-icon" on:click={openWatchlistModal} title="從觀察單匯入進場分析" style="margin-left: 1rem; align-self: center;">
-             📋 從觀察單併入
-          </button>
-        {/if}
+        <div class="merge-action-container">
+          {#if formData.trade_type === 'actual'}
+            <button type="button" class="btn-merge" on:click={openWatchlistModal} title="從過去的觀察單匯入分析資料">
+              <span class="icon">📋</span> 從觀察單併入
+            </button>
+          {:else}
+            <button type="button" class="btn-merge" on:click={openActualTradesModal} title="併入現有的實單交易">
+              <span class="icon">💰</span> 併入實單
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
 
@@ -1236,7 +1312,7 @@
   show={showWatchlistModal}
   trades={watchlistTrades}
   currentSymbol={formData.symbol}
-  onConfirm={handleMergeWatchlist}
+  onConfirm={formData.trade_type === 'actual' ? handleMergeWatchlist : handleMergeActualTrade}
   onClose={() => (showWatchlistModal = false)}
 />
 
@@ -1653,6 +1729,49 @@
 
   .strategy-options.mini .strategy-name {
     font-size: 0.85rem;
+  }
+
+  /* 精緻合併按鈕樣式 */
+  .merge-action-container {
+    display: flex;
+    align-items: center;
+    padding-left: 1rem;
+    margin-left: 1rem;
+    border-left: 1.5px dashed #e2e8f0;
+  }
+
+  .btn-merge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1.2rem;
+    background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+    border: 1px solid #c4b5fd;
+    border-radius: 12px;
+    color: #6d28d9;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(109, 40, 217, 0.05), 0 2px 4px -1px rgba(109, 40, 217, 0.03);
+    white-space: nowrap;
+  }
+
+  .btn-merge:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+    color: white;
+    border-color: #7c3aed;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(109, 40, 217, 0.2);
+  }
+
+  .btn-merge:active {
+    transform: translateY(0);
+  }
+
+  .btn-merge .icon {
+    font-size: 1.1rem;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.1));
   }
 
   .strategy-option input[type='radio'] {
