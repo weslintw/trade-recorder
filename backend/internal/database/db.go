@@ -16,6 +16,12 @@ func InitDB() (*sql.DB, error) {
 	if dbPath == "" {
 		dbPath = "./trade_journal.db"
 	}
+
+	// 檢查路徑，如果是目錄，則自動補上檔名
+	info, err := os.Stat(dbPath)
+	if err == nil && info.IsDir() {
+		dbPath = filepath.Join(dbPath, "trade_journal.db")
+	}
 	
 	absPath, _ := filepath.Abs(dbPath)
 	log.Printf("[DB] 資料庫路徑: %s (Absolute: %s)", dbPath, absPath)
