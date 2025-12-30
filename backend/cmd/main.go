@@ -18,9 +18,12 @@ import (
 )
 
 func changeLogOutput() {
+	// 在 Docker 環境中，我們主要依賴 stdout，如果建立日誌檔失敗則忽略不崩潰
 	f, err := os.OpenFile("backend_debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("error opening file: %v", err)
+		log.Printf("[WARN] 無法建立日誌檔: %v, 將僅輸出到主機日誌", err)
+		gin.DefaultWriter = os.Stdout
+		return
 	}
 	log.SetOutput(f)
 	gin.DefaultWriter = io.MultiWriter(f, os.Stdout)

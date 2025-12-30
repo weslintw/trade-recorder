@@ -43,5 +43,5 @@ ENV GIN_MODE=release
 # 暴露端口
 EXPOSE 8080 9000 9001
 
-# 啟動指令：加入偵錯資訊與權限確保
-CMD ["/bin/bash", "-c", "echo '--- Directory Structure ---' && ls -R /app && echo '--- Starting MinIO ---' && /usr/local/bin/minio server /app/minio-data --console-address ':9001' & sleep 5 && echo '--- Starting Backend ---' && chmod +x /app/main && /app/main"]
+# 啟動指令：補強日誌捕捉與延遲機制
+CMD ["/bin/bash", "-c", "echo 'Starting services...' && /usr/local/bin/minio server /app/minio-data --console-address ':9001' > /app/minio.log 2>&1 & sleep 8 && echo 'Starting Backend binary...' && chmod +x ./main && ./main 2>&1"]
