@@ -151,25 +151,6 @@
       }
   }
 
-  // 處理從實單併入交易數據
-  function handleMergeActualTrade(sourceTrade) {
-      if (!sourceTrade) return;
-
-      if (confirm(`確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步價格、手數與盈虧，並將本紀錄轉為「實單」。`)) {
-          formData.entry_price = sourceTrade.entry_price;
-          formData.exit_price = sourceTrade.exit_price;
-          formData.lot_size = sourceTrade.lot_size;
-          formData.pnl = sourceTrade.pnl;
-          formData.pnl_points = sourceTrade.pnl_points;
-          formData.initial_sl = sourceTrade.initial_sl;
-          formData.exit_sl = sourceTrade.exit_sl;
-          formData.ticket = sourceTrade.ticket;
-          formData.trade_type = 'actual';
-
-          formData = formData;
-          alert('實單資料併入成功，已自動轉為「有進單」模式。');
-      }
-  }
 
   // 開啟實單選擇視窗
   async function openActualTradesModal() {
