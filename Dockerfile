@@ -43,5 +43,9 @@ ENV GIN_MODE=release
 # 暴露端口
 EXPOSE 8080 9000 9001
 
-# 啟動指令：補強日誌捕捉與延遲機制
-CMD ["/bin/bash", "-c", "echo 'Starting services...' && /usr/local/bin/minio server /app/minio-data --console-address ':9001' > /app/minio.log 2>&1 & sleep 8 && echo 'Starting Backend binary...' && chmod +x ./main && ./main 2>&1"]
+# 複製啟動腳本
+COPY zeabur-entrypoint.sh ./
+RUN chmod +x zeabur-entrypoint.sh
+
+# 啟動指令：呼叫獨立腳本
+CMD ["/bin/bash", "./zeabur-entrypoint.sh"]
