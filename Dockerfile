@@ -43,6 +43,5 @@ ENV GIN_MODE=release
 # 暴露端口
 EXPOSE 8080 9000 9001
 
-# 啟動指令：同時啟動 MinIO (背景) 與 後端服務 (前景)
-# 注意：這會讓後端服務在 8080 同時提供 API 與 前端網頁
-CMD ["/bin/bash", "-c", "/usr/local/bin/minio server /app/minio-data --console-address ':9001' & sleep 3 && ./main"]
+# 啟動指令：加入偵錯資訊與權限確保
+CMD ["/bin/bash", "-c", "echo '--- Directory Structure ---' && ls -R /app && echo '--- Starting MinIO ---' && /usr/local/bin/minio server /app/minio-data --console-address ':9001' & sleep 5 && echo '--- Starting Backend ---' && chmod +x /app/main && /app/main"]
