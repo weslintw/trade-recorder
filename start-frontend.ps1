@@ -15,7 +15,7 @@ if (Test-Path $frontendPath) {
     }
     
     Write-Host "啟動開發伺服器..." -ForegroundColor Green
-    pnpm run dev
+    pnpm run dev --host 0.0.0.0
 } else {
     Write-Host "錯誤：找不到 frontend 目錄" -ForegroundColor Red
     Write-Host "預期路徑：$frontendPath" -ForegroundColor Red

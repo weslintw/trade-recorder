@@ -49,7 +49,7 @@ if [ ! -d "node_modules" ]; then
     npm install
 fi
 
-npm run dev &
+npm run dev -- --host 0.0.0.0 &
 cd ..
 echo "✓ 前端已啟動 (http://localhost:5173)"
 echo ""

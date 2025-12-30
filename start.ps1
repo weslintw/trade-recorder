@@ -136,7 +136,7 @@ try {
 
     # 啟動前端
     Write-Host "啟動前端服務..." -ForegroundColor Yellow
-    $startFrontend = "Set-Location '$frontendPath'; pnpm run dev"
+    $startFrontend = "Set-Location '$frontendPath'; pnpm run dev --host 0.0.0.0"
     $p = Start-Process powershell -ArgumentList "-NoExit", "-Command", $startFrontend -PassThru
     $StartedProcesses += $p.Id
     
