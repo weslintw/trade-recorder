@@ -18,15 +18,18 @@ import (
 )
 
 func changeLogOutput() {
-	// 在 Docker 環境中，我們主要依賴 stdout，如果建立日誌檔失敗則忽略不崩潰
+	// 確保日誌同時輸出到檔案與主機控制台 (stdout)
 	f, err := os.OpenFile("backend_debug.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		log.Printf("[WARN] 無法建立日誌檔: %v, 將僅輸出到主機日誌", err)
+		log.Printf("[WARN] 無法建立日誌檔: %v", err)
 		gin.DefaultWriter = os.Stdout
+		log.SetOutput(os.Stdout)
 		return
 	}
-	log.SetOutput(f)
-	gin.DefaultWriter = io.MultiWriter(f, os.Stdout)
+	// 系統 log 與 Gin log 都設定為多重輸出
+	writer := io.MultiWriter(f, os.Stdout)
+	log.SetOutput(writer)
+	gin.DefaultWriter = writer
 }
 
 func main() {
