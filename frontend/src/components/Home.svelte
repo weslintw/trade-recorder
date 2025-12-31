@@ -8,12 +8,16 @@
 
   let groupedData = [];
   let loading = true;
+  let todayString = new Date().toISOString().slice(0, 10);
   let selectedImage = null;
 
   async function loadData() {
     try {
       loading = true;
       const symbol = $selectedSymbol;
+
+      // 更新今天日期文字
+      todayString = new Date().toISOString().slice(0, 10);
 
       // 獲取最近 20 天的規劃和最近 50 筆交易
       const [plansRes, tradesRes] = await Promise.all([
@@ -30,13 +34,18 @@
       // 按日期分組 (YYYY-MM-DD)
       const dateMap = {};
 
+      // 強制推入今天的日期，確保最上面有東西
+      dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
+
       plans.forEach(plan => {
         try {
           if (!plan.plan_date) return;
           const date = new Date(plan.plan_date).toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
           dateMap[date].plans.push(plan);
-        } catch (e) { console.warn('Skipping invalid plan:', plan, e); }
+        } catch (e) {
+          console.warn('Skipping invalid plan:', plan, e);
+        }
       });
 
       trades.forEach(trade => {
@@ -47,23 +56,31 @@
 
           const date = dateObj.toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-          
+
           // 尋找是否已有相同開倉時間的群組
           const entryTimeKey = trade.entry_time;
           let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
-          
+
           if (!timeGroup) {
-            timeGroup = { 
-              entry_time: entryTimeKey, 
+            timeGroup = {
+              entry_time: entryTimeKey,
               trades: [],
-              summary: { totalPnl: 0, totalLot: 0, symbol: trade.symbol, entry_price: trade.entry_price, side: trade.side } 
+              summary: {
+                totalPnl: 0,
+                totalLot: 0,
+                symbol: trade.symbol,
+                entry_price: trade.entry_price,
+                side: trade.side,
+              },
             };
             dateMap[date].groupedTrades.push(timeGroup);
           }
           timeGroup.trades.push(trade);
-          timeGroup.summary.totalPnl += (trade.pnl || 0);
-          timeGroup.summary.totalLot += (trade.lot_size || 0);
-        } catch (e) { console.warn('Skipping invalid trade:', trade, e); }
+          timeGroup.summary.totalPnl += trade.pnl || 0;
+          timeGroup.summary.totalLot += trade.lot_size || 0;
+        } catch (e) {
+          console.warn('Skipping invalid trade:', trade, e);
+        }
       });
 
       // 轉換為陣列並排序（日期降序，群組內按時間排序通常已由 API 處理）
@@ -104,7 +121,7 @@
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false,
     });
   }
 
@@ -123,7 +140,6 @@
     }
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
-
 
   function parseJSONSafe(str, defaultValue) {
     if (!str) return defaultValue;
@@ -172,7 +188,10 @@
   <div class="home-hero">
     <div class="hero-content">
       <div class="hero-actions">
-        <button class="action-card plan" on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}>
+        <button
+          class="action-card plan"
+          on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}
+        >
           <div class="action-icon">📋</div>
           <div class="action-info">
             <span class="action-name">新增規劃</span>
@@ -180,8 +199,11 @@
           </div>
           <div class="action-plus">＋</div>
         </button>
-        
-        <button class="action-card trade" on:click={() => navigate('/new?symbol=' + $selectedSymbol)}>
+
+        <button
+          class="action-card trade"
+          on:click={() => navigate('/new?symbol=' + $selectedSymbol)}
+        >
           <div class="action-icon">💰</div>
           <div class="action-info">
             <span class="action-name">新增交易</span>
@@ -260,9 +282,18 @@
                       {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
                         <div class="mini-notes">
                           <div class="mini-notes-title">📝 備註事項</div>
-                          {#if trendData.asian?.notes}<div class="mini-note-item"><span class="note-session asian">亞</span> {trendData.asian.notes}</div>{/if}
-                          {#if trendData.european?.notes}<div class="mini-note-item"><span class="note-session european">歐</span> {trendData.european.notes}</div>{/if}
-                          {#if trendData.us?.notes}<div class="mini-note-item"><span class="note-session us">美</span> {trendData.us.notes}</div>{/if}
+                          {#if trendData.asian?.notes}<div class="mini-note-item">
+                              <span class="note-session asian">亞</span>
+                              {trendData.asian.notes}
+                            </div>{/if}
+                          {#if trendData.european?.notes}<div class="mini-note-item">
+                              <span class="note-session european">歐</span>
+                              {trendData.european.notes}
+                            </div>{/if}
+                          {#if trendData.us?.notes}<div class="mini-note-item">
+                              <span class="note-session us">美</span>
+                              {trendData.us.notes}
+                            </div>{/if}
                         </div>
                       {/if}
                     {:else}
@@ -270,7 +301,7 @@
                     {/if}
                   </div>
                 {/each}
-              {:else}
+              {:else if group.date === todayString}
                 <div
                   class="empty-placeholder dash-plan"
                   on:click={() =>
@@ -289,30 +320,55 @@
                   {#each group.groupedTrades as timeGroup}
                     {#if timeGroup.trades.length > 1}
                       <!-- 組合單 (多筆部分的平倉) -->
-                      <div class="trade-time-group is-multi" on:click={() => navigate(`/edit/${timeGroup.trades[0].id}`)}>
+                      <div
+                        class="trade-time-group is-multi"
+                        on:click={() => navigate(`/edit/${timeGroup.trades[0].id}`)}
+                      >
                         <div class="group-header">
                           <div class="group-meta">
                             <span class="multi-indicator">📦 組合單</span>
                             <span class="symbol-inline-tag">{timeGroup.summary.symbol}</span>
-                            <span class="side-tag {timeGroup.summary.side}">{timeGroup.summary.side === 'long' ? '📈 做多' : '📉 做空'}</span>
-                            <span class="group-entry-price">進場: <strong>{timeGroup.summary.entry_price}</strong></span>
-                            <span class="group-lot">總手數: <strong>{timeGroup.summary.totalLot.toFixed(2)}</strong></span>
+                            <span class="side-tag {timeGroup.summary.side}"
+                              >{timeGroup.summary.side === 'long' ? '📈 做多' : '📉 做空'}</span
+                            >
+                            <span class="group-entry-price"
+                              >進場: <strong>{timeGroup.summary.entry_price}</strong></span
+                            >
+                            <span class="group-lot"
+                              >總手數: <strong>{timeGroup.summary.totalLot.toFixed(2)}</strong
+                              ></span
+                            >
                           </div>
                           <div class="group-pnl">
-                            <span class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}">
-                              {timeGroup.summary.totalPnl >= 0 ? '+' : ''}{timeGroup.summary.totalPnl?.toFixed?.(2) || '0.00'}
+                            <span
+                              class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}"
+                            >
+                              {timeGroup.summary.totalPnl >= 0
+                                ? '+'
+                                : ''}{timeGroup.summary.totalPnl?.toFixed?.(2) || '0.00'}
                             </span>
-                            <button class="icon-btn delete" on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}>🗑️</button>
+                            <button
+                              class="icon-btn delete"
+                              on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
+                              >🗑️</button
+                            >
                           </div>
                         </div>
 
                         <div class="group-partial-closes">
                           {#each timeGroup.trades as trade}
                             <div class="partial-close-row">
-                              <span class="partial-time">{formatDate(trade.entry_time).split(' ')[1]}</span>
-                              <span class="partial-info">平倉: <strong>{trade.exit_price || '-'}</strong> ({trade.lot_size} 手)</span>
-                              <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}">{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span>
-                              {#if trade.ticket}<span class="partial-ticket">#{trade.ticket}</span>{/if}
+                              <span class="partial-time"
+                                >{formatDate(trade.entry_time).split(' ')[1]}</span
+                              >
+                              <span class="partial-info"
+                                >平倉: <strong>{trade.exit_price || '-'}</strong> ({trade.lot_size} 手)</span
+                              >
+                              <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
+                                >{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span
+                              >
+                              {#if trade.ticket}<span class="partial-ticket">#{trade.ticket}</span
+                                >{/if}
                             </div>
                           {/each}
                         </div>
@@ -324,18 +380,33 @@
                         <div class="item-header">
                           <div class="trade-meta">
                             <span class="symbol-inline-tag">{trade.symbol}</span>
-                            <span class="session-tag {trade.market_session || determineMarketSession(trade.entry_time)}">{getMarketSessionLabel(trade)}</span>
-                            {#if trade.entry_strategy}<span class="strategy-tag {trade.entry_strategy}">{getStrategyLabel(trade.entry_strategy)}</span>{/if}
-                            <span class="side-tag {trade.side}">{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span>
+                            <span
+                              class="session-tag {trade.market_session ||
+                                determineMarketSession(trade.entry_time)}"
+                              >{getMarketSessionLabel(trade)}</span
+                            >
+                            {#if trade.entry_strategy}<span
+                                class="strategy-tag {trade.entry_strategy}"
+                                >{getStrategyLabel(trade.entry_strategy)}</span
+                              >{/if}
+                            <span class="side-tag {trade.side}"
+                              >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
+                            >
                             {#if trade.ticket}<span class="ticket-tag">#{trade.ticket}</span>{/if}
                           </div>
                           <div class="trade-right">
                             {#if trade.pnl !== null && trade.pnl !== undefined}
                               <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
-                                {trade.pnl >= 0 ? '+' : ''}{(typeof trade.pnl === 'number' ? trade.pnl.toFixed(2) : trade.pnl)}
+                                {trade.pnl >= 0 ? '+' : ''}{typeof trade.pnl === 'number'
+                                  ? trade.pnl.toFixed(2)
+                                  : trade.pnl}
                               </span>
                             {/if}
-                            <button class="icon-btn delete" on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}>🗑️</button>
+                            <button
+                              class="icon-btn delete"
+                              on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
+                              >🗑️</button
+                            >
                           </div>
                         </div>
 
@@ -344,10 +415,16 @@
                             <span>進場: <strong>{trade.entry_price}</strong></span>
                             <span>平倉: <strong>{trade.exit_price || '-'}</strong></span>
                             <span>手數: <strong>{trade.lot_size}</strong></span>
-                            {#if trade.exit_sl}<span class="exit-sl-info">平倉SL: <strong>{trade.exit_sl}</strong></span>{/if}
+                            {#if trade.exit_sl}<span class="exit-sl-info"
+                                >平倉SL: <strong>{trade.exit_sl}</strong></span
+                              >{/if}
                             {#if trade.initial_sl}
-                              <span class="bullet-info">子彈: <strong>{trade.bullet_size?.toFixed(1) || '-'}</strong></span>
-                              <span class="rr-info">風報: <strong>{trade.rr_ratio?.toFixed(2) || '-'}</strong></span>
+                              <span class="bullet-info"
+                                >子彈: <strong>{trade.bullet_size?.toFixed(1) || '-'}</strong></span
+                              >
+                              <span class="rr-info"
+                                >風報: <strong>{trade.rr_ratio?.toFixed(2) || '-'}</strong></span
+                              >
                             {/if}
                           </div>
                           <div class="trade-time">{formatDate(trade.entry_time).split(' ')[1]}</div>
@@ -356,18 +433,23 @@
                         {#if trade.images && trade.images.length > 0}
                           <div class="mini-gallery">
                             {#each trade.images.slice(0, 3) as img}
-                              <div class="mini-img" on:click|stopPropagation={() => openImageModal(img.image_path)}>
+                              <div
+                                class="mini-img"
+                                on:click|stopPropagation={() => openImageModal(img.image_path)}
+                              >
                                 <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
                               </div>
                             {/each}
-                            {#if trade.images.length > 3}<div class="more-imgs">+{trade.images.length - 3}</div>{/if}
+                            {#if trade.images.length > 3}<div class="more-imgs">
+                                +{trade.images.length - 3}
+                              </div>{/if}
                           </div>
                         {/if}
                       </div>
                     {/if}
                   {/each}
                 </div>
-              {:else}
+              {:else if group.date === todayString}
                 <div
                   class="empty-placeholder dash-trade"
                   on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
@@ -590,27 +672,36 @@
     align-items: flex-start;
     gap: 0.4rem;
     margin-bottom: 0.25rem;
+    white-space: pre-wrap;
   }
 
   .note-session {
     font-size: 0.7rem;
     font-weight: 800;
-    padding: 0px 4px;
+    padding: 2px 4px;
     border-radius: 3px;
     color: white;
     min-width: 1.2rem;
     text-align: center;
+    flex-shrink: 0;
   }
 
-  .note-session.asian { background: #3b82f6; }
-  .note-session.european { background: #d97706; }
-  .note-session.us { background: #dc2626; }
+  .note-session.asian {
+    background: #3b82f6;
+  }
+  .note-session.european {
+    background: #d97706;
+  }
+  .note-session.us {
+    background: #dc2626;
+  }
 
   .simple-notes {
     font-size: 0.8rem;
     color: #64748b;
     margin-top: 0.5rem;
     font-style: italic;
+    white-space: pre-wrap;
   }
 
   /* Trade Mini styles */
@@ -757,7 +848,8 @@
     box-shadow: 0 2px 4px rgba(244, 114, 182, 0.3);
   }
 
-  .group-entry-price, .group-lot {
+  .group-entry-price,
+  .group-lot {
     font-size: 0.85rem;
     color: #475569;
   }
@@ -811,8 +903,12 @@
     text-align: right;
   }
 
-  .partial-pnl.profit { color: #10b981; }
-  .partial-pnl.loss { color: #ef4444; }
+  .partial-pnl.profit {
+    color: #10b981;
+  }
+  .partial-pnl.loss {
+    color: #ef4444;
+  }
 
   .partial-ticket {
     font-family: monospace;
@@ -1052,8 +1148,12 @@
     box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.1);
   }
 
-  .action-card.plan:hover { border-color: #6366f1; }
-  .action-card.trade:hover { border-color: #10b981; }
+  .action-card.plan:hover {
+    border-color: #6366f1;
+  }
+  .action-card.trade:hover {
+    border-color: #10b981;
+  }
 
   .action-icon {
     font-size: 2.5rem;
@@ -1096,8 +1196,14 @@
     transition: all 0.2s;
   }
 
-  .action-card.plan:hover .action-plus { background: #6366f1; color: white; }
-  .action-card.trade:hover .action-plus { background: #10b981; color: white; }
+  .action-card.plan:hover .action-plus {
+    background: #6366f1;
+    color: white;
+  }
+  .action-card.trade:hover .action-plus {
+    background: #10b981;
+    color: white;
+  }
 
   .modal-content img {
     max-width: 100%;

@@ -554,6 +554,17 @@
   .note-text {
     color: #4a5568;
     font-style: italic;
+    white-space: pre-wrap;
+  }
+
+  .plan-notes {
+    font-size: 0.9rem;
+    color: #4a5568;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    white-space: pre-wrap;
   }
 
   .unified-trend-summary {
@@ -618,12 +629,14 @@
     border-radius: 4px;
   }
 
-  .trend-outlook.long, .direction.long {
+  .trend-outlook.long,
+  .direction.long {
     background: #fef2f2;
     color: #991b1b;
   }
 
-  .trend-outlook.short, .direction.short {
+  .trend-outlook.short,
+  .direction.short {
     background: #f0fdf4;
     color: #166534;
   }

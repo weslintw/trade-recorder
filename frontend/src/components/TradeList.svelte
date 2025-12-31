@@ -100,7 +100,6 @@
     return s ? s.label : session || '未設定';
   }
 
-
   async function loadTrades() {
     try {
       loading = true;
@@ -285,12 +284,12 @@
     <div class="trades-grid">
       {#each trades as trade (trade.id)}
         {@const matchedPlan = getMatchedPlan(trade)}
-        <div 
-          class="trade-card" 
+        <div
+          class="trade-card"
           role="button"
           tabindex="0"
           on:click={() => navigate(`/edit/${trade.id}`)}
-          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/edit/${trade.id}`)}
+          on:keydown={e => (e.key === 'Enter' || e.key === ' ') && navigate(`/edit/${trade.id}`)}
         >
           <!-- 刪除按鈕（右上角叉叉）-->
           <button
@@ -371,7 +370,8 @@
                 role="button"
                 tabindex="0"
                 on:click|stopPropagation={() => navigate(`/plans/edit/${matchedPlan.id}`)}
-                on:keydown|stopPropagation={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/plans/edit/${matchedPlan.id}`)}
+                on:keydown|stopPropagation={e =>
+                  (e.key === 'Enter' || e.key === ' ') && navigate(`/plans/edit/${matchedPlan.id}`)}
               >
                 <span class="plan-badge">✅ 已有規劃</span>
                 {#if matchedPlan.market_session === 'all'}
@@ -431,7 +431,11 @@
               {#if trade.entry_reason}
                 <div class="reason-item">
                   <span class="reason-label">📍 進場分析：</span>
-                  <div class="reason-content" on:click={e => e.stopPropagation()} role="presentation">
+                  <div
+                    class="reason-content"
+                    on:click={e => e.stopPropagation()}
+                    role="presentation"
+                  >
                     {@html trade.entry_reason}
                   </div>
                 </div>
@@ -439,7 +443,11 @@
               {#if trade.exit_reason}
                 <div class="reason-item">
                   <span class="reason-label">🎯 平倉理由：</span>
-                  <div class="reason-content" on:click={e => e.stopPropagation()} role="presentation">
+                  <div
+                    class="reason-content"
+                    on:click={e => e.stopPropagation()}
+                    role="presentation"
+                  >
                     {@html trade.exit_reason}
                   </div>
                 </div>
@@ -934,6 +942,7 @@
   .notes-content {
     color: #1e293b;
     line-height: 1.6;
+    white-space: pre-wrap;
   }
 
   .trade-images {
