@@ -74,17 +74,17 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    background: #f1f5f9;
-    padding: 0.4rem 0.75rem;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
+    background: white;
+    padding: 0.3rem 0.6rem;
+    border-radius: 10px;
+    border: 1px solid transparent;
     transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
   }
 
   .selector-wrapper:hover {
-    border-color: var(--primary);
-    background: white;
-    box-shadow: var(--shadow-sm);
+    border-color: #e2e8f0;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
   }
 
   .label {

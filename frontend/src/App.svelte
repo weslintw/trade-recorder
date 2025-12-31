@@ -90,40 +90,52 @@
         </div>
 
         <div class="nav-links">
-          <Link
-            to="/dashboard"
-            class={activeNav === 'dashboard' ? 'active' : ''}
-            on:click={() => (activeNav = 'dashboard')}
-          >
-            統計面板
-          </Link>
-          <AccountSelector />
-          <Link
-            to="/accounts"
-            class={activeNav === 'accounts' ? 'nav-settings-btn active' : 'nav-settings-btn'}
-            on:click={() => (activeNav = 'accounts')}
-            title="帳號管理"
-          >
-            ⚙️
-          </Link>
-          
-          {#if $auth.user?.is_admin}
+          <div class="nav-primary-group">
             <Link
-              to="/admin/dashboard"
-              class={activeNav === 'admin' ? 'nav-settings-btn active' : 'nav-settings-btn'}
-              on:click={() => (activeNav = 'admin')}
-              title="系統管理"
+              to="/dashboard"
+              class="{activeNav === 'dashboard' ? 'active' : ''} dashboard-link"
+              on:click={() => (activeNav = 'dashboard')}
             >
-              🛡️
+              <span class="icon">📊</span>
+              <span class="text">統計面板</span>
             </Link>
-          {/if}
-          
-          {#if $auth.isAuthenticated}
-            <div class="user-profile">
-              <span class="username" title="修改密碼" on:click={() => showChangePassword = true} role="button" tabindex="0">👤 {$auth.user?.username}</span>
-              <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
+            <div class="account-switcher-box">
+              <AccountSelector />
             </div>
-          {/if}
+          </div>
+
+          <div class="nav-secondary-group">
+            <div class="action-icons">
+              <Link
+                to="/accounts"
+                class={activeNav === 'accounts' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                on:click={() => (activeNav = 'accounts')}
+                title="帳號管理"
+              >
+                ⚙️
+              </Link>
+              
+              {#if $auth.user?.is_admin}
+                <Link
+                  to="/admin/dashboard"
+                  class={activeNav === 'admin' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                  on:click={() => (activeNav = 'admin')}
+                  title="系統管理"
+                >
+                  🛡️
+                </Link>
+              {/if}
+            </div>
+
+            {#if $auth.isAuthenticated}
+              <div class="user-profile-box">
+                <span class="username" title="修改密碼" on:click={() => (showChangePassword = true)} role="button" tabindex="0">
+                  <span class="u-icon">👤</span> {$auth.user?.username}
+                </span>
+                <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
     </nav>
@@ -257,26 +269,82 @@
 
   .nav-links {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 1.5rem;
   }
 
-  .nav-links :global(a) {
-    text-decoration: none;
-    color: var(--text-muted);
-    font-weight: 500;
-    font-size: 0.9375rem;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-md);
-    transition: all 0.2s ease;
-  }
-
-  .nav-links :global(a:hover) {
-    color: var(--primary);
+  .nav-primary-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     background: #f1f5f9;
+    padding: 0.35rem;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
   }
 
-  .nav-links .active {
+  .nav-secondary-group {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid #e2e8f0;
+  }
+
+  :global(.dashboard-link) {
+    display: flex !important;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    color: #64748b !important;
+    padding: 0.4rem 0.8rem !important;
+    border-radius: 10px !important;
+    font-weight: 700 !important;
+    font-size: 0.875rem !important;
+    transition: all 0.2s ease !important;
+  }
+
+  :global(.dashboard-link:hover) {
+    background: white !important;
+    color: var(--primary) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  :global(.dashboard-link.active) {
+    background: white !important;
+    color: var(--primary) !important;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15) !important;
+  }
+
+  .nav-icon-btn {
+    text-decoration: none;
+    font-size: 1.1rem;
+    opacity: 0.5;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: transparent;
+  }
+
+  .nav-icon-btn:hover {
+    opacity: 1;
+    background: #f1f5f9;
+    transform: translateY(-1px);
+  }
+
+  .nav-icon-btn.active {
+    opacity: 1;
+    background: #eef2ff;
     color: var(--primary);
+  }
+
+  .action-icons {
+    display: flex;
+    gap: 0.25rem;
   }
 
   .nav-settings-btn {
@@ -294,45 +362,46 @@
   .market-status {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.4rem 1rem;
-    background: #f8fafc;
-    border-radius: 50px;
+    gap: 0.75rem;
+    padding: 0.35rem 0.35rem 0.35rem 0.75rem;
+    background: white;
+    border-radius: 14px;
     border: 1px solid #e2e8f0;
-    margin: 0 1rem;
+    margin: 0 0.5rem;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
   }
 
   .current-time-box {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    line-height: 1;
-    border-right: 1px solid #e2e8f0;
+    align-items: flex-start;
+    line-height: 1.1;
+    border-right: 1px solid #f1f5f9;
     padding-right: 0.8rem;
   }
 
   .current-time-box .date {
     font-size: 0.65rem;
     color: #94a3b8;
-    font-weight: 600;
-    margin-bottom: 2px;
+    font-weight: 700;
   }
 
   .current-time-box .time {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #1e293b;
-    font-weight: 700;
+    font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
   }
 
   .current-session-tag {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
+    gap: 0.35rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    padding: 0.2rem 0.6rem;
-    border-radius: 8px;
+    padding: 0.25rem 0.6rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
   }
 
   .current-session-tag.asian { background: #e0f2fe; color: #0369a1; }
@@ -343,45 +412,44 @@
     font-size: 1rem;
   }
 
-  .nav-settings-btn:hover {
+  .nav-icon-btn:hover {
     opacity: 1;
-    background: rgba(0, 0, 0, 0.05);
-    transform: rotate(30deg);
+    background: #f1f5f9;
+    transform: translateY(-1px);
   }
 
-  .nav-settings-btn.active {
-    opacity: 1;
-    color: var(--primary);
-  }
-
-  .nav-links :global(a.active) {
-    background: var(--primary);
-    color: white;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-  }
-
-  .user-profile {
+  .user-profile-box {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-left: 0.5rem;
-    padding-left: 0.75rem;
-    border-left: 1px solid var(--border-color);
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
   }
 
   .username {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 700;
-    color: var(--text-main);
-    background: #f1f5f9;
+    color: #475569;
+    background: white;
     padding: 0.4rem 0.75rem;
-    border-radius: 20px;
-    max-width: 120px;
+    border-radius: 10px;
+    max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
     transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  }
+
+  .username .u-icon {
+    opacity: 0.6;
+    font-size: 0.9rem;
   }
 
   .username:hover {
@@ -431,18 +499,18 @@
   .symbol-selector {
     display: flex;
     align-items: center;
-    background: #f1f5f9;
-    border: 1px solid var(--border-color);
-    padding: 0.4rem 0.75rem;
+    gap: 0.6rem;
+    background: white;
+    padding: 0.35rem 0.75rem;
     border-radius: 12px;
-    gap: 0.5rem;
-    transition: all 0.2s;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
   }
 
   .symbol-selector:hover {
     border-color: var(--primary);
-    background: white;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.1);
   }
 
   .selector-icon {
