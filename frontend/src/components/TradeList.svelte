@@ -3,7 +3,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { determineMarketSession } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel } from '../lib/utils';
   import { selectedSymbol, selectedAccountId } from '../lib/stores';
 
   export let isCompact = false;
@@ -100,14 +100,6 @@
     return s ? s.label : session || '未設定';
   }
 
-  function getStrategyLabel(strategy) {
-    const map = {
-      expert: '🏅 達人',
-      elite: '💎 菁英',
-      legend: '🔥 傳奇',
-    };
-    return map[strategy] || '';
-  }
 
   async function loadTrades() {
     try {

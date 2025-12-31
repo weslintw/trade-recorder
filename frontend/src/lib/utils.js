@@ -75,3 +75,15 @@ export function determineMarketSession(entryTime) {
     // 其他時間（間隙）預設為 asian
     return 'asian';
 }
+
+/**
+ * 取得策略顯示名稱
+ */
+export function getStrategyLabel(strategy) {
+    const map = {
+        expert: '🏅 達人',
+        elite: '💎 菁英',
+        legend: '🔥 傳奇',
+    };
+    return map[strategy] || strategy || '';
+}

@@ -4,7 +4,7 @@
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
-  import { determineMarketSession } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel } from '../lib/utils';
 
   let groupedData = [];
   let loading = true;
@@ -124,14 +124,6 @@
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
 
-  function getStrategyLabel(strategy) {
-    const map = {
-      expert: '🏅 達人',
-      elite: '💎 菁英',
-      legend: '🔥 傳奇',
-    };
-    return map[strategy] || '';
-  }
 
   function parseJSONSafe(str, defaultValue) {
     if (!str) return defaultValue;
