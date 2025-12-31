@@ -42,7 +42,9 @@
   }
 
   function formatDate(date) {
-    return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }).replace(/\//g, '/');
+    return date
+      .toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })
+      .replace(/\//g, '/');
   }
   function handleLogout() {
     if (confirm('確定要登出嗎？')) {
@@ -54,97 +56,104 @@
 <Router>
   <div class="app">
     {#if !window.location.pathname.startsWith('/shared/')}
-    <nav class="navbar">
-      <div class="navbar-content">
-        <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
-          <div class="logo-image-container">
-            <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
-          </div>
-          <span class="app-version-tag">v1.0.0</span>
-        </Link>
-
-        <div class="header-tools">
-          <div class="symbol-selector-wrapper">
-            <div class="symbol-selector">
-              <span class="selector-icon">📊</span>
-              <select bind:value={$selectedSymbol}>
-                {#each SYMBOLS as sym}
-                  <option value={sym}>{sym}</option>
-                {/each}
-              </select>
+      <nav class="navbar">
+        <div class="navbar-content">
+          <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
+            <div class="logo-image-container">
+              <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
             </div>
-          </div>
-        </div>
+            <span class="app-version-tag">v1.0.0</span>
+          </Link>
 
-        <div class="market-status">
-          <div class="current-time-box">
-            <span class="date">{formatDate(currentTime)}</span>
-            <span class="time">{formatTime(currentTime)}</span>
-          </div>
-          {#if currentSession}
-            <div class="current-session-tag {currentSessionValue}">
-              <span class="session-icon">{currentSession.icon}</span>
-              <span class="session-label">{currentSession.label}</span>
-            </div>
-          {/if}
-        </div>
-
-        <div class="nav-links">
-          <div class="nav-primary-group">
-            <Link
-              to="/dashboard"
-              class="{activeNav === 'dashboard' ? 'active' : ''} dashboard-link"
-              on:click={() => (activeNav = 'dashboard')}
-            >
-              <span class="icon">📊</span>
-              <span class="text">統計面板</span>
-            </Link>
-            <div class="account-switcher-box">
-              <AccountSelector />
+          <div class="header-tools">
+            <div class="symbol-selector-wrapper">
+              <div class="symbol-selector">
+                <span class="selector-icon">📊</span>
+                <select bind:value={$selectedSymbol}>
+                  {#each SYMBOLS as sym}
+                    <option value={sym}>{sym}</option>
+                  {/each}
+                </select>
+              </div>
             </div>
           </div>
 
-          <div class="nav-secondary-group">
-            <div class="action-icons">
-              <Link
-                to="/accounts"
-                class={activeNav === 'accounts' ? 'nav-icon-btn active' : 'nav-icon-btn'}
-                on:click={() => (activeNav = 'accounts')}
-                title="帳號管理"
-              >
-                ⚙️
-              </Link>
-              
-              {#if $auth.user?.is_admin}
-                <Link
-                  to="/admin/dashboard"
-                  class={activeNav === 'admin' ? 'nav-icon-btn active' : 'nav-icon-btn'}
-                  on:click={() => (activeNav = 'admin')}
-                  title="系統管理"
-                >
-                  🛡️
-                </Link>
-              {/if}
+          <div class="market-status">
+            <div class="current-time-box">
+              <span class="date">{formatDate(currentTime)}</span>
+              <span class="time">{formatTime(currentTime)}</span>
             </div>
-
-            {#if $auth.isAuthenticated}
-              <div class="user-profile-box">
-                <span class="username" title="修改密碼" on:click={() => (showChangePassword = true)} role="button" tabindex="0">
-                  <span class="u-icon">👤</span> {$auth.user?.username}
-                </span>
-                <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
+            {#if currentSession}
+              <div class="current-session-tag {currentSessionValue}">
+                <span class="session-icon">{currentSession.icon}</span>
+                <span class="session-label">{currentSession.label}</span>
               </div>
             {/if}
           </div>
+
+          <div class="nav-links">
+            <div class="nav-primary-group">
+              <Link
+                to="/dashboard"
+                class="{activeNav === 'dashboard' ? 'active' : ''} dashboard-link"
+                on:click={() => (activeNav = 'dashboard')}
+              >
+                <span class="icon">📊</span>
+                <span class="text">統計面板</span>
+              </Link>
+              <div class="account-switcher-box">
+                <AccountSelector />
+              </div>
+            </div>
+
+            <div class="nav-secondary-group">
+              <div class="action-icons">
+                <Link
+                  to="/accounts"
+                  class={activeNav === 'accounts' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                  on:click={() => (activeNav = 'accounts')}
+                  title="帳號管理"
+                >
+                  ⚙️
+                </Link>
+
+                {#if $auth.user?.is_admin}
+                  <Link
+                    to="/admin/dashboard"
+                    class={activeNav === 'admin' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                    on:click={() => (activeNav = 'admin')}
+                    title="系統管理"
+                  >
+                    🛡️
+                  </Link>
+                {/if}
+              </div>
+
+              {#if $auth.isAuthenticated}
+                <div class="user-profile-box">
+                  <span
+                    class="username"
+                    title="修改密碼"
+                    on:click={() => (showChangePassword = true)}
+                    role="button"
+                    tabindex="0"
+                  >
+                    <span class="u-icon">👤</span>
+                    {$auth.user?.username}
+                  </span>
+                  <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
+                </div>
+              {/if}
+            </div>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
     {/if}
 
     <main class="container">
       <!-- 所有路由定義 -->
       <Route path="/shared/:token" component={SharedViewer} />
-      
+
       {#if $auth.isAuthenticated}
         <!-- 登入後的私有路由 -->
         <Route path="/" component={Home} />
@@ -165,7 +174,7 @@
   </div>
 </Router>
 
-<ChangePasswordModal show={showChangePassword} onClose={() => showChangePassword = false} />
+<ChangePasswordModal show={showChangePassword} onClose={() => (showChangePassword = false)} />
 
 <style>
   :global(:root) {
@@ -238,7 +247,7 @@
 
   .logo-image-container {
     height: 85px; /* 進一步提高到 85px，確保齒輪頂部與底部完全不被裁切 */
-    width: 280px; 
+    width: 280px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -248,11 +257,11 @@
   .brand-logo-img {
     width: 100%;
     height: 100%;
-    object-fit: cover; 
+    object-fit: cover;
     object-position: center 48%; /* 稍微下移，確保頂部不被切到 */
     mix-blend-mode: multiply;
     pointer-events: none;
-    transform: scale(1.1); 
+    transform: scale(1.1);
   }
 
   :global(.app-version-tag) {
@@ -265,7 +274,6 @@
     pointer-events: none;
     margin-top: 3.2rem; /* 配合容器加高，版號位置再次微調 */
   }
-
 
   .nav-links {
     display: flex;
@@ -307,7 +315,7 @@
   :global(.dashboard-link:hover) {
     background: white !important;
     color: var(--primary) !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
   :global(.dashboard-link.active) {
@@ -316,12 +324,12 @@
     box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15) !important;
   }
 
-  .nav-icon-btn {
-    text-decoration: none;
+  :global(.nav-icon-btn) {
+    text-decoration: none !important;
     font-size: 1.1rem;
     opacity: 0.5;
     transition: all 0.2s ease;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
     width: 36px;
@@ -368,7 +376,7 @@
     border-radius: 14px;
     border: 1px solid #e2e8f0;
     margin: 0 0.5rem;
-    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
   }
 
   .current-time-box {
@@ -401,12 +409,21 @@
     font-weight: 700;
     padding: 0.25rem 0.6rem;
     border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
   }
 
-  .current-session-tag.asian { background: #e0f2fe; color: #0369a1; }
-  .current-session-tag.european { background: #fef3c7; color: #b45309; }
-  .current-session-tag.us { background: #fce7f3; color: #be185d; }
+  .current-session-tag.asian {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+  .current-session-tag.european {
+    background: #fef3c7;
+    color: #b45309;
+  }
+  .current-session-tag.us {
+    background: #fce7f3;
+    color: #be185d;
+  }
 
   .session-icon {
     font-size: 1rem;
@@ -444,7 +461,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   .username .u-icon {
@@ -473,7 +490,6 @@
     opacity: 1;
     transform: scale(1.1);
   }
-
 
   .header-tools {
     flex: 1;
@@ -505,7 +521,7 @@
     border-radius: 12px;
     border: 1px solid #e2e8f0;
     transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   .symbol-selector:hover {
@@ -530,7 +546,7 @@
 
   .container {
     max-width: 1400px;
-    margin: 1rem auto 2rem;
+    margin: 0.5rem auto 2rem;
     padding: 0 2rem;
   }
 

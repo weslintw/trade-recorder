@@ -185,33 +185,20 @@
 
 <div class="timeline-container">
   <!-- 頂部快速操作區 -->
-  <div class="home-hero">
-    <div class="hero-content">
-      <div class="hero-actions">
-        <button
-          class="action-card plan"
-          on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}
-        >
-          <div class="action-icon">📋</div>
-          <div class="action-info">
-            <span class="action-name">新增規劃</span>
-            <span class="action-desc">制定今日交易對策</span>
-          </div>
-          <div class="action-plus">＋</div>
-        </button>
-
-        <button
-          class="action-card trade"
-          on:click={() => navigate('/new?symbol=' + $selectedSymbol)}
-        >
-          <div class="action-icon">💰</div>
-          <div class="action-info">
-            <span class="action-name">新增交易</span>
-            <span class="action-desc">記錄實際開倉細節</span>
-          </div>
-          <div class="action-plus">＋</div>
-        </button>
-      </div>
+  <div class="top-actions-bar">
+    <div class="quick-btns">
+      <button
+        class="small-action-btn plan"
+        on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}
+      >
+        <span class="btn-icon">📋</span> 新增規劃
+      </button>
+      <button
+        class="small-action-btn trade"
+        on:click={() => navigate('/new?symbol=' + $selectedSymbol)}
+      >
+        <span class="btn-icon">💰</span> 新增交易
+      </button>
     </div>
   </div>
 
@@ -1114,95 +1101,52 @@
     font-weight: 500;
   }
 
-  .motto {
-    font-size: 2.2rem;
-    font-weight: 800;
-    background: linear-gradient(to right, #1e293b, #475569);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.02em;
+  .top-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -0.5rem;
+    margin-bottom: 0.5rem;
+    padding: 0 1rem;
   }
 
-  .hero-actions {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
+  .quick-btns {
+    display: flex;
+    gap: 0.75rem;
   }
 
-  .action-card {
+  .small-action-btn {
     display: flex;
     align-items: center;
-    padding: 1.5rem;
-    background: white;
-    border: 2px solid #f1f5f9;
-    border-radius: 18px;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    text-align: left;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .action-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.1);
-  }
-
-  .action-card.plan:hover {
-    border-color: #6366f1;
-  }
-  .action-card.trade:hover {
-    border-color: #10b981;
-  }
-
-  .action-icon {
-    font-size: 2.5rem;
-    margin-right: 1.25rem;
-    transition: transform 0.3s ease;
-  }
-
-  .action-card:hover .action-icon {
-    transform: scale(1.1) rotate(5deg);
-  }
-
-  .action-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    flex: 1;
-  }
-
-  .action-name {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #1e293b;
-  }
-
-  .action-desc {
-    font-size: 0.85rem;
-    color: #64748b;
-  }
-
-  .action-plus {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f1f5f9;
-    border-radius: 50%;
-    color: #94a3b8;
-    font-weight: 800;
     transition: all 0.2s;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #1e293b;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
-  .action-card.plan:hover .action-plus {
-    background: #6366f1;
-    color: white;
+  .small-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
-  .action-card.trade:hover .action-plus {
-    background: #10b981;
-    color: white;
+
+  .small-action-btn.plan:hover {
+    border-color: #6366f1;
+    color: #4f46e5;
+  }
+
+  .small-action-btn.trade:hover {
+    border-color: #10b981;
+    color: #059669;
+  }
+
+  .btn-icon {
+    font-size: 1.1rem;
   }
 
   .modal-content img {
