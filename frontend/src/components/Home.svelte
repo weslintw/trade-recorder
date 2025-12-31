@@ -267,7 +267,10 @@
                       </div>
                       {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
                         <div class="mini-notes">
-                          <p>📝 有備註事項</p>
+                          <div class="mini-notes-title">📝 備註事項</div>
+                          {#if trendData.asian?.notes}<div class="mini-note-item"><span class="note-session asian">亞</span> {trendData.asian.notes}</div>{/if}
+                          {#if trendData.european?.notes}<div class="mini-note-item"><span class="note-session european">歐</span> {trendData.european.notes}</div>{/if}
+                          {#if trendData.us?.notes}<div class="mini-note-item"><span class="note-session us">美</span> {trendData.us.notes}</div>{/if}
                         </div>
                       {/if}
                     {:else}
@@ -572,6 +575,50 @@
   .mini-step.short {
     background: #f0fdf4;
     color: #166534;
+  }
+
+  .mini-notes {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #edf2f7;
+  }
+
+  .mini-notes-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+  }
+
+  .mini-note-item {
+    font-size: 0.8rem;
+    color: #4a5568;
+    line-height: 1.4;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .note-session {
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0px 4px;
+    border-radius: 3px;
+    color: white;
+    min-width: 1.2rem;
+    text-align: center;
+  }
+
+  .note-session.asian { background: #3b82f6; }
+  .note-session.european { background: #d97706; }
+  .note-session.us { background: #dc2626; }
+
+  .simple-notes {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.5rem;
+    font-style: italic;
   }
 
   /* Trade Mini styles */
