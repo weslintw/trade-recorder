@@ -1305,6 +1305,13 @@
   onClose={() => (showWatchlistModal = false)}
 />
 
+<ShareModal 
+  show={showShareModal} 
+  resourceType="trade" 
+  resourceId={id} 
+  onClose={() => (showShareModal = false)} 
+/>
+
 <style>
   .card-header-actions {
     display: flex;
@@ -2771,5 +2778,18 @@
 
   .btn-icon:hover {
     background: #ebf8ff;
+  }
+
+  .btn-share {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    font-weight: 700;
+  }
+
+  .btn-share:hover {
+    background: #f1f5f9;
+    color: #4f46e5;
+    border-color: #6366f1;
   }
 </style>

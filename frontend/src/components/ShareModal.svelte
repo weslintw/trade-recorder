@@ -19,7 +19,7 @@
     try {
       const res = await sharesAPI.create({
         resource_type: resourceType,
-        resource_id: resourceId,
+        resource_id: Number(resourceId),
         share_type: shareType
       });
       shareToken = res.data.token;
