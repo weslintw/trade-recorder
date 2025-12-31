@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"trade-journal/internal/minio"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	miniogo "github.com/minio/minio-go/v7"
-	"trade-journal/internal/minio"
 )
 
 // UploadImage 上傳圖片到MinIO
@@ -99,6 +100,7 @@ func GetImage(client *miniogo.Client) gin.HandlerFunc {
 		// 設定回應標頭
 		c.Header("Content-Type", stat.ContentType)
 		c.Header("Content-Length", fmt.Sprintf("%d", stat.Size))
+		c.Header("Cache-Control", "public, max-age=604800, immutable") // 7 days
 
 		// 串流傳送圖片
 		io.Copy(c.Writer, object)

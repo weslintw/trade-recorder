@@ -65,6 +65,12 @@
     }
   }
 
+  function lazyLoadHTML(html) {
+    if (!html) return '';
+    // Inject loading="lazy" into all img tags
+    return html.replace(/<img /g, '<img loading="lazy" ');
+  }
+
   // 達人策略檢查項翻譯
   const expertSignals = {
     'item_ma_flow': 'MA 流向',
@@ -213,6 +219,7 @@
                         src={trade.entry_strategy_image} 
                         alt="Strategy Observation" 
                         class="clickable-image"
+                        loading="lazy"
                         on:click={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
                         on:keypress={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
                         role="button"
@@ -229,6 +236,7 @@
                           src={trade.legend_king_image} 
                           alt="King Callback" 
                           class="clickable-image"
+                          loading="lazy"
                           on:click={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
                           on:keypress={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
                           role="button"
@@ -243,6 +251,7 @@
                           src={trade.legend_htf_image} 
                           alt="HTF Breakout" 
                           class="clickable-image"
+                          loading="lazy"
                           on:click={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
                           on:keypress={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
                           role="button"
@@ -261,6 +270,7 @@
                             src={pattern.image} 
                             alt={pattern.name} 
                             class="clickable-image"
+                            loading="lazy"
                             on:click={() => openModal(pattern.image, pattern.name)}
                             on:keypress={() => openModal(pattern.image, pattern.name)}
                             role="button"
@@ -278,14 +288,14 @@
           {#if trade.notes}
             <div class="section-box">
               <h3>📝 交易復盤筆記</h3>
-              <div class="notes-content ql-editor">{@html trade.notes}</div>
+              <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div>
             </div>
           {/if}
 
           {#if trade.exit_reason}
             <div class="section-box">
               <h3>🎯 平倉理由</h3>
-              <div class="notes-content ql-editor">{@html trade.exit_reason}</div>
+              <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.exit_reason)}</div>
             </div>
           {/if}
 
@@ -300,6 +310,7 @@
                         src={imagesAPI.getUrl(img.image_path)} 
                         alt="Trade Chart" 
                         class="clickable-image"
+                        loading="lazy"
                         on:click={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
                         on:keypress={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
                         role="button"
@@ -335,7 +346,7 @@
 
           <div class="section-box">
             <h3>📝 規劃備註</h3>
-            <div class="notes-content ql-editor">{@html plan.notes || '尚無備註內容'}</div>
+            <div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes) || '尚無備註內容'}</div>
           </div>
           
           {#each ['asian', 'european', 'us'] as session}
@@ -369,6 +380,7 @@
                                   src={trend.image} 
                                   alt="{tf} Trend" 
                                   class="clickable-image"
+                                  loading="lazy"
                                   on:click={() => openModal(trend.image, `${tf} 趨勢圖`)}
                                   on:keypress={() => openModal(trend.image, `${tf} 趨勢圖`)}
                                   role="button"
@@ -394,6 +406,7 @@
                                       src={trend.signals_image} 
                                       alt="{tf} Signals" 
                                       class="clickable-image"
+                                      loading="lazy"
                                       on:click={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
                                       on:keypress={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
                                       role="button"
@@ -422,6 +435,7 @@
                                       src={trend.wave_image} 
                                       alt="{tf} Wave" 
                                       class="clickable-image"
+                                      loading="lazy"
                                       on:click={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
                                       on:keypress={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
                                       role="button"
@@ -695,10 +709,34 @@
     color: #475569;
   }
 
+  .img-preview-box {
+    position: relative;
+    background: #f1f5f9;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 150px;
+    margin-bottom: 1rem;
+  }
+
+  .img-preview-box::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s infinite;
+    z-index: 0;
+  }
+
   .img-preview-box img {
     width: 100%;
     border-radius: 8px;
     display: block;
+    position: relative;
+    z-index: 1;
   }
 
   .notes-content {
@@ -735,11 +773,28 @@
     border-radius: 1.25rem;
     overflow: hidden;
     box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
+    background: #f1f5f9;
+    min-height: 200px;
+  }
+
+  .image-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s infinite;
+    z-index: 0;
   }
 
   .image-card img {
     width: 100%;
     display: block;
+    position: relative;
+    z-index: 1;
   }
 
   .image-type-label {
@@ -810,6 +865,13 @@
     margin-top: 1.5rem;
   }
 
+  @media (max-width: 600px) {
+    .trends-grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+  }
+
   .trend-card {
     background: white;
     border: 1px solid #e2e8f0;
@@ -873,6 +935,27 @@
     overflow: hidden;
     border: 1px solid #f1f5f9;
     position: relative;
+    background: #f1f5f9; /* Placeholder color */
+    min-height: 100px; /* Minimum height to prevent collapse */
+  }
+
+  /* Skeleton loading animation */
+  .t-img-box::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s infinite;
+    z-index: 0;
+  }
+
+  @keyframes skeleton-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   .img-label {
@@ -885,12 +968,16 @@
       padding: 2px 6px;
       border-radius: 4px;
       backdrop-filter: blur(2px);
+      z-index: 2;
   }
 
   .t-img-box img {
     width: 100%;
     height: auto;
     display: block;
+    position: relative;
+    z-index: 1;
+    min-height: 1px;
   }
 
   .t-tags {
@@ -936,5 +1023,90 @@
   .w-num.highlight {
     background: #fee2e2;
     color: #ef4444;
+  }
+
+  /* Responsive Optimizations */
+  @media (max-width: 768px) {
+    .shared-view-container {
+      margin: 1rem auto;
+      padding: 0 0.75rem;
+    }
+    
+    .card {
+      padding: 1.25rem;
+      border-radius: 1rem;
+    }
+
+    .view-header {
+      margin-bottom: 1.5rem;
+      padding-bottom: 1.25rem;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .title-section h1 {
+      font-size: 1.4rem;
+    }
+
+    .info-grid {
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .image-modal {
+      padding: 1rem;
+    }
+
+    .image-modal-close {
+      top: -35px;
+      right: 5px;
+      font-size: 2rem;
+    }
+
+    .image-modal-caption {
+      font-size: 0.95rem;
+      text-align: center;
+    }
+
+    .notes-content {
+      padding: 1.25rem;
+      font-size: 0.95rem;
+    }
+
+    .session-block {
+      padding: 1rem;
+    }
+  }
+
+  /* Special optimization for narrow screens (e.g. Fold outer screen) */
+  @media (max-width: 400px) {
+    .title-section h1 {
+      font-size: 1.25rem;
+    }
+    
+    .symbol-tag, .side-tag {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+    }
+
+    .pnl-value {
+      font-size: 1.5rem;
+    }
+
+    .image-gallery {
+      gap: 1.5rem;
+    }
+  }
+
+  /* Optimization for larger folding screens (e.g. Fold internal screen) */
+  @media (min-width: 601px) and (max-width: 1024px) {
+    .trends-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .shared-view-container {
+      max-width: 95%;
+    }
   }
 </style>
