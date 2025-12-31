@@ -30,8 +30,8 @@ COPY --from=backend-builder /app/backend/main ./main
 RUN mkdir -p /app/frontend/dist
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# 建立資料夾並確保權限
-RUN mkdir -p /app/data /app/minio-data && chmod 777 /app/data /app/minio-data
+# 建立資料夾並確保權限 (全部放在 /app/data 底下方便掛載)
+RUN mkdir -p /app/data/minio && chmod -R 777 /app/data
 
 # 設定環境變數
 ENV PORT=8080
@@ -41,5 +41,5 @@ ENV GIN_MODE=release
 # 暴露端口
 EXPOSE 8080 9000 9001
 
-# 直接在 CMD 撰寫強健的啟動邏輯，避免外部腳本編碼問題
-CMD ["/bin/bash", "-c", "echo '--- [INIT] Environment Check ---' && ls -l ./main && echo '--- [1/2] Starting MinIO ---' && /usr/local/bin/minio server /app/minio-data --console-address ':9001' > minio_startup.log 2>&1 & sleep 10 && echo '--- [2/2] Starting Trade Recorder Backend ---' && ./main 2>&1"]
+# 直接在 CMD 撰寫強健的啟動邏輯
+CMD ["/bin/bash", "-c", "echo '--- [INIT] Environment Check ---' && ls -la /app/data && echo '--- [1/2] Starting MinIO ---' && /usr/local/bin/minio server /app/data/minio --console-address ':9001' > /app/data/minio_startup.log 2>&1 & sleep 10 && echo '--- [2/2] Starting Trade Recorder Backend ---' && ./main 2>&1"]
