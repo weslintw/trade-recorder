@@ -8,6 +8,21 @@
   let loading = true;
   let error = null;
   let sharedData = null; // { type: 'trade'|'plan', data: ... }
+  
+  // Image Modal State
+  let enlargedImage = null;
+  let enlargedImageTitle = '';
+
+  function openModal(src, title) {
+    if (!src) return;
+    enlargedImage = src;
+    enlargedImageTitle = title || '圖片';
+  }
+
+  function closeModal() {
+    enlargedImage = null;
+    enlargedImageTitle = '';
+  }
 
   onMount(async () => {
     try {
@@ -186,7 +201,15 @@
                   {#if trade.entry_strategy_image}
                     <div class="img-preview-box">
                       <p>進場觀察圖：</p>
-                      <img src={trade.entry_strategy_image} alt="Strategy Observation" />
+                      <img 
+                        src={trade.entry_strategy_image} 
+                        alt="Strategy Observation" 
+                        class="clickable-image"
+                        on:click={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
+                        on:keypress={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
+                        role="button"
+                        tabindex="0"
+                      />
                     </div>
                   {/if}
 
@@ -194,13 +217,29 @@
                     {#if trade.legend_king_image}
                       <div class="img-preview-box">
                         <p>👑 王者回調 ({trade.legend_king_htf})：</p>
-                        <img src={trade.legend_king_image} alt="King Callback" />
+                        <img 
+                          src={trade.legend_king_image} 
+                          alt="King Callback" 
+                          class="clickable-image"
+                          on:click={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
+                          on:keypress={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
+                          role="button"
+                          tabindex="0"
+                        />
                       </div>
                     {/if}
                     {#if trade.legend_htf_image}
                       <div class="img-preview-box">
                         <p>🌊 大時區破測破 ({trade.legend_htf})：</p>
-                        <img src={trade.legend_htf_image} alt="HTF Breakout" />
+                        <img 
+                          src={trade.legend_htf_image} 
+                          alt="HTF Breakout" 
+                          class="clickable-image"
+                          on:click={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
+                          on:keypress={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
+                          role="button"
+                          tabindex="0"
+                        />
                       </div>
                     {/if}
                   {/if}
@@ -210,7 +249,15 @@
                       {#if pattern.image}
                         <div class="img-preview-box">
                           <p>🎯 {pattern.name} 樣態圖：</p>
-                          <img src={pattern.image} alt={pattern.name} />
+                          <img 
+                            src={pattern.image} 
+                            alt={pattern.name} 
+                            class="clickable-image"
+                            on:click={() => openModal(pattern.image, pattern.name)}
+                            on:keypress={() => openModal(pattern.image, pattern.name)}
+                            role="button"
+                            tabindex="0"
+                          />
                         </div>
                       {/if}
                     {/each}
@@ -241,7 +288,15 @@
                 {#each trade.images as img}
                   {#if img && img.image_path}
                     <div class="image-card">
-                      <img src={imagesAPI.getUrl(img.image_path)} alt="Trade Chart" />
+                      <img 
+                        src={imagesAPI.getUrl(img.image_path)} 
+                        alt="Trade Chart" 
+                        class="clickable-image"
+                        on:click={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
+                        on:keypress={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
+                        role="button"
+                        tabindex="0"
+                      />
                       {#if img.image_type}
                         <span class="image-type-label">
                           {img.image_type === 'entry' ? '📍 進場' : img.image_type === 'exit' ? '🎯 平倉' : '📷 觀察'}
@@ -283,6 +338,96 @@
                 {#if sessionData.notes}
                   <p class="session-notes">{sessionData.notes}</p>
                 {/if}
+
+                {#if sessionData.trends}
+                  <div class="trends-grid">
+                    {#each ['M5', 'M15', 'H1', 'H4', 'D1'] as tf}
+                      {@const trend = sessionData.trends[tf]}
+                      {#if trend && (trend.image || trend.signals_image || trend.wave_image || trend.direction || (trend.signals && trend.signals.length > 0) || (trend.wave_numbers && trend.wave_numbers.length > 0))}
+                        <div class="trend-card {trend.direction}">
+                          <div class="trend-header">
+                            <span class="tf-badge">{tf}</span>
+                            {#if trend.direction}
+                              <span class="dir-badge {trend.direction}">{trend.direction === 'long' ? '多' : '空'}</span>
+                            {/if}
+                          </div>
+
+                          <div class="trend-body">
+                            <!-- General Trend Image -->
+                            {#if trend.image}
+                              <div class="t-img-box">
+                                <span class="img-label">趨勢圖</span>
+                                <img 
+                                  src={trend.image} 
+                                  alt="{tf} Trend" 
+                                  class="clickable-image"
+                                  on:click={() => openModal(trend.image, `${tf} 趨勢圖`)}
+                                  on:keypress={() => openModal(trend.image, `${tf} 趨勢圖`)}
+                                  role="button"
+                                  tabindex="0"
+                                />
+                              </div>
+                            {/if}
+
+                            <!-- Expert Signals -->
+                            {#if (trend.signals && trend.signals.length > 0) || trend.signals_image}
+                              <div class="t-section">
+                                <div class="section-title">✨ 達人訊號</div>
+                                {#if trend.signals && trend.signals.length > 0}
+                                  <div class="t-tags">
+                                    {#each trend.signals as s}
+                                      <span class="t-tag">{s}</span>
+                                    {/each}
+                                  </div>
+                                {/if}
+                                {#if trend.signals_image}
+                                  <div class="t-img-box">
+                                    <img 
+                                      src={trend.signals_image} 
+                                      alt="{tf} Signals" 
+                                      class="clickable-image"
+                                      on:click={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
+                                      on:keypress={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
+                                      role="button"
+                                      tabindex="0"
+                                    />
+                                  </div>
+                                {/if}
+                              </div>
+                            {/if}
+
+                            <!-- Wave Analysis -->
+                            {#if (trend.wave_numbers && trend.wave_numbers.length > 0) || trend.wave_image}
+                              <div class="t-section">
+                                <div class="section-title">🌊 波浪分析</div>
+                                {#if trend.wave_numbers && trend.wave_numbers.length > 0}
+                                  <div class="t-wave-nums">
+                                    {#each trend.wave_numbers as n}
+                                      <span class="w-num {trend.wave_highlight == n ? 'highlight' : ''}">{n}</span>
+                                    {/each}
+                                  </div>
+                                {/if}
+                                {#if trend.wave_image}
+                                  <div class="t-img-box">
+                                    <img 
+                                      src={trend.wave_image} 
+                                      alt="{tf} Wave" 
+                                      class="clickable-image"
+                                      on:click={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
+                                      on:keypress={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
+                                      role="button"
+                                      tabindex="0"
+                                    />
+                                  </div>
+                                {/if}
+                              </div>
+                            {/if}
+                          </div>
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {/if}
           {/each}
@@ -300,12 +445,92 @@
   {/if}
 </div>
 
+{#if enlargedImage}
+  <div class="image-modal" on:click={closeModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeModal()}>
+    <div class="image-modal-content" on:click|stopPropagation role="button" tabindex="0" on:keypress|stopPropagation>
+      <button class="image-modal-close" on:click={closeModal}>×</button>
+      <img src={enlargedImage} alt={enlargedImageTitle} />
+      {#if enlargedImageTitle}
+        <div class="image-modal-caption">{enlargedImageTitle}</div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
 <style>
+  /* Keeps existing styles and adds Modal Styles */
+  .image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    backdrop-filter: blur(5px);
+  }
+
+  .image-modal-content {
+    position: relative;
+    max-width: 95%;
+    max-height: 95%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .image-modal-content img {
+    max-width: 100%;
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  .image-modal-caption {
+    color: white;
+    margin-top: 1rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .image-modal-close {
+    position: absolute;
+    top: -40px;
+    right: 0;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+
+  .image-modal-close:hover {
+    opacity: 1;
+  }
+  
+  .clickable-image {
+    cursor: zoom-in;
+    transition: transform 0.2s;
+  }
+  .clickable-image:hover {
+    transform: scale(1.02);
+  }
+
   .shared-view-container {
     max-width: 850px;
     margin: 3rem auto;
     padding: 0 1.25rem;
     min-height: 400px;
+    font-family: inherit;
   }
 
   .public-badge {
@@ -474,6 +699,7 @@
     line-height: 1.7;
     color: #334155;
     border: 1px solid #f1f5f9;
+    font-family: inherit !important;
   }
 
   /* Quill Editor Style Reset for shared view */
@@ -557,4 +783,134 @@
   .session-block.asian { border-left-color: #3b82f6; }
   .session-block.european { border-left-color: #f59e0b; }
   .session-block.us { border-left-color: #ef4444; }
+
+  /* Trends Grid */
+  .trends-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .trend-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+  
+  .trend-card:hover {
+     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .trend-card.long { border-left: 5px solid #ef4444; }
+  .trend-card.short { border-left: 5px solid #10b981; }
+
+  .trend-header {
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .tf-badge {
+    font-weight: 800;
+    color: #475569;
+    font-size: 1rem;
+  }
+
+  .dir-badge {
+    font-size: 0.8rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 700;
+    color: white;
+  }
+  .dir-badge.long { background: #ef4444; }
+  .dir-badge.short { background: #10b981; }
+
+  .trend-body {
+    padding: 1rem;
+  }
+
+  .t-section {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .section-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+  }
+
+  .t-img-box {
+    margin-top: 0.5rem;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #f1f5f9;
+    position: relative;
+  }
+
+  .img-label {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      backdrop-filter: blur(2px);
+  }
+
+  .t-img-box img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  .t-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .t-tag {
+    font-size: 0.75rem;
+    background: #f1f5f9;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    color: #334155;
+    font-weight: 600;
+  }
+
+  .t-wave-nums {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .w-num {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+  .w-num.highlight {
+    background: #fee2e2;
+    color: #ef4444;
+  }
 </style>

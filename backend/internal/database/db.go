@@ -64,6 +64,7 @@ func createTables(db *sql.DB) error {
 		mt5_account_id VARCHAR(100),    -- MetaApi Account ID
 		mt5_token TEXT,                 -- MetaApi Token
 		status VARCHAR(20) DEFAULT 'active',
+		storage_usage INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -297,6 +298,7 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE accounts ADD COLUMN last_synced_at DATETIME;")
 	db.Exec("ALTER TABLE accounts ADD COLUMN last_sync_error TEXT;")
 	db.Exec("ALTER TABLE accounts ADD COLUMN timezone_offset INTEGER DEFAULT 8;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN storage_usage INTEGER DEFAULT 0;")
 
 	db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL;")
 	db.Exec("ALTER TABLE trades ADD COLUMN bullet_size REAL;")

@@ -10,6 +10,7 @@
   import AccountSelector from './components/AccountSelector.svelte';
   import AccountManagement from './components/AccountManagement.svelte';
   import SharedViewer from './components/SharedViewer.svelte';
+  import AdminDashboard from './components/AdminDashboard.svelte';
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
   import { selectedSymbol } from './lib/stores';
@@ -106,6 +107,17 @@
             ⚙️
           </Link>
           
+          {#if $auth.user?.is_admin}
+            <Link
+              to="/admin/dashboard"
+              class={activeNav === 'admin' ? 'nav-settings-btn active' : 'nav-settings-btn'}
+              on:click={() => (activeNav = 'admin')}
+              title="系統管理"
+            >
+              🛡️
+            </Link>
+          {/if}
+          
           {#if $auth.isAuthenticated}
             <div class="user-profile">
               <span class="username" title="修改密碼" on:click={() => showChangePassword = true} role="button" tabindex="0">👤 {$auth.user?.username}</span>
@@ -132,6 +144,7 @@
         <Route path="/edit/:id" component={TradeForm} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/accounts" component={AccountManagement} />
+        <Route path="/admin/dashboard" component={AdminDashboard} />
       {:else if !window.location.pathname.startsWith('/shared/')}
         <!-- 未登入且不是分享頁面時，顯示登入頁 -->
         <Login />

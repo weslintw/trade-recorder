@@ -152,6 +152,13 @@ func main() {
 
 			// 分享管理
 			authorized.POST("/shares", handlers.CreateShare(db))
+
+			// 管理員路由
+			admin := authorized.Group("/admin")
+			admin.Use(middleware.AdminMiddleware())
+			{
+				admin.GET("/usage", handlers.GetSystemUsageStat(db))
+			}
 		}
 
 		// 分享路由 (公開)

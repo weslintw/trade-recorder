@@ -94,5 +94,10 @@ export const sharesAPI = {
   getPublic: (token) => api.get(`/shares/public/${token}`),
 };
 
+// 管理員相關
+export const adminAPI = {
+  getUsage: () => api.get('/admin/usage'),
+};
+
 export default api;
 
