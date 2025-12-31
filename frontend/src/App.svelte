@@ -52,6 +52,7 @@
 
 <Router>
   <div class="app">
+    {#if !window.location.pathname.startsWith('/shared/')}
     <nav class="navbar">
       <div class="navbar-content">
         <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
@@ -114,13 +115,14 @@
         </div>
       </div>
     </nav>
+    {/if}
 
     <main class="container">
-      <Route path="/shared/:token" let:params>
-        <SharedViewer token={params.token} />
-      </Route>
-
+      <!-- 所有路由定義 -->
+      <Route path="/shared/:token" component={SharedViewer} />
+      
       {#if $auth.isAuthenticated}
+        <!-- 登入後的私有路由 -->
         <Route path="/" component={Home} />
         <Route path="/trades" component={TradeList} />
         <Route path="/plans" component={DailyPlanList} />
@@ -130,11 +132,9 @@
         <Route path="/edit/:id" component={TradeForm} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/accounts" component={AccountManagement} />
-      {:else}
-        <!-- 如果不是分享路徑，且未登入，顯示登入頁面 -->
-        {#if !window.location.pathname.startsWith('/shared/')}
-          <Login />
-        {/if}
+      {:else if !window.location.pathname.startsWith('/shared/')}
+        <!-- 未登入且不是分享頁面時，顯示登入頁 -->
+        <Login />
       {/if}
     </main>
   </div>
