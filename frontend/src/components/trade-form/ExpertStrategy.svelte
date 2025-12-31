@@ -9,11 +9,7 @@
 
 <div class="signals-section">
   <label class="signals-label">選擇訊號（可多選）：</label>
-  <SignalGrid 
-    bind:formData 
-    bind:signalImagesCache 
-    on:enlarge 
-  />
+  <SignalGrid bind:formData bind:signalImagesCache on:enlarge />
 </div>
 
 <style>
@@ -24,7 +20,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 8px;
   }
-  
+
   .signals-label {
     display: block;
     font-weight: 600;
@@ -32,4 +28,3 @@
     color: #4a5568;
   }
 </style>
-

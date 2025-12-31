@@ -7,13 +7,11 @@
   export let signalImagesCache = {};
 
   const legendChecklist = [
-    { id: 'item_trend', label: '順勢' },
-    { id: 'item_zone_s_d', label: 'Zone (S/D)' },
     { id: 'item_618_786', label: '王者出現回調618或786' },
-    { id: 'item_che', label: '大時區破"測"破' },
-    { id: 'item_de', label: '達人整理段訊號' },
+    { id: 'item_che', label: '大時區破[測]破' },
+    { id: 'item_de', label: '整理段的ABC[D][E]' },
   ];
-  
+
   const timeframes = [
     { label: '1分', value: 'M1' },
     { label: '5分', value: 'M5' },
@@ -21,7 +19,7 @@
     { label: '30分', value: 'M30' },
     { label: '1小時', value: 'H1' },
     { label: '4小時', value: 'H4' },
-    { label: '天', value: 'D1' }
+    { label: '天', value: 'D1' },
   ];
 
   function enlargeImage(image, title, context) {
@@ -38,6 +36,8 @@
         const reader = new FileReader();
         reader.onload = event => {
           formData.legend_king_image = event.target.result;
+          formData.legend_king_image_original = event.target.result;
+          formData = formData;
         };
         reader.readAsDataURL(file);
         break;
@@ -47,6 +47,8 @@
 
   function removeLegendKingImage() {
     formData.legend_king_image = '';
+    formData.legend_king_image_original = '';
+    formData = formData;
   }
 
   // Handle HTF Image
@@ -59,6 +61,8 @@
         const reader = new FileReader();
         reader.onload = event => {
           formData.legend_htf_image = event.target.result;
+          formData.legend_htf_image_original = event.target.result;
+          formData = formData;
         };
         reader.readAsDataURL(file);
         break;
@@ -68,6 +72,8 @@
 
   function removeLegendHTFImage() {
     formData.legend_htf_image = '';
+    formData.legend_htf_image_original = '';
+    formData = formData;
   }
 
   // Handle Strategy Image (General Legend Image)
@@ -80,6 +86,8 @@
         const reader = new FileReader();
         reader.onload = event => {
           formData.entry_strategy_image = event.target.result;
+          formData.entry_strategy_image_original = event.target.result;
+          formData = formData;
         };
         reader.readAsDataURL(file);
         break;
@@ -89,6 +97,8 @@
 
   function removeStrategyImage() {
     formData.entry_strategy_image = '';
+    formData.entry_strategy_image_original = '';
+    formData = formData;
   }
 </script>
 
@@ -118,7 +128,7 @@
 {#if formData.entry_checklist['item_618_786']}
   <div class="signals-section nested king-section">
     <label class="signals-label">王者出現回調618或786 - 請選擇時區並貼圖：</label>
-    
+
     <div class="htf-selector-row">
       <div class="timeframe-options">
         {#each timeframes as tf}
@@ -140,7 +150,11 @@
       on:paste={handleLegendKingImagePaste}
       on:click={() => {
         if (formData.legend_king_image) {
-          enlargeImage(formData.legend_king_image, `王者回調 (${formData.legend_king_htf || '未選擇'})`, { type: 'legend_king' });
+          enlargeImage(
+            formData.legend_king_image,
+            `王者回調 (${formData.legend_king_htf || '未選擇'})`,
+            { type: 'legend_king' }
+          );
         }
       }}
     >
@@ -171,7 +185,7 @@
 {#if formData.entry_checklist['item_che']}
   <div class="signals-section nested htf-section">
     <label class="signals-label">大時區破"測"破 - 請選擇大時區並貼圖：</label>
-    
+
     <div class="htf-selector-row">
       <div class="timeframe-options">
         {#each timeframes as tf}
@@ -193,7 +207,11 @@
       on:paste={handleLegendHTFImagePaste}
       on:click={() => {
         if (formData.legend_htf_image) {
-          enlargeImage(formData.legend_htf_image, `大時區破"測"破 (${formData.legend_htf || '未選擇'})`, { type: 'legend_htf' });
+          enlargeImage(
+            formData.legend_htf_image,
+            `大時區破"測"破 (${formData.legend_htf || '未選擇'})`,
+            { type: 'legend_htf' }
+          );
         }
       }}
     >
@@ -224,7 +242,7 @@
 {#if formData.entry_checklist['item_de']}
   <div class="signals-section nested">
     <label class="signals-label">達人整理段訊號 (ABC[D][E]):</label>
-    
+
     <div class="htf-selector-row" style="margin-bottom: 1.5rem;">
       <div class="timeframe-options">
         {#each timeframes as tf}
@@ -240,11 +258,7 @@
       </div>
     </div>
 
-    <SignalGrid 
-        bind:formData 
-        bind:signalImagesCache 
-        on:enlarge
-    />
+    <SignalGrid bind:formData bind:signalImagesCache on:enlarge />
   </div>
 {/if}
 
@@ -261,7 +275,7 @@
         enlargeImage(formData.entry_strategy_image, '傳奇觀察圖', { type: 'strategy' });
       }
     }}
-    on:keydown={(e) => {
+    on:keydown={e => {
       if (e.key === 'Enter' || e.key === ' ') {
         if (formData.entry_strategy_image) {
           enlargeImage(formData.entry_strategy_image, '傳奇觀察圖', { type: 'strategy' });
@@ -342,14 +356,14 @@
     border: 1px solid #e2e8f0;
     border-radius: 8px;
   }
-  
+
   .signals-section.nested {
-     background: #f8fafc;
-     border: 1px dashed #cbd5e0;
-     margin-left: 1rem;
-     padding: 1rem 0.5rem; /* Compact padding */
+    background: #f8fafc;
+    border: 1px dashed #cbd5e0;
+    margin-left: 1rem;
+    padding: 1rem 0.5rem; /* Compact padding */
   }
-  
+
   .signals-label {
     display: block;
     font-weight: 600;
@@ -360,31 +374,31 @@
 
   /* HTF Selector Row */
   .htf-selector-row {
-      margin-bottom: 1rem;
-      overflow-x: auto;
+    margin-bottom: 1rem;
+    overflow-x: auto;
   }
-  
+
   .timeframe-options {
-      display: flex;
-      gap: 0.5rem;
-      padding-bottom: 0.25rem;
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
   }
-  
+
   .timeframe-btn {
-      padding: 0.35rem 0.75rem;
-      border: 1px solid #cbd5e0;
-      background: white;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.2s;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #cbd5e0;
+    background: white;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
   }
-  
+
   .timeframe-btn.active {
-      background: #805ad5; /* Purple for Legend HTF */
-      color: white;
-      border-color: #805ad5;
+    background: #805ad5; /* Purple for Legend HTF */
+    color: white;
+    border-color: #805ad5;
   }
 
   /* Image Cards */
@@ -396,16 +410,17 @@
     transition: all 0.2s ease;
     background: white;
   }
-  
+
   .signal-card:hover {
-      border-color: #cbd5e0;
+    border-color: #cbd5e0;
   }
-  
-  .htf-image-card, .legend-image-card {
-      min-height: 150px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+
+  .htf-image-card,
+  .legend-image-card {
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .signal-image-preview {
@@ -440,21 +455,21 @@
     align-items: center;
     justify-content: center;
   }
-  
+
   .remove-signal-image:hover {
-      background: #ef4444;
+    background: #ef4444;
   }
-  
+
   .signal-image-placeholder {
-      padding: 2rem;
-      text-align: center;
-      color: #718096;
-      border: 2px dashed #e2e8f0;
-      border-radius: 8px;
-      width: 100%;
+    padding: 2rem;
+    text-align: center;
+    color: #718096;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    width: 100%;
   }
-  
+
   .placeholder-text {
-      font-size: 0.9rem;
+    font-size: 0.9rem;
   }
 </style>

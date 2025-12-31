@@ -7,21 +7,21 @@
 
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
-  
+
   $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
 
   // Initialize cache from existing formData signals if cache is empty
   $: if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
-     if (Object.keys(signalImagesCache).length === 0) {
-        formData.entry_signals.forEach(signal => {
-          if (signal.name && (signal.image || signal.originalImage)) {
-            signalImagesCache[signal.name] = {
-              image: signal.image || '',
-              originalImage: signal.originalImage || '',
-            };
-          }
-        });
-     }
+    if (Object.keys(signalImagesCache).length === 0) {
+      formData.entry_signals.forEach(signal => {
+        if (signal.name && (signal.image || signal.originalImage)) {
+          signalImagesCache[signal.name] = {
+            image: signal.image || '',
+            originalImage: signal.originalImage || '',
+          };
+        }
+      });
+    }
   }
 
   function getSignalData(signalName) {
@@ -84,16 +84,16 @@
   }
 
   function removeSignalImage(signal) {
-     const index = formData.entry_signals.findIndex(s => s.name === signal.name);
-     if (index >= 0) {
-         formData.entry_signals[index] = {
-             ...formData.entry_signals[index],
-             image: '',
-             originalImage: ''
-         };
-         // Also clear from cache
-         delete signalImagesCache[signal.name];
-     }
+    const index = formData.entry_signals.findIndex(s => s.name === signal.name);
+    if (index >= 0) {
+      formData.entry_signals[index] = {
+        ...formData.entry_signals[index],
+        image: '',
+        originalImage: '',
+      };
+      // Also clear from cache
+      delete signalImagesCache[signal.name];
+    }
   }
 
   function handleSignalImagePaste(event, signalName) {
@@ -110,31 +110,34 @@
           );
 
           if (index >= 0) {
-             const newSignal = typeof formData.entry_signals[index] === 'string'
+            const newSignal =
+              typeof formData.entry_signals[index] === 'string'
                 ? { name: signalName, image: e.target.result, originalImage: e.target.result }
                 : {
                     ...formData.entry_signals[index],
                     image: e.target.result,
                     originalImage: formData.entry_signals[index].originalImage || e.target.result,
                   };
-             formData.entry_signals[index] = newSignal;
-             // Update cache immediately too for safety
-             signalImagesCache[signalName] = {
-                 image: newSignal.image,
-                 originalImage: newSignal.originalImage
-             };
+            formData.entry_signals[index] = newSignal;
+            // Update cache immediately too for safety
+            signalImagesCache[signalName] = {
+              image: newSignal.image,
+              originalImage: newSignal.originalImage,
+            };
           } else {
             // Should not happen if paste is on the card which implies selection, but if it does:
-            const newSignal = { name: signalName, image: e.target.result, originalImage: e.target.result };
-            formData.entry_signals = [
-              ...formData.entry_signals,
-              newSignal
-            ];
-             signalImagesCache[signalName] = {
-                 image: newSignal.image,
-                 originalImage: newSignal.originalImage
-             };
+            const newSignal = {
+              name: signalName,
+              image: e.target.result,
+              originalImage: e.target.result,
+            };
+            formData.entry_signals = [...formData.entry_signals, newSignal];
+            signalImagesCache[signalName] = {
+              image: newSignal.image,
+              originalImage: newSignal.originalImage,
+            };
           }
+          formData = formData; // Trigger reactivity
         };
         reader.readAsDataURL(file);
         break;
@@ -154,17 +157,14 @@
       role="button"
       on:paste={e => handleSignalImagePaste(e, signal)}
       on:click={e => {
-        if (
-          !e.target.closest('.signal-checkbox') &&
-          !e.target.closest('.signal-image-preview')
-        ) {
+        if (!e.target.closest('.signal-checkbox') && !e.target.closest('.signal-image-preview')) {
           toggleSignal(signal);
         }
       }}
-      on:keydown={(e) => {
-         if (e.key === 'Enter' || e.key === ' ') {
-             toggleSignal(signal);
-         }
+      on:keydown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          toggleSignal(signal);
+        }
       }}
     >
       <label class="signal-checkbox-wrapper">
@@ -180,35 +180,39 @@
 
       {#if isSelected}
         {#if signalData.image}
-           <div class="signal-image-preview">
-              <img
-                  src={signalData.image}
-                  alt={signal}
-                  on:click={(e) => {
-                      e.stopPropagation();
-                      dispatch('enlarge', {
-                          image: signalData.image,
-                          title: signal,
-                          context: { type: 'signal', name: signalData.name, originalImage: signalData.originalImage }
-                      });
-                  }}
-                  on:keydown={() => {}} 
-              />
-              <button
-                type="button"
-                class="remove-signal-image"
-                on:click={e => {
-                  e.stopPropagation();
-                  removeSignalImage(signalData);
-                }}
-              >
-                ×
-              </button>
-           </div>
+          <div class="signal-image-preview">
+            <img
+              src={signalData.image}
+              alt={signal}
+              on:click={e => {
+                e.stopPropagation();
+                dispatch('enlarge', {
+                  image: signalData.image,
+                  title: signal,
+                  context: {
+                    type: 'signal',
+                    name: signalData.name,
+                    originalImage: signalData.originalImage,
+                  },
+                });
+              }}
+              on:keydown={() => {}}
+            />
+            <button
+              type="button"
+              class="remove-signal-image"
+              on:click={e => {
+                e.stopPropagation();
+                removeSignalImage(signalData);
+              }}
+            >
+              ×
+            </button>
+          </div>
         {:else}
-           <div class="signal-image-placeholder">
-             <span class="placeholder-text">按 Ctrl+V 貼上圖片</span>
-           </div>
+          <div class="signal-image-placeholder">
+            <span class="placeholder-text">按 Ctrl+V 貼上圖片</span>
+          </div>
         {/if}
       {/if}
     </div>

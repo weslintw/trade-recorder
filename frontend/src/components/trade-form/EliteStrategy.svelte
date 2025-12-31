@@ -6,37 +6,27 @@
   export let patternImagesCache = {};
 
   const eliteChecklist = [
-    { id: 'item_trend', label: '順勢' },
-    { id: 'item_zone_s_d', label: 'Zone (S/D)' },
-    { id: 'item_f_b_break', label: '假突破 or 真突破/回踩' },
-    { id: 'item_space', label: '空間' },
-    { id: 'item_signal', label: '訊號' },
+    { id: 'trend_line', label: '破趨勢線了嗎?' },
+    { id: 'price_level', label: '破價位了嗎?' },
+    { id: 'impulse_wave', label: '有驅動浪了嗎?' },
+    { id: 'high_low', label: '不過高低了嗎?' },
+    { id: 'sentiment', label: '情緒轉換了嗎?' },
   ];
 
-  const entryPatterns = [
-    '破底翻',
-    '破底翻(破)',
-    '破底翻(破+回測)',
-    '優質供給/需求區',
-    '優質供給/需求區(破)',
-    '優質供給/需求區(破+回測)',
-    '2B',
-    '2B(破)',
-    '2B(破+回測)',
-  ];
+  const entryPatterns = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
 
   // Initialize cache if needed (similar to signals)
   $: if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
-      if (Object.keys(patternImagesCache).length === 0) {
-          formData.entry_pattern.forEach(pattern => {
-              if (pattern.name && pattern.image) {
-                  patternImagesCache[pattern.name] = {
-                      image: pattern.image,
-                      originalImage: pattern.originalImage || pattern.image
-                  };
-              }
-          });
-      }
+    if (Object.keys(patternImagesCache).length === 0) {
+      formData.entry_pattern.forEach(pattern => {
+        if (pattern.name && pattern.image) {
+          patternImagesCache[pattern.name] = {
+            image: pattern.image,
+            originalImage: pattern.originalImage || pattern.image,
+          };
+        }
+      });
+    }
   }
 
   function togglePattern(patternName) {
@@ -45,9 +35,9 @@
       // Remove
       const pattern = formData.entry_pattern[index];
       if (pattern.image) {
-        patternImagesCache[patternName] = { 
-            image: pattern.image, 
-            originalImage: pattern.originalImage || pattern.image 
+        patternImagesCache[patternName] = {
+          image: pattern.image,
+          originalImage: pattern.originalImage || pattern.image,
         };
       }
       formData.entry_pattern = formData.entry_pattern.filter(p => p.name !== patternName);
@@ -55,13 +45,16 @@
       // Add
       const cached = patternImagesCache[patternName];
       if (cached) {
-          formData.entry_pattern = [...formData.entry_pattern, { 
-              name: patternName, 
-              image: cached.image,
-              originalImage: cached.originalImage
-          }];
+        formData.entry_pattern = [
+          ...formData.entry_pattern,
+          {
+            name: patternName,
+            image: cached.image,
+            originalImage: cached.originalImage,
+          },
+        ];
       } else {
-          formData.entry_pattern = [...formData.entry_pattern, { name: patternName, image: '' }];
+        formData.entry_pattern = [...formData.entry_pattern, { name: patternName, image: '' }];
       }
     }
   }
@@ -87,6 +80,7 @@
             originalImage: imgData,
           };
           formData.entry_pattern = formData.entry_pattern; // Trigger reactivity
+          formData = formData;
         };
         reader.readAsDataURL(file);
         break;
@@ -95,12 +89,12 @@
   }
 
   function removePatternImage(pattern) {
-      pattern.image = '';
-      pattern.originalImage = '';
-      // Clear from cache too? The original code did remove from cache when manually removing image?
-      // Yes: lines around 2640 in original code
-      delete patternImagesCache[pattern.name];
-      formData.entry_pattern = formData.entry_pattern;
+    pattern.image = '';
+    pattern.originalImage = '';
+    // Clear from cache too? The original code did remove from cache when manually removing image?
+    // Yes: lines around 2640 in original code
+    delete patternImagesCache[pattern.name];
+    formData.entry_pattern = formData.entry_pattern;
   }
 </script>
 
@@ -136,7 +130,7 @@
         role="button"
         tabindex="0"
         on:click={() => togglePattern(patternName)}
-        on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && togglePattern(patternName)}
+        on:keydown={e => (e.key === 'Enter' || e.key === ' ') && togglePattern(patternName)}
       >
         <span class="pattern-name">{patternName}</span>
       </div>
@@ -146,16 +140,13 @@
   {#if formData.entry_pattern.length > 0}
     <div class="pattern-cards-grid">
       {#each formData.entry_pattern as pattern}
-        <div
-          class="pattern-image-card"
-          on:paste={e => handlePatternImagePaste(e, pattern)}
-        >
+        <div class="pattern-image-card" on:paste={e => handlePatternImagePaste(e, pattern)}>
           <div class="pattern-card-header">
             <span class="pattern-card-title">{pattern.name}</span>
           </div>
           <div class="pattern-card-body">
             {#if pattern.image}
-               <div
+              <div
                 class="pattern-image-preview"
                 role="button"
                 tabindex="0"
@@ -164,7 +155,8 @@
                     type: 'pattern',
                     key: pattern.name,
                   })}
-                on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && 
+                on:keydown={e =>
+                  (e.key === 'Enter' || e.key === ' ') &&
                   enlargeImage(pattern.image, pattern.name + ' 樣態圖', {
                     type: 'pattern',
                     key: pattern.name,

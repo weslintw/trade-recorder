@@ -2,13 +2,13 @@
   import { onMount } from 'svelte';
   import { sharesAPI, imagesAPI } from '../lib/api';
   import { getStrategyLabel } from '../lib/utils';
-  
+
   export let token = '';
 
   let loading = true;
   let error = null;
   let sharedData = null; // { type: 'trade'|'plan', data: ... }
-  
+
   // Image Modal State
   let enlargedImage = null;
   let enlargedImageTitle = '';
@@ -49,7 +49,7 @@
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
+        hour12: false,
       });
     } catch (e) {
       return dateStr;
@@ -73,28 +73,26 @@
 
   // 達人策略檢查項翻譯
   const expertSignals = {
-    'item_ma_flow': 'MA 流向',
-    'item_ma_space': 'MA 空間',
-    'item_signal_confirm': '訊號確認',
-    'item_risk_ratio': '風報比合理'
+    item_ma_flow: 'MA 流向',
+    item_ma_space: 'MA 空間',
+    item_signal_confirm: '訊號確認',
+    item_risk_ratio: '風報比合理',
   };
 
   // 菁英策略檢查項翻譯
   const eliteChecklist = {
-    'item_trend': '順勢',
-    'item_zone_s_d': 'Zone (S/D)',
-    'item_f_b_break': '假突破 或 真突破/回踩',
-    'item_space': '空間',
-    'item_signal': '訊號'
+    trend_line: '破趨勢線了嗎?',
+    price_level: '破價位了嗎?',
+    impulse_wave: '有驅動浪了嗎?',
+    high_low: '不過高低了嗎?',
+    sentiment: '情緒轉換了嗎?',
   };
 
   // 傳奇策略檢查項翻譯
   const legendChecklist = {
-    'item_trend': '順勢',
-    'item_zone_s_d': 'Zone (S/D)',
-    'item_618_786': '王者出現回調618或786',
-    'item_che': '大時區破"測"破',
-    'item_de': '達人整理段訊號'
+    item_618_786: '王者出現回調618或786',
+    item_che: '大時區破[測]破',
+    item_de: '整理段的ABC[D][E]',
   };
 
   function handleKeydown(e) {
@@ -122,18 +120,20 @@
   {:else if sharedData}
     <div class="shared-content">
       <div class="public-badge">👁️ 唯讀分享模式</div>
-      
+
       {#if sharedData.type === 'trade' && sharedData.data}
         {@const trade = sharedData.data}
         {@const checklist = parseJSON(trade.entry_checklist, {})}
         {@const signals = parseJSON(trade.entry_signals, [])}
         {@const patterns = parseJSON(trade.entry_pattern, [])}
-        
+
         <div class="trade-detail-view card">
           <div class="view-header">
             <div class="title-section">
               <span class="symbol-tag">{trade.symbol || '---'}</span>
-              <span class="side-tag {trade.side || ''}">{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span>
+              <span class="side-tag {trade.side || ''}"
+                >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
+              >
               <h1>交易紀錄詳情</h1>
             </div>
             <div class="pnl-section">
@@ -171,7 +171,9 @@
             {#if trade.entry_strategy}
               <div class="info-item">
                 <label>交易策略</label>
-                <span class="strategy-badge {trade.entry_strategy}">{getStrategyLabel(trade.entry_strategy)}</span>
+                <span class="strategy-badge {trade.entry_strategy}"
+                  >{getStrategyLabel(trade.entry_strategy)}</span
+                >
               </div>
             {/if}
           </div>
@@ -188,9 +190,12 @@
                     <div class="tags-row">
                       {#each Object.entries(checklist) as [id, checked]}
                         {#if checked}
-                          {@const label = trade.entry_strategy === 'expert' ? expertSignals[id] : 
-                                          trade.entry_strategy === 'elite' ? eliteChecklist[id] : 
-                                          legendChecklist[id]}
+                          {@const label =
+                            trade.entry_strategy === 'expert'
+                              ? expertSignals[id]
+                              : trade.entry_strategy === 'elite'
+                                ? eliteChecklist[id]
+                                : legendChecklist[id]}
                           <span class="check-tag">✅ {label || id}</span>
                         {/if}
                       {/each}
@@ -204,77 +209,103 @@
                     <label>進場訊號：</label>
                     <div class="tags-row">
                       {#each signals as signal}
-                        <span class="signal-tag-item">✨ {typeof signal === 'object' ? (signal.name || signal.id || JSON.stringify(signal)) : signal}</span>
+                        <span class="signal-tag-item"
+                          >✨ {typeof signal === 'object'
+                            ? signal.name || signal.id || JSON.stringify(signal)
+                            : signal}</span
+                        >
                       {/each}
                     </div>
                   </div>
                 {/if}
 
-                <!-- 策略截圖 -->
+                <!-- 策略截圖區 -->
                 <div class="strategy-images">
+                  <!-- 通用的進場觀察圖 -->
                   {#if trade.entry_strategy_image}
                     <div class="img-preview-box">
                       <p>進場觀察圖：</p>
-                      <img 
-                        src={trade.entry_strategy_image} 
-                        alt="Strategy Observation" 
+                      <img
+                        src={trade.entry_strategy_image}
+                        alt="Strategy Observation"
                         class="clickable-image"
                         loading="lazy"
                         on:click={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
-                        on:keypress={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
-                        role="button"
-                        tabindex="0"
+                        role="presentation"
                       />
                     </div>
                   {/if}
 
+                  <!-- 達人訊號圖 (每個訊號可以有自己的圖) -->
+                  {#if trade.entry_strategy === 'expert'}
+                    {#each signals as signal}
+                      {#if typeof signal === 'object' && signal.image}
+                        <div class="img-preview-box">
+                          <p>✨ 訊號：{signal.name} 圖面：</p>
+                          <img
+                            src={signal.image}
+                            alt={signal.name}
+                            class="clickable-image"
+                            loading="lazy"
+                            on:click={() => openModal(signal.image, `訊號圖：${signal.name}`)}
+                            role="presentation"
+                          />
+                        </div>
+                      {/if}
+                    {/each}
+                  {/if}
+
+                  <!-- 傳奇策略專用圖 -->
                   {#if trade.entry_strategy === 'legend'}
                     {#if trade.legend_king_image}
                       <div class="img-preview-box">
                         <p>👑 王者回調 ({trade.legend_king_htf})：</p>
-                        <img 
-                          src={trade.legend_king_image} 
-                          alt="King Callback" 
+                        <img
+                          src={trade.legend_king_image}
+                          alt="King Callback"
                           class="clickable-image"
                           loading="lazy"
-                          on:click={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
-                          on:keypress={() => openModal(trade.legend_king_image, `王者回調 (${trade.legend_king_htf})`)}
-                          role="button"
-                          tabindex="0"
+                          on:click={() =>
+                            openModal(
+                              trade.legend_king_image,
+                              `王者回調 (${trade.legend_king_htf})`
+                            )}
+                          role="presentation"
                         />
                       </div>
                     {/if}
                     {#if trade.legend_htf_image}
                       <div class="img-preview-box">
-                        <p>🌊 大時區破測破 ({trade.legend_htf})：</p>
-                        <img 
-                          src={trade.legend_htf_image} 
-                          alt="HTF Breakout" 
+                        <p>🌊 大時區破[測]破 ({trade.legend_htf})：</p>
+                        <img
+                          src={trade.legend_htf_image}
+                          alt="HTF Breakout"
                           class="clickable-image"
                           loading="lazy"
-                          on:click={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
-                          on:keypress={() => openModal(trade.legend_htf_image, `大時區 (${trade.legend_htf})`)}
-                          role="button"
-                          tabindex="0"
+                          on:click={() =>
+                            openModal(
+                              trade.legend_htf_image,
+                              `大時區破[測]破 (${trade.legend_htf})`
+                            )}
+                          role="presentation"
                         />
                       </div>
                     {/if}
                   {/if}
 
+                  <!-- 菁英策略專用樣態圖 -->
                   {#if trade.entry_strategy === 'elite'}
                     {#each patterns as pattern}
                       {#if pattern.image}
                         <div class="img-preview-box">
                           <p>🎯 {pattern.name} 樣態圖：</p>
-                          <img 
-                            src={pattern.image} 
-                            alt={pattern.name} 
+                          <img
+                            src={pattern.image}
+                            alt={pattern.name}
                             class="clickable-image"
                             loading="lazy"
-                            on:click={() => openModal(pattern.image, pattern.name)}
-                            on:keypress={() => openModal(pattern.image, pattern.name)}
-                            role="button"
-                            tabindex="0"
+                            on:click={() => openModal(pattern.image, `樣態圖：${pattern.name}`)}
+                            role="presentation"
                           />
                         </div>
                       {/if}
@@ -306,19 +337,25 @@
                 {#each trade.images as img}
                   {#if img && img.image_path}
                     <div class="image-card">
-                      <img 
-                        src={imagesAPI.getUrl(img.image_path)} 
-                        alt="Trade Chart" 
+                      <img
+                        src={imagesAPI.getUrl(img.image_path)}
+                        alt="Trade Chart"
                         class="clickable-image"
                         loading="lazy"
-                        on:click={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
-                        on:keypress={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
+                        on:click={() =>
+                          openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
+                        on:keypress={() =>
+                          openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
                         role="button"
                         tabindex="0"
                       />
                       {#if img.image_type}
                         <span class="image-type-label">
-                          {img.image_type === 'entry' ? '📍 進場' : img.image_type === 'exit' ? '🎯 平倉' : '📷 觀察'}
+                          {img.image_type === 'entry'
+                            ? '📍 進場'
+                            : img.image_type === 'exit'
+                              ? '🎯 平倉'
+                              : '📷 觀察'}
                         </span>
                       {/if}
                     </div>
@@ -328,11 +365,10 @@
             </div>
           {/if}
         </div>
-
       {:else if sharedData.type === 'plan' && sharedData.data}
         {@const plan = sharedData.data}
         {@const trendAnalysis = parseJSON(plan.trend_analysis, {})}
-        
+
         <div class="plan-detail-view card">
           <div class="view-header">
             <div class="title-section">
@@ -340,20 +376,30 @@
               <h1>盤面規劃分享</h1>
             </div>
             <div class="date-section">
-              <span class="plan-date-tag">📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span>
+              <span class="plan-date-tag"
+                >📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span
+              >
             </div>
           </div>
 
           <div class="section-box">
             <h3>📝 規劃備註</h3>
-            <div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes) || '尚無備註內容'}</div>
+            <div class="notes-content ql-editor">
+              {@html lazyLoadHTML(plan.notes) || '尚無備註內容'}
+            </div>
           </div>
-          
+
           {#each ['asian', 'european', 'us'] as session}
             {#if trendAnalysis[session]}
               {@const sessionData = trendAnalysis[session]}
               <div class="session-block {session}">
-                <h4>時段：{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
+                <h4>
+                  時段：{session === 'asian'
+                    ? '🌏 亞盤'
+                    : session === 'european'
+                      ? '🌍 歐盤'
+                      : '🌎 美盤'}
+                </h4>
                 {#if sessionData.notes}
                   <p class="session-notes">{sessionData.notes}</p>
                 {/if}
@@ -367,7 +413,9 @@
                           <div class="trend-header">
                             <span class="tf-badge">{tf}</span>
                             {#if trend.direction}
-                              <span class="dir-badge {trend.direction}">{trend.direction === 'long' ? '多' : '空'}</span>
+                              <span class="dir-badge {trend.direction}"
+                                >{trend.direction === 'long' ? '多' : '空'}</span
+                              >
                             {/if}
                           </div>
 
@@ -376,9 +424,9 @@
                             {#if trend.image}
                               <div class="t-img-box">
                                 <span class="img-label">趨勢圖</span>
-                                <img 
-                                  src={trend.image} 
-                                  alt="{tf} Trend" 
+                                <img
+                                  src={trend.image}
+                                  alt="{tf} Trend"
                                   class="clickable-image"
                                   loading="lazy"
                                   on:click={() => openModal(trend.image, `${tf} 趨勢圖`)}
@@ -402,13 +450,15 @@
                                 {/if}
                                 {#if trend.signals_image}
                                   <div class="t-img-box">
-                                    <img 
-                                      src={trend.signals_image} 
-                                      alt="{tf} Signals" 
+                                    <img
+                                      src={trend.signals_image}
+                                      alt="{tf} Signals"
                                       class="clickable-image"
                                       loading="lazy"
-                                      on:click={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
-                                      on:keypress={() => openModal(trend.signals_image, `${tf} 達人訊號`)}
+                                      on:click={() =>
+                                        openModal(trend.signals_image, `${tf} 達人訊號`)}
+                                      on:keypress={() =>
+                                        openModal(trend.signals_image, `${tf} 達人訊號`)}
                                       role="button"
                                       tabindex="0"
                                     />
@@ -425,19 +475,23 @@
                                   <div class="t-wave-nums">
                                     {#each trend.wave_numbers as n, i}
                                       {#if i > 0}<span class="w-arrow">=></span>{/if}
-                                      <span class="w-num {trend.wave_highlight == n ? 'highlight' : ''}">{n}</span>
+                                      <span
+                                        class="w-num {trend.wave_highlight == n ? 'highlight' : ''}"
+                                        >{n}</span
+                                      >
                                     {/each}
                                   </div>
                                 {/if}
                                 {#if trend.wave_image}
                                   <div class="t-img-box">
-                                    <img 
-                                      src={trend.wave_image} 
-                                      alt="{tf} Wave" 
+                                    <img
+                                      src={trend.wave_image}
+                                      alt="{tf} Wave"
                                       class="clickable-image"
                                       loading="lazy"
                                       on:click={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
-                                      on:keypress={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
+                                      on:keypress={() =>
+                                        openModal(trend.wave_image, `${tf} 波浪分析`)}
                                       role="button"
                                       tabindex="0"
                                     />
@@ -456,9 +510,9 @@
           {/each}
         </div>
       {:else}
-         <div class="status-box card error">
-            <p>資料格式不正確或類型未知</p>
-         </div>
+        <div class="status-box card error">
+          <p>資料格式不正確或類型未知</p>
+        </div>
       {/if}
     </div>
   {:else}
@@ -469,8 +523,20 @@
 </div>
 
 {#if enlargedImage}
-  <div class="image-modal" on:click={closeModal} role="button" tabindex="0" on:keydown={(e) => e.key === 'Escape' && closeModal()}>
-    <div class="image-modal-content" on:click|stopPropagation role="button" tabindex="0" on:keypress|stopPropagation>
+  <div
+    class="image-modal"
+    on:click={closeModal}
+    role="button"
+    tabindex="0"
+    on:keydown={e => e.key === 'Escape' && closeModal()}
+  >
+    <div
+      class="image-modal-content"
+      on:click|stopPropagation
+      role="button"
+      tabindex="0"
+      on:keypress|stopPropagation
+    >
       <button class="image-modal-close" on:click={closeModal}>×</button>
       <img src={enlargedImage} alt={enlargedImageTitle} />
       {#if enlargedImageTitle}
@@ -511,7 +577,9 @@
     max-height: 85vh;
     object-fit: contain;
     border-radius: 8px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
   }
 
   .image-modal-caption {
@@ -539,7 +607,7 @@
   .image-modal-close:hover {
     opacity: 1;
   }
-  
+
   .clickable-image {
     cursor: zoom-in;
     transition: transform 0.2s;
@@ -553,7 +621,13 @@
     margin: 3rem auto;
     padding: 0 1.25rem;
     min-height: 400px;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family:
+      'Inter',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
   }
 
   .public-badge {
@@ -610,15 +684,25 @@
     border-radius: 8px;
     font-weight: 700;
   }
-  .side-tag.long { background: #fee2e2; color: #991b1b; }
-  .side-tag.short { background: #dcfce7; color: #166534; }
+  .side-tag.long {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .side-tag.short {
+    background: #dcfce7;
+    color: #166534;
+  }
 
   .pnl-value {
     font-size: 2.5rem;
     font-weight: 900;
   }
-  .pnl-value.profit { color: #10b981; }
-  .pnl-value.loss { color: #ef4444; }
+  .pnl-value.profit {
+    color: #10b981;
+  }
+  .pnl-value.loss {
+    color: #ef4444;
+  }
 
   .info-grid {
     display: grid;
@@ -684,7 +768,8 @@
     gap: 0.5rem;
   }
 
-  .check-tag, .signal-tag-item {
+  .check-tag,
+  .signal-tag-item {
     background: white;
     padding: 0.35rem 0.75rem;
     border-radius: 6px;
@@ -719,7 +804,7 @@
   }
 
   .img-preview-box::before {
-    content: "";
+    content: '';
     position: absolute;
     top: 0;
     left: 0;
@@ -755,7 +840,7 @@
     height: auto;
     border-radius: 12px;
     margin: 1rem 0;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
 
   .ql-editor :global(p) {
@@ -778,7 +863,7 @@
   }
 
   .image-card::before {
-    content: "";
+    content: '';
     position: absolute;
     top: 0;
     left: 0;
@@ -824,7 +909,14 @@
     margin: 0 auto 1.5rem;
   }
 
-  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
 
   .strategy-badge {
     padding: 0.25rem 0.75rem;
@@ -833,9 +925,15 @@
     font-size: 0.8125rem;
     font-weight: 700;
   }
-  .strategy-badge.expert { background: #10b981; }
-  .strategy-badge.elite { background: #3b82f6; }
-  .strategy-badge.legend { background: #f59e0b; }
+  .strategy-badge.expert {
+    background: #10b981;
+  }
+  .strategy-badge.elite {
+    background: #3b82f6;
+  }
+  .strategy-badge.legend {
+    background: #f59e0b;
+  }
 
   .session-block {
     margin-top: 1.5rem;
@@ -844,9 +942,15 @@
     border-left: 5px solid #e2e8f0;
     background: #f8fafc;
   }
-  .session-block.asian { border-left-color: #3b82f6; }
-  .session-block.european { border-left-color: #f59e0b; }
-  .session-block.us { border-left-color: #ef4444; }
+  .session-block.asian {
+    border-left-color: #3b82f6;
+  }
+  .session-block.european {
+    border-left-color: #f59e0b;
+  }
+  .session-block.us {
+    border-left-color: #ef4444;
+  }
 
   .session-notes {
     white-space: pre-wrap;
@@ -879,13 +983,17 @@
     overflow: hidden;
     transition: all 0.2s ease;
   }
-  
+
   .trend-card:hover {
-     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
 
-  .trend-card.long { border-left: 5px solid #ef4444; }
-  .trend-card.short { border-left: 5px solid #10b981; }
+  .trend-card.long {
+    border-left: 5px solid #ef4444;
+  }
+  .trend-card.short {
+    border-left: 5px solid #10b981;
+  }
 
   .trend-header {
     background: #f8fafc;
@@ -909,8 +1017,12 @@
     font-weight: 700;
     color: white;
   }
-  .dir-badge.long { background: #ef4444; }
-  .dir-badge.short { background: #10b981; }
+  .dir-badge.long {
+    background: #ef4444;
+  }
+  .dir-badge.short {
+    background: #10b981;
+  }
 
   .trend-body {
     padding: 1rem;
@@ -941,7 +1053,7 @@
 
   /* Skeleton loading animation */
   .t-img-box::before {
-    content: "";
+    content: '';
     position: absolute;
     top: 0;
     left: 0;
@@ -954,21 +1066,25 @@
   }
 
   @keyframes skeleton-pulse {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
 
   .img-label {
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      background: rgba(0,0,0,0.6);
-      color: white;
-      font-size: 0.7rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      backdrop-filter: blur(2px);
-      z-index: 2;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    backdrop-filter: blur(2px);
+    z-index: 2;
   }
 
   .t-img-box img {
@@ -1001,7 +1117,7 @@
     gap: 0.5rem;
     margin-bottom: 0.5rem;
   }
-  
+
   .w-num {
     width: 24px;
     height: 24px;
@@ -1031,7 +1147,7 @@
       margin: 1rem auto;
       padding: 0 0.75rem;
     }
-    
+
     .card {
       padding: 1.25rem;
       border-radius: 1rem;
@@ -1084,8 +1200,9 @@
     .title-section h1 {
       font-size: 1.25rem;
     }
-    
-    .symbol-tag, .side-tag {
+
+    .symbol-tag,
+    .side-tag {
       font-size: 0.75rem;
       padding: 0.25rem 0.6rem;
     }
@@ -1104,7 +1221,7 @@
     .trends-grid {
       grid-template-columns: repeat(2, 1fr);
     }
-    
+
     .shared-view-container {
       max-width: 95%;
     }
