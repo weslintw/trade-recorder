@@ -465,7 +465,15 @@
       alert('該筆規劃沒有詳細內容可複製。');
     }
   }
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape' && enlargedImage) {
+      closeEnlargedImage();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="card">
   <div class="card-header-actions">

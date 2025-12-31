@@ -90,7 +90,15 @@
     'item_che': '大時區破"測"破',
     'item_de': '達人整理段訊號'
   };
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape' && enlargedImage) {
+      closeModal();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="shared-view-container">
   {#if loading}
@@ -334,7 +342,7 @@
             {#if trendAnalysis[session]}
               {@const sessionData = trendAnalysis[session]}
               <div class="session-block {session}">
-                <h4>时段：{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
+                <h4>時段：{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
                 {#if sessionData.notes}
                   <p class="session-notes">{sessionData.notes}</p>
                 {/if}
@@ -402,7 +410,8 @@
                                 <div class="section-title">🌊 波浪分析</div>
                                 {#if trend.wave_numbers && trend.wave_numbers.length > 0}
                                   <div class="t-wave-nums">
-                                    {#each trend.wave_numbers as n}
+                                    {#each trend.wave_numbers as n, i}
+                                      {#if i > 0}<span class="w-arrow">=></span>{/if}
                                       <span class="w-num {trend.wave_highlight == n ? 'highlight' : ''}">{n}</span>
                                     {/each}
                                   </div>
@@ -530,7 +539,7 @@
     margin: 3rem auto;
     padding: 0 1.25rem;
     min-height: 400px;
-    font-family: inherit;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   .public-badge {
@@ -784,6 +793,15 @@
   .session-block.european { border-left-color: #f59e0b; }
   .session-block.us { border-left-color: #ef4444; }
 
+  .session-notes {
+    white-space: pre-wrap;
+    font-family: inherit;
+    line-height: 1.6;
+    color: #475569;
+    margin-top: 0.75rem;
+    font-size: 0.95rem;
+  }
+
   /* Trends Grid */
   .trends-grid {
     display: grid;
@@ -908,6 +926,12 @@
     font-size: 0.8rem;
     font-weight: 700;
     color: #64748b;
+  }
+  .w-arrow {
+    color: #94a3b8;
+    font-weight: 800;
+    font-size: 0.75rem;
+    align-self: center;
   }
   .w-num.highlight {
     background: #fee2e2;

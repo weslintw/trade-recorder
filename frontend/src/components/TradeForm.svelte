@@ -854,7 +854,15 @@
       saving = false;
     }
   }
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape' && enlargedImage) {
+      closeEnlargedImage();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="card">
   <div class="card-header-actions">

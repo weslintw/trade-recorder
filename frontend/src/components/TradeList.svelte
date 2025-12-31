@@ -202,7 +202,15 @@
   function closeImageModal() {
     selectedImage = null;
   }
+
+  function handleKeydown(e) {
+    if (e.key === 'Escape' && selectedImage) {
+      closeImageModal();
+    }
+  }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <div class="card">
   {#if !isCompact}

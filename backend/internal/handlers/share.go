@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"log"
 	"net/http"
 	"trade-journal/internal/models"
 
@@ -94,6 +95,7 @@ func CreateShare(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusCreated, gin.H{"id": shareID, "token": token, "message": "分享成功"})
+		log.Printf("[Share] Share created: UserID=%d, Type=%s, ID=%d, Token=%s", userID, req.ResourceType, req.ResourceID, token)
 	}
 }
 
@@ -104,6 +106,11 @@ func GetSharedResource(db *sql.DB) gin.HandlerFunc {
 		var share models.Share
 		err := db.QueryRow("SELECT resource_type, resource_id FROM shares WHERE token = ?", token).Scan(&share.ResourceType, &share.ResourceID)
 		if err != nil {
+			if err == sql.ErrNoRows {
+				log.Printf("[Share] Token not found: %s", token)
+			} else {
+				log.Printf("[Share] Database error for token %s: %v", token, err)
+			}
 			c.JSON(http.StatusNotFound, gin.H{"error": "找不到此分享連結或已失效"})
 			return
 		}
