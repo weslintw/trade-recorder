@@ -143,6 +143,26 @@ func createTables(db *sql.DB) error {
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 	);
+
+	CREATE TABLE IF NOT EXISTS shares (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		resource_type VARCHAR(20) NOT NULL, -- 'trade', 'plan'
+		resource_id INTEGER NOT NULL,
+		share_type VARCHAR(20) NOT NULL,    -- 'public' (link), 'specific' (users)
+		token VARCHAR(100) UNIQUE,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		expires_at DATETIME,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+
+	CREATE TABLE IF NOT EXISTS share_users (
+		share_id INTEGER NOT NULL,
+		shared_with_user_id INTEGER NOT NULL,
+		PRIMARY KEY (share_id, shared_with_user_id),
+		FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
+		FOREIGN KEY (shared_with_user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
 	`
 
 	_, err := db.Exec(schema)

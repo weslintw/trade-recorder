@@ -6,6 +6,7 @@
   import { selectedAccountId } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
   import PlanSelectionModal from './PlanSelectionModal.svelte';
+  import ShareModal from './ShareModal.svelte';
 
   import { determineMarketSession } from '../lib/utils';
 
@@ -16,6 +17,7 @@
   // 複製規劃相關狀態
   let showPlanSelectionModal = false;
   let plansToSelect = [];
+  let showShareModal = false;
 
   // 使用從 constants 引入的時限
   const timeframes = TIMEFRAMES;
@@ -472,6 +474,13 @@
       <button type="button" class="btn btn-primary" on:click={handleSubmit}>
         {id ? '💾 更新規劃' : '✅ 建立規劃'}
       </button>
+
+      {#if id}
+        <button type="button" class="btn btn-outline-share" on:click={() => (showShareModal = true)}>
+          📤 分享
+        </button>
+      {/if}
+
       <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
         🔙 返回
       </button>
@@ -766,6 +775,13 @@
   activeSession={activeSession} 
   onConfirm={handlePlanSelection}
   onClose={() => (showPlanSelectionModal = false)}
+/>
+
+<ShareModal 
+  show={showShareModal} 
+  resourceType="plan" 
+  resourceId={id} 
+  onClose={() => (showShareModal = false)} 
 />
 
 <style>
@@ -1133,6 +1149,23 @@
 
   .btn-secondary:hover {
     background: #cbd5e0;
+  }
+
+  .btn-outline-share {
+    background: white;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+    font-weight: 700;
+  }
+  .btn-outline-share:hover {
+    background: #f8fafc;
+    color: #4f46e5;
+    border-color: #6366f1;
+  }
+
+  .header-btns {
+    display: flex;
+    gap: 0.75rem;
   }
 
   /* 圖片放大模態框 */

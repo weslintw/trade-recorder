@@ -88,5 +88,11 @@ export const accountsAPI = {
   clearData: (id) => api.delete(`/accounts/${id}/data`),
 };
 
+// 分享相關
+export const sharesAPI = {
+  create: (data) => api.post('/shares', data),
+  getPublic: (token) => api.get(`/shares/public/${token}`),
+};
+
 export default api;
 

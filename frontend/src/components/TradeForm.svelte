@@ -7,6 +7,7 @@
   import RichTextEditor from './RichTextEditor.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
   import WatchlistSelectionModal from './WatchlistSelectionModal.svelte';
+  import ShareModal from './ShareModal.svelte';
   import TradePlanStatus from './trade-form/TradePlanStatus.svelte';
   import EntryStrategySelector from './trade-form/EntryStrategySelector.svelte';
   import ExpertStrategy from './trade-form/ExpertStrategy.svelte';
@@ -66,6 +67,7 @@
   // 觀察單併入相關
   let showWatchlistModal = false;
   let watchlistTrades = [];
+  let showShareModal = false;
 
   // 開啟觀察單選擇視窗
   async function openWatchlistModal() {
@@ -866,6 +868,12 @@
           {id ? '更新' : '儲存'}交易
         {/if}
       </button>
+
+      {#if id}
+        <button type="button" class="btn btn-sm btn-share" on:click={() => (showShareModal = true)}>
+          📤 分享
+        </button>
+      {/if}
 
       <div class="merge-action-container header-merge">
         {#if formData.trade_type === 'actual'}

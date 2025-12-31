@@ -149,7 +149,13 @@ func main() {
 				dailyPlans.PUT("/:id", handlers.UpdateDailyPlan(db))
 				dailyPlans.DELETE("/:id", handlers.DeleteDailyPlan(db))
 			}
+
+			// 分享管理
+			authorized.POST("/shares", handlers.CreateShare(db))
 		}
+
+		// 分享路由 (公開)
+		api.GET("/shares/public/:token", handlers.GetSharedResource(db))
 
 		// 圖片上傳 (目前先保持公開或也可加入認證)
 		images := api.Group("/images")

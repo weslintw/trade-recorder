@@ -9,6 +9,7 @@
   import Home from './components/Home.svelte';
   import AccountSelector from './components/AccountSelector.svelte';
   import AccountManagement from './components/AccountManagement.svelte';
+  import SharedViewer from './components/SharedViewer.svelte';
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
   import { selectedSymbol } from './lib/stores';
@@ -114,8 +115,12 @@
       </div>
     </nav>
 
-    {#if $auth.isAuthenticated}
-      <main class="container">
+    <main class="container">
+      <Route path="/shared/:token" let:params>
+        <SharedViewer token={params.token} />
+      </Route>
+
+      {#if $auth.isAuthenticated}
         <Route path="/" component={Home} />
         <Route path="/trades" component={TradeList} />
         <Route path="/plans" component={DailyPlanList} />
@@ -125,10 +130,13 @@
         <Route path="/edit/:id" component={TradeForm} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/accounts" component={AccountManagement} />
-      </main>
-    {:else}
-      <Login />
-    {/if}
+      {:else}
+        <!-- 如果不是分享路徑，且未登入，顯示登入頁面 -->
+        {#if !window.location.pathname.startsWith('/shared/')}
+          <Login />
+        {/if}
+      {/if}
+    </main>
   </div>
 </Router>
 
