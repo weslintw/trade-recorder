@@ -272,7 +272,7 @@
     border-radius: 4px;
     font-weight: 600;
     pointer-events: none;
-    margin-top: 3.2rem; /* 配合容器加高，版號位置再次微調 */
+    margin-top: 2.2rem; /* 配合容器加高，版號位置再次微調 */
   }
 
   .nav-links {
