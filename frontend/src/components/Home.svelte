@@ -2,14 +2,17 @@
   import { onMount } from 'svelte';
   import { navigate, Link } from 'svelte-routing';
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
-  import { selectedSymbol, selectedAccountId } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import { determineMarketSession, getStrategyLabel } from '../lib/utils';
+  import { accountsAPI } from '../lib/api';
+  import AccountModal from './AccountModal.svelte';
 
   let groupedData = [];
   let loading = true;
-  let todayString = new Date().toISOString().slice(0, 10);
+  let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
+  let showAccountModal = false;
 
   async function loadData() {
     try {
@@ -105,6 +108,9 @@
   // 監聽品種或帳號變更
   $: if ($selectedSymbol && $selectedAccountId) {
     loadData();
+  } else if ($accounts && $accounts.length === 0) {
+    // 如果完全沒有帳號，停止載入狀態以顯示「新增帳號」UI
+    loading = false;
   }
 
   onMount(() => {
@@ -207,6 +213,18 @@
       <div class="loader"></div>
       <p>正在載入時光機資料...</p>
     </div>
+  {:else if $accounts.length === 0}
+    <div class="empty-account-state">
+      <div class="welcome-card">
+        <div class="welcome-icon">🚀</div>
+        <p class="description">
+          您尚未建立任何交易帳號。請先建立一個交易帳號來開始記錄您的交易旅程！
+        </p>
+        <button class="btn btn-primary btn-lg" on:click={() => (showAccountModal = true)}>
+          <span class="icon">➕</span> 立即建立交易帳號
+        </button>
+      </div>
+    </div>
   {:else if groupedData.length === 0}
     <div class="empty-state">
       <div class="empty-icon">🏜️</div>
@@ -288,7 +306,7 @@
                     {/if}
                   </div>
                 {/each}
-              {:else if group.date === todayString}
+              {:else}
                 <div
                   class="empty-placeholder dash-plan"
                   on:click={() =>
@@ -436,7 +454,7 @@
                     {/if}
                   {/each}
                 </div>
-              {:else if group.date === todayString}
+              {:else}
                 <div
                   class="empty-placeholder dash-trade"
                   on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
@@ -453,6 +471,16 @@
   {/if}
 </div>
 
+<AccountModal
+  bind:show={showAccountModal}
+  on:success={async e => {
+    const { accountId } = e.detail;
+    // 自動選取新建立的帳號並整頁重整以確保所有元件同步
+    selectedAccountId.set(parseInt(accountId));
+    window.location.reload();
+  }}
+/>
+
 {#if selectedImage}
   <div class="modal" on:click={closeImageModal}>
     <div class="modal-content" on:click|stopPropagation>
@@ -465,6 +493,47 @@
 <style>
   .timeline-container {
     padding-bottom: 5rem;
+  }
+
+  .empty-account-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 4rem 2rem;
+    min-height: 60vh;
+  }
+
+  .welcome-card {
+    background: white;
+    padding: 3rem;
+    border-radius: 24px;
+    text-align: center;
+    max-width: 500px;
+    width: 100%;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .welcome-icon {
+    font-size: 4rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .welcome-card h2 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.3;
+  }
+
+  .welcome-card p {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1.6;
   }
 
   .timeline-header {

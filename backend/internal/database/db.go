@@ -288,7 +288,7 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE daily_plans ADD COLUMN account_id INTEGER NOT NULL DEFAULT 1;")
 
 	// 確保至少有一個預設帳號，並關聯到使用者 1
-	db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type, user_id) VALUES (1, '預設帳號', 'local', 1);`)
+	// db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type, user_id) VALUES (1, '預設帳號', 'local', 1);`)
 
 	// 建立唯一索引，確保同品種同一天只能有一組規劃
 	db.Exec(`DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`)

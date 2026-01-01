@@ -61,7 +61,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 		}
 		defer rows.Close()
 
-		var accounts []models.Account
+		var accounts = []models.Account{}
 		for rows.Next() {
 			var acc models.Account
 			err := rows.Scan(

@@ -42,8 +42,8 @@ func Register(db *sql.DB) gin.HandlerFunc {
 
 		userID, _ := res.LastInsertId()
 
-		// 為新使用者建立預設帳號
-		db.Exec("INSERT INTO accounts (name, type, user_id) VALUES (?, ?, ?)", "預設帳號", "local", userID)
+		// 為新使用者建立預設帳號 (已移除，改由前端引導使用者手動建立)
+		// db.Exec("INSERT INTO accounts (name, type, user_id) VALUES (?, ?, ?)", "預設帳號", "local", userID)
 
 		token, err := utils.GenerateToken(userID, req.Username, isAdmin)
 		if err != nil {

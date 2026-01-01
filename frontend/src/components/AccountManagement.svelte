@@ -3,17 +3,10 @@
   import { onMount } from 'svelte';
   import { accountsAPI } from '../lib/api';
   import { accounts, selectedAccountId } from '../lib/stores';
+  import AccountModal from './AccountModal.svelte';
 
   let loading = true;
   let showAddModal = false;
-  let newAccount = {
-    name: '',
-    type: 'local',
-    mt5_account_id: '',
-    mt5_token: '',
-    timezone_offset: 8,
-  };
-
   async function fetchAccounts() {
     try {
       const res = await accountsAPI.getAll();
@@ -26,31 +19,6 @@
   }
 
   onMount(fetchAccounts);
-
-  async function addAccount() {
-    // 前端驗證
-    if (!newAccount.name.trim()) {
-      alert('請輸入帳號名稱');
-      return;
-    }
-    if (newAccount.type === 'metatrader') {
-      if (!newAccount.mt5_account_id.trim() || !newAccount.mt5_token.trim()) {
-        alert('請輸入 MetaApi Account ID 與 Token');
-        return;
-      }
-    }
-
-    try {
-      await accountsAPI.create(newAccount);
-      showAddModal = false;
-      newAccount = { name: '', type: 'local', mt5_account_id: '', mt5_token: '', timezone_offset: 8 };
-      fetchAccounts();
-    } catch (e) {
-      console.error(e);
-      const errorMsg = e.response?.data?.error || e.message || '未知錯誤';
-      alert('建立帳號失敗: ' + errorMsg);
-    }
-  }
 
   async function deleteAccount(id) {
     if (!confirm('確定要刪除此帳號嗎？相關的交易紀錄與規劃將會一併刪除！')) return;
@@ -65,7 +33,12 @@
   }
 
   async function clearAccountData(id) {
-    if (!confirm('🚨 警告：確定要清除此帳號的所有交易紀錄與規劃嗎？\n此動作將刪除所有數據且無法撤回！')) return;
+    if (
+      !confirm(
+        '🚨 警告：確定要清除此帳號的所有交易紀錄與規劃嗎？\n此動作將刪除所有數據且無法撤回！'
+      )
+    )
+      return;
     try {
       await accountsAPI.clearData(id);
       alert('帳號資料已清除成功');
@@ -160,7 +133,10 @@
       return;
     }
     try {
-      await accountsAPI.update(id, { name: editingName.trim(), timezone_offset: parseInt(editingOffset) });
+      await accountsAPI.update(id, {
+        name: editingName.trim(),
+        timezone_offset: parseInt(editingOffset),
+      });
       editingId = null;
       fetchAccounts();
     } catch (e) {
@@ -188,8 +164,8 @@
 
 <div class="account-mgmt">
   <div class="header">
-    <h1>帳號管理</h1>
-    <button class="btn btn-primary" on:click={() => (showAddModal = true)}>+ 新增帳號</button>
+    <h1>交易帳號管理</h1>
+    <button class="btn btn-primary" on:click={() => (showAddModal = true)}>+ 新增交易帳號</button>
   </div>
 
   {#if loading}
@@ -203,7 +179,7 @@
           on:click={() => selectAccount(acc.id)}
           role="button"
           tabindex="0"
-          on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && selectAccount(acc.id)}
+          on:keydown={e => (e.key === 'Enter' || e.key === ' ') && selectAccount(acc.id)}
         >
           {#if acc.id !== 1}
             <button
@@ -224,7 +200,7 @@
                   on:keypress={e => e.key === 'Enter' && saveName(acc.id)}
                 />
                 <select class="form-control edit-offset-select" bind:value={editingOffset}>
-                  {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
+                  {#each Array.from({ length: 25 }, (_, i) => i - 12) as offset}
                     <option value={offset}>UTC{offset >= 0 ? '+' : ''}{offset}</option>
                   {/each}
                 </select>
@@ -250,10 +226,14 @@
               <span class="badge {acc.status === 'active' ? 'badge-success' : 'badge-danger'}">
                 {acc.status}
               </span>
-              <span class="badge badge-utc">UTC{acc.timezone_offset >= 0 ? '+' : ''}{acc.timezone_offset}</span>
+              <span class="badge badge-utc"
+                >UTC{acc.timezone_offset >= 0 ? '+' : ''}{acc.timezone_offset}</span
+              >
             </div>
             <div class="storage-usage-info">
-              <span class="icon">📊</span> 圖文佔用：<strong>{formatBytes(acc.storage_usage)}</strong>
+              <span class="icon">📊</span> 圖文佔用：<strong
+                >{formatBytes(acc.storage_usage)}</strong
+              >
             </div>
             {#if acc.type === 'metatrader'}
               <div class="mt5-detail">
@@ -292,46 +272,13 @@
       {/each}
     </div>
   {/if}
-  {#if showAddModal}
-    <div class="modal-overlay" on:click|self={() => (showAddModal = false)} role="presentation">
-      <div class="modal card">
-        <h2>新增交易帳號</h2>
-        <div class="form-group">
-          <label for="new-acc-name">帳號名稱</label>
-          <input
-            id="new-acc-name"
-            type="text"
-            class="form-control"
-            bind:value={newAccount.name}
-            placeholder="如：個人實盤"
-          />
-        </div>
-        <div class="form-group">
-          <label>帳號類型</label>
-          <div class="type-selector">
-            <label class="radio-label">
-              <input type="radio" bind:group={newAccount.type} value="local" checked /> 本地記錄 (完全手動)
-            </label>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="new-acc-timezone">時區設定 (UTC)</label>
-          <select id="new-acc-timezone" class="form-control" bind:value={newAccount.timezone_offset}>
-            {#each Array.from({length: 25}, (_, i) => i - 12) as offset}
-              <option value={offset}>UTC{offset >= 0 ? '+' : ''}{offset}</option>
-            {/each}
-          </select>
-          <p class="help-text">此設定將套用於此帳號下的所有交易紀錄時間。</p>
-        </div>
-
-        <div class="modal-actions">
-          <button class="btn" on:click={() => (showAddModal = false)}>取消</button>
-          <button class="btn btn-primary" on:click={addAccount}>確認新增</button>
-        </div>
-      </div>
-    </div>
-  {/if}
+  <AccountModal
+    bind:show={showAddModal}
+    on:success={async e => {
+      selectedAccountId.set(parseInt(e.detail.accountId));
+      window.location.reload();
+    }}
+  />
   {#if showImportModal}
     <div class="modal-overlay" on:click|self={() => (showImportModal = false)} role="presentation">
       <div class="modal card">
@@ -752,7 +699,13 @@
     line-height: 1.4;
   }
 
-  .ticket-section.imported h4 { color: #059669; }
-  .ticket-section.duplicate h4 { color: #d97706; }
-  .ticket-section.error h4 { color: #dc2626; }
+  .ticket-section.imported h4 {
+    color: #059669;
+  }
+  .ticket-section.duplicate h4 {
+    color: #d97706;
+  }
+  .ticket-section.error h4 {
+    color: #dc2626;
+  }
 </style>

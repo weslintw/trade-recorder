@@ -9,11 +9,11 @@
 
   async function fetchAccounts() {
     if (!$auth.isAuthenticated) return;
-    
+
     try {
       loading = true;
       const res = await accountsAPI.getAll();
-      const data = res.data;
+      const data = res.data || [];
       accounts.set(data);
 
       if (data.length > 0) {
@@ -32,12 +32,22 @@
   }
 
   // 當登入狀態改變時重新獲取帳號
+  // 當登入狀態改變時重新獲取帳號
   $: if ($auth.isAuthenticated) {
     fetchAccounts();
   }
 
+  // 當帳號清單更新時，如果目前沒選，自動選第一個
+  $: if ($accounts && $accounts.length > 0) {
+    const exists = $accounts.find(a => Number(a.id) === Number($selectedAccountId));
+    if (!$selectedAccountId || !exists) {
+      selectedAccountId.set($accounts[0].id);
+    }
+  }
+
   onMount(() => {
     if ($auth.isAuthenticated) {
+      // 首次加載確保同步最新的帳號清單
       fetchAccounts();
     }
   });
@@ -54,12 +64,16 @@
     <div class="selector-wrapper">
       <span class="label">切換帳號:</span>
       <select value={$selectedAccountId} on:change={handleAccountChange}>
-        {#each $accounts as account}
-          <option value={account.id}>
-            {account.name}
-            {account.type === 'metatrader' ? '(MT5)' : '(本地)'}
-          </option>
-        {/each}
+        {#if $accounts.length === 0}
+          <option value={null} disabled>尚未建立交易帳號</option>
+        {:else}
+          {#each $accounts as account}
+            <option value={account.id}>
+              {account.name}
+              {account.type === 'metatrader' ? '(MT5)' : '(本地)'}
+            </option>
+          {/each}
+        {/if}
       </select>
     </div>
   {/if}
@@ -79,12 +93,12 @@
     border-radius: 10px;
     border: 1px solid transparent;
     transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   .selector-wrapper:hover {
     border-color: #e2e8f0;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
   }
 
   .label {
