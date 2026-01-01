@@ -132,6 +132,7 @@ func main() {
 				stats.GET("/equity-curve", handlers.GetEquityCurve(db))
 				stats.GET("/by-symbol", handlers.GetStatsBySymbol(db))
 				stats.GET("/by-strategy", handlers.GetStatsByStrategy(db))
+				stats.GET("/by-color", handlers.GetStatsByColorTag(db))
 			}
 
 			// 標籤管理

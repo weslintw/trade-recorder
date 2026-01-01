@@ -41,6 +41,7 @@ type Trade struct {
 	LegendHTFImageOriginal     *string    `json:"legend_htf_image_original,omitempty"`
 	LegendDeHTF                *string    `json:"legend_de_htf,omitempty"`                 // 傳奇：整理段時區
 	EntryTime                  time.Time  `json:"entry_time"`
+	ColorTag                   *string    `json:"color_tag,omitempty"`                     // "red", "yellow", "green"
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
 	CreatedAt                  time.Time  `json:"created_at"`
 	UpdatedAt                  time.Time  `json:"updated_at"`
@@ -101,6 +102,7 @@ type TradeCreate struct {
 	LegendHTFImageOriginal     string        `json:"legend_htf_image_original"`
 	LegendDeHTF                string        `json:"legend_de_htf"`
 	EntryTime                  time.Time     `json:"entry_time" binding:"required"`
+	ColorTag                   string        `json:"color_tag"`
 	ExitTime                   *time.Time    `json:"exit_time"`
 	Tags                       []string      `json:"tags"`
 	Images                     []ImageUpload `json:"images"`
@@ -165,6 +167,15 @@ type StrategyStats struct {
 // SubItemStats 策略子項目統計 (訊號/樣態/檢查項)
 type SubItemStats struct {
 	Name          string  `json:"name"`
+	TotalTrades   int     `json:"total_trades"`
+	WinningTrades int     `json:"winning_trades"`
+	WinRate       float64 `json:"win_rate"`
+	TotalPnL      float64 `json:"total_pnl"`
+}
+
+// ColorStats 顏色標籤統計
+type ColorStats struct {
+	Color         string  `json:"color"`
 	TotalTrades   int     `json:"total_trades"`
 	WinningTrades int     `json:"winning_trades"`
 	WinRate       float64 `json:"win_rate"`

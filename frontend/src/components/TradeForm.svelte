@@ -62,6 +62,7 @@
     legend_king_image_original: '',
     legend_de_htf: '', // 傳奇：整理段的時區
     exit_sl: '', // 平倉時的停損價
+    color_tag: '', // 顏色標記 (red, yellow, green)
   };
 
   // 觀察單併入相關
@@ -71,146 +72,167 @@
 
   // 開啟觀察單選擇視窗
   async function openWatchlistModal() {
-      if (!formData.symbol) {
-          alert('請先選擇交易品種');
-          return;
+    if (!formData.symbol) {
+      alert('請先選擇交易品種');
+      return;
+    }
+
+    try {
+      // 取得觀察單資料
+      const response = await tradesAPI.getAll({
+        account_id: formData.account_id,
+        symbol: formData.symbol,
+        page: 1,
+        page_size: 50,
+      });
+
+      if (response.data && response.data.data) {
+        // 過濾出 "observation" 且 symbol 相同的單子
+        watchlistTrades = response.data.data.filter(
+          t => t.trade_type === 'observation' && t.symbol === formData.symbol
+        );
+
+        // 排序：最新的在最上面
+        watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+
+        if (watchlistTrades.length > 0) {
+          showWatchlistModal = true;
+        } else {
+          alert(`找不到 ${formData.symbol} 的觀察單。`);
+        }
+      } else {
+        alert('無法取得交易紀錄。');
       }
-
-      try {
-          // 取得觀察單資料
-          const response = await tradesAPI.getAll({
-              account_id: formData.account_id,
-              symbol: formData.symbol,
-              page: 1,
-              page_size: 50, 
-          });
-          
-          if (response.data && response.data.data) {
-              // 過濾出 "observation" 且 symbol 相同的單子
-              watchlistTrades = response.data.data.filter(t => 
-                  t.trade_type === 'observation' && 
-                  t.symbol === formData.symbol
-              );
-              
-              // 排序：最新的在最上面
-              watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
-
-              if (watchlistTrades.length > 0) {
-                  showWatchlistModal = true;
-              } else {
-                  alert(`找不到 ${formData.symbol} 的觀察單。`);
-              }
-          } else {
-             alert('無法取得交易紀錄。');
-          }
-
-      } catch (error) {
-          console.error("Fetch trades error:", error);
-          alert('讀取觀察單失敗');
-      }
+    } catch (error) {
+      console.error('Fetch trades error:', error);
+      alert('讀取觀察單失敗');
+    }
   }
 
   // 處理確認併入觀察單資料
   function handleMergeWatchlist(sourceTrade) {
-      if (!sourceTrade) return;
+    if (!sourceTrade) return;
 
-      if (confirm(`確定要併入觀察單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`)) {
-          // 1. 併入進場分析 (Entry Analysis)
-          formData.entry_reason = sourceTrade.entry_reason || '';
-          formData.entry_strategy = sourceTrade.entry_strategy || '';
-          formData.entry_strategy_image = sourceTrade.entry_strategy_image || '';
-          formData.entry_strategy_image_original = sourceTrade.entry_strategy_image_original || '';
-          
-          if (sourceTrade.entry_signals) {
-             try {
-                formData.entry_signals = typeof sourceTrade.entry_signals === 'string' ? JSON.parse(sourceTrade.entry_signals) : sourceTrade.entry_signals;
-             } catch(e) { formData.entry_signals = []; }
-          }
-          
-          if (sourceTrade.entry_checklist) {
-             try {
-                formData.entry_checklist = typeof sourceTrade.entry_checklist === 'string' ? JSON.parse(sourceTrade.entry_checklist) : sourceTrade.entry_checklist;
-             } catch(e) { formData.entry_checklist = {}; }
-          }
-          
-          if (sourceTrade.entry_pattern) {
-             try {
-                formData.entry_pattern = typeof sourceTrade.entry_pattern === 'string' ? JSON.parse(sourceTrade.entry_pattern) : sourceTrade.entry_pattern;
-             } catch(e) { formData.entry_pattern = []; }
-          }
+    if (
+      confirm(
+        `確定要併入觀察單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`
+      )
+    ) {
+      // 1. 併入進場分析 (Entry Analysis)
+      formData.entry_reason = sourceTrade.entry_reason || '';
+      formData.entry_strategy = sourceTrade.entry_strategy || '';
+      formData.entry_strategy_image = sourceTrade.entry_strategy_image || '';
+      formData.entry_strategy_image_original = sourceTrade.entry_strategy_image_original || '';
 
-          formData.exit_reason = sourceTrade.exit_reason || '';
-          if (sourceTrade.tags && Array.isArray(sourceTrade.tags)) {
-              formData.tags = sourceTrade.tags.map(t => (t && typeof t === 'object') ? t.name : t).filter(t => t);
-          }
-          
-          if (sourceTrade.initial_sl) {
-              formData.initial_sl = sourceTrade.initial_sl;
-          }
-
-          formData = formData; 
-          alert('觀察單資料併入完成！');
+      if (sourceTrade.entry_signals) {
+        try {
+          formData.entry_signals =
+            typeof sourceTrade.entry_signals === 'string'
+              ? JSON.parse(sourceTrade.entry_signals)
+              : sourceTrade.entry_signals;
+        } catch (e) {
+          formData.entry_signals = [];
+        }
       }
-  }
 
+      if (sourceTrade.entry_checklist) {
+        try {
+          formData.entry_checklist =
+            typeof sourceTrade.entry_checklist === 'string'
+              ? JSON.parse(sourceTrade.entry_checklist)
+              : sourceTrade.entry_checklist;
+        } catch (e) {
+          formData.entry_checklist = {};
+        }
+      }
+
+      if (sourceTrade.entry_pattern) {
+        try {
+          formData.entry_pattern =
+            typeof sourceTrade.entry_pattern === 'string'
+              ? JSON.parse(sourceTrade.entry_pattern)
+              : sourceTrade.entry_pattern;
+        } catch (e) {
+          formData.entry_pattern = [];
+        }
+      }
+
+      formData.exit_reason = sourceTrade.exit_reason || '';
+      if (sourceTrade.tags && Array.isArray(sourceTrade.tags)) {
+        formData.tags = sourceTrade.tags
+          .map(t => (t && typeof t === 'object' ? t.name : t))
+          .filter(t => t);
+      }
+
+      if (sourceTrade.initial_sl) {
+        formData.initial_sl = sourceTrade.initial_sl;
+      }
+
+      formData = formData;
+      alert('觀察單資料併入完成！');
+    }
+  }
 
   // 開啟實單選擇視窗
   async function openActualTradesModal() {
-      if (!formData.symbol) {
-          alert('請先選擇交易品種');
-          return;
-      }
+    if (!formData.symbol) {
+      alert('請先選擇交易品種');
+      return;
+    }
 
-      try {
-          const response = await tradesAPI.getAll({
-              account_id: formData.account_id,
-              symbol: formData.symbol,
-              page: 1,
-              page_size: 50, 
-          });
-          
-          if (response.data && response.data.data) {
-              // 過濾出 "actual" 且 symbol 相同的單子
-              watchlistTrades = response.data.data.filter(t => 
-                  t.trade_type === 'actual' && 
-                  t.symbol === formData.symbol
-              );
-              
-              watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+    try {
+      const response = await tradesAPI.getAll({
+        account_id: formData.account_id,
+        symbol: formData.symbol,
+        page: 1,
+        page_size: 50,
+      });
 
-              if (watchlistTrades.length > 0) {
-                  showWatchlistModal = true;
-              } else {
-                  alert(`找不到 ${formData.symbol} 的實單紀錄。`);
-              }
-          }
-      } catch (error) {
-          console.error("Fetch actual trades error:", error);
-          alert('讀取實單失敗');
+      if (response.data && response.data.data) {
+        // 過濾出 "actual" 且 symbol 相同的單子
+        watchlistTrades = response.data.data.filter(
+          t => t.trade_type === 'actual' && t.symbol === formData.symbol
+        );
+
+        watchlistTrades.sort((a, b) => new Date(b.entry_time) - new Date(a.entry_time));
+
+        if (watchlistTrades.length > 0) {
+          showWatchlistModal = true;
+        } else {
+          alert(`找不到 ${formData.symbol} 的實單紀錄。`);
+        }
       }
+    } catch (error) {
+      console.error('Fetch actual trades error:', error);
+      alert('讀取實單失敗');
+    }
   }
 
   // 處理從實單併入資料
   function handleMergeActualTrade(sourceTrade) {
-      if (!sourceTrade) return;
+    if (!sourceTrade) return;
 
-      if (confirm(`確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步進場價格、手數與盈虧，並將本紀錄轉為「實單」。`)) {
-          // 同步實單的核心數據
-          formData.entry_price = sourceTrade.entry_price;
-          formData.exit_price = sourceTrade.exit_price;
-          formData.lot_size = sourceTrade.lot_size;
-          formData.pnl = sourceTrade.pnl;
-          formData.pnl_points = sourceTrade.pnl_points;
-          formData.initial_sl = sourceTrade.initial_sl;
-          formData.exit_sl = sourceTrade.exit_sl;
-          formData.ticket = sourceTrade.ticket;
+    if (
+      confirm(
+        `確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步進場價格、手數與盈虧，並將本紀錄轉為「實單」。`
+      )
+    ) {
+      // 同步實單的核心數據
+      formData.entry_price = sourceTrade.entry_price;
+      formData.exit_price = sourceTrade.exit_price;
+      formData.lot_size = sourceTrade.lot_size;
+      formData.pnl = sourceTrade.pnl;
+      formData.pnl_points = sourceTrade.pnl_points;
+      formData.initial_sl = sourceTrade.initial_sl;
+      formData.exit_sl = sourceTrade.exit_sl;
+      formData.ticket = sourceTrade.ticket;
 
-          // 自動轉為實單類型
-          formData.trade_type = 'actual';
+      // 自動轉為實單類型
+      formData.trade_type = 'actual';
 
-          formData = formData; // Trigger update
-          alert('實單資料併入成功，已自動轉為「有進單」模式。');
-      }
+      formData = formData; // Trigger update
+      alert('實單資料併入成功，已自動轉為「有進單」模式。');
+    }
   }
 
   // 根據選擇的帳號自動同步時區設定
@@ -218,7 +240,7 @@
   $: if (currentAccount) {
     formData.timezone_offset = currentAccount.timezone_offset;
   }
-  
+
   // 確保當前選中的帳號 ID 與表單同步
   $: if ($selectedAccountId) {
     formData.account_id = $selectedAccountId;
@@ -344,16 +366,22 @@
 
   // 盈虧點數與風險指標自動計算
   $: {
-    const { trade_type, entry_price, exit_price, lot_size, initial_sl, pnl, symbol, side } = formData;
+    const { trade_type, entry_price, exit_price, lot_size, initial_sl, pnl, symbol, side } =
+      formData;
     if (trade_type === 'actual' && entry_price) {
       const entry = parseFloat(entry_price);
       const exit = parseFloat(exit_price);
       const sl = parseFloat(initial_sl);
       const lots = parseFloat(lot_size);
-      
+
       let multiplier = 100; // 預設 (金子 XAUUSD: $1 = 100點, 指數: 1.0 = 100點)
       if (symbol.includes('JPY')) multiplier = 1000;
-      else if (symbol.includes('EUR') || symbol.includes('GBP') || symbol.includes('AUD') || (symbol.includes('USD') && !symbol.includes('XAU'))) {
+      else if (
+        symbol.includes('EUR') ||
+        symbol.includes('GBP') ||
+        symbol.includes('AUD') ||
+        (symbol.includes('USD') && !symbol.includes('XAU'))
+      ) {
         multiplier = 100000;
       }
 
@@ -473,14 +501,15 @@
 
   let allPlans = [];
 
-
   onMount(() => {
     const params = new URLSearchParams(window.location.search);
     const symbolParam = params.get('symbol');
-    if (symbolParam && 
-        symbolParam !== 'undefined' && 
-        symbolParam !== 'null' && 
-        !symbolParam.includes('{$')) {
+    if (
+      symbolParam &&
+      symbolParam !== 'undefined' &&
+      symbolParam !== 'null' &&
+      !symbolParam.includes('{$')
+    ) {
       formData.symbol = symbolParam;
     } else if (!id) {
       formData.symbol = 'XAUUSD';
@@ -542,7 +571,6 @@
     }
   })();
 
-
   async function loadTrade() {
     try {
       const response = await tradesAPI.getOne(id);
@@ -585,6 +613,7 @@
         legend_htf_image_original: response.data.legend_htf_image_original || '',
         legend_de_htf: response.data.legend_de_htf || '',
         tags: response.data.tags?.map(t => t.name) || [],
+        color_tag: response.data.color_tag || '',
       };
 
       // 初始化緩存：將已載入的訊號圖片也加入緩存
@@ -614,14 +643,14 @@
       const allTradesRes = await tradesAPI.getAll({
         account_id: formData.account_id,
         symbol: formData.symbol,
-        page_size: 100
+        page_size: 100,
       });
-      const allTradesData = (Array.isArray(allTradesRes.data) ? allTradesRes.data : allTradesRes.data?.data) || [];
+      const allTradesData =
+        (Array.isArray(allTradesRes.data) ? allTradesRes.data : allTradesRes.data?.data) || [];
       groupTrades = allTradesData
         .filter(t => t.entry_time === response.data.entry_time)
         .sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
       isGroup = groupTrades.length > 1;
-
     } catch (error) {
       console.error('載入交易失敗:', error);
       alert('載入交易資料失敗');
@@ -647,8 +676,6 @@
       previousSide = formData.side;
     }
   }
-
-
 
   // 放大查看圖片
   let enlargedOriginalImage = null; // 保存當前放大圖片的原始版本
@@ -790,7 +817,7 @@
       };
 
       // 處理數值欄位轉換
-      const parseNumber = (val) => {
+      const parseNumber = val => {
         if (val === null || val === undefined || val === '') return null;
         const num = parseFloat(val);
         return isNaN(num) ? null : num;
@@ -798,6 +825,7 @@
 
       submitData.initial_sl = parseNumber(formData.initial_sl);
       submitData.exit_sl = parseNumber(formData.exit_sl);
+      submitData.color_tag = formData.color_tag;
       submitData.bullet_size = parseNumber(formData.bullet_size);
       submitData.rr_ratio = parseNumber(formData.rr_ratio);
 
@@ -820,26 +848,26 @@
 
       if (id) {
         if (isGroup) {
-        // 如果是組合單，同步更新所有子交易的分析欄位
-        for (const sibling of groupTrades) {
-          // 只保留執行相關欄位（exit, lot, pnl, ticket），覆蓋分析欄位
-          const siblingData = {
-            ...submitData,
-            id: sibling.id,
-            exit_time: sibling.exit_time,
-            exit_price: sibling.exit_price,
-            lot_size: sibling.lot_size,
-            pnl: sibling.pnl,
-            pnl_points: sibling.pnl_points,
-            ticket: sibling.ticket,
-            exit_sl: sibling.exit_sl,
-            exit_reason: sibling.exit_reason // 部分平倉可能有不同原因，但通常也是共用的，這裡暫跟隨主單
-          };
-          await tradesAPI.update(sibling.id, siblingData);
+          // 如果是組合單，同步更新所有子交易的分析欄位
+          for (const sibling of groupTrades) {
+            // 只保留執行相關欄位（exit, lot, pnl, ticket），覆蓋分析欄位
+            const siblingData = {
+              ...submitData,
+              id: sibling.id,
+              exit_time: sibling.exit_time,
+              exit_price: sibling.exit_price,
+              lot_size: sibling.lot_size,
+              pnl: sibling.pnl,
+              pnl_points: sibling.pnl_points,
+              ticket: sibling.ticket,
+              exit_sl: sibling.exit_sl,
+              exit_reason: sibling.exit_reason, // 部分平倉可能有不同原因，但通常也是共用的，這裡暫跟隨主單
+            };
+            await tradesAPI.update(sibling.id, siblingData);
+          }
+        } else {
+          await tradesAPI.update(id, submitData);
         }
-      } else {
-        await tradesAPI.update(id, submitData);
-      }
         alert('交易紀錄更新成功！');
       } else {
         await tradesAPI.create(submitData);
@@ -864,12 +892,17 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="card">
+<div class="card {formData.color_tag ? 'tag-' + formData.color_tag : ''}">
   <div class="card-header-actions">
     <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
     <div class="header-form-actions">
       <button type="button" class="btn btn-sm" on:click={() => navigate('/')}>返回</button>
-      <button type="button" class="btn btn-sm btn-primary" on:click={handleSubmit} disabled={saving}>
+      <button
+        type="button"
+        class="btn btn-sm btn-primary"
+        on:click={handleSubmit}
+        disabled={saving}
+      >
         {#if saving}
           儲存中...
         {:else}
@@ -885,11 +918,21 @@
 
       <div class="merge-action-container header-merge">
         {#if formData.trade_type === 'actual'}
-          <button type="button" class="btn-merge btn-sm" on:click={openWatchlistModal} title="從過去的觀察單匯入分析資料">
+          <button
+            type="button"
+            class="btn-merge btn-sm"
+            on:click={openWatchlistModal}
+            title="從過去的觀察單匯入分析資料"
+          >
             <span class="icon">📋</span> 併入觀察單
           </button>
         {:else}
-          <button type="button" class="btn-merge btn-sm" on:click={openActualTradesModal} title="併入現有的實單交易">
+          <button
+            type="button"
+            class="btn-merge btn-sm"
+            on:click={openActualTradesModal}
+            title="併入現有的實單交易"
+          >
             <span class="icon">💰</span> 併入實單
           </button>
         {/if}
@@ -925,6 +968,28 @@
       </div>
     </div>
 
+    <!-- 顏色標記 -->
+    <div class="form-group color-tag-section">
+      <label class="section-label">顏色標記</label>
+      <div class="color-tags-options">
+        <button
+          type="button"
+          class="color-select-btn green {formData.color_tag === 'green' ? 'active' : ''}"
+          on:click={() => (formData.color_tag = formData.color_tag === 'green' ? '' : 'green')}
+        ></button>
+        <button
+          type="button"
+          class="color-select-btn yellow {formData.color_tag === 'yellow' ? 'active' : ''}"
+          on:click={() => (formData.color_tag = formData.color_tag === 'yellow' ? '' : 'yellow')}
+        ></button>
+        <button
+          type="button"
+          class="color-select-btn red {formData.color_tag === 'red' ? 'active' : ''}"
+          on:click={() => (formData.color_tag = formData.color_tag === 'red' ? '' : 'red')}
+        ></button>
+      </div>
+    </div>
+
     <!-- 基本資訊 -->
     <div class="form-row">
       <div class="form-group">
@@ -948,7 +1013,9 @@
         <div class="form-group">
           <label for="lot_size">手數</label>
           {#if isGroup}
-            <div class="readonly-value-badge">總共 {totalLot.toFixed(2)} 手 ({groupTrades.length} 次平倉)</div>
+            <div class="readonly-value-badge">
+              總共 {totalLot.toFixed(2)} 手 ({groupTrades.length} 次平倉)
+            </div>
           {:else}
             <input
               type="number"
@@ -1064,7 +1131,9 @@
       </div>
       {#if !formData.entry_price || !formData.initial_sl}
         <div style="margin-top: -0.5rem; margin-bottom: 1rem;">
-          <small class="form-hint">💡 請填寫「進場價格」與「初始停損」以自動計算子彈大小與風報比</small>
+          <small class="form-hint"
+            >💡 請填寫「進場價格」與「初始停損」以自動計算子彈大小與風報比</small
+          >
         </div>
       {/if}
     {:else if isActualTrade && isGroup}
@@ -1072,11 +1141,24 @@
       <div class="form-row">
         <div class="form-group">
           <label for="entry_price">進場價格</label>
-          <input type="number" step="0.00001" id="entry_price" class="form-control" bind:value={formData.entry_price} required />
+          <input
+            type="number"
+            step="0.00001"
+            id="entry_price"
+            class="form-control"
+            bind:value={formData.entry_price}
+            required
+          />
         </div>
         <div class="form-group">
           <label for="initial_sl">初始停損 (SL)</label>
-          <input type="number" step="0.00001" id="initial_sl" class="form-control" bind:value={formData.initial_sl} />
+          <input
+            type="number"
+            step="0.00001"
+            id="initial_sl"
+            class="form-control"
+            bind:value={formData.initial_sl}
+          />
         </div>
         <div class="form-group">
           <label>總計盈虧</label>
@@ -1090,15 +1172,25 @@
         <label class="section-subtitle">📋 平倉時間軸 (分批出場記錄)</label>
         <div class="timeline-container-mini">
           {#each groupTrades as t, i}
-             <div class="timeline-item-mini">
-                <div class="item-time">平倉 {i+1}: <strong>{new Date(t.exit_time).toLocaleString('zh-TW', { hour: '2-digit', minute: '2-digit' })}</strong></div>
-                <div class="item-details">
-                  <span class="badge-mini">價格: {t.exit_price}</span>
-                  <span class="badge-mini">手數: {t.lot_size}</span>
-                  <span class="badge-mini pnl {t.pnl >= 0 ? 'profit' : 'loss'}">盈虧: {t.pnl >= 0 ? '+' : ''}{t.pnl?.toFixed(2)}</span>
-                  {#if t.ticket}<span class="badge-mini ticket">#{t.ticket}</span>{/if}
-                </div>
-             </div>
+            <div class="timeline-item-mini">
+              <div class="item-time">
+                平倉 {i + 1}:
+                <strong
+                  >{new Date(t.exit_time).toLocaleString('zh-TW', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}</strong
+                >
+              </div>
+              <div class="item-details">
+                <span class="badge-mini">價格: {t.exit_price}</span>
+                <span class="badge-mini">手數: {t.lot_size}</span>
+                <span class="badge-mini pnl {t.pnl >= 0 ? 'profit' : 'loss'}"
+                  >盈虧: {t.pnl >= 0 ? '+' : ''}{t.pnl?.toFixed(2)}</span
+                >
+                {#if t.ticket}<span class="badge-mini ticket">#{t.ticket}</span>{/if}
+              </div>
+            </div>
           {/each}
         </div>
       </div>
@@ -1108,7 +1200,9 @@
       <div class="form-group">
         <label for="entry_time">
           開倉時間
-          <span class="utc-label-info">(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span>
+          <span class="utc-label-info"
+            >(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span
+          >
         </label>
         <input
           type="datetime-local"
@@ -1131,17 +1225,22 @@
               <span class="session-dot">·</span>
               <span class="session-season-text">{getSeasonLabel()}</span>
             </div>
-            
+
             <div class="plan-status-mini">
               {#if matchedPlan}
                 <span class="status-yes" on:click={() => navigate(`/plans/edit/${matchedPlan.id}`)}>
                   <i class="icon">✅</i> 已有規劃
                 </span>
               {:else}
-                <span class="status-no" on:click={() => {
-                  const date = new Date(formData.entry_time).toISOString().slice(0, 10);
-                  navigate(`/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`);
-                }}>
+                <span
+                  class="status-no"
+                  on:click={() => {
+                    const date = new Date(formData.entry_time).toISOString().slice(0, 10);
+                    navigate(
+                      `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
+                    );
+                  }}
+                >
                   <i class="icon">❓</i> 缺規劃
                 </span>
               {/if}
@@ -1156,7 +1255,9 @@
         <div class="form-group">
           <label for="exit_time">
             平倉時間
-            <span class="utc-label-info">(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span>
+            <span class="utc-label-info"
+              >(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span
+            >
           </label>
           <input
             type="datetime-local"
@@ -1179,30 +1280,30 @@
 
       <!-- 進場種類和進場時區 -->
       <!-- 進場種類和進場時區 -->
-      <EntryStrategySelector bind:formData={formData} />
+      <EntryStrategySelector bind:formData />
 
       <!-- 達人訊號（卡片形式，可貼圖） -->
       {#if formData.entry_strategy === 'expert'}
         <ExpertStrategy
-          bind:formData={formData}
-          bind:signalImagesCache={signalImagesCache}
-          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          bind:formData
+          bind:signalImagesCache
+          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
         />
       {/if}
 
       {#if formData.entry_strategy === 'elite'}
         <EliteStrategy
-          bind:formData={formData}
-          bind:patternImagesCache={patternImagesCache}
-          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          bind:formData
+          bind:patternImagesCache
+          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
         />
       {/if}
 
       {#if formData.entry_strategy === 'legend'}
         <LegendStrategy
-          bind:formData={formData}
-          bind:signalImagesCache={signalImagesCache}
-          on:enlarge={(e) => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          bind:formData
+          bind:signalImagesCache
+          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
         />
       {/if}
     </div>
@@ -1313,11 +1414,11 @@
   onClose={() => (showWatchlistModal = false)}
 />
 
-<ShareModal 
-  show={showShareModal} 
-  resourceType="trade" 
-  resourceId={id} 
-  onClose={() => (showShareModal = false)} 
+<ShareModal
+  show={showShareModal}
+  resourceType="trade"
+  resourceId={id}
+  onClose={() => (showShareModal = false)}
 />
 
 <style>
@@ -1343,6 +1444,49 @@
   .btn-sm {
     padding: 0.5rem 1.25rem;
     font-size: 0.9rem;
+  }
+
+  .color-tag-section {
+    background: #f7fafc;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .color-tags-options {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .color-select-btn {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 2px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 0;
+  }
+
+  .color-select-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .color-select-btn.active {
+    border: 3px solid #4a5568;
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .color-select-btn.green {
+    background-color: #22c55e;
+  }
+  .color-select-btn.yellow {
+    background-color: #eab308;
+  }
+  .color-select-btn.red {
+    background-color: #ef4444;
   }
 
   /* 交易類型選擇 */
@@ -1763,7 +1907,9 @@
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 4px 6px -1px rgba(109, 40, 217, 0.05), 0 2px 4px -1px rgba(109, 40, 217, 0.03);
+    box-shadow:
+      0 4px 6px -1px rgba(109, 40, 217, 0.05),
+      0 2px 4px -1px rgba(109, 40, 217, 0.03);
     white-space: nowrap;
   }
 
@@ -1781,7 +1927,7 @@
 
   .btn-merge .icon {
     font-size: 1.1rem;
-    filter: drop-shadow(0 0 2px rgba(0,0,0,0.1));
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.1));
   }
 
   .strategy-option input[type='radio'] {
@@ -2231,13 +2377,28 @@
     color: white;
   }
 
-  .session-status-card.asian .session-badge-mini { background: #6366f1; }
-  .session-status-card.european .session-badge-mini { background: #f43f5e; }
-  .session-status-card.us .session-badge-mini { background: #0ea5e9; }
+  .session-status-card.asian .session-badge-mini {
+    background: #6366f1;
+  }
+  .session-status-card.european .session-badge-mini {
+    background: #f43f5e;
+  }
+  .session-status-card.us .session-badge-mini {
+    background: #0ea5e9;
+  }
 
-  .session-status-card.asian { border-left: 4px solid #6366f1; background: rgba(99, 102, 241, 0.05); }
-  .session-status-card.european { border-left: 4px solid #f43f5e; background: rgba(244, 63, 94, 0.05); }
-  .session-status-card.us { border-left: 4px solid #0ea5e9; background: rgba(14, 165, 233, 0.05); }
+  .session-status-card.asian {
+    border-left: 4px solid #6366f1;
+    background: rgba(99, 102, 241, 0.05);
+  }
+  .session-status-card.european {
+    border-left: 4px solid #f43f5e;
+    background: rgba(244, 63, 94, 0.05);
+  }
+  .session-status-card.us {
+    border-left: 4px solid #0ea5e9;
+    background: rgba(14, 165, 233, 0.05);
+  }
 
   .session-info-line {
     display: flex;
@@ -2247,9 +2408,16 @@
     color: #64748b;
   }
 
-  .session-time-text { font-weight: 600; color: #334155; }
-  .session-dot { opacity: 0.5; }
-  .session-season-text { font-size: 0.75rem; }
+  .session-time-text {
+    font-weight: 600;
+    color: #334155;
+  }
+  .session-dot {
+    opacity: 0.5;
+  }
+  .session-season-text {
+    font-size: 0.75rem;
+  }
 
   .plan-status-mini {
     margin-left: auto;
@@ -2266,10 +2434,24 @@
     transition: all 0.2s;
   }
 
-  .status-yes { color: #16a34a; background: #f0fdf4; border: 1px solid #dcfce7; }
-  .status-yes:hover { background: #dcfce7; transform: translateY(-1px); }
-  .status-no { color: #dc2626; background: #fef2f2; border: 1px solid #fee2e2; }
-  .status-no:hover { background: #fee2e2; transform: translateY(-1px); }
+  .status-yes {
+    color: #16a34a;
+    background: #f0fdf4;
+    border: 1px solid #dcfce7;
+  }
+  .status-yes:hover {
+    background: #dcfce7;
+    transform: translateY(-1px);
+  }
+  .status-no {
+    color: #dc2626;
+    background: #fef2f2;
+    border: 1px solid #fee2e2;
+  }
+  .status-no:hover {
+    background: #fee2e2;
+    transform: translateY(-1px);
+  }
 
   .plan-status-mini .icon {
     font-style: normal;
@@ -2711,8 +2893,16 @@
     font-size: 0.95rem;
   }
 
-  .readonly-value-badge.pnl.profit { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
-  .readonly-value-badge.pnl.loss { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  .readonly-value-badge.pnl.profit {
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #bbf7d0;
+  }
+  .readonly-value-badge.pnl.loss {
+    background: #fef2f2;
+    color: #991b1b;
+    border-color: #fecaca;
+  }
 
   .execution-timeline-section {
     margin-top: 1.5rem;
@@ -2767,11 +2957,20 @@
     color: #475569;
   }
 
-  .badge-mini.pnl.profit { color: #059669; background: #ecfdf5; }
-  .badge-mini.pnl.loss { color: #dc2626; background: #fef2f2; }
-  .badge-mini.ticket { font-family: monospace; color: #94a3b8; }
+  .badge-mini.pnl.profit {
+    color: #059669;
+    background: #ecfdf5;
+  }
+  .badge-mini.pnl.loss {
+    color: #dc2626;
+    background: #fef2f2;
+  }
+  .badge-mini.ticket {
+    font-family: monospace;
+    color: #94a3b8;
+  }
   /* 圖片放大模態框相關 styles ...略... */
-  
+
   .btn-icon {
     background: none;
     border: 1px solid #63b3ed;
@@ -2799,5 +2998,16 @@
     background: #f1f5f9;
     color: #4f46e5;
     border-color: #6366f1;
+  }
+
+  /* Color Tags for Card */
+  .card.tag-green {
+    border-left: 5px solid #28a745;
+  }
+  .card.tag-yellow {
+    border-left: 5px solid #ffc107;
+  }
+  .card.tag-red {
+    border-left: 5px solid #dc3545;
   }
 </style>

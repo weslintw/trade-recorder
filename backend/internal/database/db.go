@@ -314,5 +314,11 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE trades ADD COLUMN legend_htf_image_original TEXT;")
 	db.Exec("ALTER TABLE trades ADD COLUMN legend_de_htf VARCHAR(20);")
 
+	migrationSQL16 := `
+	-- 檢查並添加 color_tag 欄位 (red, yellow, green)
+	ALTER TABLE trades ADD COLUMN color_tag VARCHAR(20);
+	`
+	db.Exec(migrationSQL16)
+
 	return nil
 }

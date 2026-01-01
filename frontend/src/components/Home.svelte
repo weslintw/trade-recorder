@@ -178,6 +178,95 @@
     }
   }
 
+  async function toggleColorTag(trade, color) {
+    const newColor = trade.color_tag === color ? null : color; // Toggle: if same color, remove it
+    try {
+      // We need to fetch the full trade object or just patch the color_tag
+      // Assuming tradesAPI.update supports partial updates or we construct a minimal object
+      // For now, let's assuming we need to pass basic required fields or backend handles partial updates well enough
+      // But typically PUT requires full object. Let's use a specialized patch or just update the field locally and rely on a full update
+      // Since we don't have patch API yet, we might need to send full object.
+      // Wait, standard update usually needs more data. Let's try to just update what we can.
+      // Actually, looking at backend UpdateTrade, it binds JSON to TradeCreate struct.
+      // So we need to provide all required fields or they might be zeroed out if not using pointer/patch logic carefully.
+      // Backend uses models.TradeCreate which has required bindings?
+      // TradeStructure: TradeCreate.
+      // Let's look at `tradesAPI.update`.
+      // To be safe and quick without changing API infrastructure too much, let's fetch the full trade, update color, and send it back.
+      // Or cleaner: modify backend to accept partial update? No, that's more work.
+      // Let's just do: fetch -> modify -> update.
+      const fullTradeRes = await tradesAPI.getOne(trade.id);
+      const fullTrade = fullTradeRes.data;
+
+      const payload = {
+        ...fullTrade,
+        color_tag: newColor || '', // Send empty string if null to clear it (if backend handles it)
+        // Ensure dates are stringified correctly if needed, but usually spreading works for JSON
+        account_id: fullTrade.account_id,
+        trade_type: fullTrade.trade_type || 'actual',
+        symbol: fullTrade.symbol,
+        side: fullTrade.side,
+        entry_time: fullTrade.entry_time,
+        // map other fields... logic might be heavy for just a tag.
+        // Let's try a simpler approach if possible.
+        // If I use the existing fullTrade object, it should be fine.
+
+        // Critical Fix: Backend `TradeCreate` struct expects `string` for many fields that are `*string` (nullable) in `Trade` struct.
+        // We must convert nulls to empty strings to avoid 400 Bad Request.
+        entry_reason: fullTrade.entry_reason || '',
+        exit_reason: fullTrade.exit_reason || '',
+        entry_strategy: fullTrade.entry_strategy || '',
+        entry_signals: fullTrade.entry_signals || '',
+        entry_checklist: fullTrade.entry_checklist || '',
+        entry_pattern: fullTrade.entry_pattern || '',
+        trend_analysis: fullTrade.trend_analysis || '',
+        entry_timeframe: fullTrade.entry_timeframe || '',
+        trend_type: fullTrade.trend_type || '',
+        market_session: fullTrade.market_session || '',
+        legend_king_htf: fullTrade.legend_king_htf || '',
+        legend_king_image: fullTrade.legend_king_image || '',
+        legend_king_image_original: fullTrade.legend_king_image_original || '',
+        legend_htf: fullTrade.legend_htf || '',
+        legend_htf_image: fullTrade.legend_htf_image || '',
+        legend_htf_image_original: fullTrade.legend_htf_image_original || '',
+        legend_de_htf: fullTrade.legend_de_htf || '',
+        entry_strategy_image: fullTrade.entry_strategy_image || '',
+        entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
+        notes: fullTrade.notes || '',
+
+        // Critical Fix: TimezoneOffset is *int in Trade (so can be null) but int in TradeCreate (cannot be null)
+        timezone_offset:
+          fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
+            ? fullTrade.timezone_offset
+            : 0,
+      };
+
+      // We need to map `Images` from `[]Image` to `[]ImageUpload` potentially?
+      // The backend expectation for `Images` in `TradeCreate` is `[]ImageUpload`.
+      // The `fullTrade` has `Images` as `[]Image`. This structure mismatch will cause issues on update if we just spread.
+      // So we need to transform `Images`.
+      if (fullTrade.images) {
+        payload.images = fullTrade.images.map(img => ({
+          image_type: img.image_type,
+          image_path: img.image_path,
+        }));
+      }
+
+      // Fix tags mismatch: Backend returns []Tag{id, name}, but CreateTrade expects []string
+      if (fullTrade.tags) {
+        payload.tags = fullTrade.tags.map(t => (typeof t === 'object' ? t.name : t));
+      }
+
+      await tradesAPI.update(trade.id, payload);
+      loadData(); // Reload to refresh view
+    } catch (e) {
+      console.error('Failed to update color tag', e);
+      // Detailed error for debugging
+      const errMsg = e.response?.data?.error || e.message || 'Unknown error';
+      alert(`更新顏色標記失敗: ${errMsg}`);
+    }
+  }
+
   async function deletePlan(id) {
     if (!confirm('確定要刪除此規劃嗎？')) return;
     try {
@@ -381,7 +470,10 @@
                     {:else}
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
-                      <div class="trade-item-card" on:click={() => navigate(`/edit/${trade.id}`)}>
+                      <div
+                        class="trade-item-card {trade.color_tag ? `tag-${trade.color_tag}` : ''}"
+                        on:click={() => navigate(`/edit/${trade.id}`)}
+                      >
                         <div class="item-header">
                           <div class="trade-meta">
                             <span class="symbol-inline-tag">{trade.symbol}</span>
@@ -400,6 +492,24 @@
                             {#if trade.ticket}<span class="ticket-tag">#{trade.ticket}</span>{/if}
                           </div>
                           <div class="trade-right">
+                            <div class="color-tags" on:click|stopPropagation>
+                              <button
+                                class="color-btn green {trade.color_tag === 'green'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTag(trade, 'green')}
+                              ></button>
+                              <button
+                                class="color-btn yellow {trade.color_tag === 'yellow'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTag(trade, 'yellow')}
+                              ></button>
+                              <button
+                                class="color-btn red {trade.color_tag === 'red' ? 'active' : ''}"
+                                on:click={() => toggleColorTag(trade, 'red')}
+                              ></button>
+                            </div>
                             {#if trade.pnl !== null && trade.pnl !== undefined}
                               <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
                                 {trade.pnl >= 0 ? '+' : ''}{typeof trade.pnl === 'number'
@@ -623,15 +733,61 @@
   /* Card Items */
   .plan-item-card,
   .trade-item-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: white;
     border-radius: 12px;
-    padding: 1rem;
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
     cursor: pointer;
     transition: all 0.2s;
+    border: 1px solid var(--border-color);
+    position: relative;
+    overflow: hidden;
   }
 
-  .plan-item-card:hover,
+  .trade-item-card.tag-green {
+    border-left: 5px solid #22c55e;
+  }
+  .trade-item-card.tag-yellow {
+    border-left: 5px solid #eab308;
+  }
+  .trade-item-card.tag-red {
+    border-left: 5px solid #ef4444;
+  }
+
+  .color-tags {
+    display: flex;
+    gap: 0.3rem;
+    margin-right: 0.75rem;
+  }
+
+  .color-btn {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition:
+      transform 0.1s,
+      border-color 0.1s;
+    padding: 0;
+  }
+  .color-btn:hover {
+    transform: scale(1.1);
+  }
+  .color-btn.active {
+    border: 2px solid #333;
+    transform: scale(1.1);
+  }
+  .color-btn.green {
+    background-color: #22c55e;
+  }
+  .color-btn.yellow {
+    background-color: #eab308;
+  }
+  .color-btn.red {
+    background-color: #ef4444;
+  }
+
   .trade-item-card:hover {
     border-color: #6366f1;
     transform: translateY(-2px);
@@ -1245,5 +1401,53 @@
       padding-right: 0;
       padding-bottom: 1.5rem;
     }
+  }
+  .trade-item-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .trade-item-card.tag-green {
+    border-left: 5px solid #22c55e;
+  }
+  .trade-item-card.tag-yellow {
+    border-left: 5px solid #eab308;
+  }
+  .trade-item-card.tag-red {
+    border-left: 5px solid #ef4444;
+  }
+
+  .color-tags {
+    display: flex;
+    gap: 0.3rem;
+    margin-right: 0.75rem;
+  }
+
+  .color-btn {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition:
+      transform 0.1s,
+      border-color 0.1s;
+    padding: 0;
+  }
+  .color-btn:hover {
+    transform: scale(1.1);
+  }
+  .color-btn.active {
+    border: 2px solid #333;
+    transform: scale(1.1);
+  }
+  .color-btn.green {
+    background-color: #22c55e;
+  }
+  .color-btn.yellow {
+    background-color: #eab308;
+  }
+  .color-btn.red {
+    background-color: #ef4444;
   }
 </style>

@@ -300,3 +300,54 @@ func GetStatsByStrategy(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, result)
 	}
 }
+
+// GetStatsByColorTag 取得顏色標籤統計
+func GetStatsByColorTag(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
+		accountID := c.Query("account_id")
+		if accountID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "請提供 account_id"})
+			return
+		}
+
+		// 檢查帳號所屬權
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限操作此帳號"})
+			return
+		}
+
+		rows, err := db.Query(`
+			SELECT 
+				COALESCE(color_tag, 'none') as color,
+				COUNT(*) as total_trades,
+				SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as winning_trades,
+				COALESCE(SUM(pnl), 0) as total_pnl
+			FROM trades
+			WHERE account_id = ? AND exit_price IS NOT NULL AND color_tag IS NOT NULL AND color_tag != ''
+			GROUP BY color_tag
+			ORDER BY total_trades DESC
+		`, accountID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer rows.Close()
+
+		colorStats := []models.ColorStats{}
+		for rows.Next() {
+			var stat models.ColorStats
+			rows.Scan(&stat.Color, &stat.TotalTrades, &stat.WinningTrades, &stat.TotalPnL)
+
+			if stat.TotalTrades > 0 {
+				stat.WinRate = float64(stat.WinningTrades) / float64(stat.TotalTrades) * 100
+			}
+
+			colorStats = append(colorStats, stat)
+		}
+
+		c.JSON(http.StatusOK, colorStats)
+	}
+}
