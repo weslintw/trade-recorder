@@ -178,96 +178,90 @@
     }
   }
 
+  function sanitizeTradePayload(fullTrade, newColor) {
+    const payload = {
+      ...fullTrade,
+      color_tag: newColor !== undefined ? newColor || '' : fullTrade.color_tag || '',
+      account_id: fullTrade.account_id,
+      trade_type: fullTrade.trade_type || 'actual',
+      symbol: fullTrade.symbol,
+      side: fullTrade.side,
+      entry_time: fullTrade.entry_time,
+      entry_reason: fullTrade.entry_reason || '',
+      exit_reason: fullTrade.exit_reason || '',
+      entry_strategy: fullTrade.entry_strategy || '',
+      entry_signals: fullTrade.entry_signals || '',
+      entry_checklist: fullTrade.entry_checklist || '',
+      entry_pattern: fullTrade.entry_pattern || '',
+      trend_analysis: fullTrade.trend_analysis || '',
+      entry_timeframe: fullTrade.entry_timeframe || '',
+      trend_type: fullTrade.trend_type || '',
+      market_session: fullTrade.market_session || '',
+      legend_king_htf: fullTrade.legend_king_htf || '',
+      legend_king_image: fullTrade.legend_king_image || '',
+      legend_king_image_original: fullTrade.legend_king_image_original || '',
+      legend_htf: fullTrade.legend_htf || '',
+      legend_htf_image: fullTrade.legend_htf_image || '',
+      legend_htf_image_original: fullTrade.legend_htf_image_original || '',
+      legend_de_htf: fullTrade.legend_de_htf || '',
+      entry_strategy_image: fullTrade.entry_strategy_image || '',
+      entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
+      notes: fullTrade.notes || '',
+      timezone_offset:
+        fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
+          ? fullTrade.timezone_offset
+          : 0,
+    };
+
+    if (fullTrade.images) {
+      payload.images = fullTrade.images.map(img => ({
+        image_type: img.image_type,
+        image_path: img.image_path,
+      }));
+    }
+
+    if (fullTrade.tags) {
+      payload.tags = fullTrade.tags.map(t => (typeof t === 'object' ? t.name : t));
+    }
+
+    return payload;
+  }
+
   async function toggleColorTag(trade, color) {
-    const newColor = trade.color_tag === color ? null : color; // Toggle: if same color, remove it
+    const newColor = trade.color_tag === color ? '' : color;
     try {
-      // We need to fetch the full trade object or just patch the color_tag
-      // Assuming tradesAPI.update supports partial updates or we construct a minimal object
-      // For now, let's assuming we need to pass basic required fields or backend handles partial updates well enough
-      // But typically PUT requires full object. Let's use a specialized patch or just update the field locally and rely on a full update
-      // Since we don't have patch API yet, we might need to send full object.
-      // Wait, standard update usually needs more data. Let's try to just update what we can.
-      // Actually, looking at backend UpdateTrade, it binds JSON to TradeCreate struct.
-      // So we need to provide all required fields or they might be zeroed out if not using pointer/patch logic carefully.
-      // Backend uses models.TradeCreate which has required bindings?
-      // TradeStructure: TradeCreate.
-      // Let's look at `tradesAPI.update`.
-      // To be safe and quick without changing API infrastructure too much, let's fetch the full trade, update color, and send it back.
-      // Or cleaner: modify backend to accept partial update? No, that's more work.
-      // Let's just do: fetch -> modify -> update.
       const fullTradeRes = await tradesAPI.getOne(trade.id);
       const fullTrade = fullTradeRes.data;
-
-      const payload = {
-        ...fullTrade,
-        color_tag: newColor || '', // Send empty string if null to clear it (if backend handles it)
-        // Ensure dates are stringified correctly if needed, but usually spreading works for JSON
-        account_id: fullTrade.account_id,
-        trade_type: fullTrade.trade_type || 'actual',
-        symbol: fullTrade.symbol,
-        side: fullTrade.side,
-        entry_time: fullTrade.entry_time,
-        // map other fields... logic might be heavy for just a tag.
-        // Let's try a simpler approach if possible.
-        // If I use the existing fullTrade object, it should be fine.
-
-        // Critical Fix: Backend `TradeCreate` struct expects `string` for many fields that are `*string` (nullable) in `Trade` struct.
-        // We must convert nulls to empty strings to avoid 400 Bad Request.
-        entry_reason: fullTrade.entry_reason || '',
-        exit_reason: fullTrade.exit_reason || '',
-        entry_strategy: fullTrade.entry_strategy || '',
-        entry_signals: fullTrade.entry_signals || '',
-        entry_checklist: fullTrade.entry_checklist || '',
-        entry_pattern: fullTrade.entry_pattern || '',
-        trend_analysis: fullTrade.trend_analysis || '',
-        entry_timeframe: fullTrade.entry_timeframe || '',
-        trend_type: fullTrade.trend_type || '',
-        market_session: fullTrade.market_session || '',
-        legend_king_htf: fullTrade.legend_king_htf || '',
-        legend_king_image: fullTrade.legend_king_image || '',
-        legend_king_image_original: fullTrade.legend_king_image_original || '',
-        legend_htf: fullTrade.legend_htf || '',
-        legend_htf_image: fullTrade.legend_htf_image || '',
-        legend_htf_image_original: fullTrade.legend_htf_image_original || '',
-        legend_de_htf: fullTrade.legend_de_htf || '',
-        entry_strategy_image: fullTrade.entry_strategy_image || '',
-        entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
-        notes: fullTrade.notes || '',
-
-        // Critical Fix: TimezoneOffset is *int in Trade (so can be null) but int in TradeCreate (cannot be null)
-        timezone_offset:
-          fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
-            ? fullTrade.timezone_offset
-            : 0,
-      };
-
-      // We need to map `Images` from `[]Image` to `[]ImageUpload` potentially?
-      // The backend expectation for `Images` in `TradeCreate` is `[]ImageUpload`.
-      // The `fullTrade` has `Images` as `[]Image`. This structure mismatch will cause issues on update if we just spread.
-      // So we need to transform `Images`.
-      if (fullTrade.images) {
-        payload.images = fullTrade.images.map(img => ({
-          image_type: img.image_type,
-          image_path: img.image_path,
-        }));
-      }
-
-      // Fix tags mismatch: Backend returns []Tag{id, name}, but CreateTrade expects []string
-      if (fullTrade.tags) {
-        payload.tags = fullTrade.tags.map(t => (typeof t === 'object' ? t.name : t));
-      }
-
+      const payload = sanitizeTradePayload(fullTrade, newColor);
       await tradesAPI.update(trade.id, payload);
-
-      // Update local state directly to avoid scroll reset from full reload
       trade.color_tag = newColor;
-      // Force reactivity on groupedData
       groupedData = groupedData;
     } catch (e) {
       console.error('Failed to update color tag', e);
-      // Detailed error for debugging
       const errMsg = e.response?.data?.error || e.message || 'Unknown error';
       alert(`更新顏色標記失敗: ${errMsg}`);
+    }
+  }
+
+  async function toggleColorTagForGroup(timeGroup, color) {
+    const firstTrade = timeGroup.trades[0];
+    if (!firstTrade) return;
+    const newColor = firstTrade.color_tag === color ? '' : color;
+
+    try {
+      // Update all trades in the group
+      for (const trade of timeGroup.trades) {
+        const fullTradeRes = await tradesAPI.getOne(trade.id);
+        const fullTrade = fullTradeRes.data;
+        const payload = sanitizeTradePayload(fullTrade, newColor);
+        await tradesAPI.update(trade.id, payload);
+        trade.color_tag = newColor;
+      }
+      groupedData = groupedData;
+    } catch (e) {
+      console.error('Failed to update group color tag', e);
+      const errMsg = e.response?.data?.error || e.message || 'Unknown error';
+      alert(`更新組合單顏色標記失敗: ${errMsg}`);
     }
   }
 
@@ -419,7 +413,9 @@
                     {#if timeGroup.trades.length > 1}
                       <!-- 組合單 (多筆部分的平倉) -->
                       <div
-                        class="trade-time-group is-multi"
+                        class="trade-time-group is-multi {timeGroup.trades[0].color_tag
+                          ? `tag-${timeGroup.trades[0].color_tag}`
+                          : ''}"
                         on:click={() => navigate(`/edit/${timeGroup.trades[0].id}`)}
                       >
                         <div class="group-header">
@@ -438,6 +434,26 @@
                             >
                           </div>
                           <div class="group-pnl">
+                            <div class="color-tags" on:click|stopPropagation>
+                              <button
+                                class="color-btn green {timeGroup.trades[0].color_tag === 'green'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'green')}
+                              ></button>
+                              <button
+                                class="color-btn yellow {timeGroup.trades[0].color_tag === 'yellow'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'yellow')}
+                              ></button>
+                              <button
+                                class="color-btn red {timeGroup.trades[0].color_tag === 'red'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
+                              ></button>
+                            </div>
                             <span
                               class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}"
                             >
@@ -1025,6 +1041,7 @@
     border-radius: 16px;
     border: 1px dashed rgba(244, 114, 182, 0.3); /* 粉紅虛線邊框 */
     position: relative;
+    overflow: hidden;
     margin-bottom: 0.5rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1411,13 +1428,16 @@
     overflow: hidden;
   }
 
-  .trade-item-card.tag-green {
+  .trade-item-card.tag-green,
+  .trade-time-group.is-multi.tag-green {
     border-left: 5px solid #22c55e;
   }
-  .trade-item-card.tag-yellow {
+  .trade-item-card.tag-yellow,
+  .trade-time-group.is-multi.tag-yellow {
     border-left: 5px solid #eab308;
   }
-  .trade-item-card.tag-red {
+  .trade-item-card.tag-red,
+  .trade-time-group.is-multi.tag-red {
     border-left: 5px solid #ef4444;
   }
 
