@@ -282,12 +282,14 @@
     <div class="quick-btns">
       <button
         class="small-action-btn plan"
+        data-testid="add-plan-btn"
         on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}
       >
         <span class="btn-icon">📋</span> 新增規劃
       </button>
       <button
         class="small-action-btn trade"
+        data-testid="add-trade-btn"
         on:click={() => navigate('/new?symbol=' + $selectedSymbol)}
       >
         <span class="btn-icon">💰</span> 新增交易
@@ -351,21 +353,20 @@
                             <div class="tf-row">
                               <span class="tf-name">{tf}:</span>
                               <div class="tf-steps">
-                                {#if asianTrend?.direction}
-                                  <span class="mini-step {asianTrend.direction}">
-                                    亞盤 {asianTrend.direction === 'long' ? '多' : '空'}
+                                {#each MARKET_SESSIONS as session, i}
+                                  {@const trend = trendData[session.value]?.trends?.[tf]}
+                                  <span class="mini-step {trend?.direction || 'na'}">
+                                    {session.label}
+                                    {trend?.direction === 'long'
+                                      ? '多'
+                                      : trend?.direction === 'short'
+                                        ? '空'
+                                        : 'NA'}
                                   </span>
-                                {/if}
-                                {#if europeanTrend?.direction}
-                                  <span class="mini-step {europeanTrend.direction}">
-                                    歐盤 {europeanTrend.direction === 'long' ? '多' : '空'}
-                                  </span>
-                                {/if}
-                                {#if usTrend?.direction}
-                                  <span class="mini-step {usTrend.direction}">
-                                    美盤 {usTrend.direction === 'long' ? '多' : '空'}
-                                  </span>
-                                {/if}
+                                  {#if i < MARKET_SESSIONS.length - 1}
+                                    <span class="step-arrow">=></span>
+                                  {/if}
+                                {/each}
                               </div>
                             </div>
                           {/if}
@@ -1177,8 +1178,16 @@
   .pnl-tag.profit {
     color: #3b82f6;
   }
-  .pnl-tag.loss {
+  .mini-step.short {
     color: #ef4444;
+  }
+  .mini-step.na {
+    color: #94a3b8;
+  }
+  .step-arrow {
+    color: #cbd5e1;
+    font-weight: bold;
+    font-size: 0.8rem;
   }
 
   .trade-details {
