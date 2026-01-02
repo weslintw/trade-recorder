@@ -7,9 +7,13 @@ type Account struct {
 	ID             int64      `json:"id"`
 	Name           string     `json:"name"`            // 帳號別名，如 "個人實盤", "FTMO 挑戰"
 	Type           string     `json:"type"`            // "local" 或 "metatrader"
-	MT5AccountID   string     `json:"mt5_account_id"`  // MetaApi Account ID
-	MT5Token       string     `json:"mt5_token"`       // MetaApi Token
-	Status         string     `json:"status"`          // "active", "disconnected"
+	MT5AccountID    string     `json:"mt5_account_id"`  // MetaApi Account ID
+	MT5Token        string     `json:"mt5_token"`       // MetaApi Token
+	CTraderAccountID string    `json:"ctrader_account_id"`
+	CTraderToken    string     `json:"ctrader_token"`
+	CTraderClientID string     `json:"ctrader_client_id"`
+	CTraderClientSecret string `json:"ctrader_client_secret"`
+	Status          string     `json:"status"` // "active", "disconnected"
 	TimezoneOffset int        `json:"timezone_offset"` // 時區偏移
 	SyncStatus     string     `json:"sync_status"`     // "idle", "syncing", "success", "failed"
 	LastSyncedAt   *time.Time `json:"last_synced_at"`
@@ -22,16 +26,24 @@ type Account struct {
 // AccountCreate 建立帳號請求
 type AccountCreate struct {
 	Name           string `json:"name" binding:"required"`
-	Type           string `json:"type" binding:"required,oneof=local metatrader"`
+	Type           string `json:"type" binding:"required,oneof=local metatrader ctrader"`
 	MT5AccountID   string `json:"mt5_account_id"`
 	MT5Token       string `json:"mt5_token"`
+	CTraderAccountID string `json:"ctrader_account_id"`
+	CTraderToken    string `json:"ctrader_token"`
+	CTraderClientID string `json:"ctrader_client_id"`
+	CTraderClientSecret string `json:"ctrader_client_secret"`
 	TimezoneOffset int    `json:"timezone_offset"`
 }
 
 // AccountUpdate 更新帳號請求
 type AccountUpdate struct {
 	Name           *string `json:"name"`
-	MT5AccountID   *string `json:"mt5_account_id"`
-	MT5Token       *string `json:"mt5_token"`
-	TimezoneOffset *int    `json:"timezone_offset"`
+	MT5AccountID    *string `json:"mt5_account_id"`
+	MT5Token        *string `json:"mt5_token"`
+	CTraderAccountID *string `json:"ctrader_account_id"`
+	CTraderToken     *string `json:"ctrader_token"`
+	CTraderClientID  *string `json:"ctrader_client_id"`
+	CTraderClientSecret *string `json:"ctrader_client_secret"`
+	TimezoneOffset  *int    `json:"timezone_offset"`
 }

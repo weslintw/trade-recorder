@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - link "Trade Time Machine Logo v1.0.0" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e7]:
+          - img "Trade Time Machine Logo"
+        - generic: v1.0.0
+      - generic [ref=e10]:
+        - generic [ref=e11]: 📊
+        - combobox [ref=e12] [cursor=pointer]:
+          - option "XAUUSD" [selected]
+          - option "NAS100"
+          - option "US30"
+          - option "EURUSD"
+          - option "GBPUSD"
+          - option "USDJPY"
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]: 01/02
+          - generic [ref=e16]: 10:47
+        - generic [ref=e17]:
+          - generic [ref=e18]: 🇯🇵
+          - generic [ref=e19]: 亞盤
+      - generic [ref=e20]:
+        - link "📊 統計面板" [ref=e22] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e23]: 📊
+          - generic [ref=e24]: 統計面板
+        - link "⚙️" [ref=e27] [cursor=pointer]:
+          - /url: /accounts
+  - main:
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - img "Trade Time Machine Logo" [ref=e32]
+        - generic: v1.0.0
+        - paragraph [ref=e33]: 歡迎回來，紀錄您的每一步成長
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e36]: 使用者名稱
+          - generic [ref=e37]:
+            - generic [ref=e38]: 👤
+            - textbox "使用者名稱" [ref=e39]:
+              - /placeholder: 請輸入使用者名稱
+        - generic [ref=e40]:
+          - generic [ref=e41]: 密碼
+          - generic [ref=e42]:
+            - generic [ref=e43]: 🔒
+            - textbox "密碼" [ref=e44]:
+              - /placeholder: 請輸入密碼
+            - button "👁️‍🗨️" [ref=e45] [cursor=pointer]
+        - button "登入系統" [ref=e46] [cursor=pointer]
+      - generic [ref=e47]:
+        - text: 還沒有帳號？
+        - button "免費註冊" [ref=e48] [cursor=pointer]
+      - paragraph [ref=e50]: 💡 提示：註冊成功後的預設帳號即為管理員帳號。
+```

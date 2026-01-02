@@ -164,8 +164,12 @@
 
 <div class="account-mgmt">
   <div class="header">
-    <h1>交易帳號管理</h1>
-    <button class="btn btn-primary" on:click={() => (showAddModal = true)}>+ 新增交易帳號</button>
+    <h1 data-testid="accounts-header">交易帳號管理</h1>
+    <button
+      class="btn btn-primary"
+      data-testid="add-account-btn"
+      on:click={() => (showAddModal = true)}>+ 新增交易帳號</button
+    >
   </div>
 
   {#if loading}
@@ -176,6 +180,7 @@
         <div
           class="account-card card"
           class:mt5={acc.type === 'metatrader'}
+          class:ctrader={acc.type === 'ctrader'}
           on:click={() => selectAccount(acc.id)}
           role="button"
           tabindex="0"
@@ -220,8 +225,18 @@
               </div>
             {/if}
             <div class="badges">
-              <span class="badge {acc.type === 'local' ? 'badge-info' : 'badge-mt5'}">
-                {acc.type === 'local' ? '本地帳號' : 'MetaTrader 5'}
+              <span
+                class="badge {acc.type === 'local'
+                  ? 'badge-info'
+                  : acc.type === 'metatrader'
+                    ? 'badge-mt5'
+                    : 'badge-ctrader'}"
+              >
+                {acc.type === 'local'
+                  ? '本地帳號'
+                  : acc.type === 'metatrader'
+                    ? 'MetaTrader 5'
+                    : 'cTrader'}
               </span>
               <span class="badge {acc.status === 'active' ? 'badge-success' : 'badge-danger'}">
                 {acc.status}
@@ -251,19 +266,37 @@
                 {/if}
               </div>
             {/if}
+            {#if acc.type === 'ctrader'}
+              <div class="ctrader-detail">
+                <p>Login ID: {acc.ctrader_account_id}</p>
+                <div class="sync-info">
+                  <span class="badge sync-badge {acc.sync_status}">{acc.sync_status}</span>
+                  {#if acc.last_synced_at}
+                    <span class="sync-time"
+                      >最後同步: {new Date(acc.last_synced_at).toLocaleString()}</span
+                    >
+                  {/if}
+                </div>
+                {#if acc.sync_status === 'failed' && acc.last_sync_error}
+                  <div class="sync-error-msg">❌ {acc.last_sync_error}</div>
+                {/if}
+              </div>
+            {/if}
           </div>
           <div class="acc-actions">
             <button
               class="btn btn-secondary"
+              data-testid="import-csv-btn"
               on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
-            {#if acc.type === 'metatrader'}
+            {#if acc.type === 'metatrader' || acc.type === 'ctrader'}
               <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}
                 >🔄 同步</button
               >
             {/if}
             <button
               class="btn btn-warning"
+              data-testid="clear-data-btn"
               on:click|stopPropagation={() => clearAccountData(acc.id)}
               title="清除所有交易與規劃">🧹 清除資料</button
             >
@@ -407,13 +440,19 @@
     color: #4338ca;
   }
 
+  .badge-ctrader {
+    background: #ecfdf5;
+    color: #059669;
+  }
+
   .badge-utc {
     background: #f3f4f6;
     color: #4b5563;
     border: 1px solid #e5e7eb;
   }
 
-  .mt5-detail {
+  .mt5-detail,
+  .ctrader-detail {
     font-size: 0.85rem;
     color: #64748b;
   }

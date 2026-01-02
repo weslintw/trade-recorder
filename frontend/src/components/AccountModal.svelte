@@ -11,6 +11,10 @@
     type: 'local',
     mt5_account_id: '',
     mt5_token: '',
+    ctrader_account_id: '',
+    ctrader_token: '',
+    ctrader_client_id: '',
+    ctrader_client_secret: '',
     timezone_offset: 8,
   };
 
@@ -94,6 +98,9 @@
           <label class="radio-label">
             <input type="radio" bind:group={newAccount.type} value="ftmo" /> 從 FTMO CSV 匯入
           </label>
+          <label class="radio-label">
+            <input type="radio" bind:group={newAccount.type} value="ctrader" /> cTrader 同步 (API)
+          </label>
         </div>
       </div>
 
@@ -114,6 +121,52 @@
             }}
           />
           <p class="help-text">建立帳號後將自動匯入此 CSV 內的交易紀錄。</p>
+        </div>
+      {/if}
+
+      {#if newAccount.type === 'ctrader'}
+        <div class="ctrader-fields">
+          <div class="form-group">
+            <label for="ctrader-id">cTrader 交易帳號 ID (Login)</label>
+            <input
+              id="ctrader-id"
+              type="text"
+              class="form-control"
+              bind:value={newAccount.ctrader_account_id}
+              placeholder="例如：6543210"
+            />
+          </div>
+          <div class="form-group">
+            <label for="ctrader-token">cTrader API Access Token</label>
+            <textarea
+              id="ctrader-token"
+              class="form-control"
+              bind:value={newAccount.ctrader_token}
+              placeholder="輸入您的 Access Token"
+              rows="2"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label for="ctrader-client-id">Client ID</label>
+            <input
+              id="ctrader-client-id"
+              type="text"
+              class="form-control"
+              bind:value={newAccount.ctrader_client_id}
+              placeholder="您的 Open API App Client ID"
+            />
+          </div>
+          <div class="form-group">
+            <label for="ctrader-client-secret">Client Secret</label>
+            <input
+              id="ctrader-client-secret"
+              type="password"
+              class="form-control"
+              bind:value={newAccount.ctrader_client_secret}
+              placeholder="您的 Open API App Client Secret"
+            />
+            <p class="help-text">請提供具有交易資訊讀取權限的應用程式內容。</p>
+          </div>
         </div>
       {/if}
 
@@ -196,6 +249,14 @@
     font-size: 0.75rem;
     color: #94a3b8;
     margin-top: 0.5rem;
+  }
+
+  .ctrader-fields {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
   }
 
   .modal-actions {
