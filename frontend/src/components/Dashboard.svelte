@@ -257,7 +257,7 @@
                       </div>
                     {/each}
                   {:else}
-                    <div class="empty-mini">尚無子項目數據</div>
+                    <!-- Only show if there are sub items to avoid clutter -->
                   {/if}
                 </div>
               </div>
@@ -545,7 +545,7 @@
   }
 
   .strategy-group {
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
   }
 
   .strategy-header-row {
