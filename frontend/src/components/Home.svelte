@@ -258,7 +258,11 @@
       }
 
       await tradesAPI.update(trade.id, payload);
-      loadData(); // Reload to refresh view
+
+      // Update local state directly to avoid scroll reset from full reload
+      trade.color_tag = newColor;
+      // Force reactivity on grouped_trades
+      grouped_trades = grouped_trades;
     } catch (e) {
       console.error('Failed to update color tag', e);
       // Detailed error for debugging
