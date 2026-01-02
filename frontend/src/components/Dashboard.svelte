@@ -540,8 +540,8 @@
 
   /* 策略分析樣式 */
   .strategy-analysis-section {
-    position: sticky;
-    top: 2rem;
+    /* position: sticky; */
+    /* top: 2rem; */
   }
 
   .strategy-group {
