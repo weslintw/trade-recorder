@@ -3,6 +3,7 @@
   import { accountsAPI } from '../lib/api';
 
   export let show = false;
+  export let account = null;
 
   const dispatch = createEventDispatcher();
 
@@ -15,49 +16,92 @@
     ctrader_token: '',
     ctrader_client_id: '',
     ctrader_client_secret: '',
+    ctrader_env: 'live',
     timezone_offset: 8,
   };
+
+  let lastAccountId = undefined;
+  let lastShow = false;
+
+  // Reactively update form when account changes OR modal opens
+  $: if (show && (account?.id !== lastAccountId || show !== lastShow)) {
+    lastAccountId = account?.id;
+    lastShow = show;
+
+    if (account) {
+      newAccount = {
+        name: account.name || '',
+        type: account.type || 'local',
+        mt5_account_id: account.mt5_account_id || '',
+        mt5_token: account.mt5_token || '',
+        ctrader_account_id: account.ctrader_account_id || '',
+        ctrader_token: account.ctrader_token || '',
+        ctrader_client_id: account.ctrader_client_id || '',
+        ctrader_client_secret: account.ctrader_client_secret || '',
+        ctrader_env: account.ctrader_env || 'live',
+        timezone_offset: account.timezone_offset || 8,
+      };
+    } else {
+      newAccount = {
+        name: '',
+        type: 'local',
+        mt5_account_id: '',
+        mt5_token: '',
+        ctrader_account_id: '',
+        ctrader_token: '',
+        ctrader_client_id: '',
+        ctrader_client_secret: '',
+        ctrader_env: 'live',
+        timezone_offset: 8,
+      };
+    }
+  } else if (!show) {
+    lastShow = false;
+    lastAccountId = undefined;
+  }
 
   let importFile = null;
   let processing = false;
 
-  async function addAccount() {
+  async function saveAccount() {
     if (!newAccount.name.trim()) {
       alert('請輸入帳號名稱');
       return;
     }
-    if (newAccount.type === 'ftmo' && !importFile) {
+    if (!account && newAccount.type === 'ftmo' && !importFile) {
       alert('請選擇 FTMO CSV 檔案');
       return;
     }
 
     try {
       processing = true;
-      // Step 1: Create Account
-      // backend might not like type='ftmo', so we transform it to 'local' if it's ftmo import
-      const createPayload = { ...newAccount };
-      if (createPayload.type === 'ftmo') createPayload.type = 'local';
+      let accountId;
 
-      const res = await accountsAPI.create(createPayload);
-      const accountId = res.data.id;
+      const payload = { ...newAccount };
+      if (payload.type === 'ftmo') payload.type = 'local';
 
-      // Step 2: If FTMO, Import CSV
-      if (newAccount.type === 'ftmo' && importFile) {
-        const formData = new FormData();
-        formData.append('file', importFile);
-        formData.append('source', 'ftmo');
-        await accountsAPI.importCSV(accountId, formData);
-        alert('帳號建立並匯入完成！');
+      if (account) {
+        // Update mode
+        await accountsAPI.update(account.id, payload);
+        accountId = account.id;
+        alert('帳號更新成功！');
+      } else {
+        // Create mode
+        const res = await accountsAPI.create(payload);
+        accountId = res.data.id;
+
+        // If FTMO, Import CSV (only on creation)
+        if (newAccount.type === 'ftmo' && importFile) {
+          const formData = new FormData();
+          formData.append('file', importFile);
+          formData.append('source', 'ftmo');
+          await accountsAPI.importCSV(accountId, formData);
+          alert('帳號建立並匯入完成！');
+        } else {
+          alert('帳號建立成功！');
+        }
       }
 
-      newAccount = {
-        name: '',
-        type: 'local',
-        mt5_account_id: '',
-        mt5_token: '',
-        timezone_offset: 8,
-      };
-      importFile = null;
       dispatch('success', { accountId });
       show = false;
     } catch (e) {
@@ -78,7 +122,7 @@
 {#if show}
   <div class="modal-overlay" on:click|self={close} role="presentation">
     <div class="modal card">
-      <h2>新增交易帳號</h2>
+      <h2>{account ? '編輯交易帳號' : '新增交易帳號'}</h2>
       <div class="form-group">
         <label for="new-acc-name">帳號名稱</label>
         <input
@@ -89,20 +133,26 @@
           placeholder="如：個人實盤"
         />
       </div>
-      <div class="form-group">
-        <label>帳號類型</label>
-        <div class="type-selector">
-          <label class="radio-label">
-            <input type="radio" bind:group={newAccount.type} value="local" /> 本地記錄 (完全手動)
-          </label>
-          <label class="radio-label">
-            <input type="radio" bind:group={newAccount.type} value="ftmo" /> 從 FTMO CSV 匯入
-          </label>
-          <label class="radio-label">
-            <input type="radio" bind:group={newAccount.type} value="ctrader" /> cTrader 同步 (API)
-          </label>
+
+      {#if !account}
+        <div class="form-group">
+          <label>帳號類型</label>
+          <div class="type-selector">
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="local" /> 本地記錄 (完全手動)
+            </label>
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="ftmo" /> 從 FTMO CSV 匯入
+            </label>
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="metatrader" /> MetaTrader 5 (自動同步)
+            </label>
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="ctrader" /> cTrader (自動同步)
+            </label>
+          </div>
         </div>
-      </div>
+      {/if}
 
       {#if newAccount.type === 'ftmo'}
         <div class="form-group import-field">
@@ -115,12 +165,36 @@
             on:change={e => {
               importFile = e.target.files[0];
               if (importFile && !newAccount.name.trim()) {
-                // 自動帶入檔名作為帳號名稱 (去副檔名)
                 newAccount.name = importFile.name.replace(/\.[^/.]+$/, '');
               }
             }}
           />
           <p class="help-text">建立帳號後將自動匯入此 CSV 內的交易紀錄。</p>
+        </div>
+      {/if}
+
+      {#if newAccount.type === 'metatrader'}
+        <div class="metatrader-fields">
+          <div class="form-group">
+            <label for="mt5-id">MT5 帳號 ID</label>
+            <input
+              id="mt5-id"
+              type="text"
+              class="form-control"
+              bind:value={newAccount.mt5_account_id}
+              placeholder="您的 MT5 登入帳號"
+            />
+          </div>
+          <div class="form-group">
+            <label for="mt5-token">MT5 Token (MetaApi)</label>
+            <input
+              id="mt5-token"
+              type="password"
+              class="form-control"
+              bind:value={newAccount.mt5_token}
+              placeholder="您的 MetaApi Token"
+            />
+          </div>
         </div>
       {/if}
 
@@ -165,7 +239,14 @@
               bind:value={newAccount.ctrader_client_secret}
               placeholder="您的 Open API App Client Secret"
             />
-            <p class="help-text">請提供具有交易資訊讀取權限的應用程式內容。</p>
+          </div>
+          <div class="form-group">
+            <label for="ctrader-env">Environment</label>
+            <select id="ctrader-env" class="form-control" bind:value={newAccount.ctrader_env}>
+              <option value="live">Live</option>
+              <option value="demo">Demo</option>
+            </select>
+            <p class="help-text">根據您的帳號類型選擇伺服器環境。</p>
           </div>
         </div>
       {/if}
@@ -181,9 +262,9 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn" on:click={close} disabled={processing}>取消</button>
-        <button class="btn btn-primary" on:click={addAccount} disabled={processing}>
-          {processing ? '處理中...' : '確認新增'}
+        <button class="btn btn-secondary" on:click={close} disabled={processing}>取消</button>
+        <button class="btn btn-primary" on:click={saveAccount} disabled={processing}>
+          {processing ? '處理中...' : account ? '儲存變更' : '建立帳號'}
         </button>
       </div>
     </div>
@@ -251,6 +332,7 @@
     margin-top: 0.5rem;
   }
 
+  .metatrader-fields,
   .ctrader-fields {
     background: #f8fafc;
     padding: 1rem;

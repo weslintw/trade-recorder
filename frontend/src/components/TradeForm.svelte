@@ -374,15 +374,15 @@
       const sl = parseFloat(initial_sl);
       const lots = parseFloat(lot_size);
 
-      let multiplier = 100; // 預設 (金子 XAUUSD: $1 = 100點, 指數: 1.0 = 100點)
-      if (symbol.includes('JPY')) multiplier = 1000;
+      let multiplier = 1; // 預設 (金子 XAUUSD: $1 = 1點, 指數: 1.0 = 1點)
+      if (symbol.includes('JPY')) multiplier = 100;
       else if (
         symbol.includes('EUR') ||
         symbol.includes('GBP') ||
         symbol.includes('AUD') ||
         (symbol.includes('USD') && !symbol.includes('XAU'))
       ) {
-        multiplier = 100000;
+        multiplier = 10000;
       }
 
       // 1. 盈虧點數計算
@@ -395,19 +395,19 @@
       }
 
       // 2. 子彈大小計算 (Bullet Size / Risk Amount)
-      if (!isNaN(entry) && !isNaN(sl) && !isNaN(lots)) {
+      if (!isNaN(entry) && !isNaN(sl)) {
         const riskPoints = Math.abs(entry - sl);
-        const result = Math.round(riskPoints * multiplier * lots * 100) / 100;
+        const result = Math.round(riskPoints * multiplier * 100) / 100;
         if (formData.bullet_size !== result) {
           formData.bullet_size = result;
         }
       }
 
       // 3. 風報比計算 (RR Ratio)
-      const currentPnl = parseFloat(pnl);
+      const currentPoints = parseFloat(formData.pnl_points);
       const currentBullet = parseFloat(formData.bullet_size);
-      if (!isNaN(currentPnl) && !isNaN(currentBullet) && currentBullet !== 0) {
-        const result = Math.round((currentPnl / currentBullet) * 100) / 100;
+      if (!isNaN(currentPoints) && !isNaN(currentBullet) && currentBullet !== 0) {
+        const result = Math.round((currentPoints / currentBullet) * 100) / 100;
         if (formData.rr_ratio !== result) {
           formData.rr_ratio = result;
         }
@@ -888,6 +888,20 @@
       closeEnlargedImage();
     }
   }
+
+  // 解析 SL 歷史資料 (相容新舊格式)
+  function parseSLHistory(json) {
+    if (!json) return [];
+    try {
+      const data = JSON.parse(json);
+      return data.map(item => {
+        if (typeof item === 'number') return { price: item, time: null };
+        return item;
+      });
+    } catch (e) {
+      return [];
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -1054,6 +1068,28 @@
             bind:value={formData.initial_sl}
             placeholder="用於計算子彈大小"
           />
+          {#if formData.sl_history}
+            <div class="sl-history-chips">
+              {#each parseSLHistory(formData.sl_history) as entry}
+                <button
+                  type="button"
+                  class="sl-chip {parseFloat(formData.initial_sl) === entry.price ? 'active' : ''}"
+                  on:click={() => (formData.initial_sl = entry.price)}
+                  title={entry.time ? new Date(entry.time).toLocaleString() : ''}
+                >
+                  <span class="sl-price">{entry.price}</span>
+                  {#if entry.time}
+                    <span class="sl-time"
+                      >{new Date(entry.time).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}</span
+                    >
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <div class="form-group">
@@ -1159,6 +1195,28 @@
             class="form-control"
             bind:value={formData.initial_sl}
           />
+          {#if formData.sl_history}
+            <div class="sl-history-chips">
+              {#each parseSLHistory(formData.sl_history) as entry}
+                <button
+                  type="button"
+                  class="sl-chip {parseFloat(formData.initial_sl) === entry.price ? 'active' : ''}"
+                  on:click={() => (formData.initial_sl = entry.price)}
+                  title={entry.time ? new Date(entry.time).toLocaleString() : ''}
+                >
+                  <span class="sl-price">{entry.price}</span>
+                  {#if entry.time}
+                    <span class="sl-time"
+                      >{new Date(entry.time).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}</span
+                    >
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
         <div class="form-group">
           <label>總計盈虧</label>
@@ -3009,5 +3067,54 @@
   }
   .card.tag-red {
     border-left: 5px solid #dc3545;
+  }
+  .sl-history-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+
+  .sl-chip {
+    padding: 0.3rem 0.6rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+    line-height: 1.2;
+  }
+
+  .sl-price {
+    font-size: 0.75rem;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  .sl-time {
+    font-size: 0.6rem;
+    color: #64748b;
+    font-weight: 500;
+  }
+
+  .sl-chip:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+  }
+
+  .sl-chip.active {
+    background: #0ea5e9;
+    border-color: #0284c7;
+    box-shadow: 0 2px 4px rgba(14, 165, 233, 0.2);
+  }
+
+  .sl-chip.active .sl-price,
+  .sl-chip.active .sl-time {
+    color: white;
   }
 </style>

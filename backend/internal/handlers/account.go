@@ -26,6 +26,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 				id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), 
 				COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''),
 				COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, ''),
+				COALESCE(ctrader_env, 'live'),
 				status, 
 				COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, 
 				COALESCE(last_sync_error, ''), created_at, updated_at,
@@ -72,6 +73,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 				&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, 
 				&acc.CTraderAccountID, &acc.CTraderToken,
 				&acc.CTraderClientID, &acc.CTraderClientSecret,
+				&acc.CTraderEnv,
 				&acc.Status, 
 				&acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, 
 				&acc.CreatedAt, &acc.UpdatedAt, &acc.StorageUsage,
@@ -97,8 +99,8 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 		}
 
 		userID := c.GetInt64("user_id")
-		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, timezone_offset, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.TimezoneOffset, userID)
+		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, ctrader_env, timezone_offset, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.TimezoneOffset, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -110,7 +112,7 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 		if req.Type == "metatrader" {
 			go mt5.SyncMT5History(db, id, req.MT5AccountID, req.MT5Token)
 		} else if req.Type == "ctrader" {
-			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret)
+			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv)
 		}
 
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "帳號建立成功"})
@@ -129,8 +131,8 @@ func UpdateAccount(db *sql.DB) gin.HandlerFunc {
 
 		userID := c.GetInt64("user_id")
 		// 這裡為了簡化先做全量更新，實際上應該檢查 nil
-		res, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), ctrader_account_id = COALESCE(?, ctrader_account_id), ctrader_token = COALESCE(?, ctrader_token), ctrader_client_id = COALESCE(?, ctrader_client_id), ctrader_client_secret = COALESCE(?, ctrader_client_secret), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
-			req.Name, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.TimezoneOffset, id, userID)
+		res, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), ctrader_account_id = COALESCE(?, ctrader_account_id), ctrader_token = COALESCE(?, ctrader_token), ctrader_client_id = COALESCE(?, ctrader_client_id), ctrader_client_secret = COALESCE(?, ctrader_client_secret), ctrader_env = COALESCE(?, ctrader_env), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+			req.Name, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.TimezoneOffset, id, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -175,8 +177,8 @@ func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 		userID := c.GetInt64("user_id")
 
 		var acc models.Account
-		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''), COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, '') FROM accounts WHERE id = ? AND user_id = ?", id, userID).
-			Scan(&acc.ID, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.CTraderAccountID, &acc.CTraderToken, &acc.CTraderClientID, &acc.CTraderClientSecret)
+		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''), COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, ''), COALESCE(ctrader_env, 'live') FROM accounts WHERE id = ? AND user_id = ?", id, userID).
+			Scan(&acc.ID, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.CTraderAccountID, &acc.CTraderToken, &acc.CTraderClientID, &acc.CTraderClientSecret, &acc.CTraderEnv)
 
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "找不到該帳號"})
@@ -193,7 +195,7 @@ func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 		if acc.Type == "metatrader" {
 			go mt5.SyncMT5History(db, acc.ID, acc.MT5AccountID, acc.MT5Token)
 		} else if acc.Type == "ctrader" {
-			go ctrader.SyncCTraderHistory(db, acc.ID, acc.CTraderAccountID, acc.CTraderToken, acc.CTraderClientID, acc.CTraderClientSecret)
+			go ctrader.SyncCTraderHistory(db, acc.ID, acc.CTraderAccountID, acc.CTraderToken, acc.CTraderClientID, acc.CTraderClientSecret, acc.CTraderEnv)
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "同步指令已發送，這可能需要一點時間。"})

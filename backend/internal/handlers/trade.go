@@ -36,7 +36,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
 			   t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
 			   t.legend_king_htf, t.legend_king_image, t.legend_king_image_original, t.legend_htf, t.legend_htf_image, t.legend_htf_image_original, t.legend_de_htf,
-			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at
+			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history
 		FROM trades t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN trade_tags tt ON t.id = tt.trade_id
@@ -98,7 +98,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 				&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio, &trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
 				&trade.LegendKingHTF, &trade.LegendKingImage, &trade.LegendKingImageOriginal, &trade.LegendHTF, &trade.LegendHTFImage, &trade.LegendHTFImageOriginal, &trade.LegendDeHTF,
-				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt,
+				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory,
 			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -161,7 +161,7 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 				   COALESCE(t.notes, ''), t.entry_reason, t.exit_reason, t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist,
 				   t.entry_pattern, t.trend_analysis, t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
 				   t.legend_king_htf, t.legend_king_image, t.legend_king_image_original, t.legend_htf, t.legend_htf_image, t.legend_htf_image_original, t.legend_de_htf,
-				   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at
+				   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history
 			FROM trades t
 			LEFT JOIN accounts a ON t.account_id = a.id
 			WHERE t.id = ? AND a.user_id = ?
@@ -171,7 +171,7 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 			&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio, &trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
 			&trade.LegendKingHTF, &trade.LegendKingImage, &trade.LegendKingImageOriginal, &trade.LegendHTF, &trade.LegendHTFImage, &trade.LegendHTFImageOriginal, &trade.LegendDeHTF,
-			&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt,
+			&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory,
 		)
 
 		if err == sql.ErrNoRows {

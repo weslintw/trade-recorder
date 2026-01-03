@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"trade-journal/internal/ctrader"
 	"trade-journal/internal/database"
 	"trade-journal/internal/handlers"
 	"trade-journal/internal/middleware"
@@ -47,6 +48,9 @@ func main() {
 	if err != nil {
 		log.Fatal("無法初始化MinIO:", err)
 	}
+
+	// 啟動 cTrader 背景監聽管理器
+	ctrader.StartManager(db)
 
 	// 設置Gin路由
 	r := gin.Default()

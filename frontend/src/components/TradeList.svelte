@@ -773,7 +773,7 @@
   }
 
   .pnl.loss {
-    color: #dc2626;
+    color: #ef4444;
   }
 
   .trade-tags {

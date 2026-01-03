@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { navigate, Link } from 'svelte-routing';
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
@@ -12,11 +12,38 @@
   let loading = true;
   let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
+  let isSyncing = false;
   let showAccountModal = false;
+  let pollingInterval;
 
-  async function loadData() {
+  // 追蹤當前選取的帳號詳情
+  $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
+
+  function navigateWithScroll(path) {
+    sessionStorage.setItem('home_scroll_pos', window.scrollY);
+    navigate(path);
+  }
+
+  async function handleSync() {
+    if (!$selectedAccountId || isSyncing) return;
+    isSyncing = true;
     try {
-      loading = true;
+      await accountsAPI.sync($selectedAccountId);
+      // Refresh both account info (for storage usage) and data
+      const accountsRes = await accountsAPI.getAll();
+      accounts.set(accountsRes.data);
+      await loadData();
+    } catch (error) {
+      console.error('Sync failed:', error);
+      alert('同步失敗: ' + (error.response?.data?.error || error.message));
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  async function loadData(silent = false) {
+    try {
+      if (!silent) loading = true;
       const symbol = $selectedSymbol;
 
       // 更新今天日期文字
@@ -113,8 +140,37 @@
     loading = false;
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // 獲取最新帳號清單，確保首頁能顯示狀態
+    try {
+      const res = await accountsAPI.getAll();
+      accounts.set(res.data);
+    } catch (e) {
+      console.error('Failed to pre-fetch accounts:', e);
+    }
+
     // 初始載入由下面的 $: 響應式語句處理
+    // 設定每 30 秒自動輪詢一次資料
+    pollingInterval = setInterval(() => {
+      if (!$selectedAccountId) return;
+      console.log('Auto-polling data...');
+      loadData(true); // silent update
+    }, 30000);
+
+    // Restore scroll position
+    const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
+    if (savedScrollPos) {
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollPos));
+        sessionStorage.removeItem('home_scroll_pos');
+      }, 500); // Wait for data to render
+    }
+  });
+
+  onDestroy(() => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
   });
 
   function formatDate(dateString) {
@@ -129,6 +185,15 @@
       minute: '2-digit',
       hour12: false,
     });
+  }
+
+  function formatBytes(bytes, decimals = 2) {
+    if (!bytes || bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
   function formatDay(dateString) {
@@ -279,7 +344,75 @@
 <div class="timeline-container">
   <!-- 頂部快速操作區 -->
   <div class="top-actions-bar">
+    <div class="account-status-bar">
+      {#if currentAccount}
+        <div class="status-badges">
+          <span
+            class="badge {currentAccount.type === 'local'
+              ? 'badge-info'
+              : currentAccount.type === 'metatrader'
+                ? 'badge-mt5'
+                : 'badge-ctrader'}"
+          >
+            {currentAccount.type === 'local'
+              ? '本地帳號'
+              : currentAccount.type === 'metatrader'
+                ? 'MetaTrader 5'
+                : 'cTrader'}
+          </span>
+          <span
+            class="badge {currentAccount.status === 'active' ? 'badge-success' : 'badge-danger'}"
+          >
+            {currentAccount.status}
+          </span>
+          <span class="badge badge-utc"
+            >UTC{currentAccount.timezone_offset >= 0
+              ? '+'
+              : ''}{currentAccount.timezone_offset}</span
+          >
+          <div class="account-details-inline">
+            <span class="storage-info">
+              <span class="label">📊 圖文佔用：</span>
+              <strong>{formatBytes(currentAccount.storage_usage)}</strong>
+            </span>
+            {#if currentAccount.type === 'ctrader'}
+              <span class="login-id">Login ID: {currentAccount.ctrader_account_id}</span>
+            {:else}
+              <span class="login-id">ID: {currentAccount.mt5_account_id}</span>
+            {/if}
+          </div>
+          {#if currentAccount.type !== 'local'}
+            <div class="sync-status-info">
+              <span class="sync-badge {currentAccount.sync_status}"
+                >{currentAccount.sync_status}</span
+              >
+              {#if currentAccount.last_synced_at}
+                <span class="sync-time">
+                  最後同步: {new Date(currentAccount.last_synced_at).toLocaleString('zh-TW', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
     <div class="quick-btns">
+      {#if currentAccount && currentAccount.type !== 'local'}
+        <button
+          class="small-action-btn sync {isSyncing ? 'syncing' : ''}"
+          on:click={handleSync}
+          disabled={isSyncing}
+        >
+          <span class="btn-icon">{isSyncing ? '⏳' : '🔄'}</span>
+          {isSyncing ? '同步中...' : '手動同步'}
+        </button>
+      {/if}
       <button
         class="small-action-btn plan"
         data-testid="add-plan-btn"
@@ -417,7 +550,7 @@
                         class="trade-time-group is-multi {timeGroup.trades[0].color_tag
                           ? `tag-${timeGroup.trades[0].color_tag}`
                           : ''}"
-                        on:click={() => navigate(`/edit/${timeGroup.trades[0].id}`)}
+                        on:click={() => navigateWithScroll(`/edit/${timeGroup.trades[0].id}`)}
                       >
                         <div class="group-header">
                           <div class="group-meta">
@@ -426,13 +559,25 @@
                             <span class="side-tag {timeGroup.summary.side}"
                               >{timeGroup.summary.side === 'long' ? '📈 做多' : '📉 做空'}</span
                             >
-                            <span class="group-entry-price"
-                              >進場: <strong>{timeGroup.summary.entry_price}</strong></span
-                            >
-                            <span class="group-lot"
-                              >總手數: <strong>{timeGroup.summary.totalLot.toFixed(2)}</strong
-                              ></span
-                            >
+                            <div class="info-group">
+                              <span class="label">進場</span>
+                              <strong>{timeGroup.summary.entry_price}</strong>
+                            </div>
+                            <div class="info-group">
+                              <span class="label">平均平倉</span>
+                              <strong
+                                >{(
+                                  timeGroup.trades.reduce(
+                                    (acc, t) => acc + (t.exit_price || 0),
+                                    0
+                                  ) / timeGroup.trades.length
+                                ).toFixed(2)}</strong
+                              >
+                            </div>
+                            <div class="info-group">
+                              <span class="label">總手數</span>
+                              <strong>{timeGroup.summary.totalLot.toFixed(2)}</strong>
+                            </div>
                           </div>
                           <div class="group-pnl">
                             <div class="color-tags" on:click|stopPropagation>
@@ -473,15 +618,25 @@
                         <div class="group-partial-closes">
                           {#each timeGroup.trades as trade}
                             <div class="partial-close-row">
-                              <span class="partial-time"
-                                >{formatDate(trade.entry_time).split(' ')[1]}</span
-                              >
-                              <span class="partial-info"
-                                >平倉: <strong>{trade.exit_price || '-'}</strong> ({trade.lot_size} 手)</span
-                              >
-                              <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
-                                >{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span
-                              >
+                              <div class="info-group">
+                                <span class="label"
+                                  >{formatDate(trade.entry_time).split(' ')[1]}</span
+                                >
+                                <span class="label">平倉</span>
+                                <strong>{trade.exit_price || '-'}</strong>
+                                <span class="label">({trade.lot_size} 手)</span>
+                              </div>
+                              <div class="info-group">
+                                {#if trade.rr_ratio}
+                                  <span class="label">風報</span>
+                                  <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
+                                    >{trade.rr_ratio.toFixed(2)}</strong
+                                  >
+                                {/if}
+                                <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
+                                  >{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span
+                                >
+                              </div>
                               {#if trade.ticket}<span class="partial-ticket">#{trade.ticket}</span
                                 >{/if}
                             </div>
@@ -493,7 +648,7 @@
                       {@const trade = timeGroup.trades[0]}
                       <div
                         class="trade-item-card {trade.color_tag ? `tag-${trade.color_tag}` : ''}"
-                        on:click={() => navigate(`/edit/${trade.id}`)}
+                        on:click={() => navigateWithScroll(`/edit/${trade.id}`)}
                       >
                         <div class="item-header">
                           <div class="trade-meta">
@@ -548,22 +703,37 @@
 
                         <div class="trade-details">
                           <div class="detail-row">
-                            <span>進場: <strong>{trade.entry_price}</strong></span>
-                            <span>平倉: <strong>{trade.exit_price || '-'}</strong></span>
-                            <span>手數: <strong>{trade.lot_size}</strong></span>
-                            {#if trade.exit_sl}<span class="exit-sl-info"
-                                >平倉SL: <strong>{trade.exit_sl}</strong></span
-                              >{/if}
-                            {#if trade.initial_sl}
-                              <span class="bullet-info"
-                                >子彈: <strong>{trade.bullet_size?.toFixed(1) || '-'}</strong></span
+                            <div class="info-group">
+                              <span class="label">進場</span>
+                              <strong>{trade.entry_price}</strong>
+                              <span class="arrow">→</span>
+                              <span class="label">平倉</span>
+                              <strong>{trade.exit_price || '-'}</strong>
+                            </div>
+
+                            <div class="info-group">
+                              <span class="label">SL</span>
+                              <strong>{trade.initial_sl || '-'}</strong>
+                              <span class="label">子彈</span>
+                              <strong class="bullet">{trade.bullet_size?.toFixed(1) || '-'}</strong>
+                            </div>
+
+                            <div class="info-group">
+                              <span class="label">風報</span>
+                              <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
+                                >{trade.rr_ratio?.toFixed(2) || '-'}</strong
                               >
-                              <span class="rr-info"
-                                >風報: <strong>{trade.rr_ratio?.toFixed(2) || '-'}</strong></span
-                              >
-                            {/if}
+                              <span class="label">手數</span>
+                              <strong>{trade.lot_size}</strong>
+                              {#if trade.exit_sl}
+                                <span class="label">平倉SL</span>
+                                <strong>{trade.exit_sl}</strong>
+                              {/if}
+                            </div>
                           </div>
-                          <div class="trade-time">{formatDate(trade.entry_time).split(' ')[1]}</div>
+                          <div class="trade-time">
+                            {formatDate(trade.entry_time).split(' ')[1]}
+                          </div>
                         </div>
 
                         {#if trade.images && trade.images.length > 0}
@@ -647,6 +817,138 @@
     flex-direction: column;
     align-items: center;
     gap: 1.5rem;
+  }
+
+  /* Account Status Bar */
+  .account-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+  }
+
+  .status-badges {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+
+  .account-details-inline {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: #f8fafc;
+    padding: 0.3rem 0.75rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .storage-info .label {
+    opacity: 0.7;
+  }
+
+  .login-id {
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.8;
+  }
+
+  .sync-status-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid #e2e8f0;
+    margin-left: 0.25rem;
+  }
+
+  .sync-badge {
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 800;
+  }
+  .sync-badge.idle {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+  .sync-badge.syncing {
+    background: #e0f2fe;
+    color: #0369a1;
+    animation: pulse 2s infinite;
+  }
+  .sync-badge.success {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .sync-badge.failed {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  @keyframes pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .sync-time {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .badge {
+    padding: 0.3rem 0.75rem;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .badge-info {
+    background: #e0f2fe;
+    color: #0369a1;
+  }
+  .badge-mt5 {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+  }
+  .badge-ctrader {
+    background: #ecfdf5;
+    color: #065f46;
+  }
+  .badge-success {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .badge-danger {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  .badge-utc {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+  }
+
+  .top-actions-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0 0.5rem 2rem; /* 左側 padding 2rem 以對齊下面卡片 */
+    margin-bottom: 1.5rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
   }
 
   .welcome-icon {
@@ -1069,7 +1371,12 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .group-meta::-webkit-scrollbar {
+    display: none;
   }
 
   .multi-indicator {
@@ -1080,12 +1387,7 @@
     padding: 2px 8px;
     border-radius: 4px;
     box-shadow: 0 2px 4px rgba(244, 114, 182, 0.3);
-  }
-
-  .group-entry-price,
-  .group-lot {
-    font-size: 0.85rem;
-    color: #475569;
+    flex-shrink: 0;
   }
 
   .group-pnl {
@@ -1110,35 +1412,39 @@
   }
 
   .partial-close-row {
-    display: grid;
-    grid-template-columns: 80px 1fr 80px 100px;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     color: #64748b;
-    padding: 4px 0;
+    padding: 6px 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .partial-close-row::-webkit-scrollbar {
+    display: none;
   }
 
   .partial-close-row:not(:last-child) {
-    border-bottom: 1px solid #f1f5f9;
-  }
-
-  .partial-time {
-    font-weight: 600;
-    color: #94a3b8;
-  }
-
-  .partial-info strong {
-    color: #334155;
+    border-bottom: 1px dashed #f1f5f9;
   }
 
   .partial-pnl {
     font-weight: 700;
-    text-align: right;
+    margin-left: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .partial-ticket {
+    font-size: 0.7rem;
+    color: #cbd5e1;
+    font-family: monospace;
   }
 
   .partial-pnl.profit {
-    color: #10b981;
+    color: #3b82f6;
   }
   .partial-pnl.loss {
     color: #ef4444;
@@ -1178,6 +1484,9 @@
   .pnl-tag.profit {
     color: #3b82f6;
   }
+  .pnl-tag.loss {
+    color: #ef4444;
+  }
   .mini-step.short {
     color: #ef4444;
   }
@@ -1194,23 +1503,50 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #f1f5f9;
   }
 
   .detail-row {
     font-size: 0.8rem;
     color: #64748b;
     display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 1.5rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+  }
+  .detail-row::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome/Safari */
   }
 
-  .bullet-info strong {
+  .info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+  }
+
+  .info-group .label {
+    color: #94a3b8;
+    font-size: 0.75rem;
+  }
+
+  .info-group .arrow {
+    color: #cbd5e1;
+    margin: 0 0.2rem;
+  }
+
+  .bullet {
     color: #6366f1;
   }
 
-  .rr-info strong {
+  .rr.profit {
     color: #f59e0b;
+  }
+  .rr.loss {
+    color: #ef4444;
   }
 
   .trade-time {
@@ -1390,14 +1726,51 @@
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 
-  .small-action-btn.plan:hover {
-    border-color: #6366f1;
+  .small-action-btn.sync {
+    background: rgba(99, 102, 241, 0.1);
+    color: #818cf8;
+  }
+
+  .small-action-btn.sync:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  }
+
+  .small-action-btn.syncing .btn-icon {
+    display: inline-block;
+    animation: rotate 2s linear infinite;
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .small-action-btn.plan {
+    background: rgba(99, 102, 241, 0.05);
+    border-color: rgba(99, 102, 241, 0.2);
     color: #4f46e5;
   }
 
-  .small-action-btn.trade:hover {
-    border-color: #10b981;
+  .small-action-btn.plan:hover {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: #6366f1;
+  }
+
+  .small-action-btn.trade {
+    background: rgba(16, 185, 129, 0.05);
+    border-color: rgba(16, 185, 129, 0.2);
     color: #059669;
+  }
+
+  .small-action-btn.trade:hover {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: #10b981;
   }
 
   .btn-icon {

@@ -41,6 +41,9 @@ func InitDB() (*sql.DB, error) {
 		return nil, err
 	}
 
+	// 遷移：確保 initial_sl 欄位存在
+	_, _ = db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL")
+
 	log.Println("資料庫初始化成功")
 	return db, nil
 }
@@ -67,6 +70,7 @@ func createTables(db *sql.DB) error {
 		ctrader_token TEXT,             -- cTrader Token
 		ctrader_client_id VARCHAR(100), -- cTrader Client ID
 		ctrader_client_secret TEXT,     -- cTrader Client Secret
+		ctrader_env VARCHAR(20) DEFAULT 'live', -- 'live' or 'demo'
 		status VARCHAR(20) DEFAULT 'active',
 		storage_usage INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -87,6 +91,7 @@ func createTables(db *sql.DB) error {
 		notes TEXT,
 		entry_reason TEXT,
 		exit_reason TEXT,
+		initial_sl REAL,
 		exit_sl REAL,
 		legend_king_htf VARCHAR(20),
 		legend_king_image TEXT,
@@ -307,6 +312,7 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_token TEXT;")
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_client_id VARCHAR(100);")
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_client_secret TEXT;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_env VARCHAR(20) DEFAULT 'live';")
 
 	db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL;")
 	db.Exec("ALTER TABLE trades ADD COLUMN bullet_size REAL;")

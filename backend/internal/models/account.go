@@ -13,6 +13,7 @@ type Account struct {
 	CTraderToken    string     `json:"ctrader_token"`
 	CTraderClientID string     `json:"ctrader_client_id"`
 	CTraderClientSecret string `json:"ctrader_client_secret"`
+	CTraderEnv      string     `json:"ctrader_env"` // "live" or "demo"
 	Status          string     `json:"status"` // "active", "disconnected"
 	TimezoneOffset int        `json:"timezone_offset"` // 時區偏移
 	SyncStatus     string     `json:"sync_status"`     // "idle", "syncing", "success", "failed"
@@ -33,6 +34,7 @@ type AccountCreate struct {
 	CTraderToken    string `json:"ctrader_token"`
 	CTraderClientID string `json:"ctrader_client_id"`
 	CTraderClientSecret string `json:"ctrader_client_secret"`
+	CTraderEnv      string `json:"ctrader_env"`
 	TimezoneOffset int    `json:"timezone_offset"`
 }
 
@@ -45,5 +47,6 @@ type AccountUpdate struct {
 	CTraderToken     *string `json:"ctrader_token"`
 	CTraderClientID  *string `json:"ctrader_client_id"`
 	CTraderClientSecret *string `json:"ctrader_client_secret"`
+	CTraderEnv       *string `json:"ctrader_env"`
 	TimezoneOffset  *int    `json:"timezone_offset"`
 }

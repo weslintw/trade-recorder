@@ -144,6 +144,18 @@
       alert('更新名稱失敗');
     }
   }
+  // --- 彈窗編輯相關 ---
+  let editingAccount = null;
+
+  function openAddModal() {
+    editingAccount = null;
+    showAddModal = true;
+  }
+
+  function openEditModal(acc) {
+    editingAccount = acc;
+    showAddModal = true;
+  }
 
   // --- 選取帳號相關 ---
   function selectAccount(id) {
@@ -165,10 +177,8 @@
 <div class="account-mgmt">
   <div class="header">
     <h1 data-testid="accounts-header">交易帳號管理</h1>
-    <button
-      class="btn btn-primary"
-      data-testid="add-account-btn"
-      on:click={() => (showAddModal = true)}>+ 新增交易帳號</button
+    <button class="btn btn-primary" data-testid="add-account-btn" on:click={openAddModal}
+      >+ 新增交易帳號</button
     >
   </div>
 
@@ -221,6 +231,11 @@
                   class="btn-edit-small"
                   on:click|stopPropagation={() => startEditing(acc)}
                   title="重新命名">✏️</button
+                >
+                <button
+                  class="btn-edit-small"
+                  on:click|stopPropagation={() => openEditModal(acc)}
+                  title="帳號設定">⚙️</button
                 >
               </div>
             {/if}
@@ -305,13 +320,17 @@
       {/each}
     </div>
   {/if}
-  <AccountModal
-    bind:show={showAddModal}
-    on:success={async e => {
-      selectedAccountId.set(parseInt(e.detail.accountId));
-      window.location.reload();
-    }}
-  />
+  {#if showAddModal}
+    <AccountModal
+      show={showAddModal}
+      account={editingAccount}
+      on:close={() => (showAddModal = false)}
+      on:success={() => {
+        showAddModal = false;
+        fetchAccounts();
+      }}
+    />
+  {/if}
   {#if showImportModal}
     <div class="modal-overlay" on:click|self={() => (showImportModal = false)} role="presentation">
       <div class="modal card">
@@ -402,21 +421,40 @@
   }
 
   .account-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 1.5rem;
+    align-items: stretch;
   }
 
   .account-card {
+    flex: 1 1 320px;
+    max-width: calc(50% - 0.75rem);
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: 180px;
+    min-height: 200px;
     cursor: pointer;
     transition: all 0.2s ease;
     border: 2px solid transparent;
     position: relative;
+    box-sizing: border-box;
+  }
+
+  /* 行動端全寬 */
+  @media (max-width: 768px) {
+    .account-card {
+      max-width: 100%;
+      flex-basis: 100%;
+    }
+  }
+
+  .account-card.ctrader {
+    border-left: 4px solid #10b981;
+  }
+  .account-card.mt5 {
+    border-left: 4px solid #6366f1;
   }
 
   .account-card:hover {
