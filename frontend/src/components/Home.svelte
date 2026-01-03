@@ -621,7 +621,9 @@
                             <div class="partial-close-row">
                               <div class="info-group">
                                 <span class="label"
-                                  >{formatDate(trade.entry_time).split(' ')[1]}</span
+                                  >{formatDate(trade.exit_time || trade.entry_time).split(
+                                    ' '
+                                  )[1]}</span
                                 >
                                 <span class="label">平倉</span>
                                 <strong>{trade.exit_price || '-'}</strong>
@@ -733,7 +735,9 @@
                             </div>
                           </div>
                           <div class="trade-time">
-                            {formatDate(trade.entry_time).split(' ')[1]}
+                            {formatDate(trade.entry_time).split(' ')[1]} - {trade.exit_time
+                              ? formatDate(trade.exit_time).split(' ')[1]
+                              : '進行中'}
                           </div>
                         </div>
 

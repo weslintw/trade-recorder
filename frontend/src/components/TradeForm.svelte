@@ -1080,7 +1080,7 @@
                   <span class="sl-price">{entry.price}</span>
                   {#if entry.time}
                     <span class="sl-time"
-                      >{new Date(entry.time).toLocaleTimeString([], {
+                      >{new Date(entry.time).toLocaleTimeString('zh-TW', {
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit',
@@ -1208,7 +1208,7 @@
                   <span class="sl-price">{entry.price}</span>
                   {#if entry.time}
                     <span class="sl-time"
-                      >{new Date(entry.time).toLocaleTimeString([], {
+                      >{new Date(entry.time).toLocaleTimeString('zh-TW', {
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit',
