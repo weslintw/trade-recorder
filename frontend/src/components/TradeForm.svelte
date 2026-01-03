@@ -406,11 +406,13 @@
       // 3. 風報比計算 (RR Ratio)
       const currentPoints = parseFloat(formData.pnl_points);
       const currentBullet = parseFloat(formData.bullet_size);
-      if (!isNaN(currentPoints) && !isNaN(currentBullet) && currentBullet !== 0) {
+      if (!isNaN(currentPoints) && !isNaN(currentBullet) && currentBullet > 0) {
         const result = Math.round((currentPoints / currentBullet) * 100) / 100;
         if (formData.rr_ratio !== result) {
           formData.rr_ratio = result;
         }
+      } else {
+        formData.rr_ratio = '';
       }
     }
   }

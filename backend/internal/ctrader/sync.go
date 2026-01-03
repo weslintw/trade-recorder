@@ -189,6 +189,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		
 		sort.Slice(deals, func(i, j int) bool { return deals[i].ExecutionTimestamp < deals[j].ExecutionTimestamp })
 		entryTime := deals[0].ExecutionTimestamp
+		openingOrderID := deals[0].OrderID // The order that created this position
 		
 		// HYBRID SL SEARCH: Collect all unique SLs (with timestamps) + find authoritative Initial
 		initialSL := 0.0
@@ -199,33 +200,76 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		allSLEntries := []slEntry{}
 		orderSLMap := make(map[int64]float64)
 		
-		addSL := func(sl float64, t int64) {
+		addSL := func(sl float64, t int64, orderID int64) {
 			if sl <= 0 { return }
-			for _, existing := range allSLEntries { if existing.Price == sl { return } }
-			allSLEntries = append(allSLEntries, slEntry{Price: sl, Time: t})
+			found := false
+			for i, existing := range allSLEntries {
+				if math.Abs(existing.Price-sl) < 0.00001 {
+					if t < existing.Time { allSLEntries[i].Time = t }
+					found = true
+					break
+				}
+			}
+			if !found { allSLEntries = append(allSLEntries, slEntry{Price: sl, Time: t}) }
+			
+			// AUTHORITATIVE INITIAL SL: If this SL is from the order that opened the position, it's the winner
+			if orderID == openingOrderID {
+				initialSL = sl
+				log.Printf("[SL DEBUG] -> Identified Initial SL (Authoritative Opening Order): %.5f", sl)
+			}
 		}
 
-		// 1. Check Bulk History
+		
+		log.Printf("[SL DEBUG] Position %d | EntryTime: %d | OpeningOrderID: %d", pid, entryTime, openingOrderID)
+
+		// STEP 1: ALWAYS fetch the opening order details directly (HIGHEST PRIORITY)
+		time.Sleep(5 * time.Millisecond)
+		odResp, odErr := sendRequest(conn, PayloadOrderDetailsReq, map[string]interface{}{
+			"ctidTraderAccountId": cTID,
+			"orderId": openingOrderID,
+		})
+		if odErr == nil {
+			var od struct { Order struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"` } `json:"order"` }
+			json.Unmarshal(odResp.Payload, &od)
+			sl := od.Order.StopLoss
+			if sl == 0 { sl = od.Order.StopPrice }
+			if sl > 0 {
+				initialSL = sl
+				addSL(sl, entryTime, openingOrderID)
+				log.Printf("[SL DEBUG] ✓ Opening Order Direct Fetch: SL=%.5f (Order %d)", sl, openingOrderID)
+			} else {
+				log.Printf("[SL DEBUG] ✗ Opening Order has NO SL (Order %d)", openingOrderID)
+			}
+		} else {
+			log.Printf("[SL DEBUG] ✗ Failed to fetch Opening Order details (Order %d): %v", openingOrderID, odErr)
+		}
+
+		// STEP 2: Check Bulk History (for SL modification timeline)
 		history := orderHistoryMap[pid]
 		sort.Slice(history, func(i, j int) bool { return history[i].TradeTimestamp < history[j].TradeTimestamp })
 		for _, o := range history {
 			sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 			if sl > 0 {
-				addSL(sl, o.TradeTimestamp)
-				if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 2000 { initialSL = sl }
+				log.Printf("[SL DEBUG] Bulk Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
+				addSL(sl, o.TradeTimestamp, o.OrderID)
+				// Only set initialSL from bulk if we didn't get it from opening order
+				if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 60000 { 
+					initialSL = sl 
+					log.Printf("[SL DEBUG] -> Initial SL from Bulk (within 60s): %.5f", sl)
+				}
 				orderSLMap[o.OrderID] = sl
 			}
 		}
 
-		// 2. Targeted Backtrace: Always fetch full history for THIS position to ensure 100% traceability (v2.39)
+		// STEP 3: Targeted Backtrace for additional history
 		if true {
-			time.Sleep(10 * time.Millisecond) // Slight delay to respect rate limits during bulk sync
+			time.Sleep(10 * time.Millisecond)
 			exitTime := deals[len(deals)-1].ExecutionTimestamp
 			olResp, olErr := sendRequest(conn, PayloadOrderListByPositionIdReq, map[string]interface{}{
 				"ctidTraderAccountId": cTID, 
 				"positionId": pid,
-				"fromTimestamp": entryTime - 24*3600000, // 24h before entry buffer
-				"toTimestamp": exitTime + 3600000,      // 1h after exit buffer
+				"fromTimestamp": entryTime - 25*3600000,
+				"toTimestamp": exitTime + 7200000,
 			})
 			if olErr == nil {
 				var op struct { Order []struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; TradeTimestamp int64 `json:"utcLastUpdateTimestamp"` } `json:"order"` }
@@ -235,17 +279,28 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					for _, o := range op.Order {
 						sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 						if sl > 0 {
-							addSL(sl, o.TradeTimestamp)
-							if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 2000 { initialSL = sl }
+							log.Printf("[SL DEBUG] Targeted Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
+							addSL(sl, o.TradeTimestamp, o.OrderID)
+							// Only set initialSL from targeted if we didn't get it from opening order or bulk
+							if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 60000 { 
+								initialSL = sl 
+								log.Printf("[SL DEBUG] -> Initial SL from Targeted (within 60s): %.5f", sl)
+							}
 							orderSLMap[o.OrderID] = sl
 						}
 					}
 				}
+			} else {
+				log.Printf("[SL DEBUG] Targeted request failed for PID %d: %v", pid, olErr)
 			}
 		}
 
-		// Pick very first SL if none matched entry window strictly
-		if initialSL == 0 && len(allSLEntries) > 0 { initialSL = allSLEntries[0].Price }
+		// Final sort and pick very first SL if none matched entry window strictly
+		sort.Slice(allSLEntries, func(i, j int) bool { return allSLEntries[i].Time < allSLEntries[j].Time })
+		if initialSL == 0 && len(allSLEntries) > 0 { 
+			initialSL = allSLEntries[0].Price 
+			log.Printf("[SL DEBUG] -> Initial SL fallback (Earliest seen): %.5f", initialSL)
+		}
 		slHistoryJSON, _ := json.Marshal(allSLEntries)
 
 		// Process each closed deal in this position

@@ -706,6 +706,7 @@
 
                         <div class="trade-details">
                           <div class="detail-row">
+                            <!-- 第一組：價格資訊 -->
                             <div class="info-group">
                               <span class="label">進場</span>
                               <strong>{trade.entry_price}</strong>
@@ -717,21 +718,24 @@
                             <div class="info-group">
                               <span class="label">SL</span>
                               <strong>{trade.initial_sl || '-'}</strong>
-                              <span class="label">子彈</span>
-                              <strong class="bullet">{trade.bullet_size?.toFixed(1) || '-'}</strong>
-                            </div>
-
-                            <div class="info-group">
-                              <span class="label">風報</span>
-                              <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
-                                >{trade.rr_ratio?.toFixed(2) || '-'}</strong
-                              >
-                              <span class="label">手數</span>
-                              <strong>{trade.lot_size}</strong>
                               {#if trade.exit_sl}
                                 <span class="label">平倉SL</span>
                                 <strong>{trade.exit_sl}</strong>
                               {/if}
+                            </div>
+
+                            <!-- 第二組：績效資訊 -->
+                            <div class="info-group">
+                              <span class="label">子彈</span>
+                              <strong class="bullet">{trade.bullet_size?.toFixed(1) || '-'}</strong>
+                              {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
+                                <span class="label">風報</span>
+                                <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
+                                  >{trade.rr_ratio.toFixed(2)}</strong
+                                >
+                              {/if}
+                              <span class="label">手數</span>
+                              <strong>{trade.lot_size}</strong>
                             </div>
                           </div>
                           <div class="trade-time">
@@ -1507,23 +1511,22 @@
   .trade-details {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: flex-start;
     margin-top: 0.75rem;
     padding-top: 0.5rem;
     border-top: 1px dashed #f1f5f9;
+    gap: 0.75rem 1rem;
+    flex-wrap: wrap;
   }
 
   .detail-row {
+    flex: 1;
+    min-width: 0;
     font-size: 0.8rem;
     color: #64748b;
     display: flex;
-    gap: 1.5rem;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none; /* Hide scrollbar Firefox */
-  }
-  .detail-row::-webkit-scrollbar {
-    display: none; /* Hide scrollbar Chrome/Safari */
+    gap: 0.5rem 1.5rem;
+    flex-wrap: wrap;
   }
 
   .info-group {
@@ -1557,6 +1560,9 @@
   .trade-time {
     font-size: 0.75rem;
     color: #94a3b8;
+    white-space: nowrap;
+    text-align: right;
+    flex-shrink: 0;
   }
 
   .mini-gallery {
