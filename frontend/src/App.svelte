@@ -38,7 +38,12 @@
   $: currentSession = MARKET_SESSIONS.find(s => s.value === currentSessionValue);
 
   function formatTime(date) {
-    return date.toLocaleTimeString('zh-TW', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('zh-TW', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   }
 
   function formatDate(date) {

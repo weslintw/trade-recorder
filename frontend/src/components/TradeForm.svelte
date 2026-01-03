@@ -1083,6 +1083,7 @@
                       >{new Date(entry.time).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
+                        second: '2-digit',
                       })}</span
                     >
                   {/if}
@@ -1210,6 +1211,7 @@
                       >{new Date(entry.time).toLocaleTimeString([], {
                         hour: '2-digit',
                         minute: '2-digit',
+                        second: '2-digit',
                       })}</span
                     >
                   {/if}
@@ -1237,6 +1239,7 @@
                   >{new Date(t.exit_time).toLocaleString('zh-TW', {
                     hour: '2-digit',
                     minute: '2-digit',
+                    second: '2-digit',
                   })}</strong
                 >
               </div>
@@ -1267,6 +1270,7 @@
           id="entry_time"
           class="form-control"
           bind:value={formData.entry_time}
+          step="1"
           required
         />
       </div>
