@@ -217,9 +217,9 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			}
 		}
 
-		// 2. Targeted Fallback: Fetch specific history for THIS position with full time window
-		if initialSL == 0 || len(allSLEntries) < 2 {
-			time.Sleep(20 * time.Millisecond)
+		// 2. Targeted Backtrace: Always fetch full history for THIS position to ensure 100% traceability (v2.39)
+		if true {
+			time.Sleep(10 * time.Millisecond) // Slight delay to respect rate limits during bulk sync
 			exitTime := deals[len(deals)-1].ExecutionTimestamp
 			olResp, olErr := sendRequest(conn, PayloadOrderListByPositionIdReq, map[string]interface{}{
 				"ctidTraderAccountId": cTID, 

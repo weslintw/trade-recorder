@@ -1326,6 +1326,7 @@
             id="exit_time"
             class="form-control"
             bind:value={formData.exit_time}
+            step="1"
           />
         </div>
       </div>
