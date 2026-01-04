@@ -188,6 +188,28 @@
     });
   }
 
+  function calculateDuration(start, end) {
+    if (!start || !end) return '';
+    const startTime = new Date(start).getTime();
+    const endTime = new Date(end).getTime();
+    if (isNaN(startTime) || isNaN(endTime)) return '';
+
+    const diffMs = endTime - startTime;
+    if (diffMs < 0) return '';
+
+    const diffSec = Math.floor(diffMs / 1000);
+    const hours = Math.floor(diffSec / 3600);
+    const minutes = Math.floor((diffSec % 3600) / 60);
+    const seconds = diffSec % 60;
+
+    const parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+
+    return parts.join(' ');
+  }
+
   function formatBytes(bytes, decimals = 2) {
     if (!bytes || bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -631,9 +653,15 @@
                               </div>
                               <div class="info-group">
                                 {#if trade.rr_ratio}
-                                  <span class="label">風報</span>
+                                  <span class="label">風報比</span>
                                   <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
                                     >{trade.rr_ratio.toFixed(2)}</strong
+                                  >
+                                {/if}
+                                {#if trade.exit_time}
+                                  <span class="label">持單時間</span>
+                                  <strong
+                                    >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
                                   >
                                 {/if}
                                 <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
@@ -716,10 +744,10 @@
                             </div>
 
                             <div class="info-group">
-                              <span class="label">SL</span>
+                              <span class="label">初始ＳＬ</span>
                               <strong>{trade.initial_sl || '-'}</strong>
                               {#if trade.exit_sl}
-                                <span class="label">平倉SL</span>
+                                <span class="label">平倉ＳＬ</span>
                                 <strong>{trade.exit_sl}</strong>
                               {/if}
                             </div>
@@ -729,13 +757,19 @@
                               <span class="label">子彈</span>
                               <strong class="bullet">{trade.bullet_size?.toFixed(1) || '-'}</strong>
                               {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
-                                <span class="label">風報</span>
+                                <span class="label">風報比</span>
                                 <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
                                   >{trade.rr_ratio.toFixed(2)}</strong
                                 >
                               {/if}
                               <span class="label">手數</span>
                               <strong>{trade.lot_size}</strong>
+                              {#if trade.exit_time}
+                                <span class="label">持單時間</span>
+                                <strong class="duration-text"
+                                  >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
+                                >
+                              {/if}
                             </div>
                           </div>
                           <div class="trade-time">
@@ -1555,6 +1589,11 @@
   }
   .rr.loss {
     color: #ef4444;
+  }
+
+  .duration-text {
+    color: #6366f1;
+    font-weight: 600;
   }
 
   .trade-time {

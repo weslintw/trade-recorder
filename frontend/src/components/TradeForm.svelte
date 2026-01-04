@@ -1061,7 +1061,7 @@
         </div>
 
         <div class="form-group">
-          <label for="initial_sl">初始停損 (SL)</label>
+          <label for="initial_sl">初始ＳＬ</label>
           <input
             type="number"
             step="0.00001"
@@ -1107,14 +1107,14 @@
         </div>
 
         <div class="form-group">
-          <label for="exit_sl">平倉 SL</label>
+          <label for="exit_sl">平倉ＳＬ</label>
           <input
             type="number"
             step="0.00001"
             id="exit_sl"
             class="form-control"
             bind:value={formData.exit_sl}
-            placeholder="平倉當下的 SL"
+            placeholder="平倉當下的 ＳＬ"
           />
         </div>
       </div>
@@ -1190,7 +1190,7 @@
           />
         </div>
         <div class="form-group">
-          <label for="initial_sl">初始停損 (SL)</label>
+          <label for="initial_sl">初始ＳＬ</label>
           <input
             type="number"
             step="0.00001"
