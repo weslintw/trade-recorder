@@ -251,6 +251,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 			if sl > 0 {
 				log.Printf("[SL DEBUG] Bulk Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
+				isModified := false
 				if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
 					isModified = true
 				}
@@ -302,6 +303,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					for _, o := range op.Order {
 						sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 						if sl > 0 {
+							isModified := false
 							if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
 								isModified = true
 							}
