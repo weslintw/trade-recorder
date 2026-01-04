@@ -153,6 +153,9 @@
               <span class="side-tag {trade.side || ''}"
                 >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
               >
+              {#if trade.color_tag}
+                <span class="color-dot {trade.color_tag}" title="顏色標記"></span>
+              {/if}
               <h1>交易紀錄詳情</h1>
             </div>
             <div class="pnl-section">
@@ -206,6 +209,24 @@
                 >
               </div>
             {/if}
+            <div class="info-item">
+              <label>初始 SL</label>
+              <span>{trade.initial_sl || '---'}</span>
+            </div>
+            {#if trade.exit_sl}
+              <div class="info-item">
+                <label>平倉 SL</label>
+                <span>{trade.exit_sl || '---'}</span>
+              </div>
+            {/if}
+            <div class="info-item">
+              <label>子彈 (Bullet)</label>
+              <span>{trade.bullet_size || '--'}</span>
+            </div>
+            <div class="info-item">
+              <label>風報比 (R:R)</label>
+              <span class="rr-value">{trade.rr_ratio ? trade.rr_ratio + ' R' : '---'}</span>
+            </div>
           </div>
 
           <!-- 策略分析詳情 -->
@@ -758,6 +779,32 @@
 
   .value-highlight {
     color: #4f46e5 !important;
+  }
+
+  .rr-value {
+    color: #059669;
+    font-weight: 800 !important;
+  }
+
+  .color-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 0.25rem;
+  }
+  .color-dot.red {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  }
+  .color-dot.yellow {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  }
+  .color-dot.green {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
   }
 
   .duration-badge {
