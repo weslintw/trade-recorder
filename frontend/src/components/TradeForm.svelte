@@ -664,6 +664,24 @@
     }
   }
 
+  function calculateDuration(start, end) {
+    if (!start || !end) return '';
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+    const diff = e - s;
+    if (diff < 0) return '';
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}天 ${hours % 24}小時 ${minutes % 60}分`;
+    if (hours > 0) return `${hours}小時 ${minutes % 60}分`;
+    if (minutes > 0) return `${minutes}分`;
+    return '1分鐘內';
+  }
+
   function addTag() {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       formData.tags = [...formData.tags, tagInput.trim()];
@@ -1261,6 +1279,15 @@
             {totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)} USD
           </div>
         </div>
+        <div class="form-group">
+          <label>總持單時間</label>
+          <div class="readonly-value-badge duration">
+            {calculateDuration(
+              formData.entry_time,
+              groupTrades[groupTrades.length - 1]?.exit_time
+            ) || '--'}
+          </div>
+        </div>
       </div>
 
       <div class="execution-timeline-section">
@@ -1276,6 +1303,9 @@
                     minute: '2-digit',
                     second: '2-digit',
                   })}</strong
+                >
+                <span class="duration-mini"
+                  >({calculateDuration(formData.entry_time, t.exit_time)})</span
                 >
               </div>
               <div class="item-details">
@@ -1363,6 +1393,12 @@
             bind:value={formData.exit_time}
             step="1"
           />
+        </div>
+        <div class="form-group">
+          <label>持單時間</label>
+          <div class="readonly-value-badge duration">
+            {calculateDuration(formData.entry_time, formData.exit_time) || '--'}
+          </div>
         </div>
       </div>
     {/if}
@@ -3055,6 +3091,12 @@
     border-color: #fecaca;
   }
 
+  .readonly-value-badge.duration {
+    background: #eff6ff;
+    color: #1e40af;
+    border-color: #bfdbfe;
+  }
+
   .execution-timeline-section {
     margin-top: 1.5rem;
     margin-bottom: 2rem;
@@ -3091,6 +3133,13 @@
   .item-time {
     font-size: 0.9rem;
     color: #64748b;
+  }
+
+  .duration-mini {
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+    color: #3b82f6;
+    font-weight: 600;
   }
 
   .item-details {

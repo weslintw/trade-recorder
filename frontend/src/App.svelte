@@ -102,9 +102,9 @@
                 to="/dashboard"
                 class="{activeNav === 'dashboard' ? 'active' : ''} dashboard-link"
                 on:click={() => (activeNav = 'dashboard')}
+                title="統計面板"
               >
                 <span class="icon">📊</span>
-                <span class="text">統計面板</span>
               </Link>
               <div class="account-switcher-box">
                 <AccountSelector />
