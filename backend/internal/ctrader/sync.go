@@ -251,20 +251,26 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 			if sl > 0 {
 				log.Printf("[SL DEBUG] Bulk Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
-				// Prefer OpenTimestamp if available for accurate history placement
-				addTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { addTime = o.TradeData.OpenTimestamp }
-				addSL(sl, addTime, o.OrderID)
-				
-				// Standard Check: Time Window (Creation or Update)
-				checkTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { checkTime = o.TradeData.OpenTimestamp }
-				
-				// Only set initialSL from bulk if we didn't get it from opening order
-				// v2.47: Strict Modification Check
-				// If the order was modified later (LastUpdate != Creation), we skip auto-populate to avoid incorrect values.
-				isModified := false
 				if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
 					isModified = true
 				}
+
+				// If Modified, use TradeTimestamp (Update Time) for history to reflect reality.
+				// If NOT Modified, usage OpenTimestamp (Creation Time) to place it at start.
+				addTime := o.TradeTimestamp
+				if o.TradeData.OpenTimestamp > 0 && !isModified { addTime = o.TradeData.OpenTimestamp }
+				
+				// Debug logging for verification
+				if isModified {
+					log.Printf("[SL DEBUG] Modified Order %d: OpenTS=%d, UpdateTS=%d. Using UpdateTS for history.", o.OrderID, o.TradeData.OpenTimestamp, o.TradeTimestamp)
+				}
+				
+				addSL(sl, addTime, o.OrderID)
+				
+				// Standard Check: Time Window (Creation or Update)
+				// If modified, we check Current Time (Update), likely failing the 60s window -> Correct.
+				// If not modified, we check Creation Time, passing the window -> Correct.
+				checkTime := addTime
 
 				if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
 					if isModified {
@@ -296,20 +302,18 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					for _, o := range op.Order {
 						sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 						if sl > 0 {
-							log.Printf("[SL DEBUG] Targeted Order: ID=%d, SL=%.5f, Time=%d, Diff=%d, OpenTime=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime, o.TradeData.OpenTimestamp)
-							// Prefer OpenTimestamp if available for accurate history placement
-							addTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { addTime = o.TradeData.OpenTimestamp }
-							addSL(sl, addTime, o.OrderID)
-							
-							// Initial SL Check: Prefer OpenTimestamp
-							checkTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { checkTime = o.TradeData.OpenTimestamp }
-							
-							// Only set initialSL from targeted if we didn't get it from opening order or bulk
-							// v2.47: Strict Modification Check
-							isModified := false
 							if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
 								isModified = true
 							}
+
+							// If Modified, use TradeTimestamp (Update Time) for history.
+							addTime := o.TradeTimestamp
+							if o.TradeData.OpenTimestamp > 0 && !isModified { addTime = o.TradeData.OpenTimestamp }
+							
+							addSL(sl, addTime, o.OrderID)
+							
+							// Initial SL Check target
+							checkTime := addTime
 
 							if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
 								if isModified {
@@ -328,12 +332,22 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			}
 		}
 
-		// Final sort and pick very first SL if none matched entry window strictly
-		sort.Slice(allSLEntries, func(i, j int) bool { return allSLEntries[i].Time < allSLEntries[j].Time })
-		if initialSL == 0 && len(allSLEntries) > 0 { 
-			initialSL = allSLEntries[0].Price 
-			log.Printf("[SL DEBUG] -> Initial SL fallback (Earliest seen): %.5f", initialSL)
+		// If initialSL is still 0, try to find the earliest SL within reasoning distance
+	if initialSL == 0 && len(allSLEntries) > 0 {
+		sort.Slice(allSLEntries, func(i, j int) bool {
+			return allSLEntries[i].Time < allSLEntries[j].Time
+		})
+		
+		// Final Fallback must also respect Time Window (e.g. 60s or slightly looser 5min?)
+		// Let's stick to 60s Strict (v2.47 user request)
+		earliest := allSLEntries[0]
+		if math.Abs(float64(earliest.Time - entryTime)) <= 60000 {
+			initialSL = earliest.Price
+			log.Printf("[SL DEBUG] -> Initial SL fallback (Earliest valid seen): %.5f", initialSL)
+		} else {
+			log.Printf("[SL DEBUG] -> Earliest SL found (%.5f) is too far from entry (%d ms). Leaving Initial SL empty.", earliest.Price, earliest.Time - entryTime)
 		}
+	}
 		slHistoryJSON, _ := json.Marshal(allSLEntries)
 
 		// Process each closed deal in this position
