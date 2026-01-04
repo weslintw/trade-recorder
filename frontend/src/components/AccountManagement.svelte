@@ -545,6 +545,8 @@
   .modal {
     width: 100%;
     max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
     padding: 2rem;
   }
 
