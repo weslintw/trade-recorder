@@ -84,7 +84,7 @@ type dealInfo struct {
 }
 
 type orderInfo struct {
-	OrderID int64 `json:"orderId"`; PositionID int64 `json:"positionId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; TradeTimestamp int64 `json:"utcLastUpdateTimestamp"`
+	OrderID int64 `json:"orderId"`; PositionID int64 `json:"positionId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; TradeTimestamp int64 `json:"utcLastUpdateTimestamp"`; CreationTimestamp int64 `json:"creationTimestamp,omitempty"`
 }
 
 func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token string, clientID string, clientSecret string, env string) error {
@@ -222,14 +222,14 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		
 		log.Printf("[SL DEBUG] Position %d | EntryTime: %d | OpeningOrderID: %d", pid, entryTime, openingOrderID)
 
-		// STEP 1: ALWAYS fetch the opening order details directly (HIGHEST PRIORITY)
+		// 1. ALWAYS fetch the opening order details directly (HIGHEST PRIORITY)
 		time.Sleep(5 * time.Millisecond)
 		odResp, odErr := sendRequest(conn, PayloadOrderDetailsReq, map[string]interface{}{
 			"ctidTraderAccountId": cTID,
 			"orderId": openingOrderID,
 		})
 		if odErr == nil {
-			var od struct { Order struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"` } `json:"order"` }
+			var od struct { Order struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; CreationTimestamp int64 `json:"creationTimestamp,omitempty"` } `json:"order"` }
 			json.Unmarshal(odResp.Payload, &od)
 			sl := od.Order.StopLoss
 			if sl == 0 { sl = od.Order.StopPrice }
@@ -251,11 +251,17 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 			if sl > 0 {
 				log.Printf("[SL DEBUG] Bulk Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
-				addSL(sl, o.TradeTimestamp, o.OrderID)
+				// Prefer CreationTimestamp if available for accurate history placement
+				addTime := o.TradeTimestamp; if o.CreationTimestamp > 0 { addTime = o.CreationTimestamp }
+				addSL(sl, addTime, o.OrderID)
+				
+				// Standard Check: Time Window (Creation or Update)
+				checkTime := o.TradeTimestamp; if o.CreationTimestamp > 0 { checkTime = o.CreationTimestamp }
+				
 				// Only set initialSL from bulk if we didn't get it from opening order
-				if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 60000 { 
+				if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
 					initialSL = sl 
-					log.Printf("[SL DEBUG] -> Initial SL from Bulk (within 60s): %.5f", sl)
+					log.Printf("[SL DEBUG] -> Initial SL from Bulk (within 60s, CreationTS=%v): %.5f", o.CreationTimestamp > 0, sl)
 				}
 				orderSLMap[o.OrderID] = sl
 			}
@@ -272,19 +278,25 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				"toTimestamp": exitTime + 7200000,
 			})
 			if olErr == nil {
-				var op struct { Order []struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; TradeTimestamp int64 `json:"utcLastUpdateTimestamp"` } `json:"order"` }
+				var op struct { Order []struct { OrderID int64 `json:"orderId"`; StopLoss float64 `json:"stopLoss"`; StopPrice float64 `json:"stopPrice"`; TradeTimestamp int64 `json:"utcLastUpdateTimestamp"`; CreationTimestamp int64 `json:"creationTimestamp,omitempty"` } `json:"order"` }
 				json.Unmarshal(olResp.Payload, &op)
 				if len(op.Order) > 0 {
 					sort.Slice(op.Order, func(i, j int) bool { return op.Order[i].TradeTimestamp < op.Order[j].TradeTimestamp })
 					for _, o := range op.Order {
 						sl := o.StopLoss; if sl == 0 { sl = o.StopPrice }
 						if sl > 0 {
-							log.Printf("[SL DEBUG] Targeted Order: ID=%d, SL=%.5f, Time=%d, Diff=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime)
-							addSL(sl, o.TradeTimestamp, o.OrderID)
+							log.Printf("[SL DEBUG] Targeted Order: ID=%d, SL=%.5f, Time=%d, Diff=%d, Creation=%d", o.OrderID, sl, o.TradeTimestamp, o.TradeTimestamp-entryTime, o.CreationTimestamp)
+							// Prefer CreationTimestamp if available for accurate history placement
+							addTime := o.TradeTimestamp; if o.CreationTimestamp > 0 { addTime = o.CreationTimestamp }
+							addSL(sl, addTime, o.OrderID)
+							
+							// Initial SL Check: Prefer CreationTimestamp
+							checkTime := o.TradeTimestamp; if o.CreationTimestamp > 0 { checkTime = o.CreationTimestamp }
+							
 							// Only set initialSL from targeted if we didn't get it from opening order or bulk
-							if initialSL == 0 && math.Abs(float64(o.TradeTimestamp - entryTime)) <= 60000 { 
+							if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
 								initialSL = sl 
-								log.Printf("[SL DEBUG] -> Initial SL from Targeted (within 60s): %.5f", sl)
+								log.Printf("[SL DEBUG] -> Initial SL from Targeted (within 60s, CreationTS=%v): %.5f", o.CreationTimestamp > 0, sl)
 							}
 							orderSLMap[o.OrderID] = sl
 						}
