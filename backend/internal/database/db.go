@@ -334,5 +334,9 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL16)
 
+	// 確保新欄位存在
+	db.Exec("ALTER TABLE trades ADD COLUMN sl_history TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN pnl_series TEXT;")
+
 	return nil
 }
