@@ -766,7 +766,7 @@ func fetchPnLSeries(conn *websocket.Conn, ctid int64, symbolId int64, from, to i
 		series = append(series, diff)
 	}
 
-	targetCount := 60
+	targetCount := 32
 	if len(series) > targetCount {
 		sampled := make([]float64, targetCount)
 		for i := 0; i < targetCount; i++ {
