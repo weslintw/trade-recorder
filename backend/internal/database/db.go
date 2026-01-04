@@ -22,7 +22,7 @@ func InitDB() (*sql.DB, error) {
 	if err == nil && info.IsDir() {
 		dbPath = filepath.Join(dbPath, "trade_journal.db")
 	}
-	
+
 	absPath, _ := filepath.Abs(dbPath)
 	log.Printf("[DB] 資料庫路徑: %s (Absolute: %s)", dbPath, absPath)
 
@@ -35,6 +35,9 @@ func InitDB() (*sql.DB, error) {
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}
+
+	// 啟用 WAL 模式以增進併發效能
+	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
 
 	// 執行Schema建立
 	if err := createTables(db); err != nil {

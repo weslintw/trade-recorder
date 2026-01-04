@@ -247,16 +247,8 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	// 3. Process Positions with Hybrid SL Search
 	log.Printf("[cTrader Sync] Step 3: Processing %d positions (v2.27)...", len(posGroups))
 	count := 0
-	var tx *sql.Tx
 	for pid, deals := range posGroups {
 		count++
-		// Commit/Start fresh transaction every 50 items to prevent locking & show progress
-		if count%50 == 1 {
-			if count > 1 && tx != nil {
-				tx.Commit()
-			}
-			tx, _ = db.Begin()
-		}
 
 		db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("scanning SL (%d/%d)...", count, len(posGroups)), accountID)
 
@@ -506,18 +498,14 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 			pnlSeries := fetchPnLSeries(conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, d.TradeSide)
 
-			_, err := tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
+			_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries)
 			if err != nil {
-				log.Printf("[cTrader Sync] Insert trade failed: %v", err)
-				tx.Rollback()
-				return fmt.Errorf("insert trade failed: %v", err)
+				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
+				// Continue to next trade instead of failing whole sync
 			}
 		}
-	}
-	if count > 0 && tx != nil {
-		tx.Commit()
 	}
 
 	// 4. Open Positions Sync
@@ -539,15 +527,8 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		}
 		if err := json.Unmarshal(pResp.Payload, &p); err == nil {
 			countOpen := 0
-			var tx *sql.Tx
 			for _, pos := range p.Position {
 				countOpen++
-				if countOpen%50 == 1 {
-					if countOpen > 1 && tx != nil {
-						tx.Commit()
-					}
-					tx, _ = db.Begin()
-				}
 				db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("syncing open positions (%d/%d)...", countOpen, len(p.Position)), accountID)
 
 				symbol := symbolMap[pos.TradeData.SymbolID]
@@ -646,17 +627,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 				pnlSeries := fetchPnLSeries(conn, cTID, pos.TradeData.SymbolID, pos.TradeData.EntryTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide)
 
-				_, err := tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
+				_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.EntryTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
 				if err != nil {
-					log.Printf("[cTrader Sync] Insert open position failed: %v", err)
-					tx.Rollback()
-					return fmt.Errorf("insert open position failed: %v", err)
+					log.Printf("[cTrader Sync] Insert open position failed (PositionID: %d): %v", pos.PositionID, err)
 				}
-			}
-			if countOpen > 0 && tx != nil {
-				tx.Commit()
 			}
 		}
 	}
