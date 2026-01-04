@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { sharesAPI, imagesAPI } from '../lib/api';
   import { getStrategyLabel } from '../lib/utils';
+  import Sparkline from './Sparkline.svelte';
 
   export let token = '';
 
@@ -54,6 +55,24 @@
     } catch (e) {
       return dateStr;
     }
+  }
+
+  function calculateDuration(start, end) {
+    if (!start || !end) return '';
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+    const diff = e - s;
+    if (diff < 0) return '';
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}天 ${hours % 24}小時 ${minutes % 60}分`;
+    if (hours > 0) return `${hours}小時 ${minutes % 60}分`;
+    if (minutes > 0) return `${minutes}分`;
+    return '1分鐘內';
   }
 
   function parseJSON(str, defaultValue = null) {
@@ -142,6 +161,11 @@
                   {trade.pnl >= 0 ? '+' : ''}{Number(trade.pnl).toFixed(2)}
                 </div>
               {/if}
+              {#if trade.pnl_series}
+                <div class="sparkline-container-shared">
+                  <Sparkline data={trade.pnl_series} side={trade.side} width={120} height={40} />
+                </div>
+              {/if}
             </div>
           </div>
 
@@ -166,6 +190,12 @@
               <div class="info-item">
                 <label>平倉價格</label>
                 <span class="value-highlight">{trade.exit_price || '---'}</span>
+              </div>
+              <div class="info-item">
+                <label>持單時間</label>
+                <span class="duration-badge"
+                  >{calculateDuration(trade.entry_time, trade.exit_time) || '---'}</span
+                >
               </div>
             {/if}
             {#if trade.entry_strategy}
@@ -728,6 +758,21 @@
 
   .value-highlight {
     color: #4f46e5 !important;
+  }
+
+  .duration-badge {
+    color: #2563eb !important;
+    background: #eff6ff;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.95rem !important;
+    border: 1px solid #bfdbfe;
+  }
+
+  .sparkline-container-shared {
+    margin-top: 0.5rem;
+    display: flex;
+    justify-content: flex-end;
   }
 
   .section-box {
