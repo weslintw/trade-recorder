@@ -39,6 +39,8 @@ const (
 	PayloadHeartbeatEvent = 51
 	PayloadExecutionEvent = 2126
 	PayloadErrorRes       = 2142
+	PayloadGetTrendbarsReq = 2137
+	PayloadGetTrendbarsRes = 2138
 )
 
 type CTraderMessage struct {
@@ -378,9 +380,11 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				if bullet > 0 { rr = math.Round((pnlPoints / bullet) * 100) / 100 }
 			}
 
-			tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON))
+			pnlSeries := fetchPnLSeries(conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, d.TradeSide)
+
+			tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries)
 		}
 	}
 	if count > 0 && tx != nil { tx.Commit() }
@@ -462,9 +466,11 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				side := "long"; if pos.TradeData.TradeSide == 2 { side = "short" }
 				vol := float64(pos.TradeData.Volume) / float64(lotSize)
 				
-				tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.EntryTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON))
+				pnlSeries := fetchPnLSeries(conn, cTID, pos.TradeData.SymbolID, pos.TradeData.EntryTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide)
+
+				tx.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.EntryTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
 			}
 			if countOpen > 0 && tx != nil { tx.Commit() }
 		}
@@ -500,4 +506,56 @@ func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}
 	resp, err := sendRequest(conn, payloadType, payload); if err != nil { return err }
 	if resp.PayloadType != expected { return fmt.Errorf("expected %d got %d", expected, resp.PayloadType) }
 	return nil
+}
+
+func fetchPnLSeries(conn *websocket.Conn, ctid int64, symbolId int64, from, to int64, entryPrice float64, volume int64, side int) string {
+	duration := to - from
+	if duration <= 0 { return "" }
+	
+	period := 1 
+	if duration > 120*60000 { period = 5 } // > 2h
+	if duration > 600*60000 { period = 7 } // > 10h
+	if duration > 1440*60000 { period = 9 } // > 24h
+	if duration > 7*24*3600000 { period = 10 } // > 1 week
+
+	resp, err := sendRequest(conn, PayloadGetTrendbarsReq, map[string]interface{}{
+		"ctidTraderAccountId": ctid,
+		"fromTimestamp":       from,
+		"toTimestamp":         to,
+		"period":              period,
+		"symbolId":            symbolId,
+	})
+	if err != nil { return "" }
+
+	var tb struct { Trendbar []struct { Low int64; DeltaClose int64 } `json:"trendbar"` }
+	json.Unmarshal(resp.Payload, &tb)
+
+	if len(tb.Trendbar) == 0 { return "" }
+
+	firstLow := float64(tb.Trendbar[0].Low)
+	scale := math.Pow(10, math.Round(math.Log10(firstLow / entryPrice)))
+	if scale == 0 { scale = 100000 }
+	
+	series := []float64{}
+	sideMult := 1.0; if side == 2 { sideMult = -1.0 }
+	
+	for _, bar := range tb.Trendbar {
+		price := float64(bar.Low + bar.DeltaClose) / scale
+		// Store price difference instead of PnL to reflect price direction
+		diff := price - entryPrice
+		series = append(series, diff)
+	}
+	
+	targetCount := 60
+	if len(series) > targetCount {
+		sampled := make([]float64, targetCount)
+		for i := 0; i < targetCount; i++ {
+			idx := int(float64(i) * float64(len(series)-1) / float64(targetCount-1))
+			sampled[i] = series[idx]
+		}
+		series = sampled
+	}
+	
+	res, _ := json.Marshal(series)
+	return string(res)
 }

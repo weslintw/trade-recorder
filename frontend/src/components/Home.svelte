@@ -7,6 +7,7 @@
   import { determineMarketSession, getStrategyLabel } from '../lib/utils';
   import { accountsAPI } from '../lib/api';
   import AccountModal from './AccountModal.svelte';
+  import Sparkline from './Sparkline.svelte';
 
   let groupedData = [];
   let loading = true;
@@ -623,6 +624,16 @@
                                 on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
                               ></button>
                             </div>
+                            {#if timeGroup.trades[0]?.pnl_series}
+                              <div class="header-sparkline">
+                                <Sparkline
+                                  data={timeGroup.trades[0].pnl_series}
+                                  width={80}
+                                  height={28}
+                                  side={timeGroup.trades[0].side}
+                                />
+                              </div>
+                            {/if}
                             <span
                               class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}"
                             >
@@ -667,6 +678,16 @@
                                 <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
                                   >{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span
                                 >
+                                {#if trade.pnl_series}
+                                  <div class="partial-sparkline">
+                                    <Sparkline
+                                      data={trade.pnl_series}
+                                      width={60}
+                                      height={20}
+                                      side={trade.side}
+                                    />
+                                  </div>
+                                {/if}
                               </div>
                               {#if trade.ticket}<span class="partial-ticket">#{trade.ticket}</span
                                 >{/if}
@@ -717,6 +738,16 @@
                                 on:click={() => toggleColorTag(trade, 'red')}
                               ></button>
                             </div>
+                            {#if trade.pnl_series}
+                              <div class="header-sparkline">
+                                <Sparkline
+                                  data={trade.pnl_series}
+                                  width={100}
+                                  height={32}
+                                  side={trade.side}
+                                />
+                              </div>
+                            {/if}
                             {#if trade.pnl !== null && trade.pnl !== undefined}
                               <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
                                 {trade.pnl >= 0 ? '+' : ''}{typeof trade.pnl === 'number'
@@ -755,7 +786,11 @@
                             <!-- 第二組：績效資訊 -->
                             <div class="info-group">
                               <span class="label">子彈</span>
-                              <strong class="bullet">{trade.bullet_size?.toFixed(1) || '-'}</strong>
+                              <strong class="bullet">
+                                {trade.bullet_size && trade.bullet_size > 0
+                                  ? trade.bullet_size.toFixed(1)
+                                  : 'NA'}
+                              </strong>
                               {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
                                 <span class="label">風報比</span>
                                 <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
@@ -1404,19 +1439,21 @@
   .group-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid rgba(244, 114, 182, 0.1);
+    flex-wrap: wrap; /* 容許在空間不足時換行 */
+    gap: 1rem;
   }
 
   .group-meta {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
+    gap: 0.6rem;
+    flex-wrap: wrap; /* 讓資訊多時能自動排到下一行，避免撐開容器 */
+    flex: 1;
+    min-width: 0; /* 防止 flex item 溢出 */
   }
   .group-meta::-webkit-scrollbar {
     display: none;
@@ -1425,12 +1462,39 @@
   .multi-indicator {
     background: #f472b6;
     color: white;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 800;
-    padding: 2px 8px;
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(244, 114, 182, 0.3);
+    padding: 3px 8px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(244, 114, 182, 0.2);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* 組合單核心指標優化 */
+  .group-header .info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(255, 255, 255, 0.5);
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(244, 114, 182, 0.1);
+  }
+
+  .group-header .info-group .label {
+    font-size: 0.65rem;
+    color: #f472b6;
+    font-weight: 700;
+  }
+
+  .group-header .info-group strong {
+    font-size: 0.85rem;
+    color: #1e293b;
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .group-pnl {
@@ -1458,13 +1522,11 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     font-size: 0.8rem;
     color: #64748b;
-    padding: 6px 0;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
+    padding: 8px 0;
+    flex-wrap: wrap; /* 行內內容過多時自動換行 */
   }
   .partial-close-row::-webkit-scrollbar {
     display: none;
@@ -1589,6 +1651,20 @@
   }
   .rr.loss {
     color: #ef4444;
+  }
+
+  .header-sparkline {
+    margin: 0 0.75rem;
+    display: flex;
+    align-items: center;
+    opacity: 0.8;
+  }
+
+  .partial-sparkline {
+    margin-left: 0.5rem;
+    display: flex;
+    align-items: center;
+    opacity: 0.7;
   }
 
   .duration-text {

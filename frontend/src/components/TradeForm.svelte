@@ -13,6 +13,7 @@
   import ExpertStrategy from './trade-form/ExpertStrategy.svelte';
   import EliteStrategy from './trade-form/EliteStrategy.svelte';
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
+  import Sparkline from './Sparkline.svelte';
 
   export let id = null;
   const symbols = SYMBOLS;
@@ -63,6 +64,8 @@
     legend_de_htf: '', // 傳奇：整理段的時區
     exit_sl: '', // 平倉時的停損價
     color_tag: '', // 顏色標記 (red, yellow, green)
+    ticket: '', // 平台成交編號
+    pnl_series: '', // PnL 序列
   };
 
   // 觀察單併入相關
@@ -616,6 +619,8 @@
         legend_de_htf: response.data.legend_de_htf || '',
         tags: response.data.tags?.map(t => t.name) || [],
         color_tag: response.data.color_tag || '',
+        ticket: response.data.ticket || '',
+        pnl_series: response.data.pnl_series || '',
       };
 
       // 初始化緩存：將已載入的訊號圖片也加入緩存
@@ -909,49 +914,77 @@
 <svelte:window on:keydown={handleKeydown} />
 
 <div class="card {formData.color_tag ? 'tag-' + formData.color_tag : ''}">
-  <div class="card-header-actions">
-    <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
-    <div class="header-form-actions">
-      <button type="button" class="btn btn-sm" on:click={() => navigate('/')}>返回</button>
-      <button
-        type="button"
-        class="btn btn-sm btn-primary"
-        on:click={handleSubmit}
-        disabled={saving}
-      >
-        {#if saving}
-          儲存中...
-        {:else}
-          {id ? '更新' : '儲存'}交易
-        {/if}
-      </button>
+  <div class="card-header-pane">
+    <div class="header-main-row">
+      <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
+    </div>
 
-      {#if id}
-        <button type="button" class="btn btn-sm btn-share" on:click={() => (showShareModal = true)}>
-          📤 分享
-        </button>
+    <div class="header-sub-row">
+      {#if formData.trade_type === 'actual' && (formData.ticket || formData.pnl_series)}
+        <div class="form-header-metadata">
+          {#if formData.ticket}
+            <span class="ticket-label" title="cTrader Order ID">#{formData.ticket}</span>
+          {/if}
+          {#if formData.pnl_series}
+            <div class="header-sparkline-box">
+              <Sparkline data={formData.pnl_series} side={formData.side} width={100} height={32} />
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <div class="header-spacer"></div>
       {/if}
 
-      <div class="merge-action-container header-merge">
-        {#if formData.trade_type === 'actual'}
+      <div class="header-form-actions">
+        <button type="button" class="btn btn-sm btn-ghost" on:click={() => navigate('/')}>
+          <span class="icon">↩️</span> 返回
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-sm btn-primary"
+          on:click={handleSubmit}
+          disabled={saving}
+        >
+          <span class="icon">{saving ? '⏳' : '💾'}</span>
+          {#if saving}
+            儲存中...
+          {:else}
+            {id ? '更新' : '儲存'}交易
+          {/if}
+        </button>
+
+        {#if id}
           <button
             type="button"
-            class="btn-merge btn-sm"
-            on:click={openWatchlistModal}
-            title="從過去的觀察單匯入分析資料"
+            class="btn btn-sm btn-secondary"
+            on:click={() => (showShareModal = true)}
           >
-            <span class="icon">📋</span> 併入觀察單
-          </button>
-        {:else}
-          <button
-            type="button"
-            class="btn-merge btn-sm"
-            on:click={openActualTradesModal}
-            title="併入現有的實單交易"
-          >
-            <span class="icon">💰</span> 併入實單
+            <span class="icon">📫</span> 分享
           </button>
         {/if}
+
+        <div class="merge-action-container header-merge">
+          {#if formData.trade_type === 'actual'}
+            <button
+              type="button"
+              class="btn btn-sm btn-accent"
+              on:click={openWatchlistModal}
+              title="從過去的觀察單匯入分析資料"
+            >
+              <span class="icon">📋</span> 併入觀察單
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="btn btn-sm btn-accent"
+              on:click={openActualTradesModal}
+              title="併入現有的實單交易"
+            >
+              <span class="icon">💰</span> 併入實單
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
@@ -1487,28 +1520,81 @@
 />
 
 <style>
-  .card-header-actions {
+  .card-header-pane {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
     border-bottom: 1px solid #edf2f7;
   }
 
-  h2 {
-    margin-bottom: 0;
-    color: #2d3748;
+  .header-main-row h2 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .header-sub-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 1.5rem;
+  }
+
+  .header-spacer {
+    flex: 1;
   }
 
   .header-form-actions {
     display: flex;
     gap: 0.75rem;
+    align-items: center;
   }
 
   .btn-sm {
-    padding: 0.5rem 1.25rem;
-    font-size: 0.9rem;
+    padding: 0.6rem 1.25rem;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+  }
+  .btn-ghost:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #334155;
+  }
+
+  .btn-secondary {
+    background: white;
+    color: #4f46e5;
+    border: 1px solid #e0e7ff;
+  }
+  .btn-secondary:hover {
+    background: #f5f3ff;
+    border-color: #c7d2fe;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+  }
+
+  .btn-accent {
+    background: #f0fdfa;
+    color: #0d9488;
+    border: 1px solid #ccfbf1;
+  }
+  .btn-accent:hover {
+    background: #ccfbf1;
+    border-color: #99f6e4;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
   }
 
   .color-tag-section {
@@ -3123,5 +3209,52 @@
   .sl-chip.active .sl-price,
   .sl-chip.active .sl-time {
     color: white;
+  }
+
+  .form-header-metadata {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: 1;
+  }
+
+  .ticket-label {
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      sans-serif;
+    color: #64748b;
+    background: #f8fafc;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+  }
+
+  .ticket-label::before {
+    content: 'TICKET';
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 4px;
+  }
+
+  .header-sparkline-box {
+    background: white;
+    padding: 1px 6px;
+    border-radius: 8px;
+    border: 1px solid #f1f5f9;
+    display: flex;
+    align-items: center;
+    height: 38px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   }
 </style>

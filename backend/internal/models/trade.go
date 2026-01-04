@@ -44,6 +44,7 @@ type Trade struct {
 	ColorTag                   *string    `json:"color_tag,omitempty"`                     // "red", "yellow", "green"
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
 	SLHistory                  *string    `json:"sl_history,omitempty"` // 所有曾經設定過的 SL 紀錄 (JSON array)
+	PnLSeries                  *string    `json:"pnl_series,omitempty"` // 持倉期間的盈虧序列 (JSON array)
 	CreatedAt                  time.Time  `json:"created_at"`
 	UpdatedAt                  time.Time  `json:"updated_at"`
 	Images                     []Image    `json:"images,omitempty"`
