@@ -259,9 +259,20 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				checkTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { checkTime = o.TradeData.OpenTimestamp }
 				
 				// Only set initialSL from bulk if we didn't get it from opening order
+				// v2.47: Strict Modification Check
+				// If the order was modified later (LastUpdate != Creation), we skip auto-populate to avoid incorrect values.
+				isModified := false
+				if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
+					isModified = true
+				}
+
 				if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
-					initialSL = sl 
-					log.Printf("[SL DEBUG] -> Initial SL from Bulk (within 60s, CreationTS=%v): %.5f", o.TradeData.OpenTimestamp > 0, sl)
+					if isModified {
+						log.Printf("[SL DEBUG] -> Initial SL Order FOUND but MODIFIED (Diff > 60s). Skipping auto-populate. SL: %.5f", sl)
+					} else {
+						initialSL = sl 
+						log.Printf("[SL DEBUG] -> Initial SL from Bulk (within 60s, CreationTS=%v): %.5f", o.TradeData.OpenTimestamp > 0, sl)
+					}
 				}
 				orderSLMap[o.OrderID] = sl
 			}
@@ -294,9 +305,19 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 							checkTime := o.TradeTimestamp; if o.TradeData.OpenTimestamp > 0 { checkTime = o.TradeData.OpenTimestamp }
 							
 							// Only set initialSL from targeted if we didn't get it from opening order or bulk
+							// v2.47: Strict Modification Check
+							isModified := false
+							if o.TradeData.OpenTimestamp > 0 && math.Abs(float64(o.TradeTimestamp-o.TradeData.OpenTimestamp)) > 60000 {
+								isModified = true
+							}
+
 							if initialSL == 0 && math.Abs(float64(checkTime - entryTime)) <= 60000 { 
-								initialSL = sl 
-								log.Printf("[SL DEBUG] -> Initial SL from Targeted (within 60s, CreationTS=%v): %.5f", o.TradeData.OpenTimestamp > 0, sl)
+								if isModified {
+									log.Printf("[SL DEBUG] -> Initial SL Order FOUND but MODIFIED (Diff > 60s). Skipping auto-populate. SL: %.5f", sl)
+								} else {
+									initialSL = sl 
+									log.Printf("[SL DEBUG] -> Initial SL from Targeted (within 60s, CreationTS=%v): %.5f", o.TradeData.OpenTimestamp > 0, sl)
+								}
 							}
 							orderSLMap[o.OrderID] = sl
 						}
