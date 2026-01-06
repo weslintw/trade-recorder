@@ -39,7 +39,7 @@
   $: bottomColor = side === 'short' ? profitColor : lossColor;
 </script>
 
-<div class="sparkline-container" style="width: {width}px; height: {height}px;">
+<div class="sparkline-container" style="width: {width}px; height: {height}px;" title={parsedData.join(', ')}>
   {#if parsedData && parsedData.length > 1}
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width: 100%; height: 100%;">
       <defs>

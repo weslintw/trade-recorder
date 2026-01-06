@@ -41,6 +41,9 @@ const (
 	PayloadErrorRes                 = 2142
 	PayloadGetTrendbarsReq          = 2137
 	PayloadGetTrendbarsRes          = 2138
+	PayloadSubscribeSpotsReq        = 2104
+	PayloadSubscribeSpotsRes        = 2105
+	PayloadSpotEvent                = 2131
 )
 
 type CTraderMessage struct {
@@ -51,8 +54,6 @@ type CTraderMessage struct {
 
 func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, token string, clientID string, clientSecret string, env string) error {
 	log.Printf("[cTrader Sync] --- Manual Sync START for Account %d (v2.27) ---", accountID)
-	// Clear existing trades for this account to start fresh and avoid conflicts
-	db.Exec("DELETE FROM trades WHERE account_id = ?", accountID)
 	db.Exec("UPDATE accounts SET sync_status = 'syncing (Preparing)...', last_sync_error = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 
 	if GlobalManager != nil {
@@ -245,12 +246,72 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	}
 
 	// 3. Process Positions with Hybrid SL Search
-	log.Printf("[cTrader Sync] Step 3: Processing %d positions (v2.27)...", len(posGroups))
+	log.Printf("[cTrader Sync] Step 3: Processing %d positions (v2.35 - Optimized)...", len(posGroups))
+
+	// === PERFORMANCE OPTIMIZATION: Batch query existing and deleted tickets ===
+	log.Printf("[cTrader Sync] Pre-loading existing tickets...")
+	existingTickets := make(map[string]bool)
+	ticketRows, err := db.Query("SELECT ticket FROM trades WHERE account_id = ? AND ticket LIKE 'ctrader-deal-%'", accountID)
+	if err == nil {
+		defer ticketRows.Close()
+		for ticketRows.Next() {
+			var ticket string
+			if ticketRows.Scan(&ticket) == nil {
+				existingTickets[ticket] = true
+			}
+		}
+	}
+	log.Printf("[cTrader Sync] Found %d existing tickets", len(existingTickets))
+
+	deletedTickets := make(map[string]bool)
+	deletedRows, err := db.Query("SELECT ticket FROM deleted_tickets WHERE account_id = ?", accountID)
+	if err == nil {
+		defer deletedRows.Close()
+		for deletedRows.Next() {
+			var ticket string
+			if deletedRows.Scan(&ticket) == nil {
+				deletedTickets[ticket] = true
+			}
+		}
+	}
+	log.Printf("[cTrader Sync] Found %d deleted tickets", len(deletedTickets))
+
 	count := 0
+	insertedCount := 0
+	skippedExisting := 0
+	skippedDeleted := 0
+	updateInterval := max(len(posGroups)/10, 1) // Update status every 10% instead of every position
+
 	for pid, deals := range posGroups {
 		count++
 
-		db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("scanning SL (%d/%d)...", count, len(posGroups)), accountID)
+		// Only update status every 10% or so to reduce DB load
+		if count%updateInterval == 0 || count == len(posGroups) {
+			db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+				fmt.Sprintf("scanning SL (%d/%d)...", count, len(posGroups)), accountID)
+		}
+
+		// === PERFORMANCE OPTIMIZATION: Check if all deals in this position are already synced ===
+		// If all deals exist in DB, we can skip the entire deep SL search for this position
+		allDealsExist := true
+		for _, d := range deals {
+			if d.ClosePositionDetail.EntryPrice == 0 {
+				continue
+			}
+			ticket := fmt.Sprintf("ctrader-deal-%d", d.DealID)
+			if !existingTickets[ticket] {
+				allDealsExist = false
+				break
+			}
+		}
+
+		if allDealsExist {
+			skippedExisting += len(deals)
+			log.Printf("[cTrader Sync] Position %d: All deals already synced, skipping deep SL search", pid)
+			continue
+		}
+
+		log.Printf("[cTrader Sync] Position %d: Has new deals, performing deep SL search...", pid)
 
 		sort.Slice(deals, func(i, j int) bool { return deals[i].ExecutionTimestamp < deals[j].ExecutionTimestamp })
 		entryTime := deals[0].ExecutionTimestamp
@@ -474,6 +535,18 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			pnl := float64(d.ClosePositionDetail.GrossProfit+d.ClosePositionDetail.Commission+d.ClosePositionDetail.Swap) / 100.0
 			ticket := fmt.Sprintf("ctrader-deal-%d", d.DealID)
 
+			// Use in-memory maps for fast lookup (Performance optimization)
+			if existingTickets[ticket] {
+				skippedExisting++
+				continue
+			}
+
+			if deletedTickets[ticket] {
+				skippedDeleted++
+				log.Printf("[cTrader Sync] Skipping deleted ticket: %s", ticket)
+				continue
+			}
+
 			exitSL := d.ClosePositionDetail.StopLoss
 			if exitSL == 0 {
 				exitSL = orderSLMap[d.OrderID]
@@ -496,20 +569,24 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 			}
 
-			pnlSeries := fetchPnLSeries(conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, d.TradeSide)
+			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, d.TradeSide, 2)
 
 			_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries)
 			if err != nil {
 				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
-				// Continue to next trade instead of failing whole sync
+			} else {
+				insertedCount++
 			}
 		}
 	}
 
 	// 4. Open Positions Sync
 	log.Printf("[cTrader Sync] Step 4: Open Positions (v2.28)...")
+	// Clear existing open positions for this account to referesh them, but keep closed deals
+	db.Exec("DELETE FROM trades WHERE account_id = ? AND ticket LIKE 'ctrader-pos-%'", accountID)
+
 	pResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID})
 	if err == nil {
 		var p struct {
@@ -518,10 +595,10 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				Price      float64 `json:"price"`
 				StopLoss   float64 `json:"stopLoss"`
 				TradeData  struct {
-					SymbolID       int64 `json:"symbolId"`
-					Volume         int64 `json:"volume"`
-					TradeSide      int   `json:"tradeSide"`
-					EntryTimestamp int64 `json:"entryTimestamp"`
+					SymbolID      int64 `json:"symbolId"`
+					Volume        int64 `json:"volume"`
+					TradeSide     int   `json:"tradeSide"`
+					OpenTimestamp int64 `json:"openTimestamp"`
 				} `json:"tradeData"`
 			} `json:"position"`
 		}
@@ -563,7 +640,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 					if sl > 0 {
 						addSL(sl, o.TradeTimestamp)
-						if initialSL == 0 && math.Abs(float64(o.TradeTimestamp-pos.TradeData.EntryTimestamp)) <= 2000 {
+						if initialSL == 0 && math.Abs(float64(o.TradeTimestamp-pos.TradeData.OpenTimestamp)) <= 2000 {
 							initialSL = sl
 						}
 					}
@@ -574,7 +651,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				olResp, olErr := sendRequest(conn, PayloadOrderListByPositionIdReq, map[string]interface{}{
 					"ctidTraderAccountId": cTID,
 					"positionId":          pos.PositionID,
-					"fromTimestamp":       pos.TradeData.EntryTimestamp - 24*3600000,
+					"fromTimestamp":       pos.TradeData.OpenTimestamp - 24*3600000,
 					"toTimestamp":         time.Now().UnixMilli() + 3600000,
 				})
 				if olErr == nil {
@@ -595,7 +672,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 							}
 							if sl > 0 {
 								addSL(sl, o.TradeTimestamp)
-								if initialSL == 0 && math.Abs(float64(o.TradeTimestamp-pos.TradeData.EntryTimestamp)) <= 2000 {
+								if initialSL == 0 && math.Abs(float64(o.TradeTimestamp-pos.TradeData.OpenTimestamp)) <= 2000 {
 									initialSL = sl
 								}
 							}
@@ -615,6 +692,14 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 
 				ticket := fmt.Sprintf("ctrader-pos-%d", pos.PositionID)
+
+				var wasDeleted bool
+				db.QueryRow("SELECT EXISTS(SELECT 1 FROM deleted_tickets WHERE account_id = ? AND ticket = ?)", accountID, ticket).Scan(&wasDeleted)
+				if wasDeleted {
+					log.Printf("[cTrader Sync] Skipping deleted open position ticket: %s", ticket)
+					continue
+				}
+
 				lotSize := symbolLotSizeMap[pos.TradeData.SymbolID]
 				if lotSize == 0 {
 					lotSize = 100000
@@ -625,11 +710,11 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 				vol := float64(pos.TradeData.Volume) / float64(lotSize)
 
-				pnlSeries := fetchPnLSeries(conn, cTID, pos.TradeData.SymbolID, pos.TradeData.EntryTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide)
+				pnlSeries := fetchPnLSeries(nil, conn, cTID, pos.TradeData.SymbolID, pos.TradeData.OpenTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide, 2)
 
 				_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.EntryTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
+					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.OpenTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
 				if err != nil {
 					log.Printf("[cTrader Sync] Insert open position failed (PositionID: %d): %v", pos.PositionID, err)
 				}
@@ -641,6 +726,9 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 }
 
 func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) (*CTraderMessage, error) {
+	if conn == nil {
+		return nil, fmt.Errorf("websocket connection is nil")
+	}
 	clientMsgID := fmt.Sprintf("m-%d", time.Now().UnixNano())
 	payloadJSON, _ := json.Marshal(payload)
 	msg := CTraderMessage{ClientMsgID: clientMsgID, PayloadType: payloadType, Payload: payloadJSON}
@@ -684,70 +772,131 @@ func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}
 	return nil
 }
 
-func fetchPnLSeries(conn *websocket.Conn, ctid int64, symbolId int64, from, to int64, entryPrice float64, volume int64, side int) string {
+func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId int64, from, to int64, entryPrice float64, volume int64, side int, digits int) string {
 	duration := to - from
 	if duration <= 0 {
 		return ""
 	}
 
-	period := 1
-	if duration > 120*60000 {
-		period = 5
-	} // > 2h
-	if duration > 600*60000 {
-		period = 7
-	} // > 10h
-	if duration > 1440*60000 {
-		period = 9
-	} // > 24h
-	if duration > 7*24*3600000 {
-		period = 10
-	} // > 1 week
+	// Dynamic Period Selection to ensure we get enough bars (aiming for at least 32-60 bars)
+	period := 1               // M1
+	if duration > 180*60000 { // > 3 hours
+		period = 2 // M2
+	}
+	if duration > 360*60000 { // > 6 hours
+		period = 3 // M3
+	}
+	if duration > 600*60000 { // > 10 hours
+		period = 5 // M5
+	}
 
-	resp, err := sendRequest(conn, PayloadGetTrendbarsReq, map[string]interface{}{
-		"ctidTraderAccountId": ctid,
-		"fromTimestamp":       from,
-		"toTimestamp":         to,
-		"period":              period,
-		"symbolId":            symbolId,
-	})
+	log.Printf("[cTrader Sync] Fetching PnL Series: Symbol=%d, Period=%d, Duration=%v min, From=%d, To=%d",
+		symbolId, period, duration/60000, from, to)
+
+	var resp *CTraderMessage
+	var err error
+	if ac != nil {
+		clientMsgID := fmt.Sprintf("m-%d", time.Now().UnixNano())
+		payloadJSON, _ := json.Marshal(map[string]interface{}{
+			"ctidTraderAccountId": ctid,
+			"symbolId":            symbolId,
+			"period":              period,
+			"fromTimestamp":       from,
+			"toTimestamp":         to,
+			"count":               100, // Fetch up to 100 bars to ensure density
+		})
+		msg := CTraderMessage{ClientMsgID: clientMsgID, PayloadType: PayloadGetTrendbarsReq, Payload: payloadJSON}
+		resp, err = ac.SendRequest(msg)
+	} else {
+		resp, err = sendRequest(conn, PayloadGetTrendbarsReq, map[string]interface{}{
+			"ctidTraderAccountId": ctid,
+			"fromTimestamp":       from,
+			"toTimestamp":         to,
+			"period":              period,
+			"symbolId":            symbolId,
+		})
+	}
+
 	if err != nil {
+		log.Printf("[cTrader Sync] GetTrendbars Error: %v", err)
 		return ""
 	}
 
 	var tb struct {
 		Trendbar []struct {
-			Low        int64
-			DeltaClose int64
+			Low        int64 `json:"low"`
+			DeltaClose int64 `json:"deltaClose"`
 		} `json:"trendbar"`
 	}
-	json.Unmarshal(resp.Payload, &tb)
+	if err := json.Unmarshal(resp.Payload, &tb); err != nil {
+		log.Printf("[cTrader Sync] JSON Unmarshal Error for Trendbars: %v", err)
+		return ""
+	}
 
 	if len(tb.Trendbar) == 0 {
 		return ""
 	}
 
-	firstLow := float64(tb.Trendbar[0].Low)
-	scale := math.Pow(10, math.Round(math.Log10(firstLow/entryPrice)))
-	if scale == 0 {
-		scale = 100000
+	// Use provided digits as baseline
+	scale := math.Pow(10, float64(digits))
+
+	// Auto-Detection Cross-Check: ensure scale matches entryPrice magnitude
+	if len(tb.Trendbar) > 0 && entryPrice > 0 {
+		firstRaw := float64(tb.Trendbar[0].Low)
+		// Find scale that makes firstRaw / scale closest to entryPrice
+		suggestedScale := math.Pow(10, math.Round(math.Log10(firstRaw/entryPrice)))
+		if suggestedScale > 0 && suggestedScale != scale {
+			log.Printf("[cTrader Sync] Scale Autocorrect: Digits said %v (scale %v), but prices suggest %v. Using %v.", digits, scale, suggestedScale, suggestedScale)
+			scale = suggestedScale
+		}
 	}
+
+	firstBar := tb.Trendbar[0]
+	firstPrice := float64(firstBar.Low+firstBar.DeltaClose) / scale
+	log.Printf("[cTrader Sync] Debug PnL Fetch: Scale=%v, FirstPrice=%f, EntryPrice=%f, Bars=%d",
+		scale, firstPrice, entryPrice, len(tb.Trendbar))
 
 	series := []float64{}
 
 	for _, bar := range tb.Trendbar {
 		price := float64(bar.Low+bar.DeltaClose) / scale
-		// Store price difference instead of PnL to reflect price direction
+
+		// Correct direction based on side: Long = Price - Entry, Short = Entry - Price
 		diff := price - entryPrice
+		if side == 2 { // Short
+			diff = entryPrice - price
+		}
 		series = append(series, diff)
 	}
 
 	targetCount := 32
-	if len(series) > targetCount {
+	if len(series) > 0 {
 		sampled := make([]float64, targetCount)
-		for i := 0; i < targetCount; i++ {
-			idx := int(float64(i) * float64(len(series)-1) / float64(targetCount-1))
-			sampled[i] = series[idx]
+		if len(series) < targetCount {
+			// Pad with leading zeros: for new trades, available points go to the end
+			// This makes the sparkline grow from right to left as time progresses.
+			startIdx := targetCount - len(series)
+			for i := 0; i < len(series); i++ {
+				sampled[startIdx+i] = series[i]
+			}
+		} else {
+			// Bucket and average larger datasets
+			for i := 0; i < targetCount; i++ {
+				start := (i * len(series)) / targetCount
+				end := ((i + 1) * len(series)) / targetCount
+				if end > len(series) {
+					end = len(series)
+				}
+				if start >= end {
+					start = end - 1
+				}
+
+				sum := 0.0
+				for _, val := range series[start:end] {
+					sum += val
+				}
+				sampled[i] = sum / float64(end-start)
+			}
 		}
 		series = sampled
 	}
