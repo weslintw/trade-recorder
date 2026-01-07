@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import { sharesAPI, imagesAPI } from '../lib/api';
   import { getStrategyLabel, determineMarketSession, getMarketSessionLabel, calculateDuration } from '../lib/utils';
-  import Sparkline from './Sparkline.svelte';
-  import SharedTradeDetail from './SharedTradeDetail.svelte';
+  import 'quill/dist/quill.snow.css';
+import Sparkline from './Sparkline.svelte';
+import SharedTradeDetail from './SharedTradeDetail.svelte';
+import SharedPlanDetail from './SharedPlanDetail.svelte';
 
   export let token = '';
 
@@ -272,57 +274,13 @@
             <SharedTradeDetail trade={selectedItem.data} {openModal} />
 
         {:else if selectedItem.type === 'plan'}
-            {@const plan = selectedItem.data}
-            {@const trendAnalysis = parseJSON(plan.trend_analysis, {})}
-            <div class="plan-detail-view card">
-                <div class="view-header">
-                  <div class="title-section">
-                    <span class="symbol-tag">{plan.symbol || '---'}</span>
-                    <h1>盤面規劃分享</h1>
-                  </div>
-                  <div class="date-section">
-                    <span class="plan-date-tag">📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span>
-                  </div>
-                </div>
-                {#if plan.notes}<div class="section-box"><h3>📝 規劃備註</h3><div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div></div>{/if}
-                {#each ['asian', 'european', 'us'] as session}
-                  {#if trendAnalysis[session]}
-                    <div class="session-block {session}">
-                      <h4>{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
-                      <p class="session-notes">{trendAnalysis[session].notes || ''}</p>
-                    </div>
-                  {/if}
-                {/each}
-            </div>
+            <SharedPlanDetail plan={selectedItem.data} {openModal} />
         {/if}
 
       {:else if sharedData.type === 'trade' && sharedData.data}
         <SharedTradeDetail trade={sharedData.data} {openModal} />
       {:else if sharedData.type === 'plan' && sharedData.data}
-        {@const plan = sharedData.data}
-        {@const trendAnalysis = parseJSON(plan.trend_analysis, {})}
-        <div class="plan-detail-view card">
-          <!-- 規劃詳情 HTML -->
-          <div class="view-header">
-            <div class="title-section">
-              <span class="symbol-tag">{plan.symbol || '---'}</span>
-              <h1>盤面規劃分享</h1>
-            </div>
-            <div class="date-section">
-              <span class="plan-date-tag">📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span>
-            </div>
-          </div>
-          {#if plan.notes}<div class="section-box"><h3>📝 規劃備註</h3><div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div></div>{/if}
-          <!-- Session blocks... -->
-          {#each ['asian', 'european', 'us'] as session}
-            {#if trendAnalysis[session]}
-              <div class="session-block {session}">
-                <h4>{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
-                <p class="session-notes">{trendAnalysis[session].notes || ''}</p>
-              </div>
-            {/if}
-          {/each}
-        </div>
+        <SharedPlanDetail plan={sharedData.data} {openModal} />
       {:else if (sharedData.type === 'account' || sharedData.type === 'batch') && sharedData.data}
         {@const data = sharedData.data}
         {@const grouped = groupDataByDate(data.trades || [], data.plans || [])}
@@ -366,7 +324,7 @@
                           </div>
                           
                           <div class="mini-progression">
-                            {#each ['15m', '1h', '4h', 'D1'] as tf}
+                            {#each ['M5', 'M15', 'H1', 'H4'] as tf}
                               {@const asianTrend = trendData.asian?.trends?.[tf]}
                               {@const europeanTrend = trendData.european?.trends?.[tf]}
                               {@const usTrend = trendData.us?.trends?.[tf]}
@@ -390,12 +348,12 @@
 
                           {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
                             <div class="mini-notes">
-                              {#if trendData.asian?.notes}<div class="mini-note-item"><span class="note-session asian">亞</span>{trendData.asian.notes}</div>{/if}
-                              {#if trendData.european?.notes}<div class="mini-note-item"><span class="note-session european">歐</span>{trendData.european.notes}</div>{/if}
-                              {#if trendData.us?.notes}<div class="mini-note-item"><span class="note-session us">美</span>{trendData.us.notes}</div>{/if}
+                              {#if trendData.asian?.notes}<div class="mini-note-item"><span class="note-session asian">亞</span>{trendData.asian.notes.slice(0, 30)}{trendData.asian.notes.length > 30 ? '...' : ''}</div>{/if}
+                              {#if trendData.european?.notes}<div class="mini-note-item"><span class="note-session european">歐</span>{trendData.european.notes.slice(0, 30)}{trendData.european.notes.length > 30 ? '...' : ''}</div>{/if}
+                              {#if trendData.us?.notes}<div class="mini-note-item"><span class="note-session us">美</span>{trendData.us.notes.slice(0, 30)}{trendData.us.notes.length > 30 ? '...' : ''}</div>{/if}
                             </div>
-                          {:else}
-                            <p class="simple-notes">{plan.notes || '無備註'}</p>
+                          {:else if plan.notes && plan.notes !== 'Session-based unified plan'}
+                            <p class="simple-notes">{plan.notes}</p>
                           {/if}
                         </div>
                       {/each}
