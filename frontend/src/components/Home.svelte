@@ -29,6 +29,9 @@
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
 
+  // 響應式派生交易清單 (供 polling 檢查有無未平倉)
+  $: timeGroupedTrades = groupedData.flatMap(day => day.groupedTrades);
+
   function navigateWithScroll(path) {
     sessionStorage.setItem('home_scroll_pos', window.scrollY);
     navigate(path);
@@ -76,14 +79,25 @@
       // 更新今天日期文字
       todayString = new Date().toISOString().slice(0, 10);
 
-      // 獲取最近 20 天的規劃和最近 50 筆交易
-      const [plansRes, tradesRes] = await Promise.all([
-        dailyPlansAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 20 }),
-        tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 }),
-      ]);
+      console.log(`🔵 [${INSTANCE_ID}] Fetching data for account=${$selectedAccountId}, symbol=${symbol}`);
 
-      const plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-      const trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+      // 分別獲取，避免一個失敗全部失敗
+      let plans = [];
+      let trades = [];
+
+      try {
+        const plansRes = await dailyPlansAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 20 });
+        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+      } catch (e) {
+        console.error('Failed to fetch plans:', e);
+      }
+
+      try {
+        const tradesRes = await tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 });
+        trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+      } catch (e) {
+        console.error('Failed to fetch trades:', e);
+      }
 
       console.log(`🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`);
 
@@ -99,7 +113,12 @@
           plan.trendData = parseJSONSafe(plan.trend_analysis, {});
           
           if (!plan.plan_date) return;
-          const date = new Date(plan.plan_date).toISOString().slice(0, 10);
+          const planDateObj = new Date(plan.plan_date);
+          if (isNaN(planDateObj.getTime())) {
+            console.warn('Invalid plan date:', plan.plan_date);
+            return;
+          }
+          const date = planDateObj.toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
           dateMap[date].plans.push(plan);
         } catch (e) {
@@ -143,10 +162,10 @@
       });
 
       // 轉換為陣列並排序（日期降序，群組內按時間排序通常已由 API 處理）
-      groupedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
+      const newGroupedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
 
       // 針對組合單內的成員排序 (先平倉的在上面)
-      groupedData.forEach(day => {
+      newGroupedData.forEach(day => {
         // 先對卡片進行排序：最新平倉的在最上面 (未平倉視為最新)
         day.groupedTrades.sort((a, b) => {
           const getTime = (g) => {
@@ -163,9 +182,11 @@
           }
         });
       });
+      
+      groupedData = newGroupedData;
       console.log('Final groupedData:', groupedData);
     } catch (error) {
-      console.error('載入首頁資料失敗:', error);
+      console.error('載入首頁資料失敗 (Top Level):', error);
     } finally {
       loading = false;
       isLoadingData = false;  // Release lock

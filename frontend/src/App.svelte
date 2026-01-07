@@ -90,8 +90,8 @@
             </div>
             {#if currentSession}
               <div class="current-session-tag {currentSessionValue}">
-                <span class="session-icon">{currentSession.icon}</span>
-                <span class="session-label">{currentSession.label}</span>
+                <span class="session-icon">{currentSession?.icon || ''}</span>
+                <span class="session-label">{currentSession?.label || ''}</span>
               </div>
             {/if}
           </div>
