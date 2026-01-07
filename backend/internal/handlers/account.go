@@ -70,12 +70,12 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 		for rows.Next() {
 			var acc models.Account
 			err := rows.Scan(
-				&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, 
+				&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token,
 				&acc.CTraderAccountID, &acc.CTraderToken,
 				&acc.CTraderClientID, &acc.CTraderClientSecret,
 				&acc.CTraderEnv,
-				&acc.Status, 
-				&acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError, 
+				&acc.Status,
+				&acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError,
 				&acc.CreatedAt, &acc.UpdatedAt, &acc.StorageUsage,
 			)
 			if err != nil {
@@ -506,6 +506,13 @@ func ClearAccountData(db *sql.DB) gin.HandlerFunc {
 		_, err = tx.Exec("DELETE FROM daily_plans WHERE account_id = ?", id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除每日規劃失敗: " + err.Error()})
+			return
+		}
+
+		// 清除已刪除票據紀錄 (重設同步黑名單)
+		_, err = tx.Exec("DELETE FROM deleted_tickets WHERE account_id = ?", id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "清除票據紀錄失敗: " + err.Error()})
 			return
 		}
 

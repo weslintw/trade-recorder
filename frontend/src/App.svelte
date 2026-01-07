@@ -98,14 +98,6 @@
 
           <div class="nav-links">
             <div class="nav-primary-group">
-              <Link
-                to="/dashboard"
-                class="{activeNav === 'dashboard' ? 'active' : ''} dashboard-link"
-                on:click={() => (activeNav = 'dashboard')}
-                title="統計面板"
-              >
-                <span class="icon">📊</span>
-              </Link>
               <div class="account-switcher-box">
                 <AccountSelector />
               </div>
@@ -120,6 +112,15 @@
                   title="帳號管理"
                 >
                   ⚙️
+                </Link>
+
+                <Link
+                  to="/dashboard"
+                  class={activeNav === 'dashboard' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                  on:click={() => (activeNav = 'dashboard')}
+                  title="統計面板"
+                >
+                  📊
                 </Link>
 
                 {#if $auth.user?.is_admin}
@@ -304,30 +305,7 @@
     border-left: 1px solid #e2e8f0;
   }
 
-  :global(.dashboard-link) {
-    display: flex !important;
-    align-items: center;
-    gap: 0.5rem;
-    background: transparent;
-    color: #64748b !important;
-    padding: 0.4rem 0.8rem !important;
-    border-radius: 10px !important;
-    font-weight: 700 !important;
-    font-size: 0.875rem !important;
-    transition: all 0.2s ease !important;
-  }
 
-  :global(.dashboard-link:hover) {
-    background: white !important;
-    color: var(--primary) !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  :global(.dashboard-link.active) {
-    background: white !important;
-    color: var(--primary) !important;
-    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.15) !important;
-  }
 
   :global(.nav-icon-btn) {
     text-decoration: none !important;
@@ -415,6 +393,7 @@
     padding: 0.25rem 0.6rem;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+    white-space: nowrap;
   }
 
   .current-session-tag.asian {

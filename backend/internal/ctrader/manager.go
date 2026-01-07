@@ -695,20 +695,24 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 							newSeries[i] = series[idx]
 						}
 					} else {
-						// Initialize with the current diff instead of 0s
+						// Initialize with 0s (at entry) and the current PnL at the end
 						var cp float64
 						if side == "long" {
 							cp = bid
 						} else {
 							cp = ask
 						}
-						curDiff := cp - entry
+						// Calculate actual dollar PnL to match the displayed PnL
+						curPnL := (cp - entry) * multiplier * float64(lotSize)
 						if side == "short" {
-							curDiff = entry - cp
+							curPnL = (entry - cp) * multiplier * float64(lotSize)
 						}
-						for i := 0; i < 32; i++ {
-							newSeries[i] = curDiff
+
+						// Pad with 0s for the first 31 points
+						for i := 0; i < 31; i++ {
+							newSeries[i] = 0
 						}
+						newSeries[31] = curPnL
 					}
 					series = newSeries
 				}
@@ -725,11 +729,12 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 				}
 
 				// 1. Immediate Update: Refresh the LAST point of the 32 divisions
-				diff := cur - entry
+				// Use full dollar PnL to match the scale
+				currentPnL := (cur - entry) * multiplier * float64(lotSize)
 				if side == "short" {
-					diff = entry - cur
+					currentPnL = (entry - cur) * multiplier * float64(lotSize)
 				}
-				series[31] = diff
+				series[31] = currentPnL
 				newJSON, _ := json.Marshal(series)
 				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", string(newJSON), ticket)
 

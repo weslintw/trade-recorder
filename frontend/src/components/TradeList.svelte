@@ -352,11 +352,9 @@
                 <span class="compact-value">{formatDate(trade.entry_time)}</span>
               </span>
             </div>
-            {#if trade.pnl !== null}
-              <span class="pnl {trade.pnl >= 0 ? 'profit' : 'loss'}" style="margin-right: 1.5rem;">
-                {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-              </span>
-            {/if}
+            <span class="pnl {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}" style="margin-right: 1.5rem;">
+              {trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + trade.pnl.toFixed(2)}
+            </span>
           </div>
 
           <!-- 盤面規劃整合區 -->

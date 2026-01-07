@@ -38,6 +38,8 @@ func InitDB() (*sql.DB, error) {
 
 	// 啟用 WAL 模式以增進併發效能
 	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
+	// 啟用外鍵約束
+	_, _ = db.Exec("PRAGMA foreign_keys = ON;")
 
 	// 執行Schema建立
 	if err := createTables(db); err != nil {
@@ -175,6 +177,13 @@ func createTables(db *sql.DB) error {
 		PRIMARY KEY (share_id, shared_with_user_id),
 		FOREIGN KEY (share_id) REFERENCES shares(id) ON DELETE CASCADE,
 		FOREIGN KEY (shared_with_user_id) REFERENCES users(id) ON DELETE CASCADE
+	);
+	
+	CREATE TABLE IF NOT EXISTS deleted_tickets (
+		account_id INTEGER NOT NULL,
+		ticket VARCHAR(100) NOT NULL,
+		PRIMARY KEY (account_id, ticket),
+		FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
 	);
 	`
 

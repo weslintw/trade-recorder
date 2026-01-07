@@ -87,3 +87,14 @@ export function getStrategyLabel(strategy) {
     };
     return map[strategy] || strategy || '';
 }
+
+/**
+ * 安全解析 JSON，失敗時返回預設值
+ */
+export function parseJSONSafe(jsonString, defaultValue = null) {
+    try {
+        return JSON.parse(jsonString) || defaultValue;
+    } catch (e) {
+        return defaultValue;
+    }
+}

@@ -48,16 +48,8 @@
     }
   }
 
-  let syncInterval;
   onMount(() => {
     fetchAccounts();
-    syncInterval = setInterval(() => {
-      // 如果有任何帳號正在同步中，就定時更新
-      if ($accounts.some(a => a.sync_status === 'syncing')) {
-        fetchAccounts();
-      }
-    }, 3000);
-    return () => clearInterval(syncInterval);
   });
 
   async function syncAccount(id) {
@@ -196,7 +188,6 @@
           tabindex="0"
           on:keydown={e => (e.key === 'Enter' || e.key === ' ') && selectAccount(acc.id)}
         >
-          {#if acc.id !== 1}
             <button
               class="delete-acc-btn"
               on:click|stopPropagation={() => deleteAccount(acc.id)}
@@ -204,7 +195,6 @@
             >
               ✕
             </button>
-          {/if}
           <div class="acc-info">
             {#if editingId === acc.id}
               <div class="edit-name-wrapper" on:click|stopPropagation role="presentation">
@@ -269,7 +259,12 @@
               <div class="mt5-detail">
                 <p>ID: {acc.mt5_account_id}</p>
                 <div class="sync-info">
-                  <span class="badge sync-badge {acc.sync_status}">{acc.sync_status}</span>
+                  <span class="badge sync-badge {acc.sync_status} {
+                    acc.sync_status?.toLowerCase().includes('syncing') ||
+                    acc.sync_status?.toLowerCase().includes('fetching') ||
+                    acc.sync_status?.toLowerCase().includes('scanning')
+                    ? 'syncing'
+                    : ''}">{acc.sync_status}</span>
                   {#if acc.last_synced_at}
                     <span class="sync-time"
                       >最後同步: {new Date(acc.last_synced_at).toLocaleString()}</span
@@ -285,7 +280,12 @@
               <div class="ctrader-detail">
                 <p>Login ID: {acc.ctrader_account_id}</p>
                 <div class="sync-info">
-                  <span class="badge sync-badge {acc.sync_status}">{acc.sync_status}</span>
+                  <span class="badge sync-badge {acc.sync_status} {
+                    acc.sync_status?.toLowerCase().includes('syncing') ||
+                    acc.sync_status?.toLowerCase().includes('fetching') ||
+                    acc.sync_status?.toLowerCase().includes('scanning')
+                    ? 'syncing'
+                    : ''}">{acc.sync_status}</span>
                   {#if acc.last_synced_at}
                     <span class="sync-time"
                       >最後同步: {new Date(acc.last_synced_at).toLocaleString()}</span
@@ -305,9 +305,15 @@
               on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
             {#if acc.type === 'metatrader' || acc.type === 'ctrader'}
-              <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}
-                >🔄 同步</button
-              >
+              <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                  <path d="M21 2v6h-6"></path>
+                  <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                  <path d="M3 22v-6h6"></path>
+                  <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                </svg>
+                同步
+              </button>
             {/if}
             <button
               class="btn btn-warning"

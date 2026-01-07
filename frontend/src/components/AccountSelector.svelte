@@ -8,6 +8,7 @@
   let firstLoad = true;
 
   async function fetchAccounts() {
+    console.log('🟣 AccountSelector.fetchAccounts called');
     if (!$auth.isAuthenticated) return;
 
     try {
@@ -15,14 +16,6 @@
       const res = await accountsAPI.getAll();
       const data = res.data || [];
       accounts.set(data);
-
-      if (data.length > 0) {
-        // 如果目前沒有選擇帳號，或目前選擇的帳號不在清單中，則預設選擇第一個
-        const exists = data.find(a => a.id === $selectedAccountId);
-        if (!$selectedAccountId || !exists) {
-          selectedAccountId.set(data[0].id);
-        }
-      }
     } catch (e) {
       console.error('Failed to fetch accounts:', e);
     } finally {
@@ -31,26 +24,15 @@
     }
   }
 
-  // 當登入狀態改變時重新獲取帳號
-  // 當登入狀態改變時重新獲取帳號
-  $: if ($auth.isAuthenticated) {
-    fetchAccounts();
-  }
-
-  // 當帳號清單更新時，如果目前沒選，自動選第一個
-  $: if ($accounts && $accounts.length > 0) {
-    const exists = $accounts.find(a => Number(a.id) === Number($selectedAccountId));
-    if (!$selectedAccountId || !exists) {
-      selectedAccountId.set($accounts[0].id);
-    }
-  }
-
   onMount(() => {
+    console.log('🟣 AccountSelector mounted');
     if ($auth.isAuthenticated) {
-      // 首次加載確保同步最新的帳號清單
+      console.log('🟣 AccountSelector: Initial fetch');
       fetchAccounts();
     }
   });
+
+
 
   function handleAccountChange(e) {
     selectedAccountId.set(parseInt(e.target.value));

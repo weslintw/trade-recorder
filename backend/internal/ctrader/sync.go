@@ -856,17 +856,31 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 	log.Printf("[cTrader Sync] Debug PnL Fetch: Scale=%v, FirstPrice=%f, EntryPrice=%f, Bars=%d",
 		scale, firstPrice, entryPrice, len(tb.Trendbar))
 
-	series := []float64{}
+	// Determine multiplier for PnL calculation
+	// Try to determine symbol name for multiplier
+	// Since we only have symbolId here, we'll use a conservative check
+	// Gold/Silver in cTrader is usually contract size * 100.
+	// For most accounts, 1 unit of Gold = $1 per $1 move.
 
+	series := []float64{}
 	for _, bar := range tb.Trendbar {
 		price := float64(bar.Low+bar.DeltaClose) / scale
 
-		// Correct direction based on side: Long = Price - Entry, Short = Entry - Price
-		diff := price - entryPrice
+		priceDiff := price - entryPrice
 		if side == 2 { // Short
-			diff = entryPrice - price
+			priceDiff = entryPrice - price
 		}
-		series = append(series, diff)
+
+		// Calculate actual dollar PnL
+		// For cTrader, volume is in units. e.g. 1000 units of Gold = 10 ounces.
+		// If multiplier logic is needed, it should be consistent.
+		// Most cTrader APIs for commodities: PnL = priceDiff * volume / 100
+		pnl := priceDiff * float64(volume)
+		if entryPrice > 1000 && entryPrice < 5000 { // Likely Gold
+			pnl = pnl / 100.0 // Correct for contract size
+		}
+
+		series = append(series, pnl)
 	}
 
 	targetCount := 32

@@ -30,7 +30,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		offset := (query.Page - 1) * query.PageSize
 
 		// 建立查詢
-	sqlQuery := `
+		sqlQuery := `
 		SELECT DISTINCT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, 
 			   t.lot_size, t.pnl, t.pnl_points, COALESCE(t.notes, ''), t.entry_reason, t.exit_reason,
 			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
@@ -358,15 +358,45 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 		id := c.Param("id")
 		userID := c.GetInt64("user_id")
 
-		result, err := db.Exec("DELETE FROM trades WHERE id = ? AND id IN (SELECT t.id FROM trades t JOIN accounts a ON t.account_id = a.id WHERE a.user_id = ?)", id, userID)
+		// 獲取 Ticket 與 AccountID
+		var ticket sql.NullString
+		var accountID int64
+		err := db.QueryRow(`
+			SELECT t.ticket, t.account_id 
+			FROM trades t 
+			JOIN accounts a ON t.account_id = a.id 
+			WHERE t.id = ? AND a.user_id = ?
+		`, id, userID).Scan(&ticket, &accountID)
+
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+			return
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		defer tx.Rollback()
+
+		// 如果是已同步交易（有 Ticket），紀錄為已刪除
+		if ticket.Valid && ticket.String != "" {
+			_, err = tx.Exec("INSERT OR IGNORE INTO deleted_tickets (account_id, ticket) VALUES (?, ?)", accountID, ticket.String)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "紀錄已刪除票據失敗"})
+				return
+			}
+		}
+
+		_, err = tx.Exec("DELETE FROM trades WHERE id = ?", id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		rows, _ := result.RowsAffected()
-		if rows == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+		if err := tx.Commit(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 

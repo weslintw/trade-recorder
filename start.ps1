@@ -15,7 +15,11 @@ function Stop-AllServices {
     foreach ($procId in $StartedProcesses) {
         if ($procId -and (Get-Process -Id $procId -ErrorAction SilentlyContinue)) {
             Write-Host "停止記錄的進程 $procId..." -ForegroundColor Gray
-            taskkill /F /T /PID $procId 2>$null | Out-Null
+            try {
+                taskkill /F /T /PID $procId 2>&1 | Out-Null
+            } catch {
+                # 忽略錯誤
+            }
         }
     }
     
@@ -23,10 +27,15 @@ function Stop-AllServices {
     foreach ($port in $ServicePorts) {
         $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
         foreach ($conn in $conns) {
-            if ($conn.OwningProcess -gt 0) {
-                $pidToKill = $conn.OwningProcess
+            $pidToKill = $conn.OwningProcess
+            if ($pidToKill -gt 0 -and (Get-Process -Id $pidToKill -ErrorAction SilentlyContinue)) {
                 Write-Host "端口 $port 被進程 $pidToKill 佔用，正在強制解除..." -ForegroundColor Gray
-                taskkill /F /T /PID $pidToKill 2>$null | Out-Null
+                # 使用 try/catch 配合 Stop-Process 或是繼續用 taskkill 但更小心地處理
+                try {
+                    taskkill /F /T /PID $pidToKill 2>&1 | Out-Null
+                } catch {
+                    # 忽略錯誤
+                }
             }
         }
     }

@@ -4,6 +4,7 @@
   import { dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS, TIMEFRAMES } from '../lib/constants';
   import { selectedSymbol, selectedAccountId } from '../lib/stores';
+  import { parseJSONSafe } from '../lib/utils';
 
   export let isCompact = false;
 
@@ -150,10 +151,10 @@
       </button>
     </div>
   {:else}
-    <div class="plans-list">
-      {#each filteredPlans as plan}
-        {@const trendData = JSON.parse(plan.trend_analysis || '{}')}
-        {@const isUnified = plan.market_session === 'all'}
+      <div class="plans-list">
+        {#each filteredPlans as plan}
+          {@const trendData = parseJSONSafe(plan.trend_analysis, {})}
+          {@const isUnified = plan.market_session === 'all'}
         <div class="plan-card" on:click={() => navigate(`/plans/edit/${plan.id}`)}>
           <div class="plan-header">
             <div class="plan-info">

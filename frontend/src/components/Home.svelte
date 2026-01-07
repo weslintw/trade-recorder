@@ -4,7 +4,7 @@
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
   import { accountsAPI } from '../lib/api';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -31,9 +31,8 @@
     try {
       await accountsAPI.sync($selectedAccountId);
       // Refresh both account info (for storage usage) and data
-      const accountsRes = await accountsAPI.getAll();
-      accounts.set(accountsRes.data);
-      await loadData();
+      await refreshAccounts();
+      await loadData(true);
     } catch (error) {
       console.error('Sync failed:', error);
       alert('同步失敗: ' + (error.response?.data?.error || error.message));
@@ -42,7 +41,25 @@
     }
   }
 
+  // Unique instance ID to track multiple instances
+  const INSTANCE_ID = `Home-${Math.random().toString(36).substr(2, 9)}`;
+  console.log(`🏠 Home component created: ${INSTANCE_ID}`);
+  
+  let loadDataCallCount = 0;
+  let refreshAccountsCallCount = 0;
+  let isLoadingData = false;  // Global lock
+  
   async function loadData(silent = false) {
+    // Prevent concurrent execution
+    if (isLoadingData) {
+      console.warn(`⚠️ [${INSTANCE_ID}] loadData already running, skipping call`);
+      return;
+    }
+    
+    loadDataCallCount++;
+    isLoadingData = true;
+    console.log(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} called, silent:`, silent);
+    
     try {
       if (!silent) loading = true;
       const symbol = $selectedSymbol;
@@ -59,8 +76,7 @@
       const plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
       const trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
 
-      console.log('Loaded plans:', plans);
-      console.log('Loaded trades:', trades);
+      console.log(`🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`);
 
       // 按日期分組 (YYYY-MM-DD)
       const dateMap = {};
@@ -70,6 +86,9 @@
 
       plans.forEach(plan => {
         try {
+          // Pre-parse trend analysis to avoid template errors & const limitations
+          plan.trendData = parseJSONSafe(plan.trend_analysis, {});
+          
           if (!plan.plan_date) return;
           const date = new Date(plan.plan_date).toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
@@ -130,33 +149,106 @@
       console.error('載入首頁資料失敗:', error);
     } finally {
       loading = false;
+      isLoadingData = false;  // Release lock
     }
   }
 
-  // 監聽品種或帳號變更
-  $: if ($selectedSymbol && $selectedAccountId) {
-    loadData();
-  } else if ($accounts && $accounts.length === 0) {
-    // 如果完全沒有帳號，停止載入狀態以顯示「新增帳號」UI
-    loading = false;
+  // 獨立更新帳號狀態 (不觸發 loading UI)
+  let lastAccountsData = null;
+  async function refreshAccounts() {
+    refreshAccountsCallCount++;
+    console.log(`🟢 refreshAccounts #${refreshAccountsCallCount} called`);
+    
+    try {
+      const res = await accountsAPI.getAll();
+      if (res && res.data) {
+        // 只有当数据真正变化时才更新 store
+        const newData = JSON.stringify(res.data);
+        if (newData !== lastAccountsData) {
+          console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: Data changed, updating store`);
+          lastAccountsData = newData;
+          accounts.set(res.data);
+        } else {
+          console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: Data unchanged, skipping update`);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to refresh accounts:', e);
+    }
   }
 
   onMount(async () => {
-    // 獲取最新帳號清單，確保首頁能顯示狀態
-    try {
-      const res = await accountsAPI.getAll();
-      accounts.set(res.data);
-    } catch (e) {
-      console.error('Failed to pre-fetch accounts:', e);
-    }
+    console.log('=== onMount START ===');
+    
+    // Safety timeout to prevent infinite loading
+    setTimeout(() => {
+        if (loading) {
+            console.warn("Loading took too long, forcing display.");
+            loading = false;
+        }
+    }, 5000);
 
-    // 初始載入由下面的 $: 響應式語句處理
-    // 設定每 30 秒自動輪詢一次資料
+    // Step 1: Initial account fetch
+    console.log('Step 1: Fetching accounts...');
+    await refreshAccounts();
+    
+    // Step 2: Auto-select first account if needed (ONE TIME ONLY)
+    if ($accounts && $accounts.length > 0 && !$selectedAccountId) {
+      console.log(`Step 2: Auto-selecting first account: ${$accounts[0].id}`);
+      selectedAccountId.set($accounts[0].id);
+      // Wait for store update to propagate
+      await new Promise(resolve => setTimeout(resolve, 50));
+    } else {
+      console.log(`Step 2: Account already selected: ${$selectedAccountId}`);
+    }
+    
+    // Step 3: Explicitly load initial data if account is selected
+    if ($selectedAccountId && $selectedSymbol) {
+      console.log(`Step 3: Loading initial data for account=${$selectedAccountId}, symbol=${$selectedSymbol}`);
+      await loadData();
+    } else {
+      console.log('Step 3: Skipping initial load - no account or symbol selected');
+    }
+    
+    console.log('=== onMount: Setup complete, starting adaptive polling ===');
+    
+    let currentPollingInterval = 10000; // Default 10s
+    
+    // Dynamic polling: 2s when有未平仓，10s otherwise
+    const updatePollingInterval = () => {
+      const hasOpenPositions = timeGroupedTrades.some(group => 
+        group.trades.some(t => !t.exit_time)
+      );
+      
+      const newInterval = hasOpenPositions ? 2000 : 10000;
+      
+      if (newInterval !== currentPollingInterval) {
+        currentPollingInterval = newInterval;
+        console.log(`📊 Polling interval changed to ${newInterval}ms (open positions: ${hasOpenPositions})`);
+        
+        // Restart interval with new timing
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+        }
+        
+        pollingInterval = setInterval(() => {
+          if ($selectedAccountId) {
+            loadData(true); // silent update
+            refreshAccounts();
+            updatePollingInterval(); // Re-check if interval needs adjustment
+          }
+        }, currentPollingInterval);
+      }
+    };
+    
+    // Step 4: 設定初始輪詢
     pollingInterval = setInterval(() => {
-      if (!$selectedAccountId) return;
-      console.log('Auto-polling data...');
-      loadData(true); // silent update
-    }, 30000);
+      if ($selectedAccountId) {
+        loadData(true);
+        refreshAccounts();
+        updatePollingInterval();
+      }
+    }, currentPollingInterval);
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
@@ -164,15 +256,24 @@
       setTimeout(() => {
         window.scrollTo(0, parseInt(savedScrollPos));
         sessionStorage.removeItem('home_scroll_pos');
-      }, 500); // Wait for data to render
+      }, 500);
     }
+    
+    console.log('=== onMount END ===');
   });
 
   onDestroy(() => {
+    console.log('=== onDestroy: Cleaning up ===');
     if (pollingInterval) {
       clearInterval(pollingInterval);
     }
   });
+  
+  // Manual reload function for when user changes selection from UI
+  export function reloadData() {
+    console.log('🔄 Manual reload triggered');
+    loadData();
+  }
 
   function formatDate(dateString) {
     if (!dateString) return '';
@@ -236,14 +337,6 @@
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
 
-  function parseJSONSafe(str, defaultValue) {
-    if (!str) return defaultValue;
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      return defaultValue;
-    }
-  }
 
   function openImageModal(imagePath) {
     if (!imagePath) return;
@@ -407,7 +500,13 @@
           </div>
           {#if currentAccount.type !== 'local'}
             <div class="sync-status-info">
-              <span class="sync-badge {currentAccount.sync_status}"
+              <span
+                class="sync-badge {currentAccount.sync_status} {
+                  currentAccount.sync_status?.toLowerCase().includes('syncing') ||
+                  currentAccount.sync_status?.toLowerCase().includes('fetching') ||
+                  currentAccount.sync_status?.toLowerCase().includes('scanning')
+                  ? 'syncing'
+                  : ''}"
                 >{currentAccount.sync_status}</span
               >
               {#if currentAccount.last_synced_at}
@@ -421,22 +520,31 @@
                   })}
                 </span>
               {/if}
+              <button
+                class="sync-icon-btn {isSyncing ? 'syncing' : ''}"
+                on:click={handleSync}
+                disabled={isSyncing}
+                title={isSyncing ? '同步中...' : '手動同步'}
+              >
+                <span class="btn-icon">
+                  {#if isSyncing}
+                    ⏳
+                  {:else}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 2v6h-6"></path>
+                      <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                      <path d="M3 22v-6h6"></path>
+                      <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                  {/if}
+                </span>
+              </button>
             </div>
           {/if}
         </div>
       {/if}
     </div>
     <div class="quick-btns">
-      {#if currentAccount && currentAccount.type !== 'local'}
-        <button
-          class="small-action-btn sync {isSyncing ? 'syncing' : ''}"
-          on:click={handleSync}
-          disabled={isSyncing}
-        >
-          <span class="btn-icon">{isSyncing ? '⏳' : '🔄'}</span>
-          {isSyncing ? '同步中...' : '手動同步'}
-        </button>
-      {/if}
       <button
         class="small-action-btn plan"
         data-testid="add-plan-btn"
@@ -635,17 +743,19 @@
                               </div>
                             {/if}
                             <span
-                              class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? 'profit' : 'loss'}"
+                              class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? (timeGroup.summary.totalPnl === 0 && !timeGroup.trades.some(t => t.pnl !== null) ? 'na' : 'profit') : 'loss'}"
                             >
-                              {timeGroup.summary.totalPnl >= 0
-                                ? '+'
-                                : ''}{timeGroup.summary.totalPnl?.toFixed?.(2) || '0.00'}
+                              {timeGroup.summary.totalPnl === 0 && !timeGroup.trades.some(t => t.pnl !== null)
+                                ? 'NA'
+                                : (timeGroup.summary.totalPnl >= 0 ? '+' : '') + timeGroup.summary.totalPnl?.toFixed?.(2)}
                             </span>
+                            {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                             <button
                               class="icon-btn delete"
                               on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
                               >🗑️</button
                             >
+                            {/if}
                           </div>
                         </div>
 
@@ -675,8 +785,8 @@
                                     >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
                                   >
                                 {/if}
-                                <span class="partial-pnl {trade.pnl >= 0 ? 'profit' : 'loss'}"
-                                  >{trade.pnl >= 0 ? '+' : ''}{trade.pnl?.toFixed(2)}</span
+                                <span class="partial-pnl {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}"
+                                  >{trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + trade.pnl?.toFixed(2)}</span
                                 >
                                 {#if trade.pnl_series}
                                   <div class="partial-sparkline">
@@ -748,18 +858,18 @@
                                 />
                               </div>
                             {/if}
-                            {#if trade.pnl !== null && trade.pnl !== undefined}
-                              <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
-                                {trade.pnl >= 0 ? '+' : ''}{typeof trade.pnl === 'number'
-                                  ? trade.pnl.toFixed(2)
-                                  : trade.pnl}
-                              </span>
-                            {/if}
+                            <span class="pnl-tag {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}">
+                              {trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + (typeof trade.pnl === 'number'
+                                ? trade.pnl.toFixed(2)
+                                : trade.pnl)}
+                            </span>
+                            {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                             <button
                               class="icon-btn delete"
                               on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
                               >🗑️</button
                             >
+                            {/if}
                           </div>
                         </div>
 
@@ -937,9 +1047,11 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding-left: 0.75rem;
-    border-left: 1px solid #e2e8f0;
-    margin-left: 0.25rem;
+    padding-top: 0.8rem;
+    margin-top: 0.4rem;
+    border-top: 1px dashed #e2e8f0;
+    flex-basis: 100%;
+    width: 100%;
   }
 
   .sync-badge {
@@ -983,6 +1095,34 @@
     font-size: 0.75rem;
     color: var(--text-muted);
     font-weight: 500;
+  }
+
+  .sync-icon-btn {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: #6366f1;
+  }
+
+  .sync-icon-btn:hover:not(:disabled) {
+    background: rgba(99, 102, 241, 0.15);
+    transform: scale(1.1);
+  }
+
+  .sync-icon-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .sync-icon-btn.syncing .btn-icon {
+    display: inline-block;
+    animation: rotate 2s linear infinite;
   }
 
   .badge {
@@ -1336,6 +1476,7 @@
     font-weight: 700;
     background: #e2e8f0;
     color: #475569;
+    white-space: nowrap;
   }
 
   .session-tag.asian {
@@ -1658,6 +1799,10 @@
     display: flex;
     align-items: center;
     opacity: 0.8;
+  }
+
+  .btn-icon svg {
+    display: block;
   }
 
   .partial-sparkline {

@@ -18,6 +18,8 @@ backend/backend.exe
 # SQLite databases
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 
 # Frontend
 node_modules/

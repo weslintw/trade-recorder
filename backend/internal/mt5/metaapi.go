@@ -204,33 +204,96 @@ func internalSync(db *sql.DB, accountID int64, mt5AccountNumber string, token st
 		}
 	}
 
-	// 3. 存入資料庫 (去重檢查)
+	// 3. 批量查詢現有交易 (效能優化：一次性查詢而不是逐筆檢查)
+	log.Printf("Checking for existing trades in batch...")
+
+	// 建立查詢的時間範圍 (從最早到最晚的交易)
+	var minTime, maxTime time.Time
+	first := true
+	for _, trade := range positions {
+		if trade.ExitPrice == nil {
+			continue
+		}
+		if first {
+			minTime = trade.EntryTime
+			maxTime = trade.EntryTime
+			first = false
+		} else {
+			if trade.EntryTime.Before(minTime) {
+				minTime = trade.EntryTime
+			}
+			if trade.EntryTime.After(maxTime) {
+				maxTime = trade.EntryTime
+			}
+		}
+	}
+
+	// 如果沒有可插入的交易，直接返回
+	if first {
+		log.Printf("No completed trades to sync")
+		return nil
+	}
+
+	// 批量查詢該時間範圍內的所有現有交易
+	existingTrades := make(map[string]bool)
+	rows, err := db.Query(`
+		SELECT symbol, entry_time, lot_size 
+		FROM trades 
+		WHERE account_id = ? AND entry_time BETWEEN ? AND ?
+	`, accountID, minTime, maxTime)
+
+	if err != nil {
+		log.Printf("Batch query error: %v", err)
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var symbol string
+		var entryTime time.Time
+		var lotSize float64
+
+		if err := rows.Scan(&symbol, &entryTime, &lotSize); err != nil {
+			continue
+		}
+
+		// 建立唯一鍵 (用於快速比對)
+		key := fmt.Sprintf("%s|%s|%.2f", symbol, entryTime.Format(time.RFC3339), lotSize)
+		existingTrades[key] = true
+	}
+
+	log.Printf("Found %d existing trades in database", len(existingTrades))
+
+	// 4. 插入新交易 (使用內存中的 map 進行快速比對)
+	insertedCount := 0
+	skippedCount := 0
+
 	for posID, trade := range positions {
 		if trade.ExitPrice == nil {
 			continue
 		}
 
-		var exists bool
-		err := db.QueryRow(`
-			SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
-		`, accountID, trade.Symbol, trade.EntryTime, trade.LotSize).Scan(&exists)
+		// 建立此交易的唯一鍵
+		key := fmt.Sprintf("%s|%s|%.2f", trade.Symbol, trade.EntryTime.Format(time.RFC3339), *trade.LotSize)
 
-		if err != nil {
-			log.Printf("Check existence error: %v", err)
+		if existingTrades[key] {
+			skippedCount++
 			continue
 		}
 
-		if !exists {
-			_, err = db.Exec(`
-				INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, accountID, trade.Symbol, trade.Side, trade.EntryPrice, trade.ExitPrice, trade.LotSize, trade.PnL, trade.EntryTime, trade.ExitTime, "actual", "MT5 Sync: Position "+posID)
+		_, err = db.Exec(`
+			INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, accountID, trade.Symbol, trade.Side, trade.EntryPrice, trade.ExitPrice, trade.LotSize, trade.PnL, trade.EntryTime, trade.ExitTime, "actual", "MT5 Sync: Position "+posID)
 
-			if err != nil {
-				log.Printf("Insert synced trade error: %v", err)
-			}
+		if err != nil {
+			log.Printf("Insert synced trade error: %v", err)
+		} else {
+			insertedCount++
 		}
 	}
+
+	log.Printf("Sync complete: %d new trades inserted, %d duplicates skipped", insertedCount, skippedCount)
 
 	return nil
 }
