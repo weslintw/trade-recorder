@@ -170,6 +170,10 @@ func main() {
 		// 分享路由 (公開)
 		api.GET("/shares/public/:token", handlers.GetSharedResource(db))
 
+		// cTrader OAuth
+		api.GET("/auth/ctrader/url", handlers.CTraderAuthURL(db))
+		api.GET("/auth/ctrader/callback", handlers.CTraderCallback(db))
+
 		// 圖片上傳 (目前先保持公開或也可加入認證)
 		images := api.Group("/images")
 		{

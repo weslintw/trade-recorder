@@ -117,6 +117,40 @@
     show = false;
     dispatch('close');
   }
+
+  async function handleCTraderOAuth() {
+    try {
+      processing = true;
+      const res = await accountsAPI.getCTraderAuthURL();
+      if (res.data.url) {
+        // 開啟新視窗進行授權
+        const width = 600;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        
+        const popup = window.open(
+          res.data.url, 
+          'cTraderAuth', 
+          `width=${width},height=${height},left=${left},top=${top}`
+        );
+        
+        // 監測視窗關閉，視窗關閉後重新整理列表
+        const checkPopup = setInterval(() => {
+          if (!popup || popup.closed) {
+            clearInterval(checkPopup);
+            dispatch('success');
+            show = false;
+          }
+        }, 1000);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('無法取得 cTrader 授權網址，請確認後端環境變數 (CTRADER_CLIENT_ID, CTRADER_REDIRECT_URI) 是否設定正確。');
+    } finally {
+      processing = false;
+    }
+  }
 </script>
 
 {#if show}
@@ -200,6 +234,17 @@
 
       {#if newAccount.type === 'ctrader'}
         <div class="ctrader-fields">
+          <div class="oauth-section">
+            <button class="btn btn-ctrader-oauth" on:click={handleCTraderOAuth} disabled={processing}>
+              <span class="icon">🔗</span> 快速連結 cTrader (免輸 API)
+            </button>
+            <p class="help-text text-center">推薦！登入 Spotware 帳號即可自動同步多個交易帳號。</p>
+          </div>
+
+          <div class="divider">
+            <span>或使用手動設定</span>
+          </div>
+
           <div class="form-group">
             <label for="ctrader-id">cTrader 交易帳號 ID (Login)</label>
             <input
@@ -362,5 +407,51 @@
     background: #6366f1;
     color: white;
     border: none;
+  }
+
+  .btn-ctrader-oauth {
+    width: 100%;
+    background: #5c3cfb;
+    color: white;
+    border: none;
+    padding: 0.8rem;
+    font-weight: 600;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s;
+  }
+
+  .btn-ctrader-oauth:hover:not(:disabled) {
+    background: #4a2ad6;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: #94a3b8;
+    font-size: 0.8rem;
+  }
+
+  .divider::before,
+  .divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .divider span {
+    padding: 0 1rem;
+  }
+
+  .text-center {
+    text-align: center;
   }
 </style>
