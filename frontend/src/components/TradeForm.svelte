@@ -995,7 +995,9 @@
 
       <div class="header-form-actions">
         <button type="button" class="btn btn-sm btn-ghost" on:click={() => navigate('/')}>
-          <span class="icon">↩️</span> 返回
+          <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h12a4 4 0 0 1 4 4v2"/></svg>
+          </span> 返回
         </button>
 
         <button

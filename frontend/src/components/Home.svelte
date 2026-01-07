@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { navigate, Link } from 'svelte-routing';
-  import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
+  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
@@ -2385,7 +2385,7 @@
   /* 批次選取樣式 */
   .selection-bar {
     position: fixed;
-    bottom: 2rem;
+    top: 2rem;
     left: 50%;
     transform: translateX(-50%);
     background: #1e293b;
@@ -2397,12 +2397,12 @@
     gap: 2rem;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
     z-index: 1000;
-    animation: barSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: barSlideDown 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
-  @keyframes barSlideUp {
-    from { bottom: -5rem; opacity: 0; }
-    to { bottom: 2rem; opacity: 1; }
+  @keyframes barSlideDown {
+    from { top: -5rem; opacity: 0; }
+    to { top: 2rem; opacity: 1; }
   }
 
   .selection-info {

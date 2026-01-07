@@ -15,10 +15,15 @@ type Share struct {
 	SharedWith   []int64    `json:"shared_with,omitempty"` // User IDs
 }
 
+type BatchResourceIDs struct {
+	Trades []int64 `json:"trades"`
+	Plans  []int64 `json:"plans"`
+}
+
 type ShareCreate struct {
 	ResourceType string   `json:"resource_type" binding:"required,oneof=trade plan account batch"`
 	ResourceID   int64    `json:"resource_id"`
-	ResourceIDs  []int64  `json:"resource_ids"`
+	ResourceIDs  any      `json:"resource_ids"` // Can be []int64 or BatchResourceIDs
 	ShareType    string   `json:"share_type" binding:"required,oneof=public specific"`
 	SharedWith   []int64  `json:"shared_with"`
 	ExpiresIn    *float64 `json:"expires_in_hours"` // Optional

@@ -98,3 +98,37 @@ export function parseJSONSafe(jsonString, defaultValue = null) {
         return defaultValue;
     }
 }
+/**
+ * 取得市場時段標籤 (含 Emoji)
+ */
+export function getMarketSessionLabel(trade) {
+    if (!trade) return '🕒 未知';
+    const session = trade.market_session || determineMarketSession(trade.entry_time);
+    const map = {
+        asian: '🌏 亞盤',
+        european: '🌍 歐盤',
+        us: '🌎 美盤',
+    };
+    return map[session] || '🕒 未知';
+}
+
+/**
+ * 計算持有時間
+ */
+export function calculateDuration(start, end) {
+    if (!start || !end) return '';
+    const s = new Date(start);
+    const e = new Date(end);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+    const diff = e - s;
+    if (diff < 0) return '';
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}天 ${hours % 24}小時 ${minutes % 60}分`;
+    if (hours > 0) return `${hours}小時 ${minutes % 60}分`;
+    if (minutes > 0) return `${minutes}分`;
+    return '1分鐘內';
+}

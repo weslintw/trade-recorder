@@ -74,7 +74,7 @@ func CreateShare(db *sql.DB) gin.HandlerFunc {
 		token = GenerateToken()
 
 		resourceIDsJSON := ""
-		if req.ResourceType == "batch" && len(req.ResourceIDs) > 0 {
+		if req.ResourceType == "batch" && req.ResourceIDs != nil {
 			idsBytes, _ := json.Marshal(req.ResourceIDs)
 			resourceIDsJSON = string(idsBytes)
 		}

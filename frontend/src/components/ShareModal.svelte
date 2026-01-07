@@ -12,6 +12,11 @@
   let shareToken = '';
   let copySuccess = false;
 
+  $: if (show) {
+    shareToken = '';
+    copySuccess = false;
+  }
+
   $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}` : '';
 
   async function handleCreateShare() {
