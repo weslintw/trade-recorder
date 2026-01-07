@@ -448,10 +448,15 @@
   }
 
   .badge-session {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.7rem;
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
     font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .badge-session.asian {
@@ -499,10 +504,15 @@
   }
 
   .step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 2px 8px;
     border-radius: 4px;
     font-weight: 600;
     font-size: 0.85rem;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .step.long {
@@ -624,10 +634,15 @@
   }
 
   .trend-outlook {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 4px;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .trend-outlook.long,
@@ -643,10 +658,14 @@
   }
 
   .direction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 700;
     padding: 1px 6px;
     border-radius: 4px;
-    display: inline-block;
+    line-height: 1;
+    white-space: nowrap;
   }
 </style>

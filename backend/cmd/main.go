@@ -35,7 +35,7 @@ func changeLogOutput() {
 
 func main() {
 	changeLogOutput()
-	
+
 	// 初始化資料庫
 	db, err := database.InitDB()
 	if err != nil {
@@ -57,7 +57,7 @@ func main() {
 
 	// CORS設定
 	config := cors.DefaultConfig()
-	
+
 	// 從環境變數讀取允許的來源，預設包含本地開發環境
 	allowedOrigins := []string{"http://localhost:5173", "http://localhost:5174"}
 	if extraOrigins := os.Getenv("ALLOW_ORIGINS"); extraOrigins != "" {
@@ -68,7 +68,7 @@ func main() {
 			allowedOrigins = append(allowedOrigins, origins...)
 		}
 	}
-	
+
 	if !config.AllowAllOrigins {
 		config.AllowOrigins = allowedOrigins
 	}
@@ -126,6 +126,7 @@ func main() {
 				trades.GET("/:id", handlers.GetTrade(db))
 				trades.POST("", handlers.CreateTrade(db))
 				trades.PUT("/:id", handlers.UpdateTrade(db))
+				trades.POST("/:id/sync", handlers.SyncSingleTrade(db))
 				trades.DELETE("/:id", handlers.DeleteTrade(db))
 			}
 
@@ -192,7 +193,7 @@ func main() {
 		log.Printf("正在從 %s 服務靜態檔案", staticDir)
 		// 服務靜態資源 (assets 由於有雜湊檔名，建議保留專屬路由)
 		r.StaticFS("/assets", http.Dir(filepath.Join(staticDir, "assets")))
-		
+
 		// SPA Fallback: 任何不匹配 API 的路由都導向 index.html
 		r.NoRoute(func(c *gin.Context) {
 			// 首先檢查路徑是否對應到靜態目錄下的檔案（例如 /logo.png, /favicon.ico）
@@ -216,7 +217,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("伺服器啟動於 http://localhost:%s", port)
+	log.Printf("伺服器啟動於 http://localhost:%s (包含單筆同步路由)", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("伺服器啟動失敗:", err)
 	}

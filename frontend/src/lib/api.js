@@ -37,6 +37,7 @@ export const tradesAPI = {
   create: data => api.post('/trades', data),
   update: (id, data) => api.put(`/trades/${id}`, data),
   delete: id => api.delete(`/trades/${id}`),
+  sync: id => api.post(`/trades/${id}/sync`),
 };
 
 // 圖片相關

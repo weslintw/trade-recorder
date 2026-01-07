@@ -559,11 +559,16 @@
   }
 
   .strategy-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.4rem 0.8rem;
     border-radius: 8px;
     font-weight: 800;
     font-size: 0.9rem;
     color: white;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .strategy-badge.expert {
@@ -617,11 +622,15 @@
     color: var(--text-main);
   }
   .sub-pnl {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 800;
     padding: 2px 8px;
     border-radius: 4px;
     min-width: 60px;
     text-align: right;
+    line-height: 1;
   }
   .sub-pnl.pos {
     background: #dcfce7;

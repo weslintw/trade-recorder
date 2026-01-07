@@ -909,7 +909,7 @@
 
   .trend-option {
     flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     padding: 0.5rem;
@@ -920,6 +920,7 @@
     transition: all 0.2s ease;
     user-select: none;
     outline: none;
+    line-height: 1;
   }
 
   .trend-option:hover {
@@ -1009,6 +1010,7 @@
   .signal-chip {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     padding: 0.3rem 0.6rem;
     border: 1.5px solid #cbd5e0;
     border-radius: 6px;
@@ -1017,6 +1019,7 @@
     transition: all 0.2s ease;
     font-size: 0.75rem;
     user-select: none;
+    line-height: 1;
   }
 
   .signal-chip:hover {
@@ -1042,6 +1045,9 @@
 
   .wave-number-btn {
     flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.4rem;
     border: 1.5px solid #cbd5e0;
     border-radius: 6px;
@@ -1052,6 +1058,7 @@
     font-weight: 600;
     user-select: none;
     color: #2d3748;
+    line-height: 1;
   }
 
   .wave-number-btn:hover {

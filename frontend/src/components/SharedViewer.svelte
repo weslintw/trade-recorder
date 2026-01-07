@@ -1,14 +1,17 @@
 <script>
   import { onMount } from 'svelte';
   import { sharesAPI, imagesAPI } from '../lib/api';
-  import { getStrategyLabel } from '../lib/utils';
+  import { getStrategyLabel, determineMarketSession } from '../lib/utils';
   import Sparkline from './Sparkline.svelte';
 
   export let token = '';
 
   let loading = true;
   let error = null;
-  let sharedData = null; // { type: 'trade'|'plan', data: ... }
+  let sharedData = null; // { type: 'trade'|'plan'|'account'|'batch', data: ... }
+
+  // Detail View State
+  let selectedItem = null; // { type: 'trade'|'plan', data: ... }
 
   // Image Modal State
   let enlargedImage = null;
@@ -23,6 +26,65 @@
   function closeModal() {
     enlargedImage = null;
     enlargedImageTitle = '';
+    zoom = 1;
+    offsetX = 0;
+    offsetY = 0;
+  }
+
+  // Image Modal Advanced State
+  let zoom = 1;
+  let offsetX = 0;
+  let offsetY = 0;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+
+  function handleWheel(e) {
+    if (!enlargedImage) return;
+    e.preventDefault();
+    const delta = e.deltaY;
+    const zoomStep = 0.1;
+    const prevZoom = zoom;
+    
+    if (delta < 0) {
+      zoom = Math.min(zoom + zoomStep, 5);
+    } else {
+      zoom = Math.max(zoom - zoomStep, 0.5);
+    }
+    
+    // When zooming out to <= 1, reset offsets
+    if (zoom <= 1) {
+      offsetX = 0;
+      offsetY = 0;
+    }
+  }
+
+  function handleMouseDown(e) {
+    if (zoom <= 1) return;
+    isDragging = true;
+    startX = e.clientX - offsetX;
+    startY = e.clientY - offsetY;
+    e.preventDefault();
+  }
+
+  function handleMouseMove(e) {
+    if (!isDragging) return;
+    offsetX = e.clientX - startX;
+    offsetY = e.clientY - startY;
+  }
+
+  function handleMouseUp() {
+    isDragging = false;
+  }
+
+  function getMarketSessionLabel(trade) {
+    const session = trade.market_session || determineMarketSession(trade.entry_time);
+    const map = {
+      asian: '🌏 亞盤',
+      european: '🌍 歐盤',
+      us: '🌎 美盤',
+    };
+    return map[session] || '🕒 未知';
   }
 
   onMount(async () => {
@@ -57,6 +119,22 @@
     }
   }
 
+  function formatTime(dateStr) {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function formatDay(dateStr) {
+    if (!dateStr || dateStr === 'unknown') return '日期不詳';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
+  }
+
   function calculateDuration(start, end) {
     if (!start || !end) return '';
     const s = new Date(start);
@@ -86,11 +164,87 @@
 
   function lazyLoadHTML(html) {
     if (!html) return '';
-    // Inject loading="lazy" into all img tags
     return html.replace(/<img /g, '<img loading="lazy" ');
   }
 
-  // 達人策略檢查項翻譯
+  function getTradingDate(isoString) {
+    if (!isoString) return 'unknown';
+    try {
+      const date = new Date(isoString);
+      // Format to parts in NY time to handle DST correctly
+      const options = {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        hour12: false
+      };
+      const formatter = new Intl.DateTimeFormat('en-US', options);
+      const parts = formatter.formatToParts(date);
+      
+      const p = {};
+      parts.forEach(({type, value}) => p[type] = value);
+      
+      let nyYear = parseInt(p.year);
+      let nyMonth = parseInt(p.month); 
+      let nyDay = parseInt(p.day);
+      let nyHour = parseInt(p.hour);
+      if (isNaN(nyHour)) nyHour = 0;
+
+      // Logic: If Hour >= 17 (5 PM), belongs to next trading day
+      if (nyHour >= 17) {
+         const d = new Date(nyYear, nyMonth - 1, nyDay);
+         d.setDate(d.getDate() + 1);
+         nyYear = d.getFullYear();
+         nyMonth = d.getMonth() + 1;
+         nyDay = d.getDate();
+      }
+      
+      return `${nyYear}-${String(nyMonth).padStart(2, '0')}-${String(nyDay).padStart(2, '0')}`;
+    } catch(e) {
+      console.warn('Date parse error', e);
+      return isoString.slice(0, 10);
+    }
+  }
+
+  function groupDataByDate(trades, plans) {
+    const groups = {};
+    
+    trades.forEach(t => {
+      // Use trading date logic
+      const date = t.entry_time ? getTradingDate(t.entry_time) : 'unknown';
+      if (!groups[date]) groups[date] = { date, trades: [], plans: [] };
+      groups[date].trades.push(t);
+    });
+    
+    plans.forEach(p => {
+      // Plans use their intrinsic date
+      const date = p.plan_date ? p.plan_date.slice(0, 10) : 'unknown';
+      if (!groups[date]) groups[date] = { date, trades: [], plans: [] };
+      groups[date].plans.push(p);
+    });
+    
+    // Sort days DESC (newest first)
+    return Object.values(groups).sort((a, b) => b.date.localeCompare(a.date)).map(g => {
+      // Sort trades DESC (newest first)
+      g.trades.sort((a, b) => {
+        const timeA = a.entry_time ? new Date(a.entry_time).getTime() : 0;
+        const timeB = b.entry_time ? new Date(b.entry_time).getTime() : 0;
+        return timeB - timeA;
+      });
+      // Sort plans DESC (newest first)
+      g.plans.sort((a, b) => {
+        const timeA = a.plan_date ? new Date(a.plan_date).getTime() : 0;
+        const timeB = b.plan_date ? new Date(b.plan_date).getTime() : 0;
+        // If dates are same, sort by ID
+        if (timeB === timeA) return b.id - a.id;
+        return timeB - timeA;
+      });
+      return g;
+    });
+  }
+
   const expertSignals = {
     item_ma_flow: 'MA 流向',
     item_ma_space: 'MA 空間',
@@ -98,7 +252,6 @@
     item_risk_ratio: '風報比合理',
   };
 
-  // 菁英策略檢查項翻譯
   const eliteChecklist = {
     trend_line: '破趨勢線了嗎?',
     price_level: '破價位了嗎?',
@@ -107,12 +260,34 @@
     sentiment: '情緒轉換了嗎?',
   };
 
-  // 傳奇策略檢查項翻譯
+  const timeframeLabels = {
+    'M1': '1分',
+    'M5': '5分',
+    'M15': '15分',
+    'M30': '30分',
+    'H1': '1小時',
+    'H4': '4小時',
+    'D1': '天'
+  };
+
   const legendChecklist = {
     item_618_786: '王者出現回調618或786',
     item_che: '大時區破[測]破',
     item_de: '整理段的ABC[D][E]',
   };
+
+  function getTimeRange(trades) {
+    if (!trades || trades.length === 0) return '';
+    const times = trades.filter(t => t.entry_time).map(t => new Date(t.entry_time).getTime());
+    if (times.length === 0) return '';
+    const min = new Date(Math.min(...times));
+    const max = new Date(Math.max(...times));
+    
+    const fmt = (d) => d.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    
+    if (fmt(min) === fmt(max)) return fmt(min);
+    return `${fmt(min)} ~ ${fmt(max)}`;
+  }
 
   function handleKeydown(e) {
     if (e.key === 'Escape' && enlargedImage) {
@@ -140,22 +315,257 @@
     <div class="shared-content">
       <div class="public-badge">👁️ 唯讀分享模式</div>
 
-      {#if sharedData.type === 'trade' && sharedData.data}
+      {#if selectedItem}
+        <div class="detail-overlay-header">
+            <button class="back-btn" on:click={() => selectedItem = null}>
+                <span class="icon">↩️</span> 返回列表
+            </button>
+        </div>
+        {#if selectedItem.type === 'trade'}
+            {@const trade = selectedItem.data}
+            {@const signals = parseJSON(trade.entry_signals, [])}
+            {@const checklist = parseJSON(trade.entry_checklist, {})}
+            {@const patterns = parseJSON(trade.entry_pattern, [])}
+
+            <div class="trade-detail-view card">
+                <div class="view-header">
+                  <div class="title-section">
+                    <span class="symbol-tag">{trade.symbol || '---'}</span>
+                    <span class="side-tag {trade.side || ''}">{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span>
+                    {#if trade.color_tag}<span class="color-dot {trade.color_tag}" title="顏色標記"></span>{/if}
+                    <h1>交易紀錄詳情</h1>
+                  </div>
+                  <div class="pnl-section">
+                    {#if trade.pnl !== undefined && trade.pnl !== null}
+                      <div class="pnl-value {trade.pnl >= 0 ? 'profit' : 'loss'}">
+                        {trade.pnl >= 0 ? '+' : ''}{Number(trade.pnl).toFixed(2)}
+                      </div>
+                    {/if}
+                    {#if trade.pnl_series}
+                      <div class="sparkline-container-shared">
+                        <Sparkline data={trade.pnl_series} side={trade.side} width={120} height={40} />
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+
+                <div class="info-grid extended">
+                  <div class="info-row-group">
+                    <div class="info-item"><label>交易品種</label><span class="symbol-inline-tag">{trade.symbol}</span></div>
+                    <div class="info-item"><label>做多或做空</label><span>{trade.side === 'long' ? '做多 (Long)' : trade.side === 'short' ? '做空 (Short)' : 'NA'}</span></div>
+                    <div class="info-item"><label>手數</label><span>{trade.lot_size || '0.00'}</span></div>
+                    <div class="info-item"><label>TICKET</label><span class="ticket-val">{trade.ticket || 'NA'}</span></div>
+                  </div>
+
+                  <div class="info-row-divider"></div>
+
+                  <div class="info-row-group">
+                    <div class="info-item"><label>進場價格</label><span class="value-highlight">{trade.entry_price || '0.00'}</span></div>
+                    <div class="info-item"><label>初始 S L</label><span>{trade.initial_sl || 'NA'}</span></div>
+                    <div class="info-item"><label>平倉價格</label><span class="value-highlight">{trade.exit_price || 'NA'}</span></div>
+                    <div class="info-item"><label>平倉 S L</label><span>{trade.exit_sl || 'NA'}</span></div>
+                  </div>
+
+                  <div class="info-row-divider"></div>
+
+                  <div class="info-row-group">
+                    <div class="info-item"><label>盈虧金額</label><span class="rr-value {trade.pnl >= 0 ? 'profit' : 'loss'}">{trade.pnl !== undefined && trade.pnl !== null ? trade.pnl.toFixed(2) : '--'}</span></div>
+                    <div class="info-item"><label>盈虧點數</label><span>{trade.pnl_points != null ? trade.pnl_points.toFixed(1) : 'NA'}</span></div>
+                    <div class="info-item"><label>子彈大小 (Bullet)</label><span>{trade.bullet_size != null ? trade.bullet_size : '自動計算'}</span></div>
+                    <div class="info-item"><label>風報比 (R:R)</label><span class="rr-value-pills">{trade.rr_ratio != null ? trade.rr_ratio.toFixed(2) : '自動計算'}</span></div>
+                  </div>
+
+                  <div class="info-row-divider"></div>
+
+                  <div class="info-row-group">
+                    <div class="info-item"><label>開倉時間 (UTC+8)</label><span>{formatDate(trade.entry_time)}</span></div>
+                    <div class="info-item"><label>市場時段與規劃</label>
+                      <div class="mock-session-display">
+                        <span class="session-label-btn {determineMarketSession(trade.entry_time)}">{getMarketSessionLabel(trade).replace(/^[🌏🌍🌎]\s/, '')}</span>
+                        <span class="session-time-text">
+                            {#if determineMarketSession(trade.entry_time) === 'asian'}08:00 - 15:00{:else if determineMarketSession(trade.entry_time) === 'european'}16:00 - 00:00{:else}21:00 - 05:00{/if} 
+                            · 冬令時間
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="info-row-divider"></div>
+
+                  <div class="info-row-group">
+                    <div class="info-item"><label>平倉時間 (UTC+8)</label><span>{trade.exit_time ? formatDate(trade.exit_time) : '--'}</span></div>
+                    <div class="info-item"><label>持單時間</label><span class="duration-badge-pill">{calculateDuration(trade.entry_time, trade.exit_time) || 'NA'}</span></div>
+                  </div>
+
+                  <div class="info-row-divider"></div>
+
+                  <div class="info-row-group">
+                    <div class="info-item full-width-item">
+                        <label class="rocket-header">🚀 進場分析</label>
+                        <div class="analysis-sub-flex horizontal-layout">
+                            <div class="analysis-sub-group">
+                                <label class="sub-label">🎯 進場種類</label>
+                                <div class="mock-strategy-btns">
+                                    <span class="strat-btn {trade.entry_strategy === 'expert' ? 'active' : ''}">達人</span>
+                                    <span class="strat-btn {trade.entry_strategy === 'elite' ? 'active' : ''}">菁英</span>
+                                    <span class="strat-btn {trade.entry_strategy === 'legend' ? 'active' : ''}">傳奇</span>
+                                </div>
+                            </div>
+                            <div class="analysis-sub-group">
+                                <label class="sub-label">🕒 進場時區</label>
+                                <div class="mock-tf-pills">
+                                    {#each ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'] as tf}
+                                        <span class="tf-pill {trade.entry_timeframe === tf || trade.entry_timeframe === tf.toLowerCase() ? 'active' : ''}">{timeframeLabels[tf] || tf}</span>
+                                    {/each}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 進場分析區塊 -->
+                
+                {#if trade.entry_strategy === 'expert' || trade.entry_strategy === 'elite' || trade.entry_strategy === 'legend'}
+                <div class="section-box analysis-section">
+                  <!-- Removed duplicate header <h3>🔍 進場分析</h3> -->
+                  <div class="analysis-grid">
+                    {#if signals && signals.length > 0}
+                      <div class="analysis-item">
+                        <label>選用訊號</label>
+                        <div class="tags-container">
+                          {#each signals as sig}
+                            {@const sigName = typeof sig === 'string' ? sig : sig.name}
+                            {@const sigImg = typeof sig === 'object' ? (sig.image || sig.originalImage) : null}
+                            <span class="analysis-tag {sigImg ? 'has-img' : ''}" on:click={() => sigImg && openModal(sigImg, expertSignals[sigName] || sigName)}>
+                              {#if sigImg}
+                                <img src={sigImg} alt={sigName} class="tag-icon" />
+                              {/if}
+                              {expertSignals[sigName] || sigName}
+                            </span>
+                          {/each}
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="analysis-item">
+                        <label>選用訊號</label>
+                        <span class="na-txt">無訊號</span>
+                      </div>
+                    {/if}
+                    
+                    {#if patterns && patterns.length > 0}
+                      <div class="analysis-item">
+                        <label>進場樣態</label>
+                        <div class="tags-container">
+                          {#each patterns as pat}
+                            {@const patName = typeof pat === 'string' ? pat : pat.name}
+                            {@const patImg = typeof pat === 'object' ? (pat.image || pat.originalImage) : null}
+                            <span class="analysis-tag pattern {patImg ? 'has-img' : ''}" on:click={() => patImg && openModal(patImg, patName)}>
+                              {#if patImg}
+                                <img src={patImg} alt={patName} class="tag-icon" />
+                              {/if}
+                              {patName}
+                            </span>
+                          {/each}
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="analysis-item">
+                        <label>進場樣態</label>
+                        <span class="na-txt">無樣態</span>
+                      </div>
+                    {/if}
+                  </div>
+
+                  {#if Object.keys(checklist).length > 0}
+                    <div class="checklist-display">
+                      <label>檢查清單</label>
+                      <div class="check-items">
+                        {#each Object.entries(checklist) as [key, val]}
+                          {#if val}
+                            <div class="check-chip">✅ {eliteChecklist[key] || legendChecklist[key] || key}</div>
+                          {/if}
+                        {/each}
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="checklist-display">
+                      <label>檢查清單</label>
+                      <span class="na-txt">無檢查項目</span>
+                    </div>
+                  {/if}
+                </div>
+                {/if}
+
+                <div class="section-box">
+                    <h3>🎯 平倉理由</h3>
+                    {#if trade.exit_reason}
+                        <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.exit_reason)}</div>
+                    {:else}
+                        <p class="empty-placeholder">無平倉理由紀錄</p>
+                    {/if}
+                </div>
+                
+                <div class="section-box">
+                    <h3>📝 交易復盤筆記</h3>
+                    {#if trade.notes}
+                        <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div>
+                    {:else}
+                        <p class="empty-placeholder">無交易復盤紀錄</p>
+                    {/if}
+                </div>
+                {#if trade.images && trade.images.length > 0}
+                  <div class="section-box">
+                    <h3>🖼️ 圖表截圖</h3>
+                    <div class="image-gallery">
+                      {#each trade.images as img}
+                        {#if img && img.image_path}
+                          <div class="image-card">
+                            <img src={imagesAPI.getUrl(img.image_path)} alt="Trade Chart" class="clickable-image" loading="lazy" on:click={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type)} />
+                          </div>
+                        {/if}
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+            </div>
+        {:else if selectedItem.type === 'plan'}
+            {@const plan = selectedItem.data}
+            {@const trendAnalysis = parseJSON(plan.trend_analysis, {})}
+            <div class="plan-detail-view card">
+                <div class="view-header">
+                  <div class="title-section">
+                    <span class="symbol-tag">{plan.symbol || '---'}</span>
+                    <h1>盤面規劃分享</h1>
+                  </div>
+                  <div class="date-section">
+                    <span class="plan-date-tag">📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span>
+                  </div>
+                </div>
+                {#if plan.notes}<div class="section-box"><h3>📝 規劃備註</h3><div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div></div>{/if}
+                {#each ['asian', 'european', 'us'] as session}
+                  {#if trendAnalysis[session]}
+                    <div class="session-block {session}">
+                      <h4>{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
+                      <p class="session-notes">{trendAnalysis[session].notes || ''}</p>
+                    </div>
+                  {/if}
+                {/each}
+            </div>
+        {/if}
+
+      {:else if sharedData.type === 'trade' && sharedData.data}
         {@const trade = sharedData.data}
         {@const checklist = parseJSON(trade.entry_checklist, {})}
         {@const signals = parseJSON(trade.entry_signals, [])}
         {@const patterns = parseJSON(trade.entry_pattern, [])}
-
         <div class="trade-detail-view card">
+          <!-- 交易詳情 HTML -->
           <div class="view-header">
             <div class="title-section">
               <span class="symbol-tag">{trade.symbol || '---'}</span>
-              <span class="side-tag {trade.side || ''}"
-                >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
-              >
-              {#if trade.color_tag}
-                <span class="color-dot {trade.color_tag}" title="顏色標記"></span>
-              {/if}
+              <span class="side-tag {trade.side || ''}">{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span>
+              {#if trade.color_tag}<span class="color-dot {trade.color_tag}" title="顏色標記"></span>{/if}
               <h1>交易紀錄詳情</h1>
             </div>
             <div class="pnl-section">
@@ -171,244 +581,37 @@
               {/if}
             </div>
           </div>
-
+          <!-- (Rest of trade detail items...) -->
           <div class="info-grid">
-            <div class="info-item">
-              <label>進場時間</label>
-              <span>{formatDate(trade.entry_time)}</span>
-            </div>
-            <div class="info-item">
-              <label>進場價格</label>
-              <span class="value-highlight">{trade.entry_price || '---'}</span>
-            </div>
-            <div class="info-item">
-              <label>手數</label>
-              <span>{trade.lot_size || '---'}</span>
-            </div>
-            {#if trade.exit_time}
-              <div class="info-item">
-                <label>平倉時間</label>
-                <span>{formatDate(trade.exit_time)}</span>
-              </div>
-              <div class="info-item">
-                <label>平倉價格</label>
-                <span class="value-highlight">{trade.exit_price || '---'}</span>
-              </div>
-              <div class="info-item">
-                <label>持單時間</label>
-                <span class="duration-badge"
-                  >{calculateDuration(trade.entry_time, trade.exit_time) || '---'}</span
-                >
-              </div>
-            {/if}
-            {#if trade.entry_strategy}
-              <div class="info-item">
-                <label>交易策略</label>
-                <span class="strategy-badge {trade.entry_strategy}"
-                  >{getStrategyLabel(trade.entry_strategy)}</span
-                >
-              </div>
-            {/if}
-            <div class="info-item">
-              <label>初始 SL</label>
-              <span>{trade.initial_sl || '---'}</span>
-            </div>
-            {#if trade.exit_sl}
-              <div class="info-item">
-                <label>平倉 SL</label>
-                <span>{trade.exit_sl || '---'}</span>
-              </div>
-            {/if}
-            <div class="info-item">
-              <label>子彈 (Bullet)</label>
-              <span>{trade.bullet_size || '--'}</span>
-            </div>
-            <div class="info-item">
-              <label>風報比 (R:R)</label>
-              <span class="rr-value">{trade.rr_ratio ? trade.rr_ratio + ' R' : '---'}</span>
-            </div>
+            <div class="info-item"><label>進場時間</label><span>{formatDate(trade.entry_time)}</span></div>
+            <div class="info-item"><label>進場價格</label><span class="value-highlight">{trade.entry_price || '---'}</span></div>
+            <div class="info-item"><label>初始 SL</label><span>{trade.initial_sl || 'NA'}</span></div>
+            <div class="info-item"><label>平台編號</label><span class="ticket-val">{trade.ticket || 'NA'}</span></div>
+
+            <div class="info-item"><label>平倉時間</label><span>{trade.exit_time ? formatDate(trade.exit_time) : '進行中'}</span></div>
+            <div class="info-item"><label>平倉價格</label><span class="value-highlight">{trade.exit_price || 'NA'}</span></div>
+            <div class="info-item"><label>平倉 SL</label><span>{trade.exit_sl || 'NA'}</span></div>
+            <div class="info-item"><label>持單時間</label><span class="duration-badge">{calculateDuration(trade.entry_time, trade.exit_time) || '---'}</span></div>
+
+            <div class="info-item"><label>盈虧點數</label><span>{trade.pnl_points !== undefined && trade.pnl_points !== null ? trade.pnl_points.toFixed(1) : 'NA'}</span></div>
+            <div class="info-item"><label>子彈大小</label><span>{trade.bullet_size || 'NA'}</span></div>
+            <div class="info-item"><label>風報比 (R:R)</label><span class="rr-value">{trade.rr_ratio ? trade.rr_ratio.toFixed(2) + ' R' : 'NA'}</span></div>
+            <div class="info-item"><label>手數</label><span>{trade.lot_size || '---'}</span></div>
+
+            <div class="info-item"><label>市場時段</label><span>{getMarketSessionLabel(trade)}</span></div>
+            <div class="info-item"><label>進場時區</label><span>{trade.entry_timeframe || 'NA'}</span></div>
+            <div class="info-item"><label>進場種類</label><span class="strategy-badge {trade.entry_strategy || ''}">{getStrategyLabel(trade.entry_strategy) || 'NA'}</span></div>
           </div>
-
-          <!-- 策略分析詳情 -->
-          {#if trade.entry_strategy}
-            <div class="section-box strategy-box">
-              <h3>🔍 策略分析詳情</h3>
-              <div class="strategy-details">
-                <!-- 檢查清單 -->
-                {#if Object.keys(checklist).length > 0}
-                  <div class="detail-group">
-                    <label>檢查清單：</label>
-                    <div class="tags-row">
-                      {#each Object.entries(checklist) as [id, checked]}
-                        {#if checked}
-                          {@const label =
-                            trade.entry_strategy === 'expert'
-                              ? expertSignals[id]
-                              : trade.entry_strategy === 'elite'
-                                ? eliteChecklist[id]
-                                : legendChecklist[id]}
-                          <span class="check-tag">✅ {label || id}</span>
-                        {/if}
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-
-                <!-- 進場訊號 (JSON Array) -->
-                {#if signals.length > 0}
-                  <div class="detail-group">
-                    <label>進場訊號：</label>
-                    <div class="tags-row">
-                      {#each signals as signal}
-                        <span class="signal-tag-item"
-                          >✨ {typeof signal === 'object'
-                            ? signal.name || signal.id || JSON.stringify(signal)
-                            : signal}</span
-                        >
-                      {/each}
-                    </div>
-                  </div>
-                {/if}
-
-                <!-- 策略截圖區 -->
-                <div class="strategy-images">
-                  <!-- 通用的進場觀察圖 -->
-                  {#if trade.entry_strategy_image}
-                    <div class="img-preview-box">
-                      <p>進場觀察圖：</p>
-                      <img
-                        src={trade.entry_strategy_image}
-                        alt="Strategy Observation"
-                        class="clickable-image"
-                        loading="lazy"
-                        on:click={() => openModal(trade.entry_strategy_image, '進場觀察圖')}
-                        role="presentation"
-                      />
-                    </div>
-                  {/if}
-
-                  <!-- 達人訊號圖 (每個訊號可以有自己的圖) -->
-                  {#if trade.entry_strategy === 'expert'}
-                    {#each signals as signal}
-                      {#if typeof signal === 'object' && signal.image}
-                        <div class="img-preview-box">
-                          <p>✨ 訊號：{signal.name} 圖面：</p>
-                          <img
-                            src={signal.image}
-                            alt={signal.name}
-                            class="clickable-image"
-                            loading="lazy"
-                            on:click={() => openModal(signal.image, `訊號圖：${signal.name}`)}
-                            role="presentation"
-                          />
-                        </div>
-                      {/if}
-                    {/each}
-                  {/if}
-
-                  <!-- 傳奇策略專用圖 -->
-                  {#if trade.entry_strategy === 'legend'}
-                    {#if trade.legend_king_image}
-                      <div class="img-preview-box">
-                        <p>👑 王者回調 ({trade.legend_king_htf})：</p>
-                        <img
-                          src={trade.legend_king_image}
-                          alt="King Callback"
-                          class="clickable-image"
-                          loading="lazy"
-                          on:click={() =>
-                            openModal(
-                              trade.legend_king_image,
-                              `王者回調 (${trade.legend_king_htf})`
-                            )}
-                          role="presentation"
-                        />
-                      </div>
-                    {/if}
-                    {#if trade.legend_htf_image}
-                      <div class="img-preview-box">
-                        <p>🌊 大時區破[測]破 ({trade.legend_htf})：</p>
-                        <img
-                          src={trade.legend_htf_image}
-                          alt="HTF Breakout"
-                          class="clickable-image"
-                          loading="lazy"
-                          on:click={() =>
-                            openModal(
-                              trade.legend_htf_image,
-                              `大時區破[測]破 (${trade.legend_htf})`
-                            )}
-                          role="presentation"
-                        />
-                      </div>
-                    {/if}
-                  {/if}
-
-                  <!-- 菁英策略專用樣態圖 -->
-                  {#if trade.entry_strategy === 'elite'}
-                    {#each patterns as pattern}
-                      {#if pattern.image}
-                        <div class="img-preview-box">
-                          <p>🎯 {pattern.name} 樣態圖：</p>
-                          <img
-                            src={pattern.image}
-                            alt={pattern.name}
-                            class="clickable-image"
-                            loading="lazy"
-                            on:click={() => openModal(pattern.image, `樣態圖：${pattern.name}`)}
-                            role="presentation"
-                          />
-                        </div>
-                      {/if}
-                    {/each}
-                  {/if}
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          {#if trade.notes}
-            <div class="section-box">
-              <h3>📝 交易復盤筆記</h3>
-              <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div>
-            </div>
-          {/if}
-
-          {#if trade.exit_reason}
-            <div class="section-box">
-              <h3>🎯 平倉理由</h3>
-              <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.exit_reason)}</div>
-            </div>
-          {/if}
-
+                  {#if trade.notes}<div class="section-box"><h3>📝 交易復盤筆記</h3><div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div></div>{/if}
+          <!-- Images... -->
           {#if trade.images && trade.images.length > 0}
             <div class="section-box">
-              <h3>🖼️ 圖表截圖 (Gallery)</h3>
+              <h3>🖼️ 圖表截圖</h3>
               <div class="image-gallery">
                 {#each trade.images as img}
                   {#if img && img.image_path}
                     <div class="image-card">
-                      <img
-                        src={imagesAPI.getUrl(img.image_path)}
-                        alt="Trade Chart"
-                        class="clickable-image"
-                        loading="lazy"
-                        on:click={() =>
-                          openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
-                        on:keypress={() =>
-                          openModal(imagesAPI.getUrl(img.image_path), img.image_type || '圖表截圖')}
-                        role="button"
-                        tabindex="0"
-                      />
-                      {#if img.image_type}
-                        <span class="image-type-label">
-                          {img.image_type === 'entry'
-                            ? '📍 進場'
-                            : img.image_type === 'exit'
-                              ? '🎯 平倉'
-                              : '📷 觀察'}
-                        </span>
-                      {/if}
+                      <img src={imagesAPI.getUrl(img.image_path)} alt="Trade Chart" class="clickable-image" loading="lazy" on:click={() => openModal(imagesAPI.getUrl(img.image_path), img.image_type)} />
                     </div>
                   {/if}
                 {/each}
@@ -419,150 +622,200 @@
       {:else if sharedData.type === 'plan' && sharedData.data}
         {@const plan = sharedData.data}
         {@const trendAnalysis = parseJSON(plan.trend_analysis, {})}
-
         <div class="plan-detail-view card">
+          <!-- 規劃詳情 HTML -->
           <div class="view-header">
             <div class="title-section">
               <span class="symbol-tag">{plan.symbol || '---'}</span>
               <h1>盤面規劃分享</h1>
             </div>
             <div class="date-section">
-              <span class="plan-date-tag"
-                >📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span
-              >
+              <span class="plan-date-tag">📅 {plan.plan_date ? plan.plan_date.slice(0, 10) : ''}</span>
             </div>
           </div>
-
-          <div class="section-box">
-            <h3>📝 規劃備註</h3>
-            <div class="notes-content ql-editor">
-              {@html lazyLoadHTML(plan.notes) || '尚無備註內容'}
-            </div>
-          </div>
-
+          {#if plan.notes}<div class="section-box"><h3>📝 規劃備註</h3><div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div></div>{/if}
+          <!-- Session blocks... -->
           {#each ['asian', 'european', 'us'] as session}
             {#if trendAnalysis[session]}
-              {@const sessionData = trendAnalysis[session]}
               <div class="session-block {session}">
-                <h4>
-                  時段：{session === 'asian'
-                    ? '🌏 亞盤'
-                    : session === 'european'
-                      ? '🌍 歐盤'
-                      : '🌎 美盤'}
-                </h4>
-                {#if sessionData.notes}
-                  <p class="session-notes">{sessionData.notes}</p>
-                {/if}
-
-                {#if sessionData.trends}
-                  <div class="trends-grid">
-                    {#each ['M5', 'M15', 'H1', 'H4', 'D1'] as tf}
-                      {@const trend = sessionData.trends[tf]}
-                      {#if trend && (trend.image || trend.signals_image || trend.wave_image || trend.direction || (trend.signals && trend.signals.length > 0) || (trend.wave_numbers && trend.wave_numbers.length > 0))}
-                        <div class="trend-card {trend.direction}">
-                          <div class="trend-header">
-                            <span class="tf-badge">{tf}</span>
-                            {#if trend.direction}
-                              <span class="dir-badge {trend.direction}"
-                                >{trend.direction === 'long' ? '多' : '空'}</span
-                              >
-                            {/if}
-                          </div>
-
-                          <div class="trend-body">
-                            <!-- General Trend Image -->
-                            {#if trend.image}
-                              <div class="t-img-box">
-                                <span class="img-label">趨勢圖</span>
-                                <img
-                                  src={trend.image}
-                                  alt="{tf} Trend"
-                                  class="clickable-image"
-                                  loading="lazy"
-                                  on:click={() => openModal(trend.image, `${tf} 趨勢圖`)}
-                                  on:keypress={() => openModal(trend.image, `${tf} 趨勢圖`)}
-                                  role="button"
-                                  tabindex="0"
-                                />
-                              </div>
-                            {/if}
-
-                            <!-- Expert Signals -->
-                            {#if (trend.signals && trend.signals.length > 0) || trend.signals_image}
-                              <div class="t-section">
-                                <div class="section-title">✨ 達人訊號</div>
-                                {#if trend.signals && trend.signals.length > 0}
-                                  <div class="t-tags">
-                                    {#each trend.signals as s}
-                                      <span class="t-tag">{s}</span>
-                                    {/each}
-                                  </div>
-                                {/if}
-                                {#if trend.signals_image}
-                                  <div class="t-img-box">
-                                    <img
-                                      src={trend.signals_image}
-                                      alt="{tf} Signals"
-                                      class="clickable-image"
-                                      loading="lazy"
-                                      on:click={() =>
-                                        openModal(trend.signals_image, `${tf} 達人訊號`)}
-                                      on:keypress={() =>
-                                        openModal(trend.signals_image, `${tf} 達人訊號`)}
-                                      role="button"
-                                      tabindex="0"
-                                    />
-                                  </div>
-                                {/if}
-                              </div>
-                            {/if}
-
-                            <!-- Wave Analysis -->
-                            {#if (trend.wave_numbers && trend.wave_numbers.length > 0) || trend.wave_image}
-                              <div class="t-section">
-                                <div class="section-title">🌊 波浪分析</div>
-                                {#if trend.wave_numbers && trend.wave_numbers.length > 0}
-                                  <div class="t-wave-nums">
-                                    {#each trend.wave_numbers as n, i}
-                                      {#if i > 0}<span class="w-arrow">=></span>{/if}
-                                      <span
-                                        class="w-num {trend.wave_highlight == n ? 'highlight' : ''}"
-                                        >{n}</span
-                                      >
-                                    {/each}
-                                  </div>
-                                {/if}
-                                {#if trend.wave_image}
-                                  <div class="t-img-box">
-                                    <img
-                                      src={trend.wave_image}
-                                      alt="{tf} Wave"
-                                      class="clickable-image"
-                                      loading="lazy"
-                                      on:click={() => openModal(trend.wave_image, `${tf} 波浪分析`)}
-                                      on:keypress={() =>
-                                        openModal(trend.wave_image, `${tf} 波浪分析`)}
-                                      role="button"
-                                      tabindex="0"
-                                    />
-                                  </div>
-                                {/if}
-                              </div>
-                            {/if}
-                          </div>
-                        </div>
-                      {/if}
-                    {/each}
-                  </div>
-                {/if}
+                <h4>{session === 'asian' ? '🌏 亞盤' : session === 'european' ? '🌍 歐盤' : '🌎 美盤'}</h4>
+                <p class="session-notes">{trendAnalysis[session].notes || ''}</p>
               </div>
             {/if}
           {/each}
         </div>
+      {:else if (sharedData.type === 'account' || sharedData.type === 'batch') && sharedData.data}
+        {@const data = sharedData.data}
+        {@const grouped = groupDataByDate(data.trades || [], data.plans || [])}
+        <div class="batch-viewer">
+          <div class="view-header-main">
+            <h1>{sharedData.type === 'account' ? `${sharedData.username} 的 ${data.account.name}` : `${sharedData.username} 的精選分享`}</h1>
+            
+            <div class="header-info-line">
+              {#if data.account}
+                <div class="account-badges">
+                  <span class="acc-badge type">{data.account.type === 'ctrader' ? 'cTrader' : 'Local'}</span>
+                  {#if data.account.ctrader_env}
+                    <span class="acc-badge env {data.account.ctrader_env}">{data.account.ctrader_env.toUpperCase()}</span>
+                  {/if}
+                  {#if data.account.ctrader_account_id}
+                    <span class="acc-badge id">ID: {data.account.ctrader_account_id}</span>
+                  {/if}
+                </div>
+              {/if}
+              <div class="time-range-badge">
+                📅 {getTimeRange(data.trades)}
+              </div>
+            </div>
+
+            <p class="batch-meta">包含 {data.trades ? data.trades.length : 0} 筆交易與 {data.plans ? data.plans.length : 0} 筆規劃</p>
+          </div>
+          <div class="timeline">
+            {#each grouped as group}
+              <div class="day-group">
+                <div class="date-header"><span class="date-tag">{formatDay(group.date)}</span></div>
+                <div class="day-card-container">
+                  <!-- 左側規劃 -->
+                  <div class="plan-column">
+                    {#if group.plans.length > 0}
+                      {#each group.plans as plan}
+                        {@const trendData = parseJSON(plan.trend_analysis, {})}
+                        <div class="plan-item-card clickable" on:click={() => selectedItem = { type: 'plan', data: plan }}>
+                          <div class="item-header">
+                            <span class="item-type">📌 盤面規劃</span>
+                            <span class="symbol-inline-tag">{plan.symbol}</span>
+                          </div>
+                          
+                          <div class="mini-progression">
+                            {#each ['15m', '1h', '4h', 'D1'] as tf}
+                              {@const asianTrend = trendData.asian?.trends?.[tf]}
+                              {@const europeanTrend = trendData.european?.trends?.[tf]}
+                              {@const usTrend = trendData.us?.trends?.[tf]}
+                              {#if asianTrend?.direction || europeanTrend?.direction || usTrend?.direction}
+                                <div class="tf-row">
+                                  <span class="tf-name">{tf}:</span>
+                                  <div class="tf-steps">
+                                    {#each [{v:'asian', l:'亞'}, {v:'european', l:'歐'}, {v:'us', l:'美'}] as session, i}
+                                      {@const trend = trendData[session.v]?.trends?.[tf]}
+                                      <span class="mini-step {trend?.direction || 'na'}">
+                                        {session.l}
+                                        {trend?.direction === 'long' ? '多' : trend?.direction === 'short' ? '空' : 'NA'}
+                                      </span>
+                                      {#if i < 2}<span class="step-arrow">=></span>{/if}
+                                    {/each}
+                                  </div>
+                                </div>
+                              {/if}
+                            {/each}
+                          </div>
+
+                          {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
+                            <div class="mini-notes">
+                              {#if trendData.asian?.notes}<div class="mini-note-item"><span class="note-session asian">亞</span>{trendData.asian.notes}</div>{/if}
+                              {#if trendData.european?.notes}<div class="mini-note-item"><span class="note-session european">歐</span>{trendData.european.notes}</div>{/if}
+                              {#if trendData.us?.notes}<div class="mini-note-item"><span class="note-session us">美</span>{trendData.us.notes}</div>{/if}
+                            </div>
+                          {:else}
+                            <p class="simple-notes">{plan.notes || '無備註'}</p>
+                          {/if}
+                        </div>
+                      {/each}
+                    {:else}
+                      <div class="empty-placeholder-shared">無規劃紀錄</div>
+                    {/if}
+                  </div>
+
+                  <!-- 右側交易 -->
+                  <div class="trade-column">
+                    {#if group.trades.length > 0}
+                      <div class="trades-stack">
+                        {#each group.trades as trade}
+                          <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
+                            <div class="item-header">
+                              <div class="trade-meta">
+                                <span class="symbol-inline-tag">{trade.symbol}</span>
+                                <span class="session-tag {determineMarketSession(trade.entry_time)}">{getMarketSessionLabel(trade)}</span>
+                                {#if trade.entry_strategy}<span class="strategy-tag {trade.entry_strategy}">{getStrategyLabel(trade.entry_strategy)}</span>{/if}
+                                <span class="side-tag {trade.side}">{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span>
+                              </div>
+                              <div class="trade-right">
+                                <div class="color-tags-static">
+                                  <span class="color-dot green {trade.color_tag === 'green' ? 'active' : ''}"></span>
+                                  <span class="color-dot yellow {trade.color_tag === 'yellow' ? 'active' : ''}"></span>
+                                  <span class="color-dot red {trade.color_tag === 'red' ? 'active' : ''}"></span>
+                                </div>
+                                {#if trade.pnl_series}
+                                  <div class="header-sparkline">
+                                    <Sparkline data={trade.pnl_series} width={100} height={32} side={trade.side} />
+                                  </div>
+                                {/if}
+                                <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
+                                  {trade.pnl >= 0 ? '+' : ''}{Number(trade.pnl || 0).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div class="trade-details-shared">
+                                <div class="detail-row">
+                                    <div class="info-group">
+                                        <span class="label">進場</span>
+                                        <strong>{trade.entry_price}</strong>
+                                        <span class="arrow">→</span>
+                                        <span class="label">平倉</span>
+                                        <strong>{trade.exit_price || '-'}</strong>
+                                    </div>
+                                    <div class="info-group">
+                                        <span class="label">初始ＳＬ</span>
+                                        <strong>{trade.initial_sl || '-'}</strong>
+                                        {#if trade.exit_sl}
+                                            <span class="label">平倉ＳＬ</span>
+                                            <strong>{trade.exit_sl}</strong>
+                                        {/if}
+                                    </div>
+                                    <div class="info-group">
+                                        <span class="label">子彈</span>
+                                        <strong class="bullet">{trade.bullet_size || 'NA'}</strong>
+                                        {#if trade.rr_ratio}
+                                            <span class="label">風報比</span>
+                                            <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}">{trade.rr_ratio.toFixed(2)}</strong>
+                                        {/if}
+                                        <span class="label">手數</span>
+                                        <strong>{trade.lot_size}</strong>
+                                    </div>
+                                </div>
+                                <div class="trade-time-shared">
+                                    {formatTime(trade.entry_time)} - {trade.exit_time ? formatTime(trade.exit_time) : '進行中'}
+                                    {#if trade.exit_time}
+                                        <span class="duration-text">({calculateDuration(trade.entry_time, trade.exit_time)})</span>
+                                    {/if}
+                                </div>
+                            </div>
+
+                            {#if trade.images && trade.images.length > 0}
+                              <div class="mini-gallery-shared">
+                                {#each trade.images.slice(0, 3) as img}
+                                  <div class="mini-img" on:click|stopPropagation={() => openModal(imagesAPI.getUrl(img.image_path), trade.symbol + ' 交易圖表')}>
+                                    <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                                  </div>
+                                {/each}
+                                {#if trade.images.length > 3}<div class="more-imgs">+{trade.images.length - 3}</div>{/if}
+                              </div>
+                            {/if}
+                          </div>
+                        {/each}
+                      </div>
+                    {:else}
+                      <div class="empty-placeholder-shared">無交易紀錄</div>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
       {:else}
         <div class="status-box card error">
-          <p>資料格式不正確或類型未知</p>
+          <p>找不到該類型資料</p>
         </div>
       {/if}
     </div>
@@ -574,748 +827,270 @@
 </div>
 
 {#if enlargedImage}
-  <div
-    class="image-modal"
-    on:click={closeModal}
-    role="button"
-    tabindex="0"
-    on:keydown={e => e.key === 'Escape' && closeModal()}
-  >
-    <div
-      class="image-modal-content"
-      on:click|stopPropagation
-      role="button"
-      tabindex="0"
-      on:keypress|stopPropagation
-    >
+  <div class="image-modal" on:click={closeModal} role="button" tabindex="0" on:keydown={e => e.key === 'Escape' && closeModal()} on:wheel={handleWheel}>
+    <div class="image-modal-content" on:click|stopPropagation role="button" tabindex="0" on:keypress|stopPropagation on:mousedown={handleMouseDown} on:mousemove={handleMouseMove} on:mouseup={handleMouseUp} on:mouseleave={handleMouseUp}>
       <button class="image-modal-close" on:click={closeModal}>×</button>
-      <img src={enlargedImage} alt={enlargedImageTitle} />
-      {#if enlargedImageTitle}
-        <div class="image-modal-caption">{enlargedImageTitle}</div>
-      {/if}
+      <div class="zoom-container" style="transform: scale({zoom}) translate({offsetX / zoom}px, {offsetY / zoom}px); cursor: {zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'}">
+        <img src={enlargedImage} alt={enlargedImageTitle} class="modal-img" />
+      </div>
+      {#if enlargedImageTitle}<div class="image-modal-caption">{enlargedImageTitle} (滾輪可縮放，放大的圖片可拖動)</div>{/if}
     </div>
   </div>
 {/if}
 
 <style>
-  /* Keeps existing styles and adds Modal Styles */
-  .image-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem;
-    backdrop-filter: blur(5px);
+  .shared-view-container { max-width: 1200px; margin: 3rem auto; padding: 0 1.25rem; font-family: 'Inter', sans-serif; }
+  .detail-overlay-header { margin-bottom: 1.5rem; }
+  .back-btn { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.6rem; 
+    padding: 0.6rem 1.25rem; 
+    background: white; 
+    border: 1px solid #e2e8f0; 
+    border-radius: 12px; 
+    color: #64748b; 
+    font-weight: 700; 
+    font-size: 0.85rem; 
+    cursor: pointer; 
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
-
-  .image-modal-content {
-    position: relative;
-    max-width: 95%;
-    max-height: 95%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .image-modal-content img {
-    max-width: 100%;
-    max-height: 85vh;
-    object-fit: contain;
-    border-radius: 8px;
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  }
-
-  .image-modal-caption {
-    color: white;
-    margin-top: 1rem;
-    font-size: 1.1rem;
-    font-weight: 600;
-  }
-
-  .image-modal-close {
-    position: absolute;
-    top: -40px;
-    right: 0;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 2.5rem;
-    cursor: pointer;
-    line-height: 1;
-    padding: 0;
-    opacity: 0.8;
-    transition: opacity 0.2s;
-  }
-
-  .image-modal-close:hover {
-    opacity: 1;
-  }
-
-  .clickable-image {
-    cursor: zoom-in;
-    transition: transform 0.2s;
-  }
-  .clickable-image:hover {
-    transform: scale(1.02);
-  }
-
-  .shared-view-container {
-    max-width: 850px;
-    margin: 3rem auto;
-    padding: 0 1.25rem;
-    min-height: 400px;
-    font-family:
-      'Inter',
-      -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      Roboto,
-      sans-serif;
-  }
-
-  .public-badge {
-    background: #f8fafc;
-    color: #64748b;
-    padding: 0.5rem 1.25rem;
-    border-radius: 99px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    border: 1px solid #e2e8f0;
-  }
-
-  .card {
-    background: white;
-    border-radius: 1.5rem;
-    padding: 2.5rem;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-    border: 1px solid #f1f5f9;
-  }
-
-  .view-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 2.5rem;
-    padding-bottom: 2rem;
-    border-bottom: 1px solid #f1f5f9;
-    flex-wrap: wrap;
-    gap: 1.5rem;
-  }
-
-  .title-section h1 {
-    font-size: 1.75rem;
-    font-weight: 800;
-    margin: 0.75rem 0 0 0;
-    color: #0f172a;
-  }
-
-  .symbol-tag {
-    background: #4f46e5;
-    color: white;
-    padding: 0.375rem 0.8125rem;
-    border-radius: 8px;
-    font-weight: 800;
-    font-size: 0.875rem;
-  }
-
-  .side-tag {
-    padding: 0.375rem 0.8125rem;
-    border-radius: 8px;
-    font-weight: 700;
-  }
-  .side-tag.long {
-    background: #fee2e2;
-    color: #991b1b;
-  }
-  .side-tag.short {
-    background: #dcfce7;
-    color: #166534;
-  }
-
-  .pnl-value {
-    font-size: 2.5rem;
-    font-weight: 900;
-  }
-  .pnl-value.profit {
-    color: #10b981;
-  }
-  .pnl-value.loss {
-    color: #ef4444;
-  }
-
-  .info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 2rem;
-    margin-bottom: 3rem;
-  }
-
-  .info-item label {
-    display: block;
-    font-size: 0.75rem;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
-
-  .info-item span {
-    font-size: 1.125rem;
-    font-weight: 700;
-    color: #1e293b;
-  }
-
-  .value-highlight {
-    color: #4f46e5 !important;
-  }
-
-  .rr-value {
-    color: #059669;
-    font-weight: 800 !important;
-  }
-
-  .color-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 0.25rem;
-  }
-  .color-dot.red {
-    background: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-  }
-  .color-dot.yellow {
-    background: #f59e0b;
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
-  }
-  .color-dot.green {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-  }
-
-  .duration-badge {
-    color: #2563eb !important;
-    background: #eff6ff;
-    padding: 0.2rem 0.6rem;
-    border-radius: 6px;
-    font-size: 0.95rem !important;
-    border: 1px solid #bfdbfe;
-  }
-
-  .sparkline-container-shared {
-    margin-top: 0.5rem;
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .section-box {
-    margin-bottom: 3rem;
-  }
-
-  .section-box h3 {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #1e293b;
-    margin-bottom: 1.25rem;
-    border-left: 4px solid #4f46e5;
-    padding-left: 0.75rem;
-  }
-
-  .strategy-box {
-    background: #fcfcfd;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    border: 1px solid #f1f5f9;
-  }
-
-  .detail-group {
-    margin-bottom: 1.25rem;
-  }
-
-  .detail-group label {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-    display: block;
-  }
-
-  .tags-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .check-tag,
-  .signal-tag-item {
-    background: white;
-    padding: 0.35rem 0.75rem;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: 1px solid #e2e8f0;
-    color: #334155;
-  }
-
-  .img-preview-box {
-    margin-top: 1.5rem;
-    background: white;
-    padding: 1rem;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-  }
-
-  .img-preview-box p {
-    font-size: 0.85rem;
-    font-weight: 700;
-    margin-bottom: 0.75rem;
-    color: #475569;
-  }
-
-  .img-preview-box {
-    position: relative;
-    background: #f1f5f9;
-    border-radius: 8px;
-    overflow: hidden;
-    min-height: 150px;
-    margin-bottom: 1rem;
-  }
-
-  .img-preview-box::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s infinite;
-    z-index: 0;
-  }
-
-  .img-preview-box img {
-    width: 100%;
-    border-radius: 8px;
-    display: block;
-    position: relative;
-    z-index: 1;
-  }
-
-  .notes-content {
-    background: #f8fafc;
-    padding: 1.75rem;
-    border-radius: 1rem;
-    line-height: 1.7;
-    color: #334155;
-    border: 1px solid #f1f5f9;
-    font-family: inherit !important;
-  }
-
-  /* Quill Editor Style Reset for shared view */
-  .ql-editor :global(img) {
-    max-width: 100%;
-    height: auto;
-    border-radius: 12px;
-    margin: 1rem 0;
+  .back-btn:hover { 
+    background: #f8fafc; 
+    border-color: #cbd5e1; 
+    color: #334155; 
+    transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
+  .back-btn .icon { font-size: 1.1rem; }
 
-  .ql-editor :global(p) {
-    margin-bottom: 1rem;
-  }
-
-  .image-gallery {
+  .card { background: white; border-radius: 1.5rem; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; margin-bottom: 2rem; }
+  .public-badge { background: #f8fafc; color: #64748b; padding: 0.5rem 1.25rem; border-radius: 99px; font-size: 0.8rem; font-weight: 700; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; line-height: 1; }
+  .view-header { display: flex; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1.5rem; }
+  .symbol-tag { display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 800; font-size: 0.875rem; line-height: 1; }
+  
+  .pnl-value { font-size: 2.5rem; font-weight: 900; }
+  .pnl-value.profit { color: #10b981; }
+  .pnl-value.loss { color: #ef4444; }
+  
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+  .info-item label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem; font-weight: 700; }
+  .info-item span { font-size: 1rem; font-weight: 700; color: #1e293b; }
+  .notes-content { padding: 1.5rem; background: #f8fafc; border-radius: 1rem; line-height: 1.6; }
+  
+  .batch-viewer { margin-top: 1rem; }
+  .view-header-main h1 { font-size: 2rem; font-weight: 800; color: #1e293b; text-align: center; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+  .header-info-line { display: flex; justify-content: center; align-items: center; gap: 1.5rem; margin-bottom: 1rem; }
+  .account-badges { display: flex; gap: 0.5rem; }
+  .acc-badge { display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .acc-badge.type { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+  .acc-badge.env.live { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
+  .acc-badge.env.demo { background: #f0fdf4; color: #22c55e; border: 1px solid #dcfce7; }
+  .acc-badge.id { background: #fafafa; color: #94a3b8; border: 1px solid #f1f5f9; }
+  .time-range-badge { font-size: 0.85rem; color: #64748b; font-weight: 600; background: #f8fafc; padding: 4px 12px; border-radius: 99px; border: 1px solid #f1f5f9; }
+  .batch-meta { text-align: center; color: #94a3b8; margin-bottom: 3rem; font-weight: 500; }
+  
+  /* Timeline */
+  .timeline { border-left: 2px dashed #e2e8f0; padding-left: 1.5rem; position: relative; margin-left: 2rem; }
+  .day-group { margin-bottom: 4rem; position: relative; }
+  .date-header { position: absolute; left: -1.5rem; top: 0; transform: translateX(-50%); z-index: 10; }
+  .date-tag { display: inline-flex; align-items: center; justify-content: center; background: #6366f1; color: white; padding: 0.4rem 1rem; border-radius: 20px; font-weight: 700; font-size: 0.85rem; box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3); white-space: nowrap; line-height: 1; }
+  
+  /* Day Card Container */
+  .day-card-container {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
-  }
-
-  .image-card {
-    position: relative;
-    border-radius: 1.25rem;
-    overflow: hidden;
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
-    background: #f1f5f9;
-    min-height: 200px;
-  }
-
-  .image-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s infinite;
-    z-index: 0;
-  }
-
-  .image-card img {
-    width: 100%;
-    display: block;
-    position: relative;
-    z-index: 1;
-  }
-
-  .image-type-label {
-    position: absolute;
-    top: 1rem;
-    left: 1rem;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(4px);
-    padding: 0.4rem 0.8rem;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    font-weight: 800;
-  }
-
-  .status-box {
-    text-align: center;
-    padding: 5rem 2rem;
-  }
-
-  .loader {
-    width: 48px;
-    height: 48px;
-    border: 5px solid #f1f5f9;
-    border-top: 5px solid #4f46e5;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin: 0 auto 1.5rem;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
-  }
-
-  .strategy-badge {
-    padding: 0.25rem 0.75rem;
-    border-radius: 6px;
-    color: white;
-    font-size: 0.8125rem;
-    font-weight: 700;
-  }
-  .strategy-badge.expert {
-    background: #10b981;
-  }
-  .strategy-badge.elite {
-    background: #3b82f6;
-  }
-  .strategy-badge.legend {
-    background: #f59e0b;
-  }
-
-  .session-block {
-    margin-top: 1.5rem;
-    padding: 1.25rem;
-    border-radius: 12px;
-    border-left: 5px solid #e2e8f0;
-    background: #f8fafc;
-  }
-  .session-block.asian {
-    border-left-color: #3b82f6;
-  }
-  .session-block.european {
-    border-left-color: #f59e0b;
-  }
-  .session-block.us {
-    border-left-color: #ef4444;
-  }
-
-  .session-notes {
-    white-space: pre-wrap;
-    font-family: inherit;
-    line-height: 1.6;
-    color: #475569;
-    margin-top: 0.75rem;
-    font-size: 0.95rem;
-  }
-
-  /* Trends Grid */
-  .trends-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: 350px 1fr;
     gap: 1.5rem;
-    margin-top: 1.5rem;
-  }
-
-  @media (max-width: 600px) {
-    .trends-grid {
-      grid-template-columns: 1fr;
-      gap: 1rem;
-    }
-  }
-
-  .trend-card {
     background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    transition: all 0.2s ease;
-  }
-
-  .trend-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-
-  .trend-card.long {
-    border-left: 5px solid #ef4444;
-  }
-  .trend-card.short {
-    border-left: 5px solid #10b981;
-  }
-
-  .trend-header {
-    background: #f8fafc;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .tf-badge {
-    font-weight: 800;
-    color: #475569;
-    font-size: 1rem;
-  }
-
-  .dir-badge {
-    font-size: 0.8rem;
-    padding: 0.2rem 0.6rem;
-    border-radius: 6px;
-    font-weight: 700;
-    color: white;
-  }
-  .dir-badge.long {
-    background: #ef4444;
-  }
-  .dir-badge.short {
-    background: #10b981;
-  }
-
-  .trend-body {
-    padding: 1rem;
-  }
-
-  .t-section {
-    margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px dashed #e2e8f0;
-  }
-
-  .section-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #64748b;
-    margin-bottom: 0.5rem;
-  }
-
-  .t-img-box {
-    margin-top: 0.5rem;
-    border-radius: 8px;
-    overflow: hidden;
+    padding: 1.5rem;
+    border-radius: 20px;
     border: 1px solid #f1f5f9;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
+  }
+
+  .plan-column, .trade-column { display: flex; flex-direction: column; gap: 1rem; }
+  .plan-column { border-right: 1px dashed #e2e8f0; padding-right: 1.5rem; }
+
+  /* Cards */
+  .plan-item-card, .trade-item-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.25rem;
+    border: 1px solid #f1f5f9;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     position: relative;
-    background: #f1f5f9; /* Placeholder color */
-    min-height: 100px; /* Minimum height to prevent collapse */
+    overflow: hidden;
   }
 
-  /* Skeleton loading animation */
-  .t-img-box::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-    background-size: 200% 100%;
-    animation: skeleton-pulse 1.5s infinite;
-    z-index: 0;
+  .trade-item-card.tag-green { border-left: 5px solid #22c55e; }
+  .trade-item-card.tag-yellow { border-left: 5px solid #eab308; }
+  .trade-item-card.tag-red { border-left: 5px solid #ef4444; }
+
+  .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+  .item-type { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+  .symbol-inline-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #1e293b; padding: 2px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; line-height: 1; }
+
+  /* Plan Mini */
+  .mini-progression { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .tf-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
+  .tf-name { font-weight: 700; color: #475569; width: 30px; }
+  .tf-steps { display: flex; gap: 3px; align-items: center; }
+  .mini-step { display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; line-height: 1; }
+  .mini-step.long { background: #fef2f2; color: #991b1b; }
+  .mini-step.short { background: #f0fdf4; color: #166534; }
+  .mini-step.na { background: #f8fafc; color: #94a3b8; }
+  .step-arrow { color: #cbd5e1; font-weight: 800; font-size: 0.7rem; }
+
+  .mini-notes { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #edf2f7; }
+  .mini-note-item { font-size: 0.8rem; color: #4a5568; line-height: 1.4; display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.3rem; }
+  .note-session { display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; padding: 2px 4px; border-radius: 3px; color: white; min-width: 1.2rem; text-align: center; flex-shrink: 0; line-height: 1; }
+  .note-session.asian { background: #3b82f6; }
+  .note-session.european { background: #d97706; }
+  .note-session.us { background: #dc2626; }
+  .simple-notes { font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; font-style: italic; white-space: pre-wrap; }
+
+  /* Trade Mini */
+  .trade-meta { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .session-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; background: #e2e8f0; color: #475569; line-height: 1; }
+  .session-tag.asian { background: #dbeafe; color: #1e40af; }
+  .session-tag.european { background: #fef9c3; color: #854d0e; }
+  .session-tag.us { background: #fee2e2; color: #991b1b; }
+  
+  .side-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; line-height: 1; white-space: nowrap; }
+  .side-tag.long { background: #fee2e2; color: #991b1b; }
+  .side-tag.short { background: #dcfce7; color: #166534; }
+
+  .strategy-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 700; color: white; line-height: 1; }
+  .strategy-tag.expert { background: #059669; }
+  .strategy-tag.elite { background: #1e3a8a; }
+  .strategy-tag.legend { background: #78350f; }
+
+  .trade-right { display: flex; align-items: center; gap: 0.75rem; }
+  .color-tags-static { display: flex; gap: 4px; }
+  .color-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid #eee; background: #fff; }
+  .color-dot.active.green { background: #22c55e; border-color: #16a34a; }
+  .color-dot.active.yellow { background: #eab308; border-color: #ca8a04; }
+  .color-dot.active.red { background: #ef4444; border-color: #dc2626; }
+
+  .pnl-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 900; padding: 4px 10px; border-radius: 8px; line-height: 1; }
+  .pnl-tag.profit { background: #f0fdf4; color: #16a34a; }
+  .pnl-tag.loss { background: #fef2f2; color: #dc2626; }
+
+  .trade-details-shared { margin-top: 1rem; }
+  .detail-row { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center; margin-bottom: 0.5rem; }
+  .info-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #64748b; }
+  .info-group strong { color: #1e293b; color: #334155; }
+  .info-group .bullet { color: #6366f1; font-weight: 800; }
+  .info-group .rr.profit { color: #10b981; }
+  .info-group .rr.loss { color: #ef4444; }
+  .arrow { color: #cbd5e1; }
+  .trade-time-shared { font-size: 0.75rem; color: #94a3b8; }
+  .duration-text { font-weight: 600; color: #64748b; margin-left: 0.5rem; }
+
+  /* Gallery */
+  .mini-gallery-shared { display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #f1f5f9; }
+  .mini-img { width: 40px; height: 40px; border-radius: 4px; overflow: hidden; border: 1px solid #e2e8f0; cursor: pointer; }
+  .mini-img img { width: 100%; height: 100%; object-fit: cover; }
+  .more-imgs { background: #f1f5f9; color: #64748b; font-size: 0.7rem; font-weight: 700; width: 40px; height: 40px; border-radius: 4px; display: flex; align-items: center; justify-content: center; border: 1px solid #e2e8f0; }
+
+  .empty-placeholder-shared { text-align: center; padding: 2rem; background: #fafafa; border: 1px dashed #eee; border-radius: 12px; color: #999; font-size: 0.85rem; }
+
+  @media (max-width: 900px) {
+    .day-card-container { grid-template-columns: 1fr; }
+    .plan-column { border-right: none; border-bottom: 1px dashed #e2e8f0; padding-right: 0; padding-bottom: 1.5rem; }
+    .timeline { margin-left: 1rem; }
   }
 
-  @keyframes skeleton-pulse {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
+  .plan-item-card.clickable, .trade-item-card.clickable { cursor: pointer; transition: all 0.2s; }
+  .plan-item-card.clickable:hover, .trade-item-card.clickable:hover {
+    border-color: #6366f1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   }
 
-  .img-label {
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 4px;
-    backdrop-filter: blur(2px);
-    z-index: 2;
-  }
-
-  .t-img-box img {
-    width: 100%;
-    height: auto;
-    display: block;
-    position: relative;
-    z-index: 1;
-    min-height: 1px;
-  }
-
-  .t-tags {
+  .info-grid.extended {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 0.5rem;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: 2rem;
   }
-
-  .t-tag {
-    font-size: 0.75rem;
+  .info-row-group {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    padding: 1.25rem 0;
+  }
+  .info-row-divider {
+    height: 1px;
     background: #f1f5f9;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    color: #334155;
-    font-weight: 600;
+    width: 100%;
   }
+  .info-item label { color: #64748b; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; margin-bottom: 0.6rem; display: block; }
+  .info-item .value-highlight { font-size: 1.1rem; font-weight: 800; color: #1e293b; background: #f8fafc; padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; min-width: 100px; }
+  .full-width-item { grid-column: 1 / -1; }
 
-  .t-wave-nums {
-    display: flex;
+  /* Sync with Edit Form Styles */
+  .mock-session-display { display: flex; align-items: center; gap: 0.75rem; background: transparent; padding: 0.4rem 0.75rem; border-radius: 8px; border: 2px solid #e0f2fe; width: fit-content; white-space: nowrap; flex-shrink: 0; }
+  .session-label-btn { padding: 4px 12px; border-radius: 6px; font-weight: 800; font-size: 0.8rem; color: white; line-height: 1.2; text-align: center; display: inline-block; }
+  .session-label-btn.asian { background: #3b82f6; }
+  .session-label-btn.european { background: #d97706; }
+  .session-label-btn.us { background: #00b4ff; }
+  .session-time-text { font-size: 0.85rem; color: #475569; font-weight: 600; white-space: nowrap; }
+
+  .duration-badge-pill { background: #eff6ff; color: #2563eb; padding: 6px 16px; border-radius: 8px; font-weight: 700; border: 1px solid #dbeafe; display: inline-block; }
+
+  /* Shared Viewer Analysis Styling Updates */
+  .rocket-header { font-size: 1.25rem !important; font-weight: 800; color: #2d3748; margin-bottom: 1.5rem !important; }
+
+  .analysis-sub-flex.horizontal-layout { display: flex; flex-direction: row; flex-wrap: wrap; gap: 3rem; margin-top: 1rem; align-items: flex-end; }
+  .analysis-sub-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  
+  .mock-strategy-btns { display: flex; gap: 0.5rem; }
+  .strat-btn { padding: 0.6rem 1.5rem; border: 2px solid #cbd5e0; border-radius: 8px; color: #4a5568; font-size: 1rem; font-weight: 600; background: white; text-align: center; min-width: 80px; }
+  .strat-btn.active { border-color: #6366f1; background: #e0e7ff; color: #4338ca; box-shadow: none; }
+
+  .mock-tf-pills { display: flex; background: #1a1a1a; border-radius: 8px; padding: 4px; gap: 2px; width: fit-content; align-items: center; }
+  .tf-pill { color: #888; padding: 6px 12px; font-size: 0.85rem; font-weight: 600; cursor: default; transition: all 0.2s; white-space: nowrap; border-radius: 6px; }
+  .tf-pill.active { background: #333; color: #60a5fa !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+  .analysis-section { background: #fcfdfe; border: 1px solid #edf2f7; margin-top: 0; padding: 0 1.5rem 1.5rem 1.5rem; border-radius: 12px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0; }
+  /* Make sure internal content isn't stuck to edges */
+  .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 1rem; }
+  .analysis-item label { font-size: 0.75rem; font-weight: 800; color: #4a5568; margin-bottom: 0.75rem; display: block; }
+  .tags-container { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .analysis-tag { 
+    background: #ebf4ff; 
+    color: #2b6cb0; 
+    padding: 4px 12px; 
+    border-radius: 6px; 
+    font-size: 0.85rem; 
+    font-weight: 700; 
+    display: inline-flex; 
+    align-items: center; 
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
   }
+  .analysis-tag.has-img { cursor: pointer; transition: transform 0.2s; }
+  .analysis-tag.has-img:hover { transform: translateY(-1px); background: #dbeafe; }
+  .tag-icon { width: 20px; height: 20px; border-radius: 3px; object-fit: cover; border: 1px solid rgba(0,0,0,0.05); }
+  .analysis-tag.pattern { background: #faf5ff; color: #6b46c1; }
+  
+  .checklist-display { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px dashed #e2e8f0; }
+  .checklist-display label { font-size: 0.75rem; font-weight: 800; color: #4a5568; margin-bottom: 0.75rem; display: block; }
+  .check-items { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+  .check-chip { background: #f0fdf4; color: #166534; padding: 6px 14px; border-radius: 99px; font-size: 0.85rem; font-weight: 600; border: 1px solid #dcfce7; }
 
-  .w-num {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f1f5f9;
-    border-radius: 50%;
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #64748b;
-  }
-  .w-arrow {
-    color: #94a3b8;
-    font-weight: 800;
-    font-size: 0.75rem;
-    align-self: center;
-  }
-  .w-num.highlight {
-    background: #fee2e2;
-    color: #ef4444;
-  }
+  .ticket-val { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #94a3b8; }
+  .rr-value-pills { background: #f5f3ff; color: #5b21b6; padding: 2px 8px; border-radius: 4px; font-weight: 800; }
 
-  /* Responsive Optimizations */
-  @media (max-width: 768px) {
-    .shared-view-container {
-      margin: 1rem auto;
-      padding: 0 0.75rem;
-    }
-
-    .card {
-      padding: 1.25rem;
-      border-radius: 1rem;
-    }
-
-    .view-header {
-      margin-bottom: 1.5rem;
-      padding-bottom: 1.25rem;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 1rem;
-    }
-
-    .title-section h1 {
-      font-size: 1.4rem;
-    }
-
-    .info-grid {
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 0.75rem;
-    }
-
-    .image-modal {
-      padding: 1rem;
-    }
-
-    .image-modal-close {
-      top: -35px;
-      right: 5px;
-      font-size: 2rem;
-    }
-
-    .image-modal-caption {
-      font-size: 0.95rem;
-      text-align: center;
-    }
-
-    .notes-content {
-      padding: 1.25rem;
-      font-size: 0.95rem;
-    }
-
-    .session-block {
-      padding: 1rem;
-    }
-  }
-
-  /* Special optimization for narrow screens (e.g. Fold outer screen) */
-  @media (max-width: 400px) {
-    .title-section h1 {
-      font-size: 1.25rem;
-    }
-
-    .symbol-tag,
-    .side-tag {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.6rem;
-    }
-
-    .pnl-value {
-      font-size: 1.5rem;
-    }
-
-    .image-gallery {
-      gap: 1.5rem;
-    }
-  }
-
-  /* Optimization for larger folding screens (e.g. Fold internal screen) */
-  @media (min-width: 601px) and (max-width: 1024px) {
-    .trends-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .shared-view-container {
-      max-width: 95%;
-    }
-  }
+  .image-modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(8px); overflow: hidden; }
+  .image-modal-content { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .zoom-container { transition: transform 0.05s ease-out; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+  .modal-img { max-width: 90vw; max-height: 90vh; object-fit: contain; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border-radius: 4px; pointer-events: none; }
+  .image-modal-close { position: absolute; top: 20px; right: 20px; color: white; font-size: 2rem; background: rgba(0,0,0,0.5); border: none; cursor: pointer; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; transition: all 0.2s; }
+  .image-modal-close:hover { background: rgba(255,255,255,0.2); transform: rotate(90deg); }
+  .image-modal-caption { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 99px; font-size: 0.9rem; font-weight: 500; pointer-events: none; white-space: nowrap; backdrop-filter: blur(4px); }
+  .loader { width: 40px; height: 40px; border: 4px solid #f1f5f9; border-top-color: #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status-box { text-align: center; padding: 4rem 2rem; }
 </style>

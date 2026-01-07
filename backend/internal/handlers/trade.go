@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"net/http"
 
+	"time"
+	"trade-journal/internal/ctrader"
 	"trade-journal/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -277,6 +279,8 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// fmt.Printf("[UpdateTrade DEBUG] ID: %s, EntrySignals Payload: %s\n", id, req.EntrySignals)
+
 		userID := c.GetInt64("user_id")
 
 		// 檢查交易所屬權 (透過 join accounts)
@@ -401,6 +405,51 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "交易紀錄刪除成功"})
+	}
+}
+
+// SyncSingleTrade 重新整理單筆交易資料
+func SyncSingleTrade(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		userID := c.GetInt64("user_id")
+
+		var trade struct {
+			ID          int64
+			AccountID   int64
+			Ticket      sql.NullString
+			Symbol      string
+			Side        string
+			EntryPrice  float64
+			LotSize     float64
+			EntryTime   time.Time
+			ExitTime    sql.NullTime
+			AccountType string
+		}
+
+		err := db.QueryRow(`
+			SELECT t.id, t.account_id, t.ticket, t.symbol, t.side, t.entry_price, t.lot_size, t.entry_time, t.exit_time, a.type
+			FROM trades t
+			JOIN accounts a ON t.account_id = a.id
+			WHERE t.id = ? AND a.user_id = ?
+		`, id, userID).Scan(&trade.ID, &trade.AccountID, &trade.Ticket, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.LotSize, &trade.EntryTime, &trade.ExitTime, &trade.AccountType)
+
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if trade.AccountType == "ctrader" && trade.Ticket.Valid && trade.Ticket.String != "" {
+			if ctrader.GlobalManager != nil {
+				go ctrader.GlobalManager.ManualSyncTrade(trade.AccountID, trade.Ticket.String)
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "同步請求已送出，資料將在幾秒內更新"})
 	}
 }
 

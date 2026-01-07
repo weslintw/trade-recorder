@@ -8,6 +8,7 @@
   import { accountsAPI } from '../lib/api';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
+  import BatchShareModal from './BatchShareModal.svelte';
 
   let groupedData = [];
   let loading = true;
@@ -15,7 +16,15 @@
   let selectedImage = null;
   let isSyncing = false;
   let showAccountModal = false;
+  let showBatchShareModal = false;
   let pollingInterval;
+
+  // 批次分享相關狀態
+  let selectionMode = false;
+  let selectedTrades = new Set();
+  let selectedPlans = new Set();
+  let isSharing = false;
+  let generatedShareToken = '';
 
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
@@ -138,6 +147,16 @@
 
       // 針對組合單內的成員排序 (先平倉的在上面)
       groupedData.forEach(day => {
+        // 先對卡片進行排序：最新平倉的在最上面 (未平倉視為最新)
+        day.groupedTrades.sort((a, b) => {
+          const getTime = (g) => {
+            if (g.trades.some(t => !t.exit_time)) return Infinity; // 未平倉置頂
+            return Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
+          };
+          return getTime(b) - getTime(a);
+        });
+
+        // 再對群組內部的交易排序
         day.groupedTrades.forEach(group => {
           if (group.trades.length > 1) {
             group.trades.sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
@@ -456,6 +475,99 @@
       alert('刪除失敗');
     }
   }
+
+  async function syncSingleTrade(id) {
+    try {
+      await tradesAPI.sync(id);
+      alert('已送出手動同步請求，資料將在幾秒內更新');
+      setTimeout(() => loadData(true), 3000);
+    } catch (error) {
+      console.error('Sync failed:', error);
+      alert('同步失敗: ' + (error.response?.data?.error || error.message));
+    }
+  }
+
+  // 批次分享邏輯
+  function startSelection() {
+    selectionMode = true;
+    selectedTrades = new Set();
+    selectedPlans = new Set();
+  }
+
+  function cancelSelection() {
+    selectionMode = false;
+    selectedTrades = new Set();
+    selectedPlans = new Set();
+  }
+
+  function toggleTradeSelection(id) {
+    if (selectedTrades.has(id)) {
+      selectedTrades.delete(id);
+    } else {
+      selectedTrades.add(id);
+    }
+    selectedTrades = selectedTrades;
+  }
+
+  function togglePlanSelection(id) {
+    if (selectedPlans.has(id)) {
+      selectedPlans.delete(id);
+    } else {
+      selectedPlans.add(id);
+    }
+    selectedPlans = selectedPlans;
+  }
+
+  function toggleDaySelection(group) {
+    const tradeIds = group.groupedTrades.flatMap(gt => gt.trades.map(t => t.id));
+    const planIds = group.plans.map(p => p.id);
+    
+    const allSelected = tradeIds.every(id => selectedTrades.has(id)) && 
+                        planIds.every(id => selectedPlans.has(id));
+
+    if (allSelected) {
+      tradeIds.forEach(id => selectedTrades.delete(id));
+      planIds.forEach(id => selectedPlans.delete(id));
+    } else {
+      tradeIds.forEach(id => selectedTrades.add(id));
+      planIds.forEach(id => selectedPlans.add(id));
+    }
+    
+    selectedTrades = selectedTrades;
+    selectedPlans = selectedPlans;
+  }
+
+  async function submitBatchShare() {
+    if (selectedTrades.size === 0 && selectedPlans.size === 0) {
+      alert('請至少選擇一項內容進行分享');
+      return;
+    }
+
+    isSharing = true;
+    try {
+      const res = await sharesAPI.create({
+        resource_type: 'batch',
+        resource_id: 0,
+        resource_ids: {
+          trades: Array.from(selectedTrades),
+          plans: Array.from(selectedPlans)
+        },
+        share_type: 'public'
+      });
+      generatedShareToken = res.data.token;
+      
+      // 顯示成功訊息並關閉選取模式
+      const shareUrl = `${window.location.origin}/shared/${generatedShareToken}`;
+      await navigator.clipboard.writeText(shareUrl);
+      alert('批次分享連結已產生並複製到剪貼簿！');
+      cancelSelection();
+    } catch (e) {
+      console.error(e);
+      alert('批次分享失敗');
+    } finally {
+      isSharing = false;
+    }
+  }
 </script>
 
 <div class="timeline-container">
@@ -473,9 +585,7 @@
           >
             {currentAccount.type === 'local'
               ? '本地帳號'
-              : currentAccount.type === 'metatrader'
-                ? 'MetaTrader 5'
-                : 'cTrader'}
+              : 'cTrader'}
           </span>
           <span
             class="badge {currentAccount.status === 'active' ? 'badge-success' : 'badge-danger'}"
@@ -494,8 +604,6 @@
             </span>
             {#if currentAccount.type === 'ctrader'}
               <span class="login-id">Login ID: {currentAccount.ctrader_account_id}</span>
-            {:else}
-              <span class="login-id">ID: {currentAccount.mt5_account_id}</span>
             {/if}
           </div>
           {#if currentAccount.type !== 'local'}
@@ -546,6 +654,13 @@
     </div>
     <div class="quick-btns">
       <button
+        class="small-action-btn share"
+        on:click={() => (showBatchShareModal = true)}
+        title="分享"
+      >
+        <span class="btn-icon">🔗</span> 分享
+      </button>
+      <button
         class="small-action-btn plan"
         data-testid="add-plan-btn"
         on:click={() => navigate('/plans/new?symbol=' + $selectedSymbol)}
@@ -561,6 +676,20 @@
       </button>
     </div>
   </div>
+
+  {#if selectionMode}
+    <div class="selection-bar">
+      <div class="selection-info">
+        已選擇 <strong>{selectedTrades.size}</strong> 筆交易與 <strong>{selectedPlans.size}</strong> 筆規劃
+      </div>
+      <div class="selection-actions">
+        <button class="btn btn-secondary btn-sm" on:click={cancelSelection}>取消</button>
+        <button class="btn btn-primary btn-sm" on:click={submitBatchShare} disabled={isSharing}>
+          {isSharing ? '產生中...' : '確認分享'}
+        </button>
+      </div>
+    </div>
+  {/if}
 
   {#if loading}
     <div class="loading-state">
@@ -589,6 +718,15 @@
       {#each groupedData as group}
         <div class="day-wrapper">
           <div class="day-marker">
+            {#if selectionMode}
+              <input 
+                type="checkbox" 
+                class="day-checkbox" 
+                checked={group.groupedTrades.flatMap(gt => gt.trades.map(t => t.id)).every(id => selectedTrades.has(id)) && 
+                         group.plans.map(p => p.id).every(id => selectedPlans.has(id))}
+                on:change={() => toggleDaySelection(group)}
+              />
+            {/if}
             <div class="date-tag">{formatDay(group.date)}</div>
           </div>
 
@@ -599,7 +737,12 @@
                 {#each group.plans as plan}
                   {@const trendData = parseJSONSafe(plan.trend_analysis, {})}
                   {@const isUnified = plan.market_session === 'all'}
-                  <div class="plan-item-card" on:click={() => navigate(`/plans/edit/${plan.id}`)}>
+                  <div class="plan-item-card {selectionMode && selectedPlans.has(plan.id) ? 'selected' : ''}" on:click={() => selectionMode ? togglePlanSelection(plan.id) : navigate(`/plans/edit/${plan.id}`)}>
+                    {#if selectionMode}
+                      <div class="card-selection-overlay">
+                        <input type="checkbox" checked={selectedPlans.has(plan.id)} on:click|stopPropagation />
+                      </div>
+                    {/if}
                     <div class="item-header">
                       <span class="item-type">📌 盤面規劃</span>
                       <button
@@ -681,9 +824,17 @@
                       <div
                         class="trade-time-group is-multi {timeGroup.trades[0].color_tag
                           ? `tag-${timeGroup.trades[0].color_tag}`
-                          : ''}"
-                        on:click={() => navigateWithScroll(`/edit/${timeGroup.trades[0].id}`)}
+                          : ''} {selectionMode && timeGroup.trades.every(t => selectedTrades.has(t.id)) ? 'selected' : ''}"
+                        on:click={() => selectionMode ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id)) : navigateWithScroll(`/edit/${timeGroup.trades[0].id}`)}
                       >
+                        {#if selectionMode}
+                          <div class="card-selection-overlay">
+                            <input type="checkbox" 
+                              checked={timeGroup.trades.every(t => selectedTrades.has(t.id))} 
+                              on:click|stopPropagation={() => timeGroup.trades.forEach(t => toggleTradeSelection(t.id))} 
+                            />
+                          </div>
+                        {/if}
                         <div class="group-header">
                           <div class="group-meta">
                             <span class="multi-indicator">📦 組合單</span>
@@ -749,6 +900,13 @@
                                 ? 'NA'
                                 : (timeGroup.summary.totalPnl >= 0 ? '+' : '') + timeGroup.summary.totalPnl?.toFixed?.(2)}
                             </span>
+                            <button
+                               class="sync-btn-card"
+                               on:click|stopPropagation={() => syncSingleTrade(timeGroup.trades[0].id)}
+                               title="重新整理此交易資料"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                            </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                             <button
                               class="icon-btn delete"
@@ -809,25 +967,35 @@
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
                       <div
-                        class="trade-item-card {trade.color_tag ? `tag-${trade.color_tag}` : ''}"
-                        on:click={() => navigateWithScroll(`/edit/${trade.id}`)}
+                        class="trade-item-card {trade.color_tag ? `tag-${trade.color_tag}` : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''}"
+                        on:click={() => selectionMode ? toggleTradeSelection(trade.id) : navigateWithScroll(`/edit/${trade.id}`)}
                       >
+                        {#if selectionMode}
+                          <input 
+                            type="checkbox" 
+                            class="selection-checkbox" 
+                            checked={selectedTrades.has(trade.id)}
+                            on:click|stopPropagation={() => toggleTradeSelection(trade.id)}
+                          />
+                        {/if}
                         <div class="item-header">
-                          <div class="trade-meta">
-                            <span class="symbol-inline-tag">{trade.symbol}</span>
-                            <span
-                              class="session-tag {trade.market_session ||
-                                determineMarketSession(trade.entry_time)}"
-                              >{getMarketSessionLabel(trade)}</span
-                            >
-                            {#if trade.entry_strategy}<span
-                                class="strategy-tag {trade.entry_strategy}"
-                                >{getStrategyLabel(trade.entry_strategy)}</span
-                              >{/if}
-                            <span class="side-tag {trade.side}"
-                              >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
-                            >
-                            {#if trade.ticket}<span class="ticket-tag">#{trade.ticket}</span>{/if}
+                          <div class="trade-title-area">
+                            <div class="trade-meta">
+                              <span class="symbol-inline-tag">{trade.symbol}</span>
+                              <span
+                                class="session-tag {trade.market_session ||
+                                  determineMarketSession(trade.entry_time)}"
+                                >{getMarketSessionLabel(trade)}</span
+                              >
+                              {#if trade.entry_strategy}<span
+                                  class="strategy-tag {trade.entry_strategy}"
+                                  >{getStrategyLabel(trade.entry_strategy)}</span
+                                >{/if}
+                              <span class="side-tag {trade.side}"
+                                >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
+                              >
+                            </div>
+                            {#if trade.ticket}<div class="ticket-tag">#{trade.ticket}</div>{/if}
                           </div>
                           <div class="trade-right">
                             <div class="color-tags" on:click|stopPropagation>
@@ -863,6 +1031,13 @@
                                 ? trade.pnl.toFixed(2)
                                 : trade.pnl)}
                             </span>
+                            <button
+                               class="sync-btn-card"
+                               on:click|stopPropagation={() => syncSingleTrade(trade.id)}
+                               title="重新整理此交易資料"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                            </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                             <button
                               class="icon-btn delete"
@@ -970,6 +1145,8 @@
   }}
 />
 
+<BatchShareModal bind:show={showBatchShareModal} on:startSelection={startSelection} />
+
 {#if selectedImage}
   <div class="modal" on:click={closeImageModal}>
     <div class="modal-content" on:click|stopPropagation>
@@ -1055,11 +1232,15 @@
   }
 
   .sync-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     text-transform: uppercase;
     font-size: 0.65rem;
     padding: 0.15rem 0.5rem;
     border-radius: 6px;
     font-weight: 800;
+    line-height: 1;
   }
   .sync-badge.idle {
     background: #f1f5f9;
@@ -1126,10 +1307,14 @@
   }
 
   .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.3rem 0.75rem;
     border-radius: 10px;
     font-size: 0.75rem;
     font-weight: 700;
+    line-height: 1;
   }
   .badge-info {
     background: #e0f2fe;
@@ -1238,6 +1423,9 @@
   }
 
   .date-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #6366f1;
     color: white;
     padding: 0.4rem 1rem;
@@ -1246,6 +1434,7 @@
     font-weight: 700;
     white-space: nowrap;
     box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+    line-height: 1;
   }
 
   .day-card-container {
@@ -1362,6 +1551,39 @@
     background: #fee2e2;
   }
 
+  .sync-btn-card {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    z-index: 10;
+  }
+
+  .trade-item-card:hover .sync-btn-card,
+  .trade-time-group:hover .sync-btn-card {
+    opacity: 0.8;
+  }
+
+  .sync-btn-card:hover {
+    color: var(--primary);
+    opacity: 1 !important;
+    transform: rotate(30deg);
+  }
+
+  .is-multi .sync-btn-card {
+     right: 2rem; /* 在組合單中避開可能的垃圾桶 */
+  }
+
   /* Plan Mini styles */
   .mini-progression {
     display: flex;
@@ -1466,10 +1688,15 @@
 
   .trade-meta {
     display: flex;
+    align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .session-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 4px;
@@ -1477,6 +1704,7 @@
     background: #e2e8f0;
     color: #475569;
     white-space: nowrap;
+    line-height: 1;
   }
 
   .session-tag.asian {
@@ -1493,10 +1721,15 @@
   }
 
   .side-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   .side-tag.long {
@@ -1509,6 +1742,9 @@
   }
 
   .symbol-inline-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 800;
     color: #1e293b;
@@ -1516,6 +1752,7 @@
     background: #f1f5f9;
     border: 1px solid #e2e8f0;
     border-radius: 4px;
+    line-height: 1;
   }
 
   .session-tag.none {
@@ -1524,18 +1761,31 @@
     font-style: italic;
   }
 
+  .trade-title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem; /* 稍微分開標籤行與 ID 行 */
+  }
+  
   .ticket-tag {
-    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.7rem; /* 稍微縮小 ID 大小 */
     color: #94a3b8;
-    font-family: monospace;
-    align-self: center;
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.8;
+    line-height: 1;
   }
 
   .strategy-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.7rem;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 700;
+    line-height: 1;
   }
 
   .strategy-tag.expert {
@@ -1723,8 +1973,12 @@
   }
 
   .pnl-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-weight: 800;
     font-size: 0.95rem;
+    line-height: 1;
   }
 
   .pnl-tag.profit {
@@ -2126,5 +2380,78 @@
   }
   .color-btn.red {
     background-color: #ef4444;
+  }
+
+  /* 批次選取樣式 */
+  .selection-bar {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e293b;
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 99px;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    animation: barSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes barSlideUp {
+    from { bottom: -5rem; opacity: 0; }
+    to { bottom: 2rem; opacity: 1; }
+  }
+
+  .selection-info {
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .selection-info strong {
+    color: #818cf8;
+    font-size: 1.1rem;
+    margin: 0 0.2rem;
+  }
+
+  .selection-actions {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .btn-sm {
+    padding: 0.4rem 1rem;
+    font-size: 0.85rem;
+    border-radius: 99px;
+  }
+
+  .card-selection-overlay {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 20;
+  }
+
+  .selection-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #6366f1;
+  }
+
+  .day-check {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 0.5rem;
+  }
+
+  .plan-item-card.selected,
+  .trade-item-card.selected,
+  .trade-time-group.selected {
+    border-color: #6366f1 !important;
+    background: #f5f3ff !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
   }
 </style>

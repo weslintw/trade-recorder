@@ -144,9 +144,9 @@
             <label class="radio-label">
               <input type="radio" bind:group={newAccount.type} value="ftmo" /> 從 FTMO CSV 匯入
             </label>
-            <label class="radio-label">
+<!-- <label class="radio-label">
               <input type="radio" bind:group={newAccount.type} value="metatrader" /> MetaTrader 5 (自動同步)
-            </label>
+            </label> -->
             <label class="radio-label">
               <input type="radio" bind:group={newAccount.type} value="ctrader" /> cTrader (自動同步)
             </label>
@@ -173,7 +173,7 @@
         </div>
       {/if}
 
-      {#if newAccount.type === 'metatrader'}
+<!-- {#if newAccount.type === 'metatrader'}
         <div class="metatrader-fields">
           <div class="form-group">
             <label for="mt5-id">MT5 帳號 ID</label>
@@ -196,7 +196,7 @@
             />
           </div>
         </div>
-      {/if}
+      {/if} -->
 
       {#if newAccount.type === 'ctrader'}
         <div class="ctrader-fields">

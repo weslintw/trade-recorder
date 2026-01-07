@@ -22,11 +22,14 @@ type Manager struct {
 }
 
 type AccountConn struct {
-	AccountID int64
-	Conn      *websocket.Conn
-	StopChan  chan struct{}
-	Waiters   map[string]chan *CTraderMessage
-	WaitMu    sync.Mutex
+	AccountID        int64
+	Conn             *websocket.Conn
+	StopChan         chan struct{}
+	Waiters          map[string]chan *CTraderMessage
+	WaitMu           sync.Mutex
+	Mu               sync.RWMutex
+	SymbolMap        map[int64]string
+	SymbolLotSizeMap map[int64]int64
 }
 
 var GlobalManager *Manager
@@ -84,9 +87,11 @@ func (m *Manager) startListener(accountID int64, ctid, token, cid, secret, env s
 	stopChan := make(chan struct{})
 	m.mu.Lock()
 	m.connections[accountID] = &AccountConn{
-		AccountID: accountID,
-		StopChan:  stopChan,
-		Waiters:   make(map[string]chan *CTraderMessage),
+		AccountID:        accountID,
+		StopChan:         stopChan,
+		Waiters:          make(map[string]chan *CTraderMessage),
+		SymbolMap:        make(map[int64]string),
+		SymbolLotSizeMap: make(map[int64]int64),
 	}
 	m.mu.Unlock()
 	go m.listenerLoop(accountID, ctid, token, cid, secret, env, stopChan)
@@ -150,8 +155,13 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		return err
 	}
 
-	symbolMap := make(map[int64]string)
-	symbolLotSizeMap := make(map[int64]int64)
+	m.mu.RLock()
+	ac, _ := m.connections[accountID]
+	m.mu.RUnlock()
+	if ac == nil {
+		return fmt.Errorf("account connection lost")
+	}
+
 	// Pre-fetch ALL symbols (Light) to guarantee we have names
 	symListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": ctid})
 	if err == nil {
@@ -162,18 +172,24 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 			} `json:"symbol"`
 		}
 		json.Unmarshal(symListResp.Payload, &p)
+		ac.Mu.Lock()
 		for _, s := range p.Symbols {
-			symbolMap[s.SymbolID] = s.SymbolName
+			ac.SymbolMap[s.SymbolID] = s.SymbolName
 		}
+		ac.Mu.Unlock()
 		log.Printf("[cTrader Manager] Pre-fetched %d symbols", len(p.Symbols))
 	} else {
 		log.Printf("[cTrader Manager] Failed to pre-fetch symbols: %v", err)
 	}
 
 	fetchSymbol := func(sid int64) string {
-		// If we have lot size, we assume we have everything needed (including name from pre-fetch)
-		if symbolLotSizeMap[sid] > 0 {
-			return symbolMap[sid]
+		ac.Mu.RLock()
+		hasLotSize := ac.SymbolLotSizeMap[sid] > 0
+		nameIfFound := ac.SymbolMap[sid]
+		ac.Mu.RUnlock()
+
+		if hasLotSize {
+			return nameIfFound
 		}
 
 		// If we miss details (LotSize), fetch detailed info
@@ -181,7 +197,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		resp, err := sendRequest(conn, PayloadSymbolByIdReq, map[string]interface{}{"ctidTraderAccountId": ctid, "symbolId": []int64{sid}})
 		if err != nil {
 			log.Printf("[cTrader Manager] ERROR fetching symbol %d: %v", sid, err)
-			return symbolMap[sid] // Return at least name if we have it
+			return nameIfFound
 		}
 
 		var p struct {
@@ -194,19 +210,26 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		}
 		if err := json.Unmarshal(resp.Payload, &p); err != nil {
 			log.Printf("[cTrader Manager] ERROR unmarshaling symbol: %v", err)
-			return symbolMap[sid]
+			return nameIfFound
 		}
 		for _, s := range p.Symbols {
+			ac.Mu.Lock()
 			if s.SymbolName != "" {
-				symbolMap[s.SymbolID] = s.SymbolName
+				ac.SymbolMap[s.SymbolID] = s.SymbolName
 			}
-			symbolLotSizeMap[s.SymbolID] = s.LotSize
+			ac.SymbolLotSizeMap[s.SymbolID] = s.LotSize
+			ac.Mu.Unlock()
 			m.symbolDigitsMap.Store(s.SymbolID, s.Digits)
 			if s.SymbolID == sid {
-				return symbolMap[sid]
+				ac.Mu.RLock()
+				name := ac.SymbolMap[sid]
+				ac.Mu.RUnlock()
+				return name
 			}
 		}
-		name := symbolMap[sid]
+		ac.Mu.RLock()
+		name := ac.SymbolMap[sid]
+		ac.Mu.RUnlock()
 		log.Printf("[cTrader Manager] Symbol Resolution: ID %d -> Name %s", sid, name)
 		return name
 	}
@@ -269,7 +292,9 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 				symbol = pos.SymbolName
 				log.Printf("[cTrader Manager] Using fallback symbol: %s", symbol)
 			}
-			lotSize := symbolLotSizeMap[pos.TradeData.SymbolID]
+			ac.Mu.RLock()
+			lotSize := ac.SymbolLotSizeMap[pos.TradeData.SymbolID]
+			ac.Mu.RUnlock()
 			if lotSize == 0 {
 				lotSize = 100000
 			}
@@ -392,11 +417,11 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 
 			if msg.PayloadType == PayloadExecutionEvent {
 				log.Printf("[cTrader Manager] ExecutionEvent received for Account %d", accountID)
-				m.handleExecutionEvent(accountID, msg.Payload, symbolMap, symbolLotSizeMap, fetchSymbol, ctid)
+				m.handleExecutionEvent(accountID, msg.Payload, ac.SymbolMap, ac.SymbolLotSizeMap, fetchSymbol, ctid)
 			} else if msg.PayloadType == PayloadSpotEvent {
-				m.handleSpotEvent(accountID, msg.Payload, symbolMap, symbolLotSizeMap, fetchSymbol)
+				m.handleSpotEvent(accountID, msg.Payload, ac.SymbolMap, ac.SymbolLotSizeMap, fetchSymbol)
 			} else if msg.PayloadType == 2155 {
-				m.handleDepthEvent(accountID, msg.Payload, symbolMap, symbolLotSizeMap, fetchSymbol)
+				m.handleDepthEvent(accountID, msg.Payload, ac.SymbolMap, ac.SymbolLotSizeMap, fetchSymbol)
 			}
 
 			// Deliver to waiters if any
@@ -668,53 +693,20 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 	}
 
 	// Real-time Sparkline (pnl_series) Update
-	// Note: We use the symbol name string in the DB, so we still need to match it.
-	rows, err := m.db.Query(`SELECT ticket, entry_price, pnl_series, entry_time, side FROM trades 
+	rows, err := m.db.Query(`SELECT ticket, entry_price, pnl_series, entry_time, side, lot_size FROM trades 
 		WHERE account_id = ? AND symbol = ? AND exit_price IS NULL`, accountID, symbol)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var ticket, side string
 			var seriesNull sql.NullString
-			var entry float64
+			var entry, tradeLots float64
 			var entryTime time.Time
-			if err := rows.Scan(&ticket, &entry, &seriesNull, &entryTime, &side); err == nil {
+			if err := rows.Scan(&ticket, &entry, &seriesNull, &entryTime, &side, &tradeLots); err == nil {
 				var series []float64
 				seriesStr := seriesNull.String
 				if seriesStr != "" {
 					json.Unmarshal([]byte(seriesStr), &series)
-				}
-
-				// Ensure we have 32 points
-				if len(series) != 32 {
-					newSeries := make([]float64, 32)
-					if len(series) > 0 {
-						// Stretch existing data to 32 points
-						for i := 0; i < 32; i++ {
-							idx := int(float64(i) * float64(len(series)-1) / 31.0)
-							newSeries[i] = series[idx]
-						}
-					} else {
-						// Initialize with 0s (at entry) and the current PnL at the end
-						var cp float64
-						if side == "long" {
-							cp = bid
-						} else {
-							cp = ask
-						}
-						// Calculate actual dollar PnL to match the displayed PnL
-						curPnL := (cp - entry) * multiplier * float64(lotSize)
-						if side == "short" {
-							curPnL = (entry - cp) * multiplier * float64(lotSize)
-						}
-
-						// Pad with 0s for the first 31 points
-						for i := 0; i < 31; i++ {
-							newSeries[i] = 0
-						}
-						newSeries[31] = curPnL
-					}
-					series = newSeries
 				}
 
 				var cur float64
@@ -728,12 +720,31 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 					continue
 				}
 
-				// 1. Immediate Update: Refresh the LAST point of the 32 divisions
-				// Use full dollar PnL to match the scale
-				currentPnL := (cur - entry) * multiplier * float64(lotSize)
+				// Calculate actual dollar PnL to match the displayed PnL
+				currentPnL := (cur - entry) * tradeLots * multiplier * float64(lotSize)
 				if side == "short" {
-					currentPnL = (entry - cur) * multiplier * float64(lotSize)
+					currentPnL = (entry - cur) * tradeLots * multiplier * float64(lotSize)
 				}
+
+				// Ensure we have 32 points
+				if len(series) != 32 {
+					newSeries := make([]float64, 32)
+					if len(series) > 0 {
+						// Stretch existing data to 32 points
+						for i := 0; i < 32; i++ {
+							idx := int(float64(i) * float64(len(series)-1) / 31.0)
+							newSeries[i] = series[idx]
+						}
+					} else {
+						// Initialize with a linear progression from 0 to currentPnL
+						// to avoid a flat line at the start.
+						for i := 0; i < 32; i++ {
+							newSeries[i] = currentPnL * (float64(i) / 31.0)
+						}
+					}
+					series = newSeries
+				}
+
 				series[31] = currentPnL
 				newJSON, _ := json.Marshal(series)
 				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", string(newJSON), ticket)
@@ -843,4 +854,246 @@ func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, sta
 			m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 		}
 	}
+}
+func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
+	log.Printf("[cTrader Manager] Manual sync requested for %s (Acc: %d)", ticket, accID)
+
+	m.mu.RLock()
+	ac, ok := m.connections[accID]
+	m.mu.RUnlock()
+	if !ok || ac == nil {
+		log.Printf("[cTrader Manager] Manual sync failed: connection not found for acc %d", accID)
+		return
+	}
+
+	// 1. Get Account Info (ctid)
+	var ctidStr string
+	err := m.db.QueryRow("SELECT ctrader_account_id FROM accounts WHERE id = ?", accID).Scan(&ctidStr)
+	if err != nil {
+		log.Printf("[cTrader Manager] Manual sync failed to query account %d: %v", accID, err)
+		return
+	}
+	ctid, _ := strconv.ParseInt(ctidStr, 10, 64)
+
+	// 2. Get Local Trade Details
+	var entryPrice float64
+	var entryTime time.Time
+	var exitTime sql.NullTime
+	var side string
+	var lotSize float64
+	var symbol string
+	var existingPnL float64
+	err = m.db.QueryRow(`
+		SELECT entry_price, entry_time, exit_time, side, lot_size, symbol, pnl 
+		FROM trades WHERE ticket = ? AND account_id = ?`,
+		ticket, accID).Scan(&entryPrice, &entryTime, &exitTime, &side, &lotSize, &symbol, &existingPnL)
+
+	if err != nil {
+		log.Printf("[cTrader Manager] Manual sync failed to query trade %s: %v", ticket, err)
+		return
+	}
+
+	// 3. Identification & Remote Fetch
+	isDeal := strings.Contains(ticket, "deal")
+	isPos := strings.Contains(ticket, "pos")
+	var idFromTicket int64
+	parts := strings.Split(ticket, "-")
+	if len(parts) >= 3 {
+		idFromTicket, _ = strconv.ParseInt(parts[len(parts)-1], 10, 64)
+	}
+
+	// Helper to find SymbolID
+	var symbolID int64 = -1
+	ac.Mu.RLock()
+	for sid, sname := range ac.SymbolMap {
+		if sname == symbol {
+			symbolID = sid
+			break
+		}
+	}
+	ac.Mu.RUnlock()
+
+	// --- A. SYNC DEAL (Closed or Historical) ---
+	if isDeal && idFromTicket > 0 {
+		// Search window: EntryTime - 7 days to Now (or ExitTime + 1 day)
+		to := time.Now().UnixMilli()
+		if exitTime.Valid {
+			to = exitTime.Time.Add(24 * time.Hour).UnixMilli()
+		}
+		from := entryTime.Add(-7 * 24 * time.Hour).UnixMilli()
+
+		log.Printf("[cTrader Manager] Syncing Deal %d (From: %d, To: %d)", idFromTicket, from, to)
+
+		dResp, err := ac.SendRequest(CTraderMessage{
+			ClientMsgID: fmt.Sprintf("sync-deal-%d", idFromTicket),
+			PayloadType: PayloadDealListReq,
+			Payload: func() json.RawMessage {
+				b, _ := json.Marshal(map[string]interface{}{
+					"ctidTraderAccountId": ctid,
+					"fromTimestamp":       from,
+					"toTimestamp":         to,
+				})
+				return b
+			}(),
+		})
+
+		if err == nil {
+			var dl struct {
+				Deal []struct {
+					DealID              int64   `json:"dealId"`
+					SymbolID            int64   `json:"symbolId"`
+					Volume              int64   `json:"volume"`
+					ExecutionPrice      float64 `json:"executionPrice"`
+					ExecutionTimestamp  int64   `json:"executionTimestamp"`
+					TradeSide           int     `json:"tradeSide"`
+					ClosePositionDetail struct {
+						EntryPrice  float64 `json:"entryPrice"`
+						GrossProfit int64   `json:"grossProfit"`
+						Commission  int64   `json:"commission"`
+						Swap        int64   `json:"swap"`
+					} `json:"closePositionDetail"`
+				} `json:"deal"`
+			}
+			json.Unmarshal(dResp.Payload, &dl)
+
+			for _, d := range dl.Deal {
+				if d.DealID == idFromTicket {
+					// Found it! Update DB
+					log.Printf("[cTrader Manager] Deal %d Found! Updating...", d.DealID)
+
+					newEntryPrice := d.ClosePositionDetail.EntryPrice
+					newExitPrice := d.ExecutionPrice
+					newPnl := float64(d.ClosePositionDetail.GrossProfit+d.ClosePositionDetail.Commission+d.ClosePositionDetail.Swap) / 100.0
+					newExitTime := time.UnixMilli(d.ExecutionTimestamp)
+
+					// Update local vars for sparkline
+					entryPrice = newEntryPrice
+					// entryTime = ... (Usually entry time is on the OPENING deal, this is closing deal.
+					// Ideally we query the opening deal too, but let's stick to closing details for PnL/Exit)
+					exitTime = sql.NullTime{Time: newExitTime, Valid: true}
+					if d.TradeSide == 1 {
+						side = "short"
+					} else {
+						side = "long"
+					} // Closing Buy(1) = Short
+					log.Printf("[cTrader Manager] Sync Deal %d: Side Resolved to %s (TradeSide: %d)", d.DealID, side, d.TradeSide)
+
+					// Note: LotSize needs symbol info to calculate from Volume
+					if symbolID == -1 {
+						symbolID = d.SymbolID
+					}
+
+					// Update DB
+					_, dbErr := m.db.Exec(`UPDATE trades SET 
+						entry_price = ?, exit_price = ?, pnl = ?, exit_time = ?, updated_at = CURRENT_TIMESTAMP
+						WHERE ticket = ? AND account_id = ?`,
+						newEntryPrice, newExitPrice, newPnl, newExitTime, ticket, accID)
+
+					if dbErr != nil {
+						log.Printf("[cTrader Manager] DB Update Failed: %v", dbErr)
+					}
+					break
+				}
+			}
+		} else {
+			log.Printf("[cTrader Manager] DealList Fetch Failed: %v", err)
+		}
+	} else if isPos && idFromTicket > 0 {
+		// --- B. SYNC POSITION (Open) ---
+		log.Printf("[cTrader Manager] Syncing Position %d", idFromTicket)
+		pResp, err := ac.SendRequest(CTraderMessage{
+			ClientMsgID: fmt.Sprintf("sync-pos-%d", idFromTicket),
+			PayloadType: PayloadReconcileReq,
+			Payload: func() json.RawMessage {
+				b, _ := json.Marshal(map[string]interface{}{"ctidTraderAccountId": ctid})
+				return b
+			}(),
+		})
+
+		if err == nil {
+			var p struct {
+				Position []struct {
+					PositionID int64   `json:"positionId"`
+					Price      float64 `json:"price"`
+					TradeData  struct {
+						SymbolID      int64   `json:"symbolId"`
+						Volume        int64   `json:"volume"`
+						EntryPrice    float64 `json:"entryPrice"`
+						OpenTimestamp int64   `json:"openTimestamp"`
+						TradeSide     int     `json:"tradeSide"`
+					} `json:"tradeData"`
+				} `json:"position"`
+			}
+			json.Unmarshal(pResp.Payload, &p)
+
+			for _, pos := range p.Position {
+				if pos.PositionID == idFromTicket {
+					log.Printf("[cTrader Manager] Position %d Found! Updating...", pos.PositionID)
+
+					newEntryPrice := pos.Price
+					if newEntryPrice == 0 {
+						newEntryPrice = pos.TradeData.EntryPrice
+					}
+					newEntryTime := time.UnixMilli(pos.TradeData.OpenTimestamp)
+
+					// Update local vars
+					entryPrice = newEntryPrice
+					entryTime = newEntryTime
+					if pos.TradeData.TradeSide == 2 {
+						side = "short"
+					} else {
+						side = "long"
+					}
+					if symbolID == -1 {
+						symbolID = pos.TradeData.SymbolID
+					}
+
+					// Update DB
+					m.db.Exec(`UPDATE trades SET 
+						entry_price = ?, entry_time = ?, updated_at = CURRENT_TIMESTAMP
+						WHERE ticket = ? AND account_id = ?`,
+						newEntryPrice, newEntryTime, ticket, accID)
+					break
+				}
+			}
+		}
+	}
+
+	if symbolID == -1 {
+		log.Printf("[cTrader Manager] Manual sync failed: symbol ID not found locally for %s", symbol)
+		return
+	}
+
+	// 4. Regenerate Sparkline (using potentially updated values)
+	startMilli := entryTime.UnixMilli()
+	endMilli := time.Now().UnixMilli()
+	if exitTime.Valid {
+		endMilli = exitTime.Time.UnixMilli()
+	}
+
+	// Adjust vol (lotSize) - Gold multiplier consideration
+	vol := int64(lotSize * 100000)
+	if strings.Contains(strings.ToUpper(symbol), "XAU") || strings.Contains(strings.ToUpper(symbol), "GOLD") {
+		vol = int64(lotSize * 100)
+	}
+
+	go func() {
+		m.mu.RLock()
+		ac, ok := m.connections[accID]
+		m.mu.RUnlock()
+		if ok && ac != nil {
+			sInt := 1
+			if side == "short" {
+				sInt = 2
+			}
+			digits := 2
+			if d, ok := m.symbolDigitsMap.Load(symbolID); ok {
+				digits = d.(int)
+			}
+			newSeriesStr := fetchPnLSeries(ac, ac.Conn, ctid, symbolID, startMilli, endMilli, entryPrice, vol, sInt, digits)
+			if newSeriesStr != "" {
+				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, ticket)
+			}
+		}
+	}()
 }

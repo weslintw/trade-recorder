@@ -181,7 +181,6 @@
       {#each $accounts as acc}
         <div
           class="account-card card"
-          class:mt5={acc.type === 'metatrader'}
           class:ctrader={acc.type === 'ctrader'}
           on:click={() => selectAccount(acc.id)}
           role="button"
@@ -239,9 +238,7 @@
               >
                 {acc.type === 'local'
                   ? '本地帳號'
-                  : acc.type === 'metatrader'
-                    ? 'MetaTrader 5'
-                    : 'cTrader'}
+                  : 'cTrader'}
               </span>
               <span class="badge {acc.status === 'active' ? 'badge-success' : 'badge-danger'}">
                 {acc.status}
@@ -255,7 +252,7 @@
                 >{formatBytes(acc.storage_usage)}</strong
               >
             </div>
-            {#if acc.type === 'metatrader'}
+            <!-- {#if acc.type === 'metatrader'}
               <div class="mt5-detail">
                 <p>ID: {acc.mt5_account_id}</p>
                 <div class="sync-info">
@@ -275,7 +272,7 @@
                   <div class="sync-error-msg">❌ {acc.last_sync_error}</div>
                 {/if}
               </div>
-            {/if}
+            {/if} -->
             {#if acc.type === 'ctrader'}
               <div class="ctrader-detail">
                 <p>Login ID: {acc.ctrader_account_id}</p>
@@ -304,7 +301,7 @@
               data-testid="import-csv-btn"
               on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
-            {#if acc.type === 'metatrader' || acc.type === 'ctrader'}
+            {#if acc.type === 'ctrader'}
               <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
                   <path d="M21 2v6h-6"></path>

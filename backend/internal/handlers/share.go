@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"log"
 	"net/http"
 	"trade-journal/internal/models"
@@ -45,6 +46,15 @@ func CreateShare(db *sql.DB) gin.HandlerFunc {
 				c.JSON(http.StatusNotFound, gin.H{"error": "找不到該規劃紀錄"})
 				return
 			}
+		} else if req.ResourceType == "account" {
+			err := db.QueryRow("SELECT user_id FROM accounts WHERE id = ?", req.ResourceID).Scan(&ownerID)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "找不到該帳號"})
+				return
+			}
+		} else if req.ResourceType == "batch" {
+			// 對於批次分享，暫且只檢查當前使用者的權限 (後續可細化檢查每一筆)
+			ownerID = userID
 		}
 
 		if ownerID != userID {
@@ -52,15 +62,21 @@ func CreateShare(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 如果已經有公開分享，且這次也是要求公開，就回傳現有的
+		// 如果已經有公開分享，且這次也是要求公開，就回傳現有的 (排除 batch，因為 batch 每次選取可能不同)
 		var token string
-		if req.ShareType == "public" {
+		if req.ShareType == "public" && req.ResourceType != "batch" {
 			err := db.QueryRow("SELECT token FROM shares WHERE resource_type = ? AND resource_id = ? AND share_type = 'public'", req.ResourceType, req.ResourceID).Scan(&token)
 			if err == nil {
 				c.JSON(http.StatusOK, gin.H{"token": token, "message": "已取得現有分享連結"})
 				return
 			}
-			token = GenerateToken()
+		}
+		token = GenerateToken()
+
+		resourceIDsJSON := ""
+		if req.ResourceType == "batch" && len(req.ResourceIDs) > 0 {
+			idsBytes, _ := json.Marshal(req.ResourceIDs)
+			resourceIDsJSON = string(idsBytes)
 		}
 
 		tx, err := db.Begin()
@@ -70,8 +86,8 @@ func CreateShare(db *sql.DB) gin.HandlerFunc {
 		}
 		defer tx.Rollback()
 
-		res, err := tx.Exec("INSERT INTO shares (user_id, resource_type, resource_id, share_type, token) VALUES (?, ?, ?, ?, ?)",
-			userID, req.ResourceType, req.ResourceID, req.ShareType, token)
+		res, err := tx.Exec("INSERT INTO shares (user_id, resource_type, resource_id, resource_ids, share_type, token) VALUES (?, ?, ?, ?, ?, ?)",
+			userID, req.ResourceType, req.ResourceID, resourceIDsJSON, req.ShareType, token)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -104,7 +120,7 @@ func GetSharedResource(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Param("token")
 		var share models.Share
-		err := db.QueryRow("SELECT resource_type, resource_id FROM shares WHERE token = ?", token).Scan(&share.ResourceType, &share.ResourceID)
+		err := db.QueryRow("SELECT user_id, resource_type, resource_id, COALESCE(resource_ids, '') FROM shares WHERE token = ?", token).Scan(&share.UserID, &share.ResourceType, &share.ResourceID, &share.ResourceIDs)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				log.Printf("[Share] Token not found: %s", token)
@@ -115,20 +131,101 @@ func GetSharedResource(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// Get Username
+		var username string
+		db.QueryRow("SELECT username FROM users WHERE id = ?", share.UserID).Scan(&username)
+
 		if share.ResourceType == "trade" {
 			trade, err := GetTradeInternal(db, share.ResourceID)
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "找不到交易內容", "details": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"type": "trade", "data": trade})
+			c.JSON(http.StatusOK, gin.H{"type": "trade", "username": username, "data": trade})
 		} else if share.ResourceType == "plan" {
 			plan, err := GetPlanInternal(db, share.ResourceID)
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "找不到規劃內容", "details": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"type": "plan", "data": plan})
+			c.JSON(http.StatusOK, gin.H{"type": "plan", "username": username, "data": plan})
+		} else if share.ResourceType == "account" || share.ResourceType == "batch" {
+			var trades []models.Trade
+			var plans []models.DailyPlan
+			var account models.Account
+			var accountID int64
+
+			if share.ResourceType == "account" {
+				accountID = share.ResourceID
+				// 抓取該帳號的所有交易與規劃
+				tradeRows, _ := db.Query("SELECT id FROM trades WHERE account_id = ? ORDER BY entry_time DESC", share.ResourceID)
+				for tradeRows.Next() {
+					var id int64
+					tradeRows.Scan(&id)
+					t, err := GetTradeInternal(db, id)
+					if err == nil {
+						trades = append(trades, *t)
+					}
+				}
+				tradeRows.Close()
+
+				planRows, _ := db.Query("SELECT id FROM daily_plans WHERE account_id = ? ORDER BY plan_date DESC", share.ResourceID)
+				for planRows.Next() {
+					var id int64
+					planRows.Scan(&id)
+					p, err := GetPlanInternal(db, id)
+					if err == nil {
+						plans = append(plans, *p)
+					}
+				}
+				planRows.Close()
+			} else {
+				// batch: ResourceIDs 包含選中的 ID (JSON array)
+				var batchIDs struct {
+					Trades []int64 `json:"trades"`
+					Plans  []int64 `json:"plans"`
+				}
+				if err := json.Unmarshal([]byte(share.ResourceIDs), &batchIDs); err != nil {
+					var ids []int64
+					json.Unmarshal([]byte(share.ResourceIDs), &ids)
+				}
+
+				for _, id := range batchIDs.Trades {
+					t, err := GetTradeInternal(db, id)
+					if err == nil {
+						trades = append(trades, *t)
+						if accountID == 0 {
+							accountID = t.AccountID
+						}
+					}
+				}
+				for _, id := range batchIDs.Plans {
+					p, err := GetPlanInternal(db, id)
+					if err == nil {
+						plans = append(plans, *p)
+						if accountID == 0 {
+							accountID = p.AccountID
+						}
+					}
+				}
+			}
+
+			// 抓取帳號基本資訊
+			if accountID > 0 {
+				db.QueryRow("SELECT id, name, type, ctrader_account_id, ctrader_env FROM accounts WHERE id = ?", accountID).Scan(
+					&account.ID, &account.Name, &account.Type, &account.CTraderAccountID, &account.CTraderEnv,
+				)
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"type":     share.ResourceType,
+				"username": username,
+				"data": gin.H{
+					"trades":  trades,
+					"plans":   plans,
+					"account": account,
+				},
+			})
 		}
 	}
 }

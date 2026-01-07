@@ -34,9 +34,11 @@
   $: profitColor = '#22c55e';
   $: lossColor = '#ef4444';
 
-  // For Long: Top (above baseline) is Profit. For Short: Bottom (below baseline) is Profit.
-  $: topColor = side === 'short' ? lossColor : profitColor;
-  $: bottomColor = side === 'short' ? profitColor : lossColor;
+  // Since we are plotting PnL values (calculated by backend):
+  // Positive values are Profit (Green), Negative values are Loss (Red).
+  // The graph Top (0%) is positive, Bottom (100%) is negative.
+  $: topColor = profitColor;
+  $: bottomColor = lossColor;
 </script>
 
 <div class="sparkline-container" style="width: {width}px; height: {height}px;" title={parsedData.join(', ')}>

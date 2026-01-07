@@ -569,7 +569,11 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 			}
 
-			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, d.TradeSide, 2)
+			posSide := 1 // Buy/Long
+			if d.TradeSide == 1 {
+				posSide = 2 // Sell/Short (Closing Buy means original was Short)
+			}
+			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
 
 			_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -853,8 +857,8 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 
 	firstBar := tb.Trendbar[0]
 	firstPrice := float64(firstBar.Low+firstBar.DeltaClose) / scale
-	log.Printf("[cTrader Sync] Debug PnL Fetch: Scale=%v, FirstPrice=%f, EntryPrice=%f, Bars=%d",
-		scale, firstPrice, entryPrice, len(tb.Trendbar))
+	log.Printf("[cTrader Sync] Debug PnL Fetch: Scale=%v, FirstPrice=%f, EntryPrice=%f, Bars=%d, Side=%d",
+		scale, firstPrice, entryPrice, len(tb.Trendbar), side)
 
 	// Determine multiplier for PnL calculation
 	// Try to determine symbol name for multiplier
@@ -872,13 +876,10 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 		}
 
 		// Calculate actual dollar PnL
-		// For cTrader, volume is in units. e.g. 1000 units of Gold = 10 ounces.
-		// If multiplier logic is needed, it should be consistent.
-		// Most cTrader APIs for commodities: PnL = priceDiff * volume / 100
+		// For cTrader, volume is in units. e.g. 1 lot Gold = 100 units.
+		// If volume passed is already adjusted (e.g. lotSize * 100 for gold), then:
+		// pnl = priceDiff * adjusted_volume
 		pnl := priceDiff * float64(volume)
-		if entryPrice > 1000 && entryPrice < 5000 { // Likely Gold
-			pnl = pnl / 100.0 // Correct for contract size
-		}
 
 		series = append(series, pnl)
 	}
@@ -886,30 +887,21 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 	targetCount := 32
 	if len(series) > 0 {
 		sampled := make([]float64, targetCount)
-		if len(series) < targetCount {
-			// Pad with leading zeros: for new trades, available points go to the end
-			// This makes the sparkline grow from right to left as time progresses.
-			startIdx := targetCount - len(series)
-			for i := 0; i < len(series); i++ {
-				sampled[startIdx+i] = series[i]
+		// Stretch or bucket data to exactly targetCount points
+		for i := 0; i < targetCount; i++ {
+			if len(series) == 1 {
+				sampled[i] = series[0]
+				continue
 			}
-		} else {
-			// Bucket and average larger datasets
-			for i := 0; i < targetCount; i++ {
-				start := (i * len(series)) / targetCount
-				end := ((i + 1) * len(series)) / targetCount
-				if end > len(series) {
-					end = len(series)
-				}
-				if start >= end {
-					start = end - 1
-				}
-
-				sum := 0.0
-				for _, val := range series[start:end] {
-					sum += val
-				}
-				sampled[i] = sum / float64(end-start)
+			// Use linear interpolation to stretch small datasets, or averaging for large ones
+			floatIdx := float64(i) * float64(len(series)-1) / float64(targetCount-1)
+			idx := int(floatIdx)
+			if idx >= len(series)-1 {
+				sampled[i] = series[len(series)-1]
+			} else {
+				// Linear interpolation
+				t := floatIdx - float64(idx)
+				sampled[i] = series[idx]*(1-t) + series[idx+1]*t
 			}
 		}
 		series = sampled

@@ -3,6 +3,7 @@
   const dispatch = createEventDispatcher();
 
   export let formData = {};
+  export let entry_signals = []; // Explicit binding for better reactivity
   export let signalImagesCache = {};
 
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
@@ -10,10 +11,10 @@
 
   $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
 
-  // Initialize cache from existing formData signals if cache is empty
-  $: if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
+  // Initialize cache from existing signals if cache is empty
+  $: if (entry_signals && Array.isArray(entry_signals)) {
     if (Object.keys(signalImagesCache).length === 0) {
-      formData.entry_signals.forEach(signal => {
+      entry_signals.forEach(signal => {
         if (signal.name && (signal.image || signal.originalImage)) {
           signalImagesCache[signal.name] = {
             image: signal.image || '',
@@ -25,7 +26,8 @@
   }
 
   function getSignalData(signalName) {
-    const existing = formData.entry_signals.find(s =>
+    if (!entry_signals) return { name: signalName, image: '' };
+    const existing = entry_signals.find(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
     if (existing) {
@@ -38,32 +40,35 @@
   }
 
   function isSignalSelected(signalName) {
-    return formData.entry_signals.some(s =>
+    if (!entry_signals || !Array.isArray(entry_signals)) return false;
+    return entry_signals.some(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
   }
 
   function toggleSignal(signalName) {
-    const index = formData.entry_signals.findIndex(s =>
+    if (!entry_signals) entry_signals = [];
+    
+    const index = entry_signals.findIndex(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
 
     if (index >= 0) {
       // Deselect: save to cache
-      const signal = formData.entry_signals[index];
+      const signal = entry_signals[index];
       if (signal.image || signal.originalImage) {
         signalImagesCache[signalName] = {
           image: signal.image || '',
           originalImage: signal.originalImage || '',
         };
       }
-      formData.entry_signals = formData.entry_signals.filter((_, i) => i !== index);
+      entry_signals = entry_signals.filter((_, i) => i !== index);
     } else {
       // Select: restore from cache
       const cachedImages = signalImagesCache[signalName];
       if (cachedImages) {
-        formData.entry_signals = [
-          ...formData.entry_signals,
+        entry_signals = [
+          ...entry_signals,
           {
             name: signalName,
             image: cachedImages.image,
@@ -71,8 +76,8 @@
           },
         ];
       } else {
-        formData.entry_signals = [
-          ...formData.entry_signals,
+        entry_signals = [
+          ...entry_signals,
           {
             name: signalName,
             image: '',
@@ -81,16 +86,20 @@
         ];
       }
     }
+    // Svelte reactivity triggers on assignment
   }
 
   function removeSignalImage(signal) {
-    const index = formData.entry_signals.findIndex(s => s.name === signal.name);
+    const index = entry_signals.findIndex(s => s.name === signal.name);
     if (index >= 0) {
-      formData.entry_signals[index] = {
-        ...formData.entry_signals[index],
+      // Create a copy to trigger update
+      let newSignals = [...entry_signals];
+      newSignals[index] = {
+        ...newSignals[index],
         image: '',
         originalImage: '',
       };
+      entry_signals = newSignals;
       // Also clear from cache
       delete signalImagesCache[signal.name];
     }
@@ -105,39 +114,41 @@
         const reader = new FileReader();
 
         reader.onload = e => {
-          const index = formData.entry_signals.findIndex(s =>
+          if (!entry_signals) entry_signals = [];
+          const index = entry_signals.findIndex(s =>
             typeof s === 'string' ? s === signalName : s.name === signalName
           );
 
           if (index >= 0) {
+            let newSignals = [...entry_signals];
             const newSignal =
-              typeof formData.entry_signals[index] === 'string'
+              typeof newSignals[index] === 'string'
                 ? { name: signalName, image: e.target.result, originalImage: e.target.result }
                 : {
-                    ...formData.entry_signals[index],
+                    ...newSignals[index],
                     image: e.target.result,
-                    originalImage: formData.entry_signals[index].originalImage || e.target.result,
+                    originalImage: newSignals[index].originalImage || e.target.result,
                   };
-            formData.entry_signals[index] = newSignal;
+            newSignals[index] = newSignal;
+            entry_signals = newSignals;
+            
             // Update cache immediately too for safety
             signalImagesCache[signalName] = {
               image: newSignal.image,
               originalImage: newSignal.originalImage,
             };
           } else {
-            // Should not happen if paste is on the card which implies selection, but if it does:
             const newSignal = {
               name: signalName,
               image: e.target.result,
               originalImage: e.target.result,
             };
-            formData.entry_signals = [...formData.entry_signals, newSignal];
+            entry_signals = [...entry_signals, newSignal];
             signalImagesCache[signalName] = {
               image: newSignal.image,
               originalImage: newSignal.originalImage,
             };
           }
-          formData = formData; // Trigger reactivity
         };
         reader.readAsDataURL(file);
         break;

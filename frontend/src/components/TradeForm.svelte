@@ -176,6 +176,9 @@
     }
   }
 
+  // 載入中狀態 (避免讀取資料時觸發響應式清空)
+  let isLoadingTrade = false;
+
   // 開啟實單選擇視窗
   async function openActualTradesModal() {
     if (!formData.symbol) {
@@ -578,6 +581,7 @@
 
   async function loadTrade() {
     try {
+      isLoadingTrade = true;
       const response = await tradesAPI.getOne(id);
       formData = {
         ...response.data,
@@ -589,15 +593,40 @@
         notes: response.data.notes || '',
         entry_strategy: response.data.entry_strategy || '',
         entry_signals: (() => {
-          const parsed = parseJSONSafe(response.data.entry_signals, []);
-          // 如果是舊格式（字串陣列），轉換成新格式（物件陣列）
-          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
-            return parsed.map(name => ({ name, image: '' }));
+          let val = response.data.entry_signals;
+          console.log('[DEBUG] Raw entry_signals:', val, typeof val);
+          
+          if (typeof val === 'string') {
+             try {
+                let parsed = JSON.parse(val);
+                // Handle potential double-encoding
+                if (typeof parsed === 'string') {
+                    console.log('[DEBUG] entry_signals was double-encoded, parsing again');
+                    parsed = JSON.parse(parsed);
+                }
+                val = parsed;
+             } catch(e) {
+                console.error("[DEBUG] Entry signals parse error", e);
+                // If it's a non-empty string that failed parsing, maybe it's just a single string item? (Unlikely for signals)
+                val = [];
+             }
           }
-          return parsed;
+          
+          console.log('[DEBUG] Parsed entry_signals:', val);
+          if (!Array.isArray(val)) return [];
+          // Normalize strings to objects
+          return val.map(v => typeof v === 'string' ? {name: v, image: ''} : v);
         })(),
         entry_checklist: parseJSONSafe(response.data.entry_checklist, {}),
-        entry_pattern: response.data.entry_pattern || '',
+        entry_pattern: (() => {
+           let val = response.data.entry_pattern;
+           if (typeof val === 'string') {
+               try { val = JSON.parse(val); } catch(e) { val = []; }
+           }
+           if (!Array.isArray(val)) return [];
+           return val.map(v => typeof v === 'string' ? {name: v, image: ''} : v);
+        })(),
+        trend_analysis: parseJSONSafe(response.data.trend_analysis, {}),
         entry_timeframe: response.data.entry_timeframe || '',
         trend_type: response.data.trend_type || '',
         market_session: response.data.market_session || '',
@@ -609,7 +638,6 @@
         exit_time: response.data.exit_time ? formatToLocalISO(response.data.exit_time) : '',
         entry_strategy_image: response.data.entry_strategy_image || '',
         entry_strategy_image_original: response.data.entry_strategy_image_original || '',
-        entry_pattern: parseJSONSafe(response.data.entry_pattern, []),
         legend_king_htf: response.data.legend_king_htf || '',
         legend_king_image: response.data.legend_king_image || '',
         legend_king_image_original: response.data.legend_king_image_original || '',
@@ -623,27 +651,28 @@
         pnl_series: response.data.pnl_series || '',
       };
 
-      // 初始化緩存：將已載入的訊號圖片也加入緩存
+      // Manually populate caches to ensuring binding works correctly
+      signalImagesCache = {};
       if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
-        formData.entry_signals.forEach(signal => {
-          if (signal.name && (signal.image || signal.originalImage)) {
-            signalImagesCache[signal.name] = {
-              image: signal.image || '',
-              originalImage: signal.originalImage || '',
+        formData.entry_signals.forEach(s => {
+          if (s.name && (s.image || s.originalImage)) {
+            signalImagesCache[s.name] = {
+              image: s.image || '',
+              originalImage: s.originalImage || '',
             };
           }
         });
       }
-
-      // 初始化樣態緩存
+      
+      patternImagesCache = {};
       if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
-        formData.entry_pattern.forEach(pattern => {
-          if (pattern.name && (pattern.image || pattern.originalImage)) {
-            patternImagesCache[pattern.name] = {
-              image: pattern.image || '',
-              originalImage: pattern.originalImage || '',
-            };
-          }
+        formData.entry_pattern.forEach(p => {
+           if (p.name && (p.image || p.originalImage)) {
+             patternImagesCache[p.name] = {
+               image: p.image || '',
+               originalImage: p.originalImage || '',
+             };
+           }
         });
       }
       // 檢查是否為組合單（相同進場時間、帳號、品種）
@@ -661,6 +690,11 @@
     } catch (error) {
       console.error('載入交易失敗:', error);
       alert('載入交易資料失敗');
+    } finally {
+      // 延遲一下確保響應式系統已處理完畢
+      setTimeout(() => {
+        isLoadingTrade = false;
+      }, 100);
     }
   }
 
@@ -696,10 +730,11 @@
   // 監聽方向變化，清空已選訊號（避免做多訊號和做空訊號混淆）
   let previousSide = formData.side;
   $: {
-    if (formData.side !== previousSide && formData.entry_strategy === 'expert') {
+    if (!isLoadingTrade && formData.side !== previousSide && formData.entry_strategy === 'expert') {
+      console.log('[DEBUG] Side changed, clearing signals:', previousSide, '->', formData.side);
       formData.entry_signals = [];
-      previousSide = formData.side;
     }
+    previousSide = formData.side;
   }
 
   // 放大查看圖片
@@ -836,10 +871,15 @@
         entry_strategy_image: formData.entry_strategy_image,
         entry_strategy_image_original: formData.entry_strategy_image_original,
         entry_timeframe: formData.entry_timeframe,
+        trend_analysis: JSON.stringify(formData.trend_analysis),
         trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
         exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
       };
+
+      // Remove heavy fields managed by sync to prevent payload issues
+      delete submitData.sl_history;
+      delete submitData.pnl_series;
 
       // 處理數值欄位轉換
       const parseNumber = val => {
@@ -1403,16 +1443,15 @@
       </div>
     {/if}
 
-    <div class="form-group highlight-label">
-      <label>📍 進場分析</label>
-    </div>
-
     <!-- 進場種類選擇 -->
     <div class="form-group entry-strategy-section">
+      <div class="highlight-label">
+        <label>📍 進場分析</label>
+      </div>
+
       <!-- 盤面規劃狀態 (從上方移至此處) -->
       <TradePlanStatus {matchedPlan} {formData} />
 
-      <!-- 進場種類和進場時區 -->
       <!-- 進場種類和進場時區 -->
       <EntryStrategySelector bind:formData />
 
@@ -1824,16 +1863,16 @@
 
   .entry-strategy-section {
     margin: 1.5rem 0;
-    padding: 1.5rem;
+    padding: 2rem 1.5rem 1.5rem; /* Increased top padding */
     background: #f8fafc;
     border-radius: 12px;
     border: 2px solid #e2e8f0;
+    position: relative; /* Context for absolute positioning if needed */
   }
 
-  .trade-plan-status-section {
-    margin-bottom: 2rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px dashed #cbd5e0;
+  .entry-strategy-section .highlight-label {
+    margin-bottom: 1.5rem;
+    padding-left: 0.5rem; /* Ensure text isn't flush left */
   }
 
   .section-label-group {
@@ -3028,8 +3067,10 @@
     border-radius: 20px;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     font-size: 0.9rem;
+    line-height: 1;
   }
 
   .tag-remove {
@@ -3071,6 +3112,9 @@
 
   /* 組合單 Execution 樣式 */
   .readonly-value-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.625rem 1rem;
     background: #f1f5f9;
     border: 1px solid #e2e8f0;
@@ -3078,6 +3122,7 @@
     font-weight: 700;
     color: #475569;
     font-size: 0.95rem;
+    line-height: 1;
   }
 
   .readonly-value-badge.pnl.profit {
@@ -3149,12 +3194,16 @@
   }
 
   .badge-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 2px 8px;
     background: #f1f5f9;
     border-radius: 4px;
     font-size: 0.8rem;
     font-weight: 600;
     color: #475569;
+    line-height: 1;
   }
 
   .badge-mini.pnl.profit {
@@ -3280,10 +3329,12 @@
     font-size: 0.8rem;
     font-weight: 600;
     border: 1px solid #e2e8f0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     white-space: nowrap;
+    line-height: 1;
   }
 
   .ticket-label::before {

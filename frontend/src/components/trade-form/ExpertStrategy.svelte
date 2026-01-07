@@ -9,7 +9,7 @@
 
 <div class="signals-section">
   <label class="signals-label">選擇訊號（可多選）：</label>
-  <SignalGrid bind:formData bind:signalImagesCache on:enlarge />
+  <SignalGrid bind:entry_signals={formData.entry_signals} bind:formData bind:signalImagesCache on:enlarge />
 </div>
 
 <style>

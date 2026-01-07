@@ -148,6 +148,18 @@
     }
   }
 
+  async function syncTrade(id) {
+    try {
+      await tradesAPI.sync(id); // 此處需要確認 lib/api.js 是否有此方法
+      alert('已送出手動同步請求，請稍候幾秒後重新載入或查看更新');
+      // 延遲一段時間後自動重新加載
+      setTimeout(() => loadTrades(), 3000);
+    } catch (error) {
+      console.error('同步失敗:', error);
+      alert('同步失敗：' + (error.response?.data?.error || error.message));
+    }
+  }
+
   function applyFilters() {
     pagination.page = 1;
     loadTrades();
@@ -291,16 +303,13 @@
           on:click={() => navigate(`/edit/${trade.id}`)}
           on:keydown={e => (e.key === 'Enter' || e.key === ' ') && navigate(`/edit/${trade.id}`)}
         >
-          <!-- 刪除按鈕（右上角叉叉）-->
+          <!-- 重新整理按鈕 (置於右上角) -->
           <button
-            class="delete-btn"
-            on:click={e => {
-              e.stopPropagation();
-              deleteTrade(trade.id);
-            }}
-            title="刪除交易"
+            class="sync-btn"
+            on:click|stopPropagation={() => syncTrade(trade.id)}
+            title="重新從交易所同步此筆資料"
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
           </button>
 
           <!-- 單一行：品種 + 方向 + 所有資訊 + 盈虧 -->
@@ -721,9 +730,33 @@
     opacity: 1;
   }
 
-  .delete-btn:hover {
-    background: #fee2e2;
-    color: #ef4444;
+  /* 重新整理按鈕 */
+  .sync-btn {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    width: 26px;
+    height: 26px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    opacity: 0;
+    z-index: 20;
+  }
+
+  .trade-card:hover .sync-btn {
+    opacity: 0.8;
+  }
+
+  .sync-btn:hover {
+    color: var(--primary);
+    opacity: 1 !important;
+    transform: rotate(30deg);
   }
 
   .trade-header-compact {
@@ -777,11 +810,15 @@
   .trade-tags {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.375rem;
     margin-top: 0.75rem;
   }
 
   .tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: #f1f5f9;
     color: var(--text-muted);
     padding: 0.125rem 0.5rem;
@@ -789,6 +826,8 @@
     font-size: 0.75rem;
     font-weight: 500;
     border: 1px solid var(--border-color);
+    white-space: nowrap;
+    line-height: 1;
   }
 
   .trade-reasons,
@@ -845,6 +884,9 @@
   }
 
   .plan-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 600;
     padding: 2px 8px;
@@ -852,6 +894,7 @@
     background: #dcfce7;
     color: #166534;
     white-space: nowrap;
+    line-height: 1;
   }
 
   .plan-badge.missing {
@@ -860,10 +903,15 @@
   }
 
   .strategy-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 6px;
+    white-space: nowrap;
+    line-height: 1;
   }
 
   .strategy-badge.expert {
@@ -892,11 +940,15 @@
   }
 
   .trend-item {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-size: 0.75rem;
     font-weight: 600;
     padding: 1px 6px;
     border-radius: 4px;
     white-space: nowrap;
+    line-height: 1;
   }
 
   .trend-item.bullish {

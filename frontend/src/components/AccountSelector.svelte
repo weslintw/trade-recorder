@@ -52,9 +52,7 @@
           {#each $accounts as account}
             <option value={account.id}>
               {account.name}
-              {account.type === 'metatrader'
-                ? '(MT5)'
-                : account.type === 'ctrader'
+              {account.type === 'ctrader'
                   ? '(cTrader)'
                   : '(本地)'}
             </option>

@@ -271,6 +271,9 @@
   }
 
   :global(.app-version-tag) {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
     font-size: 0.65rem;
     color: #94a3b8;
     background: #f1f5f9;
@@ -279,6 +282,7 @@
     font-weight: 600;
     pointer-events: none;
     margin-top: 2.2rem; /* 配合容器加高，版號位置再次微調 */
+    line-height: 1;
   }
 
   .nav-links {
@@ -385,8 +389,9 @@
   }
 
   .current-session-tag {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.35rem;
     font-size: 0.8rem;
     font-weight: 700;
@@ -394,6 +399,7 @@
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     white-space: nowrap;
+    line-height: 1;
   }
 
   .current-session-tag.asian {
@@ -618,11 +624,15 @@
   }
 
   :global(.badge) {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
     font-size: 0.875rem;
     font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
   }
 
   :global(.badge-success) {
