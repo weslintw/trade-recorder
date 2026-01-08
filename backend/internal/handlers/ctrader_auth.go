@@ -94,8 +94,17 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 獲取帳號清單
-		accResp, err := http.Get("https://openapi.ctrader.com/connect/getaccounts?access_token=" + tokenRes.AccessToken)
+		// 獲取帳號清單 (改用更穩定的 Header 方式)
+		client := &http.Client{}
+		accRequest, _ := http.NewRequest("GET", "https://openapi.ctrader.com/connect/getaccounts", nil)
+
+		// 加入標準 OAuth2 Header
+		accRequest.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+		accRequest.Header.Set("Accept", "application/json")
+		accRequest.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+		log.Printf("[cTrader OAuth] Fetching accounts via Bearer token...")
+		accResp, err := client.Do(accRequest)
 		if err != nil {
 			log.Printf("[cTrader OAuth] Failed to get accounts list: %v", err)
 			c.String(http.StatusInternalServerError, "Failed to get accounts")
@@ -104,18 +113,24 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 		defer accResp.Body.Close()
 
 		accBody, _ := io.ReadAll(accResp.Body)
-		log.Printf("[cTrader OAuth] Accounts List RAW: %s", string(accBody))
+		if accResp.StatusCode != 200 {
+			log.Printf("[cTrader OAuth] Accounts Error (HTTP %d): %s", accResp.StatusCode, string(accBody))
+		} else {
+			log.Printf("[cTrader OAuth] Accounts List RAW: %s", string(accBody))
+		}
 
 		// 處理多種可能的 cTrader JSON 結構
 		var accData struct {
 			TraderAccounts []struct {
 				ID    int64  `json:"ctidTraderAccountId"`
-				Login string `json:"traderLogin"` // 有些版本是這個
-				Name  string `json:"AccountName"` // 備用
+				Login string `json:"traderLogin"`
+				Name  string `json:"AccountName"`
 				Live  bool   `json:"isLive"`
 			} `json:"traderAccounts"`
 		}
-		json.Unmarshal(accBody, &accData)
+		if err := json.Unmarshal(accBody, &accData); err != nil {
+			log.Printf("[cTrader OAuth] Failed to parse accounts JSON: %v", err)
+		}
 
 		log.Printf("[cTrader OAuth] Parsed %d accounts from main structure", len(accData.TraderAccounts))
 
