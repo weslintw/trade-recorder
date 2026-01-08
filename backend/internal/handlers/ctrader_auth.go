@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"trade-journal/internal/ctrader"
@@ -57,41 +58,52 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 
 		// 呼叫 Spotware API 交換 Token
 		tokenURL := "https://openapi.ctrader.com/apps/token"
-		resp, err := http.Get(fmt.Sprintf("%s?grant_type=authorization_code&code=%s&client_id=%s&client_secret=%s&redirect_uri=%s",
-			tokenURL, code, clientID, clientSecret, redirectURI))
+		exchangeURL := fmt.Sprintf("%s?grant_type=authorization_code&code=%s&client_id=%s&client_secret=%s&redirect_uri=%s",
+			tokenURL, code, clientID, clientSecret, url.QueryEscape(redirectURI))
 
+		log.Printf("[cTrader OAuth] Exchanging code for token at: %s", tokenURL)
+
+		resp, err := http.Get(exchangeURL)
 		if err != nil {
 			log.Printf("[cTrader OAuth] Token exchange failed: %v", err)
-			c.String(http.StatusInternalServerError, "Token exchange failed")
+			c.String(http.StatusInternalServerError, "Token exchange failed: "+err.Error())
 			return
 		}
 		defer resp.Body.Close()
 
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[cTrader OAuth] Token Response: %s", string(body))
+
 		var tokenRes struct {
 			AccessToken  string `json:"accessToken"`
 			RefreshToken string `json:"refreshToken"`
 			ErrorCode    string `json:"errorCode"`
 		}
 		if err := json.Unmarshal(body, &tokenRes); err != nil {
+			log.Printf("[cTrader OAuth] Failed to parse token JSON: %v", err)
 			c.String(http.StatusInternalServerError, "Failed to parse token response")
 			return
 		}
 
 		if tokenRes.AccessToken == "" {
+			log.Printf("[cTrader OAuth] Invalid access token in response")
 			c.String(http.StatusBadRequest, "Invalid token response: "+string(body))
 			return
 		}
 
 		// 獲取帳號清單
-		accResp, err := http.Get("https://openapi.ctrader.com/connect/getaccounts?access_token=" + tokenRes.AccessToken)
+		accURL := "https://openapi.ctrader.com/connect/getaccounts?access_token=" + tokenRes.AccessToken
+		accResp, err := http.Get(accURL)
 		if err != nil {
+			log.Printf("[cTrader OAuth] Failed to get accounts: %v", err)
 			c.String(http.StatusInternalServerError, "Failed to get accounts")
 			return
 		}
 		defer accResp.Body.Close()
 
 		accBody, _ := io.ReadAll(accResp.Body)
+		log.Printf("[cTrader OAuth] Accounts Response: %s", string(accBody))
+
 		var accData struct {
 			TraderAccounts []struct {
 				ID          int64  `json:"ctidTraderAccountId"`
@@ -99,7 +111,11 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 				IsLive      bool   `json:"isLive"`
 			} `json:"traderAccounts"`
 		}
-		json.Unmarshal(accBody, &accData)
+		if err := json.Unmarshal(accBody, &accData); err != nil {
+			log.Printf("[cTrader OAuth] Failed to parse accounts JSON: %v", err)
+		}
+
+		log.Printf("[cTrader OAuth] Found %d accounts to process", len(accData.TraderAccounts))
 
 		// 這裡我們需要知道是哪個 User 點選的。
 		// 如果是用瀏覽器直接回調，可能沒有 Auth Header。
@@ -117,27 +133,39 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			}
 			name := fmt.Sprintf("cTrader %d (%s)", acc.ID, env)
 
+			log.Printf("[cTrader OAuth] Processing account: %s (ID: %d, Env: %s)", name, acc.ID, env)
+
 			// 檢查是否已存在
 			var existingID int64
 			err := db.QueryRow("SELECT id FROM accounts WHERE ctrader_account_id = ? AND user_id = ?", fmt.Sprintf("%d", acc.ID), userID).Scan(&existingID)
 
 			if err == sql.ErrNoRows {
 				// 新增
+				log.Printf("[cTrader OAuth] Creating new account record for ID: %d", acc.ID)
 				res, err := db.Exec(`INSERT INTO accounts 
 					(name, type, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, ctrader_env, timezone_offset, user_id, status)
 					VALUES (?, 'ctrader', ?, ?, ?, ?, ?, 8, ?, 'active')`,
 					name, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env, userID)
-				if err == nil {
+				if err != nil {
+					log.Printf("[cTrader OAuth] FAILED to insert account %d: %v", acc.ID, err)
+				} else {
 					newID, _ := res.LastInsertId()
+					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync.", acc.ID, newID)
 					// 立即啟動同步
 					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
 				}
 			} else {
 				// 更新 Token
-				db.Exec("UPDATE accounts SET ctrader_token = ?, ctrader_client_id = ?, ctrader_client_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+				log.Printf("[cTrader OAuth] Updating existing account record DB ID: %d", existingID)
+				_, err := db.Exec("UPDATE accounts SET ctrader_token = ?, ctrader_client_id = ?, ctrader_client_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 					tokenRes.AccessToken, clientID, clientSecret, existingID)
-				// 重新整理同步
-				go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
+				if err != nil {
+					log.Printf("[cTrader OAuth] FAILED to update account %d: %v", existingID, err)
+				} else {
+					log.Printf("[cTrader OAuth] Successfully updated account DB ID %d. Re-starting sync.", existingID)
+					// 重新整理同步
+					go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
+				}
 			}
 		}
 
