@@ -27,8 +27,6 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 使用標準庫構造參數，確保編碼正確
-		v := url.Values{}
 		// cTrader 有些版本不喜歡 + 號，強制使用 %20，並確保 response_type 在前
 		authURL := fmt.Sprintf("https://openapi.ctrader.com/apps/auth?response_type=code&client_id=%s&redirect_uri=%s&scope=accounts_info%%20trading",
 			url.QueryEscape(clientID),
