@@ -22,23 +22,31 @@
   // 使用從 constants 引入的時限
   const timeframes = TIMEFRAMES;
 
+  function createDirectionData() {
+    return {
+      has_signals: false,
+      signals: [],
+      has_wave: false,
+      wave_numbers: [],
+      wave_highlight: '',
+      signals_image: '',
+      signals_originalImage: '',
+      wave_image: '',
+      wave_originalImage: '',
+    };
+  }
+
   // 初始化單個時段的結構
   function createInitialSessionData() {
     const trends = {};
     timeframes.forEach(tf => {
       trends[tf] = {
-        direction: '',
-        has_signals: false,
-        signals: [],
-        has_wave: false,
-        wave_numbers: [],
-        wave_highlight: '',
+        directions: [], // 支持多個方向
+        long: createDirectionData(),
+        short: createDirectionData(),
         image: '',
         originalImage: '',
-        signals_image: '',
-        signals_originalImage: '',
-        wave_image: '',
-        wave_originalImage: '',
+        // 為了向後兼容，保留舊欄位名稱但主要使用上述結構
       };
     });
     return {
@@ -85,16 +93,17 @@
   const waveNumbers = ['1', '2', '3', '4', '5'];
 
   // 切換時區的訊號選擇
-  function toggleTimeframeSignal(timeframe, signalName) {
-    const signals = currentTrends[timeframe].signals || [];
+  function toggleTimeframeSignal(timeframe, direction, signalName) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const signals = target.signals || [];
     const index = signals.indexOf(signalName);
 
     if (index >= 0) {
       // 取消選擇
-      currentTrends[timeframe].signals = signals.filter((_, i) => i !== index);
+      target.signals = signals.filter((_, i) => i !== index);
     } else {
       // 新增選擇
-      currentTrends[timeframe].signals = [...signals, signalName];
+      target.signals = [...signals, signalName];
     }
 
     // 強制觸發 Svelte 響應式更新
@@ -103,41 +112,43 @@
   }
 
   // 檢查時區訊號是否被選中
-  function isTimeframeSignalSelected(timeframe, signalName) {
-    const signals = currentTrends[timeframe].signals || [];
+  function isTimeframeSignalSelected(timeframe, direction, signalName) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const signals = target.signals || [];
     return signals.includes(signalName);
   }
 
   // 點擊波浪數字
-  function clickWaveNumber(timeframe, number) {
-    const selectedNumbers = currentTrends[timeframe].wave_numbers || [];
-    const currentHighlight = currentTrends[timeframe].wave_highlight || '';
+  function clickWaveNumber(timeframe, direction, number) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const selectedNumbers = target.wave_numbers || [];
+    const currentHighlight = target.wave_highlight || '';
 
     // 如果這個數字已經被選中
     if (selectedNumbers.includes(number)) {
       // 如果是綠色（未高亮），變成紅色（高亮）
       if (currentHighlight !== number) {
-        currentTrends[timeframe].wave_highlight = number;
+        target.wave_highlight = number;
       } else {
         // 如果已經是紅色，變回綠色
-        currentTrends[timeframe].wave_highlight = '';
+        target.wave_highlight = '';
       }
     } else {
       // 數字未被選中，嘗試選中
       if (selectedNumbers.length === 0) {
-        currentTrends[timeframe].wave_numbers = [number];
-        currentTrends[timeframe].wave_highlight = '';
+        target.wave_numbers = [number];
+        target.wave_highlight = '';
       } else if (selectedNumbers.length === 1) {
         const existingNum = parseInt(selectedNumbers[0]);
         const newNum = parseInt(number);
 
         if (Math.abs(existingNum - newNum) === 1) {
-          currentTrends[timeframe].wave_numbers = [selectedNumbers[0], number].sort();
-          currentTrends[timeframe].wave_highlight = '';
+          target.wave_numbers = [selectedNumbers[0], number].sort();
+          target.wave_highlight = '';
         }
       } else if (selectedNumbers.length === 2) {
-        currentTrends[timeframe].wave_numbers = [number];
-        currentTrends[timeframe].wave_highlight = '';
+        target.wave_numbers = [number];
+        target.wave_highlight = '';
       }
     }
 
@@ -148,27 +159,44 @@
 
   // 切換趨勢方向 (多/空)，再次點選可取消
   function toggleTrendDirection(timeframe, direction) {
-    if (currentTrends[timeframe].direction === direction) {
-      currentTrends[timeframe].direction = '';
+    const directions = currentTrends[timeframe].directions || [];
+    const index = directions.indexOf(direction);
+    
+    if (index >= 0) {
+      // 如果已經選中，則移除
+      currentTrends[timeframe].directions = directions.filter(d => d !== direction);
     } else {
-      currentTrends[timeframe].direction = direction;
+      // 如果未選中，則加入
+      currentTrends[timeframe].directions = [...directions, direction];
     }
+    
+    // 向後兼容：如果只有一個方向，也更新舊的 direction 欄位
+    if (currentTrends[timeframe].directions.length === 1) {
+        currentTrends[timeframe].direction = currentTrends[timeframe].directions[0];
+    } else if (currentTrends[timeframe].directions.length === 0) {
+        currentTrends[timeframe].direction = '';
+    } else {
+        currentTrends[timeframe].direction = 'both';
+    }
+
     // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
   // 檢查波浪數字是否被選中（綠色）
-  function isWaveNumberSelected(timeframe, number) {
-    const selectedNumbers = currentTrends[timeframe]?.wave_numbers || [];
+  function isWaveNumberSelected(timeframe, direction, number) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const selectedNumbers = target?.wave_numbers || [];
     return (
       selectedNumbers.includes(number.toString()) || selectedNumbers.includes(parseInt(number))
     );
   }
 
   // 檢查波浪數字是否被高亮（紅色）
-  function isWaveNumberHighlighted(timeframe, number) {
-    const highlight = currentTrends[timeframe]?.wave_highlight;
+  function isWaveNumberHighlighted(timeframe, direction, number) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const highlight = target?.wave_highlight;
     return highlight === number.toString() || highlight === parseInt(number);
   }
 
@@ -208,14 +236,51 @@
         };
       }
 
-      // 檢查並補足 has_signals / has_wave 標記 (用於相容舊資料)
+      // 檢查並補足資料結構 (用於相容舊資料與新格式)
       Object.keys(formData.sessions).forEach(s => {
         const sess = formData.sessions[s];
         if (sess && sess.trends) {
           Object.keys(sess.trends).forEach(tf => {
             const t = sess.trends[tf];
-            if (t.signals?.length > 0 || t.signals_image) t.has_signals = true;
-            if (t.wave_numbers?.length > 0 || t.wave_image) t.has_wave = true;
+            if (!t) return;
+
+            // 初始化新欄位
+            if (!t.directions) {
+                t.directions = t.direction ? (t.direction === 'both' ? ['long', 'short'] : [t.direction]) : [];
+            }
+            if (!t.long) t.long = createDirectionData();
+            if (!t.short) t.short = createDirectionData();
+
+            // 遷移舊資料到 long 或 short 下 (如果舊資料有 direction)
+            if (t.direction && t.direction !== 'both') {
+                const dir = t.direction; // 'long' 或 'short'
+                const target = t[dir];
+                
+                // 如果 target 目前是空的，則遷移過來
+                if (target.signals.length === 0 && !target.signals_image) {
+                   target.signals = t.signals || [];
+                   target.has_signals = t.has_signals || false;
+                   target.signals_image = t.signals_image || '';
+                   target.signals_originalImage = t.signals_originalImage || '';
+                }
+                if (target.wave_numbers.length === 0 && !target.wave_image) {
+                   target.wave_numbers = t.wave_numbers || [];
+                   target.has_wave = t.has_wave || false;
+                   target.wave_highlight = t.wave_highlight || '';
+                   target.wave_image = t.wave_image || '';
+                   target.wave_originalImage = t.wave_originalImage || '';
+                }
+            } else if (!t.direction && (t.signals?.length > 0 || t.wave_numbers?.length > 0)) {
+                // 如果沒有方向但有資料，暫且放到 long 或者保持在頂層？
+                // 為了兼容性，UI 會在 directions 有值時顯示對應區塊。 
+                // 若 directions 為空，我們可能需要一個『通用』顯示區塊，或者引導使用者選方向。
+            }
+
+            // 更新標籤
+            if (t.long.signals?.length > 0 || t.long.signals_image) t.long.has_signals = true;
+            if (t.long.wave_numbers?.length > 0 || t.long.wave_image) t.long.has_wave = true;
+            if (t.short.signals?.length > 0 || t.short.signals_image) t.short.has_signals = true;
+            if (t.short.wave_numbers?.length > 0 || t.short.wave_image) t.short.has_wave = true;
           });
         }
       });
@@ -258,7 +323,7 @@
   }
 
   // 處理趨勢圖片貼上
-  function handleTrendImagePaste(event, timeframe, imageType = 'trend') {
+  function handleTrendImagePaste(event, timeframe, imageType = 'trend', direction = null) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
 
     for (let item of items) {
@@ -269,16 +334,18 @@
 
         reader.onload = e => {
           const trends = currentTrends[timeframe];
+          const target = direction ? trends[direction] : trends;
+
           // 根據 imageType 設置不同的圖片欄位
           if (imageType === 'signals') {
-            trends.signals_image = e.target.result;
-            if (!trends.signals_originalImage) {
-              trends.signals_originalImage = e.target.result;
+            target.signals_image = e.target.result;
+            if (!target.signals_originalImage) {
+              target.signals_originalImage = e.target.result;
             }
           } else if (imageType === 'wave') {
-            trends.wave_image = e.target.result;
-            if (!trends.wave_originalImage) {
-              trends.wave_originalImage = e.target.result;
+            target.wave_image = e.target.result;
+            if (!target.wave_originalImage) {
+              target.wave_originalImage = e.target.result;
             }
           } else {
             trends.image = e.target.result;
@@ -299,14 +366,16 @@
   }
 
   // 移除趨勢圖片
-  function removeTrendImage(timeframe, imageType = 'trend') {
+  function removeTrendImage(timeframe, imageType = 'trend', direction = null) {
     const trends = currentTrends[timeframe];
+    const target = direction ? trends[direction] : trends;
+
     if (imageType === 'signals') {
-      trends.signals_image = '';
-      trends.signals_originalImage = '';
+      target.signals_image = '';
+      target.signals_originalImage = '';
     } else if (imageType === 'wave') {
-      trends.wave_image = '';
-      trends.wave_originalImage = '';
+      target.wave_image = '';
+      target.wave_originalImage = '';
     } else {
       trends.image = '';
       trends.originalImage = '';
@@ -328,12 +397,14 @@
     // 獲取原始圖片
     if (context) {
       const trends = currentTrends[context.key];
+      const target = context.direction ? trends[context.direction] : trends;
+
       if (context.type === 'trend') {
         enlargedOriginalImage = trends?.originalImage || imageSrc;
       } else if (context.type === 'signals') {
-        enlargedOriginalImage = trends?.signals_originalImage || imageSrc;
+        enlargedOriginalImage = target?.signals_originalImage || imageSrc;
       } else if (context.type === 'wave') {
-        enlargedOriginalImage = trends?.wave_originalImage || imageSrc;
+        enlargedOriginalImage = target?.wave_originalImage || imageSrc;
       } else {
         enlargedOriginalImage = imageSrc;
       }
@@ -362,15 +433,16 @@
       return;
     }
 
-    const { type, key } = enlargedImageContext;
+    const { type, key, direction } = enlargedImageContext;
     const trends = currentTrends[key];
+    const target = direction ? trends[direction] : trends;
 
     if (type === 'trend') {
       trends.image = annotatedImageSrc;
     } else if (type === 'signals') {
-      trends.signals_image = annotatedImageSrc;
+      target.signals_image = annotatedImageSrc;
     } else if (type === 'wave') {
-      trends.wave_image = annotatedImageSrc;
+      target.wave_image = annotatedImageSrc;
     }
 
     // 強制觸發 Svelte 響應式更新
@@ -598,7 +670,7 @@
               <button
                 type="button"
                 class="trend-option long"
-                class:active={currentTrends[timeframe].direction === 'long'}
+                class:active={currentTrends[timeframe]?.directions?.includes('long')}
                 on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
               >
                 <span class="trend-name">多</span>
@@ -606,115 +678,171 @@
               <button
                 type="button"
                 class="trend-option short"
-                class:active={currentTrends[timeframe].direction === 'short'}
+                class:active={currentTrends[timeframe]?.directions?.includes('short')}
                 on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
               >
                 <span class="trend-name">空</span>
               </button>
             </div>
 
-            <!-- 達人訊號選擇 -->
-            <div class="timeframe-signals">
-              <label class="section-label inline-check">
-                <input type="checkbox" bind:checked={currentTrends[timeframe].has_signals} />
-                達人訊號
-              </label>
-              
-              {#if currentTrends[timeframe].has_signals}
-                <div class="signal-chips">
-                  {#each allExpertSignals as signal (waveButtonKey + '-' + timeframe + '-signal-' + signal)}
-                    <button
-                      type="button"
-                      class="signal-chip"
-                      class:active={isTimeframeSignalSelected(timeframe, signal)}
-                      on:click|stopPropagation={() => toggleTimeframeSignal(timeframe, signal)}
-                    >
-                      {signal}
-                    </button>
-                  {/each}
+            <!-- 分析區塊：根據選擇的方向顯示 -->
+            {#each (currentTrends[timeframe]?.directions || []) as dir}
+              <div class="direction-analysis-box" class:long={dir === 'long'} class:short={dir === 'short'}>
+                <div class="direction-badge">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
+                
+                <!-- 達人訊號選擇 -->
+                <div class="timeframe-signals">
+                  <label class="section-label inline-check">
+                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_signals} />
+                    達人訊號
+                  </label>
+                  
+                  {#if currentTrends[timeframe][dir].has_signals}
+                    <div class="signal-chips">
+                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-signal-' + signal)}
+                        <button
+                          type="button"
+                          class="signal-chip"
+                          class:active={isTimeframeSignalSelected(timeframe, dir, signal)}
+                          on:click|stopPropagation={() => toggleTimeframeSignal(timeframe, dir, signal)}
+                        >
+                          {signal}
+                        </button>
+                      {/each}
+                    </div>
+
+                    <!-- 達人訊號圖片 -->
+                    {#if currentTrends[timeframe][dir].signals_image}
+                      <div
+                        class="trend-image-preview"
+                        on:click|stopPropagation={() =>
+                          enlargeImage(
+                            currentTrends[timeframe][dir].signals_image,
+                            `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 達人訊號圖`,
+                            { type: 'signals', key: timeframe, direction: dir }
+                          )}
+                      >
+                        <img
+                          src={currentTrends[timeframe][dir].signals_image}
+                          alt="{timeframe} 達人訊號"
+                          style="pointer-events: none;"
+                        />
+                        <button
+                          type="button"
+                          class="remove-image-btn"
+                          on:click|stopPropagation={() => removeTrendImage(timeframe, 'signals', dir)}
+                          title="移除圖片"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    {:else}
+                      <div
+                        class="trend-image-placeholderSmall"
+                        tabindex="0"
+                        on:paste|preventDefault|stopPropagation={e =>
+                          handleTrendImagePaste(e, timeframe, 'signals', dir)}
+                        on:click|stopPropagation={e => e.target.focus()}
+                        role="textbox"
+                      >
+                        📋 貼上訊號圖
+                      </div>
+                    {/if}
+                  {/if}
                 </div>
 
-                <!-- 達人訊號圖片 -->
-                {#if currentTrends[timeframe].signals_image}
+                <!-- 波浪浪數選擇 -->
+                <div class="timeframe-wave">
+                  <label class="section-label inline-check">
+                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_wave} />
+                    波浪浪數
+                  </label>
+
+                  {#if currentTrends[timeframe][dir].has_wave}
+                    <div class="wave-numbers">
+                      {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + dir + '-' + num)}
+                        <button
+                          type="button"
+                          class="wave-number-btn"
+                          class:selected={isWaveNumberSelected(timeframe, dir, num)}
+                          class:highlighted={isWaveNumberHighlighted(timeframe, dir, num)}
+                          on:click|stopPropagation={() => clickWaveNumber(timeframe, dir, num)}
+                        >
+                          {num}
+                        </button>
+                      {/each}
+                    </div>
+
+                    <!-- 波浪圖片 -->
+                    {#if currentTrends[timeframe][dir].wave_image}
+                      <div
+                        class="trend-image-preview"
+                        on:click|stopPropagation={() =>
+                          enlargeImage(currentTrends[timeframe][dir].wave_image, `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`, {
+                            type: 'wave',
+                            key: timeframe,
+                            direction: dir
+                          })}
+                      >
+                        <img
+                          src={currentTrends[timeframe][dir].wave_image}
+                          alt="{timeframe} 波浪"
+                          style="pointer-events: none;"
+                        />
+                        <button
+                          type="button"
+                          class="remove-image-btn"
+                          on:click|stopPropagation={() => removeTrendImage(timeframe, 'wave', dir)}
+                          title="移除圖片"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    {:else}
+                      <div
+                        class="trend-image-placeholderSmall"
+                        tabindex="0"
+                        on:paste|preventDefault|stopPropagation={e =>
+                          handleTrendImagePaste(e, timeframe, 'wave', dir)}
+                        on:click|stopPropagation={e => e.target.focus()}
+                        role="textbox"
+                      >
+                        📋 貼上波浪圖
+                      </div>
+                    {/if}
+                  {/if}
+                </div>
+              </div>
+            {/each}
+
+            <!-- 如果沒有選方向，顯示提示或基本的圖片貼上處 -->
+            {#if (currentTrends[timeframe]?.directions || []).length === 0}
+               <div class="no-direction-hint">
+                 請選擇「多」或「空」以開始分析
+               </div>
+            {/if}
+
+            <!-- 趨勢主圖 (原本隱藏的欄位，現在放在最下面作為整體趨勢圖) -->
+            <div class="timeframe-general-image">
+               <label class="section-label">🖼️ 整體時區圖 (可直接貼上)</label>
+               {#if currentTrends[timeframe].image}
                   <div
                     class="trend-image-preview"
                     on:click|stopPropagation={() =>
-                      enlargeImage(
-                        currentTrends[timeframe].signals_image,
-                        `${timeframe} 達人訊號圖`,
-                        { type: 'signals', key: timeframe }
-                      )}
-                  >
-                    <img
-                      src={currentTrends[timeframe].signals_image}
-                      alt="{timeframe} 達人訊號"
-                      style="pointer-events: none;"
-                    />
-                    <button
-                      type="button"
-                      class="remove-image-btn"
-                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'signals')}
-                      title="移除圖片"
-                    >
-                      ×
-                    </button>
-                  </div>
-                {:else}
-                  <div
-                    class="trend-image-placeholderSmall"
-                    tabindex="0"
-                    on:paste|preventDefault|stopPropagation={e =>
-                      handleTrendImagePaste(e, timeframe, 'signals')}
-                    on:click|stopPropagation={e => e.target.focus()}
-                    role="textbox"
-                  >
-                    📋 貼上訊號圖
-                  </div>
-                {/if}
-              {/if}
-            </div>
-
-            <!-- 波浪浪數選擇 -->
-            <div class="timeframe-wave">
-              <label class="section-label inline-check">
-                <input type="checkbox" bind:checked={currentTrends[timeframe].has_wave} />
-                波浪浪數
-              </label>
-
-              {#if currentTrends[timeframe].has_wave}
-                <div class="wave-numbers">
-                  {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + num)}
-                    <button
-                      type="button"
-                      class="wave-number-btn"
-                      class:selected={isWaveNumberSelected(timeframe, num)}
-                      class:highlighted={isWaveNumberHighlighted(timeframe, num)}
-                      on:click|stopPropagation={() => clickWaveNumber(timeframe, num)}
-                    >
-                      {num}
-                    </button>
-                  {/each}
-                </div>
-
-                <!-- 波浪圖片 -->
-                {#if currentTrends[timeframe].wave_image}
-                  <div
-                    class="trend-image-preview"
-                    on:click|stopPropagation={() =>
-                      enlargeImage(currentTrends[timeframe].wave_image, `${timeframe} 波浪圖`, {
-                        type: 'wave',
-                        key: timeframe,
+                      enlargeImage(currentTrends[timeframe].image, `${timeframe} 整體時區圖`, {
+                        type: 'trend',
+                        key: timeframe
                       })}
                   >
                     <img
-                      src={currentTrends[timeframe].wave_image}
-                      alt="{timeframe} 波浪"
+                      src={currentTrends[timeframe].image}
+                      alt="{timeframe} 趨勢"
                       style="pointer-events: none;"
                     />
                     <button
                       type="button"
                       class="remove-image-btn"
-                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'wave')}
+                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'trend')}
                       title="移除圖片"
                     >
                       ×
@@ -725,14 +853,13 @@
                     class="trend-image-placeholderSmall"
                     tabindex="0"
                     on:paste|preventDefault|stopPropagation={e =>
-                      handleTrendImagePaste(e, timeframe, 'wave')}
+                      handleTrendImagePaste(e, timeframe, 'trend')}
                     on:click|stopPropagation={e => e.target.focus()}
                     role="textbox"
                   >
-                    📋 貼上波浪圖
+                    📋 貼上時區圖
                   </div>
                 {/if}
-              {/if}
             </div>
           </div>
         {/each}
@@ -1304,5 +1431,49 @@
     background: #edf2f7;
     border-color: #667eea;
     color: #667eea;
+  }
+
+  .direction-analysis-box {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #fcfcfc;
+  }
+
+  .direction-analysis-box.long {
+    border-left: 4px solid #ef4444;
+  }
+
+  .direction-analysis-box.short {
+    border-left: 4px solid #10b981;
+  }
+
+  .direction-badge {
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .no-direction-hint {
+    margin-top: 1rem;
+    padding: 1.5rem;
+    border: 1px dashed #cbd5e0;
+    border-radius: 10px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.85rem;
+    background: #f8fafc;
+  }
+
+  .timeframe-general-image {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #edf2f7;
   }
 </style>

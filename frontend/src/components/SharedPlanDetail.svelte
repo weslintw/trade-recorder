@@ -31,12 +31,14 @@
     if (!session) return false;
     if (session.notes && session.notes.trim()) return true;
     if (!session.trends) return false;
-    return Object.values(session.trends).some(t => 
-      t.direction || 
-      (t.signals && t.signals.length > 0) || 
-      (t.wave_numbers && t.wave_numbers.length > 0) ||
-      t.image || t.signals_image || t.wave_image
-    );
+    return Object.values(session.trends).some(t => {
+      if (t.directions && t.directions.length > 0) return true;
+      if (t.direction) return true;
+      if (t.image || t.signals_image || t.wave_image) return true;
+      if (t.long && (t.long.has_signals || t.long.has_wave || t.long.signals_image || t.long.wave_image)) return true;
+      if (t.short && (t.short.has_signals || t.short.has_wave || t.short.signals_image || t.short.wave_image)) return true;
+      return (t.signals && t.signals.length > 0) || (t.wave_numbers && t.wave_numbers.length > 0);
+    });
   }
 
   // Set initial active session based on available data
@@ -53,12 +55,16 @@
 
   $: currentSessionData = trendAnalysis[activeSession] || { trends: {} };
 
-  function isWaveNumberHighlighted(trend, number) {
-    return trend.wave_highlight === number.toString() || trend.wave_highlight === parseInt(number);
+  function isWaveNumberHighlighted(trend, direction, number) {
+    const target = direction ? trend[direction] : trend;
+    if (!target) return false;
+    return target.wave_highlight === number.toString() || target.wave_highlight === parseInt(number);
   }
 
-  function isWaveNumberSelected(trend, number) {
-    return (trend.wave_numbers || []).some(n => n.toString() === number.toString());
+  function isWaveNumberSelected(trend, direction, number) {
+    const target = direction ? trend[direction] : trend;
+    if (!target) return false;
+    return (target.wave_numbers || []).some(n => n.toString() === number.toString());
   }
 </script>
 
@@ -109,57 +115,109 @@
       {#each timeframes as tf}
         {@const trend = currentSessionData.trends?.[tf]}
         {#if trend && (trend.direction || trend.has_signals || trend.has_wave)}
+          {@const directionsToShow = trend.directions && trend.directions.length > 0 ? trend.directions : (trend.direction && trend.direction !== 'both' ? [trend.direction] : [])}
           <div class="trend-item">
             <div class="timeframe-label">{tf}</div>
 
             <!-- 多空顯示 -->
             <div class="trend-options-view">
-              <div class="trend-option-box long" class:active={trend.direction === 'long'}>
+              <div class="trend-option-box long" class:active={trend.directions?.includes('long') || trend.direction === 'long' || trend.direction === 'both'}>
                 多
               </div>
-              <div class="trend-option-box short" class:active={trend.direction === 'short'}>
+              <div class="trend-option-box short" class:active={trend.directions?.includes('short') || trend.direction === 'short' || trend.direction === 'both'}>
                 空
               </div>
             </div>
 
-            <!-- 達人訊號 -->
-            {#if trend.has_signals}
-              <div class="analysis-section">
-                <div class="section-title">✔️ 達人訊號</div>
-                <div class="signal-chips">
-                  {#each (trend.signals || []) as sig}
-                    <span class="signal-chip active">{sig}</span>
-                  {/each}
-                </div>
-                {#if trend.signals_image}
-                  <div class="trend-image-preview" on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}>
-                    <img src={trend.signals_image} alt="signals" loading="lazy" />
+            <!-- 分析區塊 (支持多個方向) -->
+            {#each directionsToShow as dir}
+              {@const analysis = trend[dir] || trend}
+              <div class="analysis-box-container" class:long={dir === 'long'} class:short={dir === 'short'}>
+                <div class="dir-header">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
+                
+                <!-- 達人訊號 -->
+                {#if analysis.has_signals}
+                  <div class="analysis-section">
+                    <div class="section-title">✔️ 達人訊號</div>
+                    <div class="signal-chips">
+                      {#each (analysis.signals || []) as sig}
+                        <span class="signal-chip active">{sig}</span>
+                      {/each}
+                    </div>
+                    {#if analysis.signals_image}
+                      <div class="trend-image-preview" on:click={() => openModal(analysis.signals_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 訊號圖`)}>
+                        <img src={analysis.signals_image} alt="signals" loading="lazy" />
+                      </div>
+                    {/if}
                   </div>
                 {/if}
-              </div>
-            {/if}
 
-            <!-- 波浪浪數 -->
-            {#if trend.has_wave}
-              <div class="analysis-section">
-                <div class="section-title">✔️ 波浪浪數</div>
-                <div class="wave-numbers">
-                  {#each ['1', '2', '3', '4', '5'] as num}
-                    <span 
-                      class="wave-number-box" 
-                      class:selected={isWaveNumberSelected(trend, num)}
-                      class:highlighted={isWaveNumberHighlighted(trend, num)}
-                    >
-                      {num}
-                    </span>
-                  {/each}
-                </div>
-                {#if trend.wave_image}
-                  <div class="trend-image-preview" on:click={() => openModal(trend.wave_image, `${tf} 波浪圖`)}>
-                    <img src={trend.wave_image} alt="wave" loading="lazy" />
+                <!-- 波浪浪數 -->
+                {#if analysis.has_wave}
+                  <div class="analysis-section">
+                    <div class="section-title">✔️ 波浪浪數</div>
+                    <div class="wave-numbers">
+                      {#each ['1', '2', '3', '4', '5'] as num}
+                        <span 
+                          class="wave-number-box" 
+                          class:selected={isWaveNumberSelected(trend, dir, num)}
+                          class:highlighted={isWaveNumberHighlighted(trend, dir, num)}
+                        >
+                          {num}
+                        </span>
+                      {/each}
+                    </div>
+                    {#if analysis.wave_image}
+                      <div class="trend-image-preview" on:click={() => openModal(analysis.wave_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`)}>
+                        <img src={analysis.wave_image} alt="wave" loading="lazy" />
+                      </div>
+                    {/if}
                   </div>
                 {/if}
               </div>
+            {/each}
+
+            <!-- 舊格式兼容: 如果沒有 directions 且沒有明確方向但有資料 -->
+            {#if directionsToShow.length === 0 && (trend.has_signals || trend.has_wave)}
+               <div class="analysis-box-container">
+                  {#if trend.has_signals}
+                    <div class="analysis-section">
+                      <div class="section-title">✔️ 達人訊號</div>
+                      <div class="signal-chips">
+                        {#each (trend.signals || []) as sig}
+                          <span class="signal-chip active">{sig}</span>
+                        {/each}
+                      </div>
+                      {#if trend.signals_image}
+                        <div class="trend-image-preview" on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}>
+                          <img src={trend.signals_image} alt="signals" loading="lazy" />
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+
+                  {#if trend.has_wave}
+                    <div class="analysis-section">
+                      <div class="section-title">✔️ 波浪浪數</div>
+                      <div class="wave-numbers">
+                        {#each ['1', '2', '3', '4', '5'] as num}
+                          <span 
+                            class="wave-number-box" 
+                            class:selected={isWaveNumberSelected(trend, null, num)}
+                            class:highlighted={isWaveNumberHighlighted(trend, null, num)}
+                          >
+                            {num}
+                          </span>
+                        {/each}
+                      </div>
+                      {#if trend.wave_image}
+                        <div class="trend-image-preview" on:click={() => openModal(trend.wave_image, `${tf} 波浪圖`)}>
+                          <img src={trend.wave_image} alt="wave" loading="lazy" />
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+               </div>
             {/if}
 
             <!-- 趨勢主圖 -->
@@ -344,6 +402,29 @@
   .trend-image-preview:hover { transform: scale(1.02); }
   .trend-image-preview img { width: 100%; height: auto; display: block; }
   
+  .analysis-box-container {
+    padding: 1rem;
+    border-radius: 12px;
+    background: #fcfcfc;
+    border: 1px solid #f1f5f9;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .analysis-box-container.long { border-left: 4px solid #ef4444; }
+  .analysis-box-container.short { border-left: 4px solid #10b981; }
+
+  .dir-header {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #475569;
+    padding: 2px 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    display: inline-block;
+    align-self: flex-start;
+  }
+
   .na-txt { color: #94a3b8; font-style: italic; font-size: 0.9rem; }
 
   @media (max-width: 640px) {

@@ -10,6 +10,17 @@
       `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
     );
   }
+  function getDirectionLabel(trend) {
+    if (!trend) return '';
+    const dirs = [];
+    if (trend.directions?.includes('long') || trend.direction === 'long' || trend.direction === 'both') dirs.push('多');
+    if (trend.directions?.includes('short') || trend.direction === 'short' || trend.direction === 'both') dirs.push('空');
+    return dirs.join('＋');
+  }
+
+  function hasDirection(trend) {
+    return trend && (trend.directions?.length > 0 || trend.direction);
+  }
 </script>
 
 <div class="trade-plan-status-section">
@@ -48,41 +59,41 @@
             {@const europeanTrend = trendData.european?.trends?.[tf]}
             {@const usTrend = trendData.us?.trends?.[tf]}
 
-            {#if asianTrend?.direction || europeanTrend?.direction || usTrend?.direction}
+            {#if hasDirection(asianTrend) || hasDirection(europeanTrend) || hasDirection(usTrend)}
               <div class="timeframe-step">
                 <span class="tf-label">{tf}</span>
                 <div class="session-path">
-                  {#if asianTrend?.direction}
+                  {#if hasDirection(asianTrend)}
                     <span
                       class="step"
-                      class:long={asianTrend.direction === 'long'}
-                      class:short={asianTrend.direction === 'short'}
+                      class:long={asianTrend.directions?.includes('long') || asianTrend.direction === 'long' || asianTrend.direction === 'both'}
+                      class:short={asianTrend.directions?.includes('short') || asianTrend.direction === 'short' || asianTrend.direction === 'both'}
                     >
-                      亞盤 {asianTrend.direction === 'long' ? '多' : '空'}
+                      亞盤 {getDirectionLabel(asianTrend)}
                     </span>
                   {/if}
 
-                  {#if europeanTrend?.direction}
-                    {#if asianTrend?.direction}<span class="arrow">=></span>{/if}
+                  {#if hasDirection(europeanTrend)}
+                    {#if hasDirection(asianTrend)}<span class="arrow">=></span>{/if}
                     <span
                       class="step"
-                      class:long={europeanTrend.direction === 'long'}
-                      class:short={europeanTrend.direction === 'short'}
+                      class:long={europeanTrend.directions?.includes('long') || europeanTrend.direction === 'long' || europeanTrend.direction === 'both'}
+                      class:short={europeanTrend.directions?.includes('short') || europeanTrend.direction === 'short' || europeanTrend.direction === 'both'}
                     >
-                      歐盤 {europeanTrend.direction === 'long' ? '多' : '空'}
+                      歐盤 {getDirectionLabel(europeanTrend)}
                     </span>
                   {/if}
 
-                  {#if usTrend?.direction}
-                    {#if asianTrend?.direction || europeanTrend?.direction}<span class="arrow"
+                  {#if hasDirection(usTrend)}
+                    {#if hasDirection(asianTrend) || hasDirection(europeanTrend)}<span class="arrow"
                         >=></span
                       >{/if}
                     <span
                       class="step"
-                      class:long={usTrend.direction === 'long'}
-                      class:short={usTrend.direction === 'short'}
+                      class:long={usTrend.directions?.includes('long') || usTrend.direction === 'long' || usTrend.direction === 'both'}
+                      class:short={usTrend.directions?.includes('short') || usTrend.direction === 'short' || usTrend.direction === 'both'}
                     >
-                      美盤 {usTrend.direction === 'long' ? '多' : '空'}
+                      美盤 {getDirectionLabel(usTrend)}
                     </span>
                   {/if}
                 </div>
