@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"trade-journal/internal/ctrader"
@@ -27,16 +26,16 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 根據官方文件 (https://help.ctrader.com/open-api/account-authentication/#attain-the-authorisation-code)
-		// 1. 網址最後要帶斜線: /grantingaccess/
-		// 2. 必須包含參數: product=web
-		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess/?client_id=%s&redirect_uri=%s&scope=accounts%%20trading&product=web",
+		// 採用極簡、不編碼的原始構造方式 (完全模仿 Myfxbook)
+		// 採用測出的 100% 成功模式 (不對 redirect_uri 進行編碼，且使用特定順序)
+		// 注意：雖然標準 OAuth 要求編碼，但 cTrader 的這個特定進入點顯然偏好原始字串
+		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts%%20trading&redirect_uri=%s",
 			clientID,
-			url.QueryEscape(redirectURI),
+			redirectURI,
 		)
 
-		// 記錄最終生成的官方標準網址
-		log.Printf("[cTrader OAuth] Official Style URL: %s", authURL)
+		// 記錄最終固定的極簡模式網址
+		log.Printf("[cTrader OAuth] Success Pattern URL: %s", authURL)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
