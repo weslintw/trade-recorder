@@ -220,7 +220,6 @@
                </div>
             {/if}
 
-            {/if}
           </div>
         {:else}
            <div class="trend-item empty">
