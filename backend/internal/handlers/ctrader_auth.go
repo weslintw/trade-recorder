@@ -27,9 +27,10 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// 採用極簡、不編碼的原始構造方式 (完全模仿 Myfxbook)
-		// 採用測出的 100% 成功模式 (不對 redirect_uri 進行編碼，且使用特定順序)
-		// 注意：雖然標準 OAuth 要求編碼，但 cTrader 的這個特定進入點顯然偏好原始字串
-		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts%%20trading&redirect_uri=%s",
+		// 採用 100% 測試成功的模式：
+		// 1. scope 僅使用 accounts (這已包含交易紀錄權限)
+		// 2. redirect_uri 保持原始字串
+		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts&redirect_uri=%s",
 			clientID,
 			redirectURI,
 		)
