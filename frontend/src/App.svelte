@@ -334,12 +334,14 @@
     font-size: 0.65rem;
     color: var(--text-muted);
     background: var(--nav-group-bg);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-weight: 700;
     pointer-events: none;
-    margin-top: 2.2rem; /* 配合容器加高，版號位置再次微調 */
+    margin-top: 0;
+    align-self: center;
     line-height: 1;
+    border: 1px solid var(--border-color);
   }
 
   .nav-links {
@@ -434,13 +436,13 @@
 
   .current-time-box .date {
     font-size: 0.65rem;
-    color: #94a3b8;
+    color: var(--text-muted);
     font-weight: 700;
   }
 
   .current-time-box .time {
     font-size: 0.9rem;
-    color: #1e293b;
+    color: var(--text-main);
     font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
   }
