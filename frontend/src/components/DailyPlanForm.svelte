@@ -815,52 +815,12 @@
               </div>
             {/each}
 
-            <!-- 如果沒有選方向，顯示提示或基本的圖片貼上處 -->
+            <!-- 如果沒有選方向，顯示提示 -->
             {#if (currentTrends[timeframe]?.directions || []).length === 0}
                <div class="no-direction-hint">
                  請選擇「多」或「空」以開始分析
                </div>
             {/if}
-
-            <!-- 趨勢主圖 (原本隱藏的欄位，現在放在最下面作為整體趨勢圖) -->
-            <div class="timeframe-general-image">
-               <label class="section-label">🖼️ 整體時區圖 (可直接貼上)</label>
-               {#if currentTrends[timeframe].image}
-                  <div
-                    class="trend-image-preview"
-                    on:click|stopPropagation={() =>
-                      enlargeImage(currentTrends[timeframe].image, `${timeframe} 整體時區圖`, {
-                        type: 'trend',
-                        key: timeframe
-                      })}
-                  >
-                    <img
-                      src={currentTrends[timeframe].image}
-                      alt="{timeframe} 趨勢"
-                      style="pointer-events: none;"
-                    />
-                    <button
-                      type="button"
-                      class="remove-image-btn"
-                      on:click|stopPropagation={() => removeTrendImage(timeframe, 'trend')}
-                      title="移除圖片"
-                    >
-                      ×
-                    </button>
-                  </div>
-                {:else}
-                  <div
-                    class="trend-image-placeholderSmall"
-                    tabindex="0"
-                    on:paste|preventDefault|stopPropagation={e =>
-                      handleTrendImagePaste(e, timeframe, 'trend')}
-                    on:click|stopPropagation={e => e.target.focus()}
-                    role="textbox"
-                  >
-                    📋 貼上時區圖
-                  </div>
-                {/if}
-            </div>
           </div>
         {/each}
       </div>
@@ -1469,11 +1429,5 @@
     color: #94a3b8;
     font-size: 0.85rem;
     background: #f8fafc;
-  }
-
-  .timeframe-general-image {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid #edf2f7;
   }
 </style>

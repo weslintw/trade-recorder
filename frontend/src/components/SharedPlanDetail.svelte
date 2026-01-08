@@ -220,13 +220,6 @@
                </div>
             {/if}
 
-            <!-- 趨勢主圖 -->
-            {#if trend.image}
-              <div class="trend-main-image">
-                 <div class="trend-image-preview" on:click={() => openModal(trend.image, `${tf} 趨勢圖`)}>
-                    <img src={trend.image} alt="trend" loading="lazy" />
-                  </div>
-              </div>
             {/if}
           </div>
         {:else}
