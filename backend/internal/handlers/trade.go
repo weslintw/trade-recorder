@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
 
 	"time"
@@ -20,6 +21,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
+		log.Printf("[GetTrades DEBUG] User:%d, Acc:%d, Symbol:%s, Page:%d", userID, query.AccountID, query.Symbol, query.Page)
 
 		// 預設分頁
 		if query.Page <= 0 {
@@ -139,6 +142,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 
 		var total int
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
+
+		log.Printf("[GetTrades DEBUG] Result: %d items, Total: %d", len(trades), total)
 
 		c.JSON(http.StatusOK, gin.H{
 			"data": trades,
