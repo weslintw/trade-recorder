@@ -880,7 +880,7 @@
   show={showShareModal} 
   resourceType="plan" 
   resourceId={id} 
-  resourceTitle={formData.plan_date.replace(/-/g, '') + '今日盤面規劃'}
+  resourceTitle={formData.plan_date.replace(/-/g, '') + '_DailyPlan'}
   onClose={() => (showShareModal = false)} 
 />
 

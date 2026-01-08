@@ -17,7 +17,7 @@
     copySuccess = false;
   }
 
-  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}${resourceTitle ? resourceTitle : ''}` : '';
+  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}?title=${encodeURIComponent(resourceTitle)}` : '';
 
   function handleClose() {
     show = false;

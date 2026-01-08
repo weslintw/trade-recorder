@@ -1593,7 +1593,7 @@
   show={showShareModal}
   resourceType="trade"
   resourceId={id}
-  resourceTitle={formData.symbol + '交易紀錄'}
+  resourceTitle={formData.symbol + '_TradeReport'}
   onClose={() => (showShareModal = false)}
 />
 

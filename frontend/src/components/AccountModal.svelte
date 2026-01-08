@@ -255,58 +255,6 @@
             <p class="help-text text-center">推薦！登入 Spotware 帳號即可自動同步多個交易帳號。</p>
           </div>
 
-          <div class="divider">
-            <span>或使用手動設定</span>
-          </div>
-
-          <div class="form-group">
-            <label for="ctrader-id">cTrader 交易帳號 ID (Login)</label>
-            <input
-              id="ctrader-id"
-              type="text"
-              class="form-control"
-              bind:value={newAccount.ctrader_account_id}
-              placeholder="例如：6543210"
-            />
-          </div>
-          <div class="form-group">
-            <label for="ctrader-token">cTrader API Access Token</label>
-            <textarea
-              id="ctrader-token"
-              class="form-control"
-              bind:value={newAccount.ctrader_token}
-              placeholder="輸入您的 Access Token"
-              rows="2"
-            ></textarea>
-          </div>
-          <div class="form-group">
-            <label for="ctrader-client-id">Client ID</label>
-            <input
-              id="ctrader-client-id"
-              type="text"
-              class="form-control"
-              bind:value={newAccount.ctrader_client_id}
-              placeholder="您的 Open API App Client ID"
-            />
-          </div>
-          <div class="form-group">
-            <label for="ctrader-client-secret">Client Secret</label>
-            <input
-              id="ctrader-client-secret"
-              type="password"
-              class="form-control"
-              bind:value={newAccount.ctrader_client_secret}
-              placeholder="您的 Open API App Client Secret"
-            />
-          </div>
-          <div class="form-group">
-            <label for="ctrader-env">Environment</label>
-            <select id="ctrader-env" class="form-control" bind:value={newAccount.ctrader_env}>
-              <option value="live">Live</option>
-              <option value="demo">Demo</option>
-            </select>
-            <p class="help-text">根據您的帳號類型選擇伺服器環境。</p>
-          </div>
         </div>
       {/if}
 
@@ -445,25 +393,6 @@
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   }
 
-  .divider {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    margin: 1.5rem 0;
-    color: #94a3b8;
-    font-size: 0.8rem;
-  }
-
-  .divider::before,
-  .divider::after {
-    content: '';
-    flex: 1;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .divider span {
-    padding: 0 1rem;
-  }
 
   .text-center {
     text-align: center;

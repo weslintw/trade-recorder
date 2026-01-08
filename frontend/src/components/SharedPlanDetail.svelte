@@ -44,11 +44,11 @@
   // Set initial active session based on available data
   let initialized = false;
   $: if (!initialized && Object.keys(trendAnalysis).length > 0) {
-    const sessions = ['asian', 'european', 'us'];
-    // Find the first session that has content
-    const firstWithContent = sessions.find(s => hasContent(trendAnalysis[s]));
-    if (firstWithContent) {
-      activeSession = firstWithContent;
+    const sessions = ['us', 'european', 'asian'];
+    // Find the latest session that has content
+    const latestWithContent = sessions.find(s => hasContent(trendAnalysis[s]));
+    if (latestWithContent) {
+      activeSession = latestWithContent;
     }
     initialized = true;
   }

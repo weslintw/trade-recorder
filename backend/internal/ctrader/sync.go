@@ -92,6 +92,20 @@ func getMultiplier(symbol string) float64 {
 	return 1.0
 }
 
+func getDigits(symbol string) int {
+	symbol = strings.ToUpper(symbol)
+	if strings.Contains(symbol, "JPY") {
+		return 3
+	}
+	if strings.Contains(symbol, "XAU") || strings.Contains(symbol, "GOLD") {
+		return 2
+	}
+	if strings.Contains(symbol, "EUR") || strings.Contains(symbol, "GBP") || strings.Contains(symbol, "AUD") || (strings.Contains(symbol, "USD") && !strings.Contains(symbol, "XAU")) {
+		return 5
+	}
+	return 2
+}
+
 type dealInfo struct {
 	DealID              int64
 	OrderID             int64
@@ -539,6 +553,39 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 			// Use in-memory maps for fast lookup (Performance optimization)
 			if existingTickets[ticket] {
+				// THE USER REQUESTED: Sync all transactions' PnL charts.
+				// We refresh PnL series for existing trades if they look incomplete or are in this window.
+				var currentPnL string
+				var currentInitialSL, currentExitSL float64
+				db.QueryRow("SELECT pnl_series, initial_sl, exit_sl FROM trades WHERE account_id = ? AND ticket = ?", accountID, ticket).Scan(&currentPnL, &currentInitialSL, &currentExitSL)
+
+				// Decide if we should refresh this trade
+				shouldRefresh := currentPnL == "" || currentPnL == "[]" || currentPnL == "null" || len(currentPnL) < 50
+				// Also refresh if we found better SL data than what we currently have
+				betterSL := (currentInitialSL == 0 && initialSL > 0) || (currentExitSL == 0 && exitSL > 0)
+
+				if shouldRefresh || betterSL {
+					log.Printf("[cTrader Sync] Refreshing/Repairing existing trade %s (pnl_refresh=%v, better_sl=%v)", ticket, shouldRefresh, betterSL)
+
+					posSide := 1 // Buy/Long
+					if d.TradeSide == 1 {
+						posSide = 2 // Sell/Short
+					}
+
+					digits := getDigits(symbol)
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, digits)
+
+					if pnlSeries != "" || betterSL {
+						db.Exec(`UPDATE trades SET 
+							pnl_series = CASE WHEN ? != '' THEN ? ELSE pnl_series END,
+							initial_sl = CASE WHEN initial_sl = 0 THEN ? ELSE initial_sl END,
+							exit_sl = CASE WHEN exit_sl = 0 THEN ? ELSE exit_sl END,
+							updated_at = CURRENT_TIMESTAMP
+							WHERE account_id = ? AND ticket = ?`,
+							pnlSeries, pnlSeries, initialSL, exitSL, accountID, ticket)
+					}
+				}
+
 				skippedExisting++
 				continue
 			}
@@ -589,9 +636,9 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	}
 
 	// 4. Open Positions Sync
-	log.Printf("[cTrader Sync] Step 4: Open Positions (v2.28)...")
-	// Clear existing open positions for this account to referesh them, but keep closed deals
-	db.Exec("DELETE FROM trades WHERE account_id = ? AND ticket LIKE 'ctrader-pos-%'", accountID)
+	log.Printf("[cTrader Sync] Step 4: Open Positions (Refined - Non-destructive)...")
+	// RECONCILIATION logic instead of blind delete
+	currentOpenTickets := make(map[string]bool)
 
 	pResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID})
 	if err == nil {
@@ -716,18 +763,101 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 				vol := float64(pos.TradeData.Volume) / float64(lotSize)
 
-				pnlSeries := fetchPnLSeries(nil, conn, cTID, pos.TradeData.SymbolID, pos.TradeData.OpenTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide, 2)
+				pnlSeries := fetchPnLSeries(nil, conn, cTID, pos.TradeData.SymbolID, pos.TradeData.OpenTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide, getDigits(symbol))
 
-				_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				res, err := db.Exec(`
+					INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					ON CONFLICT(ticket) DO UPDATE SET 
+						entry_price = excluded.entry_price,
+						lot_size = excluded.lot_size,
+						pnl_series = CASE WHEN pnl_series IS NULL OR pnl_series = '' OR pnl_series = '[]' THEN excluded.pnl_series ELSE pnl_series END,
+						exit_sl = excluded.exit_sl,
+						updated_at = CURRENT_TIMESTAMP
+					WHERE ticket LIKE 'ctrader-pos-%'`,
 					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.OpenTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
+
 				if err != nil {
-					log.Printf("[cTrader Sync] Insert open position failed (PositionID: %d): %v", pos.PositionID, err)
+					log.Printf("[cTrader Sync] Upsert open position failed (PositionID: %d): %v", pos.PositionID, err)
+				} else {
+					// Identify which tickets are still open
+					currentOpenTickets[ticket] = true
+					if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+						insertedCount++
+					}
+				}
+			}
+
+			// Clean up trades that are marked as 'ctrader-pos-%' but were NOT found in reconcile (means they are closed)
+			// These SHOULD have been picked up by the Deal Sync pass above.
+			db.Exec("DELETE FROM trades WHERE account_id = ? AND ticket LIKE 'ctrader-pos-%' AND ticket NOT IN ("+
+				func() string {
+					tickets := []string{}
+					for t := range currentOpenTickets {
+						tickets = append(tickets, "'"+t+"'")
+					}
+					if len(tickets) == 0 {
+						return "''"
+					}
+					return strings.Join(tickets, ",")
+				}()+")", accountID)
+		}
+	}
+
+	// 5. Final PnL Repair Pass (for ANY trade with missing PnL in this account)
+	log.Printf("[cTrader Sync] Step 5: Final PnL Repair Pass for Account %d...", accountID)
+	db.Exec("UPDATE accounts SET sync_status = 'Repairing missing charts...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
+	repairRows, err := db.Query(`
+		SELECT id, symbol, side, lot_size, entry_time, exit_time, entry_price, ticket 
+		FROM trades 
+		WHERE account_id = ? AND ticket LIKE 'ctrader-deal-%' 
+		AND (pnl_series IS NULL OR pnl_series = '' OR pnl_series = '[]')
+		ORDER BY entry_time DESC LIMIT 50`, accountID)
+	if err == nil {
+		defer repairRows.Close()
+		for repairRows.Next() {
+			var t struct {
+				ID         int64
+				Symbol     string
+				Side       string
+				LotSize    float64
+				EntryTime  time.Time
+				ExitTime   sql.NullTime
+				EntryPrice float64
+				Ticket     string
+			}
+			if err := repairRows.Scan(&t.ID, &t.Symbol, &t.Side, &t.LotSize, &t.EntryTime, &t.ExitTime, &t.EntryPrice, &t.Ticket); err == nil {
+				// Locate SymbolID and LotSize
+				var sid int64 = -1
+				for id, name := range symbolMap {
+					if name == t.Symbol {
+						sid = id
+						break
+					}
+				}
+				if sid != -1 && t.ExitTime.Valid {
+					lotSizeMultiplier := symbolLotSizeMap[sid]
+					if lotSizeMultiplier == 0 {
+						lotSizeMultiplier = 100000
+					}
+					rawVolume := int64(t.LotSize * float64(lotSizeMultiplier))
+					posSide := 1
+					if t.Side == "short" {
+						posSide = 2
+					}
+
+					log.Printf("[cTrader Sync] Repairing ancient PnL for trade %d (%s)", t.ID, t.Ticket)
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, sid, t.EntryTime.UnixMilli(), t.ExitTime.Time.UnixMilli(), t.EntryPrice, rawVolume, posSide, getDigits(t.Symbol))
+					if pnlSeries != "" {
+						db.Exec("UPDATE trades SET pnl_series = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", pnlSeries, t.ID)
+						time.Sleep(50 * time.Millisecond) // Throttle repairs
+					}
 				}
 			}
 		}
 	}
-	log.Printf("[cTrader Sync] --- Manual Sync SUCCESS for Account %d (v2.28) ---", accountID)
+
+	log.Printf("[cTrader Sync] --- Manual Sync SUCCESS for Account %d (v2.40 Repair Enhanced) ---", accountID)
 	return nil
 }
 
