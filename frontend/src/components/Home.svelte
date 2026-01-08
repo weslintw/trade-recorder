@@ -232,14 +232,16 @@
     console.log('Step 1: Fetching accounts...');
     await refreshAccounts();
     
-    // Step 2: Auto-select first account if needed (ONE TIME ONLY)
-    if ($accounts && $accounts.length > 0 && !$selectedAccountId) {
-      console.log(`Step 2: Auto-selecting first account: ${$accounts[0].id}`);
+    // Step 2: Auto-select first account if needed or if selected one is invalid
+    const accountExists = $accounts.some(a => a.id === $selectedAccountId);
+    console.log(`Step 2 check: SelectedID=${$selectedAccountId}, Exists=${accountExists}, AccountCount=${$accounts.length}`);
+    if ($accounts.length > 0 && (!$selectedAccountId || !accountExists)) {
+      console.log(`Step 2: Auto-selecting first account: ${$accounts[0].id} (Current: ${$selectedAccountId}, Exists: ${accountExists})`);
       selectedAccountId.set($accounts[0].id);
       // Wait for store update to propagate
       await new Promise(resolve => setTimeout(resolve, 50));
     } else {
-      console.log(`Step 2: Account already selected: ${$selectedAccountId}`);
+      console.log(`Step 2: Account already selected and valid: ${$selectedAccountId}`);
     }
     
     // Step 3: Explicitly load initial data if account is selected
@@ -247,7 +249,7 @@
       console.log(`Step 3: Loading initial data for account=${$selectedAccountId}, symbol=${$selectedSymbol}`);
       await loadData();
     } else {
-      console.log('Step 3: Skipping initial load - no account or symbol selected');
+      console.log(`Step 3: Skipping initial load - account=${$selectedAccountId}, symbol=${$selectedSymbol}`);
     }
     
     console.log('=== onMount: Setup complete, starting adaptive polling ===');
