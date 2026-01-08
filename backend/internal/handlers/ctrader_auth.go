@@ -56,14 +56,17 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 		clientSecret := strings.TrimSpace(os.Getenv("CTRADER_CLIENT_SECRET"))
 		redirectURI := strings.TrimSpace(os.Getenv("CTRADER_REDIRECT_URI"))
 
-		// 呼叫 Spotware API 交換 Token
+		// 呼叫 Spotware API 交換 Token (改用符合規範的 POST)
 		tokenURL := "https://openapi.ctrader.com/apps/token"
-		exchangeURL := fmt.Sprintf("%s?grant_type=authorization_code&code=%s&client_id=%s&client_secret=%s&redirect_uri=%s",
-			tokenURL, code, clientID, clientSecret, url.QueryEscape(redirectURI))
+		formData := url.Values{}
+		formData.Set("grant_type", "authorization_code")
+		formData.Set("code", code)
+		formData.Set("client_id", clientID)
+		formData.Set("client_secret", clientSecret)
+		formData.Set("redirect_uri", redirectURI)
 
-		log.Printf("[cTrader OAuth] Exchanging code for token at: %s", tokenURL)
-
-		resp, err := http.Get(exchangeURL)
+		log.Printf("[cTrader OAuth] POSTing to exchange code for token...")
+		resp, err := http.PostForm(tokenURL, formData)
 		if err != nil {
 			log.Printf("[cTrader OAuth] Token exchange failed: %v", err)
 			c.String(http.StatusInternalServerError, "Token exchange failed: "+err.Error())
@@ -80,42 +83,41 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			ErrorCode    string `json:"errorCode"`
 		}
 		if err := json.Unmarshal(body, &tokenRes); err != nil {
-			log.Printf("[cTrader OAuth] Failed to parse token JSON: %v", err)
+			log.Printf("[cTrader OAuth] JSON Unmarshal error: %v", err)
 			c.String(http.StatusInternalServerError, "Failed to parse token response")
 			return
 		}
 
 		if tokenRes.AccessToken == "" {
-			log.Printf("[cTrader OAuth] Invalid access token in response")
+			log.Printf("[cTrader OAuth] Invalid Token Response (AccessToken empty)")
 			c.String(http.StatusBadRequest, "Invalid token response: "+string(body))
 			return
 		}
 
 		// 獲取帳號清單
-		accURL := "https://openapi.ctrader.com/connect/getaccounts?access_token=" + tokenRes.AccessToken
-		accResp, err := http.Get(accURL)
+		accResp, err := http.Get("https://openapi.ctrader.com/connect/getaccounts?access_token=" + tokenRes.AccessToken)
 		if err != nil {
-			log.Printf("[cTrader OAuth] Failed to get accounts: %v", err)
+			log.Printf("[cTrader OAuth] Failed to get accounts list: %v", err)
 			c.String(http.StatusInternalServerError, "Failed to get accounts")
 			return
 		}
 		defer accResp.Body.Close()
 
 		accBody, _ := io.ReadAll(accResp.Body)
-		log.Printf("[cTrader OAuth] Accounts Response: %s", string(accBody))
+		log.Printf("[cTrader OAuth] Accounts List RAW: %s", string(accBody))
 
+		// 處理多種可能的 cTrader JSON 結構
 		var accData struct {
 			TraderAccounts []struct {
-				ID          int64  `json:"ctidTraderAccountId"`
-				AccountName string `json:"traderLogin"`
-				IsLive      bool   `json:"isLive"`
+				ID    int64  `json:"ctidTraderAccountId"`
+				Login string `json:"traderLogin"` // 有些版本是這個
+				Name  string `json:"AccountName"` // 備用
+				Live  bool   `json:"isLive"`
 			} `json:"traderAccounts"`
 		}
-		if err := json.Unmarshal(accBody, &accData); err != nil {
-			log.Printf("[cTrader OAuth] Failed to parse accounts JSON: %v", err)
-		}
+		json.Unmarshal(accBody, &accData)
 
-		log.Printf("[cTrader OAuth] Found %d accounts to process", len(accData.TraderAccounts))
+		log.Printf("[cTrader OAuth] Parsed %d accounts from main structure", len(accData.TraderAccounts))
 
 		// 這裡我們需要知道是哪個 User 點選的。
 		// 如果是用瀏覽器直接回調，可能沒有 Auth Header。
