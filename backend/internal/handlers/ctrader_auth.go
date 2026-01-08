@@ -27,17 +27,16 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 完全模仿 Myfxbook 的成功構造模式
-		// 1. 使用直接授權頁面網址
-		// 2. 移除 response_type (有些環境下這會導致 400)
-		// 3. 使用 accounts%20trading (或是先試 accounts)
-		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&redirect_uri=%s&scope=accounts%%20trading",
+		// 根據官方文件 (https://help.ctrader.com/open-api/account-authentication/#attain-the-authorisation-code)
+		// 1. 網址最後要帶斜線: /grantingaccess/
+		// 2. 必須包含參數: product=web
+		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess/?client_id=%s&redirect_uri=%s&scope=accounts%%20trading&product=web",
 			clientID,
 			url.QueryEscape(redirectURI),
 		)
 
-		// 安全記錄日誌
-		log.Printf("[cTrader OAuth] Myfxbook Style URL: %s", authURL)
+		// 記錄最終生成的官方標準網址
+		log.Printf("[cTrader OAuth] Official Style URL: %s", authURL)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
