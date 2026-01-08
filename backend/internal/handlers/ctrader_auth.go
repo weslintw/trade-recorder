@@ -32,6 +32,7 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 		v.Set("client_id", clientID)
 		v.Set("redirect_uri", redirectURI)
 		v.Set("scope", "accounts_info trading")
+		v.Set("response_type", "code")
 
 		authURL := "https://openapi.ctrader.com/apps/auth?" + v.Encode()
 
