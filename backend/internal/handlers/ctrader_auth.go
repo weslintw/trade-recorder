@@ -27,14 +27,18 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// cTrader 有些版本不喜歡 + 號，強制使用 %20，並確保 response_type 在前
-		authURL := fmt.Sprintf("https://openapi.ctrader.com/apps/auth?response_type=code&client_id=%s&redirect_uri=%s&scope=accounts_info%%20trading",
-			url.QueryEscape(clientID),
-			url.QueryEscape(redirectURI),
-		)
+		// 使用標準庫構造參數
+		v := url.Values{}
+		v.Set("client_id", clientID)
+		v.Set("redirect_uri", redirectURI)
+		v.Set("response_type", "code")
+		v.Set("scope", "accounts_info") // 先縮減權限範圍測試，避開 trading 權限未開的 400 錯誤
+
+		// 強制將 + 號轉為 %20 (cTrader 伺服器對此非常敏感)
+		authURL := "https://openapi.ctrader.com/apps/auth?" + strings.ReplaceAll(v.Encode(), "+", "%20")
 
 		// 安全記錄日誌
-		log.Printf("[cTrader OAuth] Final Optimized URL: %s", authURL)
+		log.Printf("[cTrader OAuth] Debugging URL: %s", authURL)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
