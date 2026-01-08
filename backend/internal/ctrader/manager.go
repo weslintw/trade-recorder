@@ -675,20 +675,24 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 	}
 
 	if bid > 0 {
-		res, _ := m.db.Exec(`UPDATE trades SET pnl = (? - entry_price) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
+		res, err := m.db.Exec(`UPDATE trades SET pnl = (? - entry_price) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
 			WHERE account_id = ? AND symbol = ? AND side = 'long' AND exit_price IS NULL`,
 			bid, multiplier, accountID, symbol)
-		if n, _ := res.RowsAffected(); n > 0 {
-			// log.Printf("[cTrader Manager] Updated Long PnL for %s: %d rows (Bid=%f)", symbol, n, bid)
+		if err == nil && res != nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				// Updated
+			}
 		}
 	}
 
 	if ask > 0 {
-		res, _ := m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
+		res, err := m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
 			WHERE account_id = ? AND symbol = ? AND side = 'short' AND exit_price IS NULL`,
 			ask, multiplier, accountID, symbol)
-		if n, _ := res.RowsAffected(); n > 0 {
-			// log.Printf("[cTrader Manager] Updated Short PnL for %s: %d rows (Ask=%f)", symbol, n, ask)
+		if err == nil && res != nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				// Updated
+			}
 		}
 	}
 
