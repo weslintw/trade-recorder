@@ -22,15 +22,22 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 		redirectURI := strings.TrimSpace(os.Getenv("CTRADER_REDIRECT_URI"))
 
 		if clientID == "" || redirectURI == "" {
+			log.Printf("[cTrader OAuth] Error: Missing environment variables. CLIENT_ID len: %d, REDIRECT_URI len: %d", len(clientID), len(redirectURI))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "尚未設定 cTrader Client ID 或 Redirect URI"})
 			return
 		}
 
-		// cTrader 要求 scope 必須用空格分隔
-		authURL := fmt.Sprintf("https://openapi.ctrader.com/apps/auth?client_id=%s&redirect_uri=%s&scope=accounts_info%%20trading",
-			url.QueryEscape(clientID),
-			url.QueryEscape(redirectURI),
-		)
+		// 使用標準庫構造參數，確保編碼正確
+		v := url.Values{}
+		v.Set("client_id", clientID)
+		v.Set("redirect_uri", redirectURI)
+		v.Set("scope", "accounts_info trading")
+
+		authURL := "https://openapi.ctrader.com/apps/auth?" + v.Encode()
+
+		// 安全記錄日誌（遮蔽部分敏感資訊）
+		log.Printf("[cTrader OAuth] Generated Auth URL: %s", authURL)
+		log.Printf("[cTrader OAuth] ClientID prefix: %s..., RedirectURI: %s", clientID[:5], redirectURI)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
