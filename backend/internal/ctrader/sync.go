@@ -44,6 +44,8 @@ const (
 	PayloadSubscribeSpotsReq        = 2104
 	PayloadSubscribeSpotsRes        = 2105
 	PayloadSpotEvent                = 2131
+	PayloadAccountListByTokenReq    = 2149
+	PayloadAccountListByTokenRes    = 2150
 )
 
 type CTraderMessage struct {
@@ -909,4 +911,65 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 
 	res, _ := json.Marshal(series)
 	return string(res)
+}
+func GetAccountListByToken(clientID, clientSecret, accessToken string) ([]struct {
+	ID     int64 `json:"ctidTraderAccountId"`
+	IsLive bool  `json:"isLive"`
+}, error) {
+	// Try Live first, then Demo if needed
+	envs := []string{"live", "demo"}
+	var lastErr error
+	for _, env := range envs {
+		url := CTraderLiveURL
+		if env == "demo" {
+			url = CTraderDemoURL
+		}
+
+		log.Printf("[cTrader Discovery] Probing accounts via WebSocket (%s)...", env)
+		conn, _, err := websocket.DefaultDialer.Dial(url, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		defer conn.Close()
+
+		// 1. Auth Application
+		if err := sendAndVerify(conn, PayloadAppAuthReq, map[string]string{
+			"clientId":     clientID,
+			"clientSecret": clientSecret,
+		}, PayloadAppAuthRes); err != nil {
+			lastErr = err
+			continue
+		}
+
+		// 2. Request Account List
+		resp, err := sendRequest(conn, PayloadAccountListByTokenReq, map[string]string{
+			"accessToken": accessToken,
+		})
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		if resp.PayloadType != PayloadAccountListByTokenRes {
+			lastErr = fmt.Errorf("unexpected payload type: %d", resp.PayloadType)
+			continue
+		}
+
+		var p struct {
+			Accounts []struct {
+				ID     int64 `json:"ctidTraderAccountId"`
+				IsLive bool  `json:"isLive"`
+			} `json:"ctidTraderAccount"`
+		}
+		if err := json.Unmarshal(resp.Payload, &p); err != nil {
+			lastErr = err
+			continue
+		}
+
+		log.Printf("[cTrader Discovery] Successfully found %d accounts via %s WS", len(p.Accounts), env)
+		return p.Accounts, nil
+	}
+
+	return nil, fmt.Errorf("failed to discover accounts on both environments: %v", lastErr)
 }

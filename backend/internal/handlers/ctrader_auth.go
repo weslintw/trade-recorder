@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 	"trade-journal/internal/ctrader"
 
 	"github.com/gin-gonic/gin"
@@ -95,82 +94,28 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 獲取帳號清單 - 採用「多網址自動嘗試」策略以加速除錯
-		endpoints := []string{
-			"https://api.spotware.com/connect/getaccounts",
-			"https://openapi.ctrader.com/connect/getaccounts",
-			"https://api.spotware.com/v2/accounts",
-			"https://openapi.ctrader.com/v2/accounts",
-		}
-
-		var accBody []byte
-		var successEndpoint string
-
-		for _, urlAddr := range endpoints {
-			log.Printf("[cTrader OAuth] Probing endpoint: %s", urlAddr)
-			client := &http.Client{Timeout: 10 * time.Second}
-			req, _ := http.NewRequest("GET", urlAddr, nil)
-			req.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
-			req.Header.Set("Accept", "application/json")
-			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Printf("[cTrader OAuth] Endpoint %s failed: %v", urlAddr, err)
-				continue
-			}
-
-			tmpBody, _ := io.ReadAll(resp.Body)
-			resp.Body.Close()
-
-			if resp.StatusCode == 200 {
-				log.Printf("[cTrader OAuth] SUCCESS at endpoint: %s", urlAddr)
-				accBody = tmpBody
-				successEndpoint = urlAddr
-				break
-			} else {
-				log.Printf("[cTrader OAuth] Endpoint %s returned %d: %s", urlAddr, resp.StatusCode, string(tmpBody))
-			}
-		}
-
-		if len(accBody) == 0 {
-			log.Printf("[cTrader OAuth] ALL endpoints failed. Please check cTrader forum for latest REST URL.")
-			c.String(http.StatusInternalServerError, "找不到有效的帳號獲取介面，請查看後台日誌。")
+		// 獲取帳號清單 - 根據官方文件，REST 介面已不再保險，
+		// 我們改用 WebSocket 手機握手來抓取帳號清單 (Discovery)
+		accList, err := ctrader.GetAccountListByToken(clientID, clientSecret, tokenRes.AccessToken)
+		if err != nil {
+			log.Printf("[cTrader OAuth] WebSocket Discovery failed: %v", err)
+			c.String(http.StatusInternalServerError, "抓取帳號列表失敗: "+err.Error())
 			return
 		}
 
-		// 處理 JSON 結構
-		var accData struct {
-			TraderAccounts []struct {
-				ID     int64  `json:"ctidTraderAccountId"`
-				Login  string `json:"traderLogin"`
-				Name   string `json:"AccountName"`
-				IsLive bool   `json:"isLive"`
-			} `json:"traderAccounts"`
-		}
-		if err := json.Unmarshal(accBody, &accData); err != nil {
-			log.Printf("[cTrader OAuth] JSON parsing failed for %s: %v", successEndpoint, err)
-		}
-
-		log.Printf("[cTrader OAuth] Parsed %d accounts from main structure", len(accData.TraderAccounts))
-
-		// 這裡我們需要知道是哪個 User 點選的。
-		// 如果是用瀏覽器直接回調，可能沒有 Auth Header。
-		// 解決辦法：在 AuthURL 中傳入 state (包含加密的 UserID) 或使用 Cookie。
-		// 為了簡化，目前的系統通常是單人或小規模，如果沒 UserID 就先寫 1。
+		// 獲取目前使用者的 ID (暫時預設為 1)
 		userID := int64(1)
-		// 嘗試從 Session 或 Cookie 獲取 (假設前端在請求時有維持 Session)
-		// 但這是一個跳轉，所以可能需要靠 state 傳遞。
 
-		// 自動為每個帳號建立一個紀錄
-		for _, acc := range accData.TraderAccounts {
+		// 統計處理數量
+		processedCount := 0
+		for _, acc := range accList {
 			env := "live"
 			if !acc.IsLive {
 				env = "demo"
 			}
 			name := fmt.Sprintf("cTrader %d (%s)", acc.ID, env)
 
-			log.Printf("[cTrader OAuth] Processing account: %s (ID: %d, Env: %s)", name, acc.ID, env)
+			log.Printf("[cTrader OAuth] Saving/Updating account: %s", name)
 
 			// 檢查是否已存在
 			var existingID int64
@@ -187,8 +132,8 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 					log.Printf("[cTrader OAuth] FAILED to insert account %d: %v", acc.ID, err)
 				} else {
 					newID, _ := res.LastInsertId()
+					processedCount++
 					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync.", acc.ID, newID)
-					// 立即啟動同步
 					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
 				}
 			} else {
@@ -199,12 +144,14 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 				if err != nil {
 					log.Printf("[cTrader OAuth] FAILED to update account %d: %v", existingID, err)
 				} else {
+					processedCount++
 					log.Printf("[cTrader OAuth] Successfully updated account DB ID %d. Re-starting sync.", existingID)
-					// 重新整理同步
 					go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
 				}
 			}
 		}
+
+		log.Printf("[cTrader OAuth] Successfully processed %d accounts", processedCount)
 
 		// 回傳成功訊息並關閉視窗 (或跳轉回前端)
 		c.Header("Content-Type", "text/html")
