@@ -502,9 +502,9 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   }
   .back-btn .icon { font-size: 1.1rem; }
 
-  .card { background: white; border-radius: 1.5rem; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; margin-bottom: 2rem; }
-  .public-badge { background: #f8fafc; color: #64748b; padding: 0.5rem 1.25rem; border-radius: 99px; font-size: 0.8rem; font-weight: 700; margin-bottom: 1.5rem; border: 1px solid #e2e8f0; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; line-height: 1; }
-  .view-header { display: flex; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1.5rem; }
+  .card { background: var(--card-bg); border-radius: 1.5rem; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid var(--border-color); margin-bottom: 2rem; }
+  .public-badge { background: var(--bg-main); color: var(--text-muted); padding: 0.5rem 1.25rem; border-radius: 99px; font-size: 0.8rem; font-weight: 700; margin-bottom: 1.5rem; border: 1px solid var(--border-color); display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; line-height: 1; }
+  .view-header { display: flex; justify-content: space-between; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; }
   .symbol-tag { display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 800; font-size: 0.875rem; line-height: 1; }
   
   .pnl-value { font-size: 2.5rem; font-weight: 900; }
@@ -512,12 +512,12 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   .pnl-value.loss { color: #ef4444; }
   
   .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-  .info-item label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem; font-weight: 700; }
-  .info-item span { font-size: 1rem; font-weight: 700; color: #1e293b; }
-  .notes-content { padding: 1.5rem; background: #f8fafc; border-radius: 1rem; line-height: 1.6; }
+  .info-item label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; font-weight: 700; }
+  .info-item span { font-size: 1rem; font-weight: 700; color: var(--text-main); }
+  .notes-content { padding: 1.5rem; background: var(--bg-main); border-radius: 1rem; line-height: 1.6; }
   
   .batch-viewer { margin-top: 1rem; }
-  .view-header-main h1 { font-size: 2rem; font-weight: 800; color: #1e293b; text-align: center; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
+  .view-header-main h1 { font-size: 2rem; font-weight: 800; color: var(--text-main); text-align: center; margin-bottom: 0.5rem; letter-spacing: -0.02em; }
   .header-info-line { display: flex; justify-content: center; align-items: center; gap: 1.5rem; margin-bottom: 1rem; }
   .account-badges { display: flex; gap: 0.5rem; }
   .acc-badge { display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
@@ -525,7 +525,7 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   .acc-badge.env.live { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
   .acc-badge.env.demo { background: #f0fdf4; color: #22c55e; border: 1px solid #dcfce7; }
   .acc-badge.id { background: #fafafa; color: #94a3b8; border: 1px solid #f1f5f9; }
-  .time-range-badge { font-size: 0.85rem; color: #64748b; font-weight: 600; background: #f8fafc; padding: 4px 12px; border-radius: 99px; border: 1px solid #f1f5f9; }
+  .time-range-badge { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; background: var(--bg-main); padding: 4px 12px; border-radius: 99px; border: 1px solid var(--border-color); }
   .batch-meta { text-align: center; color: #94a3b8; margin-bottom: 3rem; font-weight: 500; }
   
   /* Timeline */
@@ -539,22 +539,22 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
     display: grid;
     grid-template-columns: 350px 1fr;
     gap: 1.5rem;
-    background: white;
+    background: var(--card-bg);
     padding: 1.5rem;
     border-radius: 20px;
-    border: 1px solid #f1f5f9;
+    border: 1px solid var(--border-color);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
   }
 
   .plan-column, .trade-column { display: flex; flex-direction: column; gap: 1rem; }
-  .plan-column { border-right: 1px dashed #e2e8f0; padding-right: 1.5rem; }
+  .plan-column { border-right: 1px dashed var(--border-color); padding-right: 1.5rem; }
 
   /* Cards */
   .plan-item-card, .trade-item-card {
-    background: white;
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 1.25rem;
-    border: 1px solid #f1f5f9;
+    border: 1px solid var(--border-color);
     box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     position: relative;
     overflow: hidden;
@@ -566,12 +566,12 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
 
   .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
   .item-type { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
-  .symbol-inline-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: #1e293b; padding: 2px 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; line-height: 1; }
+  .symbol-inline-tag { display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: var(--text-main); padding: 2px 6px; background: var(--nav-group-bg); border: 1px solid var(--border-color); border-radius: 4px; line-height: 1; }
 
   /* Plan Mini */
   .mini-progression { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
   .tf-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
-  .tf-name { font-weight: 700; color: #475569; width: 30px; }
+  .tf-name { font-weight: 700; color: var(--text-muted); width: 30px; }
   .tf-steps { display: flex; gap: 3px; align-items: center; }
   .mini-step { display: inline-flex; align-items: center; justify-content: center; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; line-height: 1; }
   .mini-step.long { background: #fef2f2; color: #991b1b; }
@@ -579,8 +579,8 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   .mini-step.na { background: #f8fafc; color: #94a3b8; }
   .step-arrow { color: #cbd5e1; font-weight: 800; font-size: 0.7rem; }
 
-  .mini-notes { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #edf2f7; }
-  .mini-note-item { font-size: 0.8rem; color: #4a5568; line-height: 1.4; display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.3rem; }
+  .mini-notes { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); }
+  .mini-note-item { font-size: 0.8rem; color: var(--text-main); line-height: 1.4; display: flex; align-items: flex-start; gap: 0.4rem; margin-bottom: 0.3rem; }
   .note-session { display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 800; padding: 2px 4px; border-radius: 3px; color: white; min-width: 1.2rem; text-align: center; flex-shrink: 0; line-height: 1; }
   .note-session.asian { background: #3b82f6; }
   .note-session.european { background: #d97706; }

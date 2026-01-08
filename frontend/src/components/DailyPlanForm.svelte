@@ -899,19 +899,19 @@
 
   h2 {
     margin-bottom: 0;
-    color: #2d3748;
+    color: var(--text-main);
   }
 
   h3 {
     font-size: 1.2rem;
-    color: #4a5568;
+    color: var(--text-main);
     margin-bottom: 1rem;
   }
 
   .form-section {
     margin-bottom: 2rem;
     padding: 1.5rem;
-    background: #f7fafc;
+    background: var(--bg-main);
     border-radius: 12px;
   }
 
@@ -919,7 +919,7 @@
   .market-session-tabs {
     display: flex;
     gap: 0.5rem;
-    background: #edf2f7;
+    background: var(--nav-group-bg);
     padding: 0.4rem;
     border-radius: 12px;
   }
@@ -937,8 +937,8 @@
   }
 
   .session-tab.active {
-    background: white;
-    color: #667eea;
+    background: var(--card-bg);
+    color: var(--primary);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
@@ -955,7 +955,7 @@
     display: block;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #2d3748;
+    color: var(--text-main);
     margin-bottom: 1rem;
   }
 
@@ -967,8 +967,8 @@
 
   .trend-item {
     padding: 1rem;
-    background: white;
-    border: 2px solid #e2e8f0;
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -988,7 +988,7 @@
   .timeframe-label {
     display: block;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
     margin-bottom: 0.5rem;
     font-size: 0.9rem;
   }
@@ -1005,8 +1005,8 @@
     align-items: center;
     justify-content: center;
     padding: 0.5rem;
-    border: 2px solid #cbd5e0;
-    background: white;
+    border: 2px solid var(--border-color);
+    background: var(--card-bg);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -1059,7 +1059,7 @@
   .trend-name {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #2d3748;
+    color: var(--text-main);
   }
 
   .trend-option.active .trend-name {
@@ -1075,7 +1075,7 @@
     display: block;
     font-size: 0.8rem;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-muted);
     margin-bottom: 0.5rem;
   }
 

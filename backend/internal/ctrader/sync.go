@@ -550,6 +550,10 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			vol := float64(d.Volume) / float64(lotSize)
 			pnl := float64(d.ClosePositionDetail.GrossProfit+d.ClosePositionDetail.Commission+d.ClosePositionDetail.Swap) / 100.0
 			ticket := fmt.Sprintf("ctrader-deal-%d", d.DealID)
+			exitSL := d.ClosePositionDetail.StopLoss
+			if exitSL == 0 {
+				exitSL = orderSLMap[d.OrderID]
+			}
 
 			// Use in-memory maps for fast lookup (Performance optimization)
 			if existingTickets[ticket] {
@@ -594,11 +598,6 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				skippedDeleted++
 				log.Printf("[cTrader Sync] Skipping deleted ticket: %s", ticket)
 				continue
-			}
-
-			exitSL := d.ClosePositionDetail.StopLoss
-			if exitSL == 0 {
-				exitSL = orderSLMap[d.OrderID]
 			}
 
 			bullet, rr := 0.0, 0.0

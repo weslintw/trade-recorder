@@ -1824,11 +1824,11 @@
   }
 
   .readonly-calc {
-    background-color: #f8fafc;
-    color: #4a5568;
+    background-color: var(--bg-main);
+    color: var(--text-main);
     cursor: default;
     font-weight: 600;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .time-input-container {
@@ -1861,15 +1861,15 @@
   .highlight-label label {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #2d3748;
+    color: var(--text-main);
   }
 
   .entry-strategy-section {
     margin: 1.5rem 0;
     padding: 2rem 1.5rem 1.5rem; /* Increased top padding */
-    background: #f8fafc;
+    background: var(--bg-main);
     border-radius: 12px;
-    border: 2px solid #e2e8f0;
+    border: 2px solid var(--border-color);
     position: relative; /* Context for absolute positioning if needed */
   }
 
@@ -1926,18 +1926,18 @@
   }
 
   .plan-details-summary {
-    background: white;
+    background: var(--card-bg);
     padding: 1rem;
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .plan-general-notes {
     font-size: 0.9rem;
-    color: #4a5568;
+    color: var(--text-muted);
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid #edf2f7;
+    border-bottom: 1px solid var(--border-color);
     font-style: italic;
   }
 
@@ -1958,7 +1958,7 @@
 
   .tf-name {
     font-weight: 700;
-    color: #475569;
+    color: var(--text-muted);
     min-width: 40px;
   }
 
@@ -1997,7 +1997,7 @@
     flex-direction: column;
     gap: 0.4rem;
     padding-top: 0.75rem;
-    border-top: 1px solid #edf2f7;
+    border-top: 1px solid var(--border-color);
   }
 
   .plan-note-item {

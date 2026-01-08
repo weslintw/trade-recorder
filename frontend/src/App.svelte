@@ -24,7 +24,26 @@
   let showChangePassword = false;
   const buildTime = __BUILD_TIME__;
 
+  // Dark Mode Support
+  let isDarkMode = localStorage.getItem('theme') === 'dark' || 
+                   (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  
+  function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.body.classList.remove('dark-mode');
+      localStorage.setItem('theme', 'light');
+    }
+  }
+
   onMount(async () => {
+    // Initial theme apply
+    if (isDarkMode) {
+      document.body.classList.add('dark-mode');
+    }
     await checkAuth();
     timer = setInterval(() => {
       currentTime = new Date();
@@ -66,7 +85,11 @@
         <div class="navbar-content">
           <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
             <div class="logo-image-container">
-              <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
+              {#if isDarkMode}
+                <img src="/logo-dark.png" alt="Trade Time Machine Logo" class="brand-logo-img dark" />
+              {:else}
+                <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
+              {/if}
             </div>
             <span class="app-version-tag">{buildTime}</span>
           </Link>
@@ -138,6 +161,13 @@
 
               {#if $auth.isAuthenticated}
                 <div class="user-profile-box">
+                  <button 
+                    class="theme-toggle-btn" 
+                    on:click={toggleDarkMode}
+                    title={isDarkMode ? "切換至淺色模式" : "切換至深色模式"}
+                  >
+                    {isDarkMode ? '🌙' : '☀️'}
+                  </button>
                   <span
                     class="username"
                     title="修改密碼"
@@ -192,10 +222,27 @@
     --text-main: #1e293b;
     --text-muted: #64748b;
     --border-color: #e2e8f0;
+    --nav-bg: rgba(255, 255, 255, 0.8);
+    --nav-border: #e2e8f0;
     --radius-lg: 16px;
     --radius-md: 12px;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --input-bg: #ffffff;
+    --nav-group-bg: #f1f5f9;
+  }
+
+  :global(body.dark-mode) {
+    --bg-main: #0f172a;
+    --card-bg: #1e293b;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --nav-bg: rgba(15, 23, 42, 0.8);
+    --nav-border: #1e293b;
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --input-bg: #0f172a;
+    --nav-group-bg: #1e293b;
   }
 
   :global(*) {
@@ -223,9 +270,9 @@
   }
 
   .navbar {
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--nav-bg);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--nav-border);
     padding: 0.75rem 0;
     position: sticky;
     top: 0;
@@ -264,11 +311,20 @@
   .brand-logo-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    object-position: center 48%; /* 稍微下移，確保頂部不被切到 */
-    mix-blend-mode: multiply;
+    object-fit: cover; /* 還原原本的填滿方式 */
+    object-position: center 48%; /* 還原原本的位置偏移 */
     pointer-events: none;
-    transform: scale(1.1);
+    transform: scale(1.1); /* 還原原本的縮放 */
+    transition: transform 0.3s ease;
+  }
+
+  /* 深色模式圖片微調：如果生成的圖片太亮可以加點濾鏡 */
+  .brand-logo-img.dark {
+    /* filter: brightness(1.1); */
+  }
+
+  :global(.nav-brand:hover) .brand-logo-img {
+    transform: scale(1.15); /* 稍微增加懸停縮放 */
   }
 
   :global(.app-version-tag) {
@@ -276,8 +332,8 @@
     align-items: center;
     justify-content: center;
     font-size: 0.65rem;
-    color: #94a3b8;
-    background: #f1f5f9;
+    color: var(--text-muted);
+    background: var(--nav-group-bg);
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     font-weight: 600;
@@ -296,10 +352,10 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: #f1f5f9;
+    background: var(--nav-group-bg);
     padding: 0.35rem;
     border-radius: 14px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .nav-secondary-group {
@@ -307,7 +363,7 @@
     align-items: center;
     gap: 1rem;
     padding-left: 1rem;
-    border-left: 1px solid #e2e8f0;
+    border-left: 1px solid var(--border-color);
   }
 
 
@@ -360,9 +416,9 @@
     align-items: center;
     gap: 0.75rem;
     padding: 0.35rem 0.35rem 0.35rem 0.75rem;
-    background: white;
+    background: var(--card-bg);
     border-radius: 14px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     margin: 0 0.5rem;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
   }
@@ -372,7 +428,7 @@
     flex-direction: column;
     align-items: flex-start;
     line-height: 1.1;
-    border-right: 1px solid #f1f5f9;
+    border-right: 1px solid var(--border-color);
     padding-right: 0.8rem;
   }
 
@@ -430,17 +486,17 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: #f1f5f9;
+    background: var(--nav-group-bg);
     padding: 0.25rem;
     border-radius: 14px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .username {
     font-size: 0.8rem;
     font-weight: 700;
-    color: #475569;
-    background: white;
+    color: var(--text-main);
+    background: var(--card-bg);
     padding: 0.4rem 0.75rem;
     border-radius: 10px;
     max-width: 140px;
@@ -452,6 +508,7 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    border: 1px solid var(--border-color);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
@@ -507,10 +564,10 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    background: white;
+    background: var(--card-bg);
     padding: 0.35rem 0.75rem;
     border-radius: 12px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
@@ -607,13 +664,15 @@
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: #2d3748;
+    color: var(--text-main);
   }
 
   :global(.form-control) {
     width: 100%;
     padding: 0.75rem;
-    border: 2px solid #e2e8f0;
+    background: var(--input-bg);
+    color: var(--text-main);
+    border: 2px solid var(--border-color);
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.3s ease;
@@ -621,33 +680,83 @@
 
   :global(.form-control:focus) {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--primary);
+  }
+
+  .theme-toggle-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .theme-toggle-btn:hover {
+    transform: rotate(15deg);
+    background: var(--nav-group-bg);
   }
 
   :global(.badge) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.25rem 0.75rem;
-    border-radius: 12px;
-    font-size: 0.875rem;
-    font-weight: 600;
+    padding: 0.35rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
     line-height: 1;
     white-space: nowrap;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  :global(.badge:hover) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 
   :global(.badge-success) {
-    background: #c6f6d5;
-    color: #22543d;
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bef26444;
   }
 
   :global(.badge-danger) {
-    background: #fed7d7;
-    color: #742a2a;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca44;
   }
 
   :global(.badge-info) {
-    background: #bee3f8;
-    color: #2c5282;
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd44;
+  }
+
+  :global(.badge-ctrader) {
+    background: #fdf2f8;
+    color: #9d174d;
+    border: 1px solid #fbcfe844;
+  }
+
+  :global(.badge-mt5) {
+    background: #f5f3ff;
+    color: #5b21b6;
+    border: 1px solid #ddd6fe44;
+  }
+
+  :global(.badge-utc) {
+    background: var(--nav-group-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
   }
 </style>

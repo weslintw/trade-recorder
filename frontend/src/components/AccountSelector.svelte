@@ -72,17 +72,17 @@
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    background: white;
-    padding: 0.3rem 0.6rem;
-    border-radius: 10px;
-    border: 1px solid transparent;
+    background: var(--card-bg);
+    padding: 0.4rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
   }
 
   .selector-wrapper:hover {
-    border-color: #e2e8f0;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border-color: var(--primary);
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.1);
   }
 
   .label {
@@ -105,11 +105,11 @@
   }
 
   select:focus {
-    background: rgba(0, 0, 0, 0.05);
+    background: rgba(99, 102, 241, 0.05);
   }
 
   option {
-    background: white;
+    background: var(--card-bg);
     color: var(--text-main);
   }
 

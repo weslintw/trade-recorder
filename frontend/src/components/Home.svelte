@@ -621,12 +621,17 @@
               : ''}{currentAccount.timezone_offset}</span
           >
           <div class="account-details-inline">
-            <span class="storage-info">
-              <span class="label">📊 圖文佔用：</span>
-              <strong>{formatBytes(currentAccount.storage_usage)}</strong>
-            </span>
+            <div class="storage-info-chip">
+              <span class="chip-icon">📊</span>
+              <span class="label">圖文佔用</span>
+              <span class="value">{formatBytes(currentAccount.storage_usage)}</span>
+            </div>
             {#if currentAccount.type === 'ctrader'}
-              <span class="login-id">Login ID: {currentAccount.ctrader_account_id}</span>
+              <div class="login-id-chip">
+                <span class="chip-icon">🆔</span>
+                <span class="label">Login ID</span>
+                <span class="value">{currentAccount.ctrader_account_id}</span>
+              </div>
             {/if}
           </div>
           {#if currentAccount.type !== 'local'}
@@ -1231,13 +1236,8 @@
   .account-details-inline {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    background: #f8fafc;
-    padding: 0.3rem 0.75rem;
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
+    gap: 0.75rem;
+    margin-left: 0.5rem;
   }
 
   .storage-info .label {
@@ -1346,30 +1346,40 @@
     line-height: 1;
   }
   .badge-info {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: var(--nav-group-bg);
+    color: var(--primary);
+    border: 1px solid var(--border-color);
   }
   .badge-mt5 {
     background: #f1f5f9;
     color: #475569;
     border: 1px solid #e2e8f0;
   }
+  /* Dark mode overrides for specific light-colored badges if needed */
+  :global(body.dark-mode) .badge-mt5 {
+    background: #1e293b;
+    color: #94a3b8;
+    border-color: #334155;
+  }
   .badge-ctrader {
-    background: #ecfdf5;
-    color: #065f46;
+    background: rgba(16, 185, 129, 0.1);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.2);
   }
   .badge-success {
-    background: #dcfce7;
-    color: #166534;
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.2);
   }
   .badge-danger {
-    background: #fee2e2;
-    color: #991b1b;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
   }
   .badge-utc {
-    background: #f8fafc;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
+    background: var(--nav-group-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
   }
 
   .top-actions-bar {
@@ -1470,7 +1480,7 @@
     display: grid;
     grid-template-columns: 350px 1fr;
     gap: 1.5rem;
-    background: white;
+    background: var(--card-bg);
     padding: 1.5rem;
     border-radius: 20px;
     border: 1px solid var(--border-color);
@@ -1485,14 +1495,14 @@
   }
 
   .plan-column {
-    border-right: 1px dashed #e2e8f0;
+    border-right: 1px dashed var(--border-color);
     padding-right: 1.5rem;
   }
 
   /* Card Items */
   .plan-item-card,
   .trade-item-card {
-    background: white;
+    background: var(--card-bg);
     border-radius: 12px;
     padding: 1.25rem;
     box-shadow: var(--shadow-sm);
@@ -1630,7 +1640,7 @@
 
   .tf-name {
     font-weight: 700;
-    color: #475569;
+    color: var(--text-muted);
     width: 30px;
   }
 
@@ -1658,7 +1668,7 @@
   .mini-notes {
     margin-top: 0.75rem;
     padding-top: 0.75rem;
-    border-top: 1px solid #edf2f7;
+    border-top: 1px solid var(--border-color);
   }
 
   .mini-notes-title {
@@ -1670,7 +1680,7 @@
 
   .mini-note-item {
     font-size: 0.8rem;
-    color: #4a5568;
+    color: var(--text-main);
     line-height: 1.4;
     display: flex;
     align-items: flex-start;
@@ -1776,10 +1786,10 @@
     justify-content: center;
     font-size: 0.75rem;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--text-main);
     padding: 2px 6px;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
+    background: var(--nav-group-bg);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     line-height: 1;
   }
@@ -1932,7 +1942,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-    background: white;
+    background: var(--card-bg);
     padding: 0.75rem;
     border-radius: 10px;
     border: 1px solid rgba(244, 114, 182, 0.1);
@@ -2034,7 +2044,7 @@
     align-items: flex-start;
     margin-top: 0.75rem;
     padding-top: 0.5rem;
-    border-top: 1px dashed #f1f5f9;
+    border-top: 1px dashed var(--border-color);
     gap: 0.75rem 1rem;
     flex-wrap: wrap;
   }
@@ -2263,89 +2273,177 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 10px;
-    font-size: 0.9rem;
-    font-weight: 600;
+    padding: 0.5rem 1.2rem;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
-    border: 1px solid #e2e8f0;
-    background: white;
-    color: #1e293b;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-main);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
   }
 
   .small-action-btn:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+    border-color: var(--primary);
   }
 
-  .small-action-btn.sync {
-    background: rgba(99, 102, 241, 0.1);
+  .small-action-btn.share {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+  }
+
+  .small-action-btn.share .btn-icon {
     color: #818cf8;
   }
 
-  .small-action-btn.sync:hover:not(:disabled) {
-    background: rgba(99, 102, 241, 0.2);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-  }
-
-  .small-action-btn.syncing .btn-icon {
-    display: inline-block;
-    animation: rotate 2s linear infinite;
-  }
-
-  @keyframes rotate {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+  .small-action-btn.share:hover {
+    background: var(--nav-group-bg);
+    border-color: #818cf8;
+    box-shadow: 0 5px 15px rgba(129, 140, 248, 0.15);
   }
 
   .small-action-btn.plan {
-    background: rgba(99, 102, 241, 0.05);
-    border-color: rgba(99, 102, 241, 0.2);
-    color: #4f46e5;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+  }
+
+  .small-action-btn.plan .btn-icon {
+    color: #fb923c; /* Orange-ish to match the screenshot */
   }
 
   .small-action-btn.plan:hover {
-    background: rgba(99, 102, 241, 0.1);
-    border-color: #6366f1;
+    background: var(--nav-group-bg);
+    border-color: #fb923c;
+    box-shadow: 0 5px 15px rgba(251, 146, 60, 0.15);
   }
 
   .small-action-btn.trade {
-    background: rgba(16, 185, 129, 0.05);
-    border-color: rgba(16, 185, 129, 0.2);
-    color: #059669;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+  }
+
+  .small-action-btn.trade .btn-icon {
+    color: #facc15; /* Yellowish to match the screenshot */
   }
 
   .small-action-btn.trade:hover {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: #10b981;
+    background: var(--nav-group-bg);
+    border-color: #facc15;
+    box-shadow: 0 5px 15px rgba(250, 204, 21, 0.15);
   }
 
-  .btn-icon {
-    font-size: 1.1rem;
+  .sync-status-info {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-left: 0.8rem;
+    border-left: 1px solid var(--border-color);
+    margin-left: 0.5rem;
   }
 
-  .modal-content img {
-    max-width: 100%;
-    max-height: 90vh;
+  .sync-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    background: var(--nav-group-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .sync-badge.success {
+    background: #dcfce7;
+    color: #15803d;
+    border-color: #bbf7d0;
+  }
+
+  .sync-badge.syncing {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #dbeafe;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+
+  .sync-time {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0.8;
+  }
+
+  .sync-icon-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    width: 32px;
+    height: 32px;
     border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-muted);
+    padding: 0;
   }
 
-  .modal-close {
-    position: absolute;
-    top: -40px;
-    right: 0;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 3rem;
-    cursor: pointer;
+  .sync-icon-btn:hover:not(:disabled) {
+    background: var(--nav-group-bg);
+    color: var(--primary);
+    border-color: var(--primary);
+    transform: rotate(15deg);
+  }
+
+  .sync-icon-btn.syncing .btn-icon {
+    animation: rotate 2s linear infinite;
+  }
+
+  .account-details-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: 0.5rem;
+  }
+
+  .storage-info-chip, .login-id-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--nav-group-bg);
+    padding: 0.25rem 0.6rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .storage-info-chip .label, .login-id-chip .label {
+    font-weight: 600;
+    opacity: 0.8;
+  }
+
+  .storage-info-chip .value, .login-id-chip .value {
+    color: var(--text-main);
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .chip-icon {
+    font-size: 0.85rem;
   }
 
   @media (max-width: 900px) {
