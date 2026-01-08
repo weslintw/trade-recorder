@@ -135,11 +135,25 @@
           `width=${width},height=${height},left=${left},top=${top}`
         );
         
+        let firstAccountId = null;
+        
+        // 監聽來自彈出視窗的消息
+        const messageListener = (event) => {
+          if (event.data?.type === 'CTRADER_AUTH_SUCCESS') {
+            console.log('Received cTrader OAuth success message:', event.data);
+            firstAccountId = event.data.accountId;
+          }
+        };
+        window.addEventListener('message', messageListener);
+        
         // 監測視窗關閉，視窗關閉後重新整理列表
         const checkPopup = setInterval(() => {
           if (!popup || popup.closed) {
             clearInterval(checkPopup);
-            dispatch('success');
+            window.removeEventListener('message', messageListener);
+            
+            console.log('Popup closed, dispatching success with ID:', firstAccountId);
+            dispatch('success', { accountId: firstAccountId });
             show = false;
           }
         }, 1000);

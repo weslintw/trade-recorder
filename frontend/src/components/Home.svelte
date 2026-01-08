@@ -1159,9 +1159,11 @@
 <AccountModal
   bind:show={showAccountModal}
   on:success={async e => {
-    const { accountId } = e.detail;
+    const { accountId } = e.detail || {};
     // 自動選取新建立的帳號並整頁重整以確保所有元件同步
-    selectedAccountId.set(parseInt(accountId));
+    if (accountId) {
+      selectedAccountId.set(parseInt(accountId));
+    }
     window.location.reload();
   }}
 />

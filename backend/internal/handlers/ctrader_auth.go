@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"trade-journal/internal/ctrader"
 
@@ -27,17 +28,23 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 採用極簡、不編碼的原始構造方式 (完全模仿 Myfxbook)
+		userID := c.GetInt64("user_id")
+		if userID == 0 {
+			userID = 1 // 備用機制
+		}
+
 		// 採用 100% 測試成功的模式：
 		// 1. scope 僅使用 accounts (這已包含交易紀錄權限)
 		// 2. redirect_uri 保持原始字串
-		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts&redirect_uri=%s",
+		// 3. 增加 state 參數來傳遞當前 UserID，確保回調時能對應回正確使用者
+		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts&redirect_uri=%s&state=%d",
 			clientID,
 			redirectURI,
+			userID,
 		)
 
 		// 記錄最終固定的極簡模式網址
-		log.Printf("[cTrader OAuth] Success Pattern URL: %s", authURL)
+		log.Printf("[cTrader OAuth] Success Pattern URL for User %d: %s", userID, authURL)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
@@ -103,10 +110,18 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 獲取目前使用者的 ID (暫時預設為 1)
-		userID := int64(1)
+		// 獲取目前使用者的 ID (從 state 參數獲取)
+		state := c.Query("state")
+		userID, _ := strconv.ParseInt(state, 10, 64)
+		if userID == 0 {
+			userID = 1 // 備用機制
+			log.Printf("[cTrader OAuth] Warning: No userID in state, falling back to 1")
+		} else {
+			log.Printf("[cTrader OAuth] Link accounts to UserID: %d", userID)
+		}
 
-		// 統計處理數量
+		// 第一個處理成功的帳號 ID (用於回傳前端自動選取)
+		var firstAccountID int64
 		processedCount := 0
 		for _, acc := range accList {
 			env := "live"
@@ -132,12 +147,18 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 					log.Printf("[cTrader OAuth] FAILED to insert account %d: %v", acc.ID, err)
 				} else {
 					newID, _ := res.LastInsertId()
+					if firstAccountID == 0 {
+						firstAccountID = newID
+					}
 					processedCount++
 					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync.", acc.ID, newID)
 					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
 				}
 			} else {
 				// 更新 Token
+				if firstAccountID == 0 {
+					firstAccountID = existingID
+				}
 				log.Printf("[cTrader OAuth] Updating existing account record DB ID: %d", existingID)
 				_, err := db.Exec("UPDATE accounts SET ctrader_token = ?, ctrader_client_id = ?, ctrader_client_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
 					tokenRes.AccessToken, clientID, clientSecret, existingID)
@@ -155,22 +176,33 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 
 		// 回傳成功訊息並關閉視窗 (或跳轉回前端)
 		c.Header("Content-Type", "text/html")
-		c.String(http.StatusOK, `
+		c.String(http.StatusOK, fmt.Sprintf(`
 			<html>
 				<body>
-					<h2>cTrader 帳號連線成功！</h2>
-					<p>帳號已自動同步中，請返回列表重新整理。</p>
+					<div style="font-family: sans-serif; text-align: center; padding: 50px;">
+						<h2 style="color: #10b981;">cTrader 帳號連線成功！</h2>
+						<p>正在同步您的交易資料，本視窗即將關閉...</p>
+					</div>
 					<script>
+						// 將新建立的帳號 ID 傳回給母視窗
+						if (window.opener) {
+							window.opener.postMessage({ 
+								type: 'CTRADER_AUTH_SUCCESS', 
+								accountId: %d || null
+							}, '*');
+						}
+						
 						setTimeout(() => {
 							window.close();
-						}, 3000);
+						}, 2000);
+						
 						// 如果是手機或無法關閉，則跳轉
 						setTimeout(() => {
 							window.location.href = '/';
-						}, 5000);
+						}, 4000);
 					</script>
 				</body>
 			</html>
-		`)
+		`, firstAccountID))
 	}
 }
