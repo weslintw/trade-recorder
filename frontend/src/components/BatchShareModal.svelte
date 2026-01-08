@@ -4,6 +4,7 @@
   import { selectedAccountId } from '../lib/stores';
 
   export let show = false;
+  export let resourceTitle = '';
   
   const dispatch = createEventDispatcher();
 
@@ -16,7 +17,7 @@
     copySuccess = false;
   }
 
-  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}` : '';
+  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}${resourceTitle ? resourceTitle : ''}` : '';
 
   function handleClose() {
     show = false;

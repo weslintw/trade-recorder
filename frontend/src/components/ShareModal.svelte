@@ -5,6 +5,7 @@
   export let show = false;
   export let resourceType = 'trade'; // 'trade' or 'plan'
   export let resourceId = null;
+  export let resourceTitle = ''; // Optional descriptive title to append to URL
   export let onClose = () => {};
 
   let loading = false;
@@ -17,7 +18,7 @@
     copySuccess = false;
   }
 
-  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}` : '';
+  $: shareUrl = shareToken ? `${window.location.origin}/shared/${shareToken}${resourceTitle ? resourceTitle : ''}` : '';
 
   async function handleCreateShare() {
     loading = true;

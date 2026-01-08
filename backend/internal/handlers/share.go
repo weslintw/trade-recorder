@@ -121,6 +121,14 @@ func GetSharedResource(db *sql.DB) gin.HandlerFunc {
 		token := c.Param("token")
 		var share models.Share
 		err := db.QueryRow("SELECT user_id, resource_type, resource_id, COALESCE(resource_ids, '') FROM shares WHERE token = ?", token).Scan(&share.UserID, &share.ResourceType, &share.ResourceID, &share.ResourceIDs)
+
+		// 如果精確匹配失敗，且 token 長度大於 32，嘗試抓取前 32 個字元 (Hex Token 標準長度)
+		if err == sql.ErrNoRows && len(token) > 32 {
+			shortToken := token[:32]
+			log.Printf("[Share] Exact token not found, trying prefix: %s", shortToken)
+			err = db.QueryRow("SELECT user_id, resource_type, resource_id, COALESCE(resource_ids, '') FROM shares WHERE token = ?", shortToken).Scan(&share.UserID, &share.ResourceType, &share.ResourceID, &share.ResourceIDs)
+		}
+
 		if err != nil {
 			if err == sql.ErrNoRows {
 				log.Printf("[Share] Token not found: %s", token)

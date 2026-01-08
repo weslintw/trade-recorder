@@ -578,7 +578,7 @@
       generatedShareToken = res.data.token;
       
       // 顯示成功訊息並關閉選取模式
-      const shareUrl = `${window.location.origin}/shared/${generatedShareToken}`;
+      const shareUrl = `${window.location.origin}/shared/${generatedShareToken}部分內容分享`;
       await navigator.clipboard.writeText(shareUrl);
       alert('批次分享連結已產生並複製到剪貼簿！');
       cancelSelection();
@@ -1166,7 +1166,11 @@
   }}
 />
 
-<BatchShareModal bind:show={showBatchShareModal} on:startSelection={startSelection} />
+<BatchShareModal 
+  bind:show={showBatchShareModal} 
+  resourceTitle={currentAccount ? currentAccount.name + '帳號內容分享' : '帳號內容分享'}
+  on:startSelection={startSelection} 
+/>
 
 {#if selectedImage}
   <div class="modal" on:click={closeImageModal}>
