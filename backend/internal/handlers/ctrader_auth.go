@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"trade-journal/internal/ctrader"
 
 	"github.com/gin-gonic/gin"
@@ -17,18 +18,21 @@ import (
 // CTraderAuthURL 取得 cTrader OAuth 授權網址
 func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clientID := os.Getenv("CTRADER_CLIENT_ID")
-		redirectURI := os.Getenv("CTRADER_REDIRECT_URI")
+		clientID := strings.TrimSpace(os.Getenv("CTRADER_CLIENT_ID"))
+		redirectURI := strings.TrimSpace(os.Getenv("CTRADER_REDIRECT_URI"))
 
 		if clientID == "" || redirectURI == "" {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "尚未設定 cTrader Client ID 或 Redirect URI"})
 			return
 		}
 
-		authURL := fmt.Sprintf("https://openapi.ctrader.com/apps/auth?client_id=%s&redirect_uri=%s&scope=accounts_info,trading",
-			url.QueryEscape(clientID),
-			url.QueryEscape(redirectURI),
-		)
+		// cTrader 要求 scope 必須用空格分隔
+		params := url.Values{}
+		params.Add("client_id", clientID)
+		params.Add("redirect_uri", redirectURI)
+		params.Add("scope", "accounts_info trading")
+
+		authURL := "https://openapi.ctrader.com/apps/auth?" + params.Encode()
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
@@ -43,9 +47,9 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		clientID := os.Getenv("CTRADER_CLIENT_ID")
-		clientSecret := os.Getenv("CTRADER_CLIENT_SECRET")
-		redirectURI := os.Getenv("CTRADER_REDIRECT_URI")
+		clientID := strings.TrimSpace(os.Getenv("CTRADER_CLIENT_ID"))
+		clientSecret := strings.TrimSpace(os.Getenv("CTRADER_CLIENT_SECRET"))
+		redirectURI := strings.TrimSpace(os.Getenv("CTRADER_REDIRECT_URI"))
 
 		// 呼叫 Spotware API 交換 Token
 		tokenURL := "https://openapi.ctrader.com/apps/token"
