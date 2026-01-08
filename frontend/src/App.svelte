@@ -22,6 +22,7 @@
   let currentTime = new Date();
   let timer;
   let showChangePassword = false;
+  const buildTime = __BUILD_TIME__;
 
   onMount(async () => {
     await checkAuth();
@@ -67,7 +68,7 @@
             <div class="logo-image-container">
               <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
             </div>
-            <span class="app-version-tag">v1.0.0</span>
+            <span class="app-version-tag">{buildTime}</span>
           </Link>
 
           <div class="header-tools">

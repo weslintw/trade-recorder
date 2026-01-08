@@ -11,6 +11,7 @@
     let isRegister = false;
     let loading = false;
     let error = '';
+    const buildTime = __BUILD_TIME__;
 
     async function handleSubmit() {
         if (!username || !password) {
@@ -46,7 +47,7 @@
             <div class="login-logo-container">
                 <img src="/logo.png" alt="Trade Time Machine Logo" class="login-logo-img" />
             </div>
-            <span class="app-version-tag">v1.0.0</span>
+            <span class="app-version-tag">{buildTime}</span>
             <p class="subtitle">{isRegister ? '加入我們，優化您的交易流程' : '歡迎回來，紀錄您的每一步成長'}</p>
         </div>
 
