@@ -122,10 +122,10 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 		// 處理多種可能的 cTrader JSON 結構
 		var accData struct {
 			TraderAccounts []struct {
-				ID    int64  `json:"ctidTraderAccountId"`
-				Login string `json:"traderLogin"`
-				Name  string `json:"AccountName"`
-				Live  bool   `json:"isLive"`
+				ID     int64  `json:"ctidTraderAccountId"`
+				Login  string `json:"traderLogin"`
+				Name   string `json:"AccountName"`
+				IsLive bool   `json:"isLive"`
 			} `json:"traderAccounts"`
 		}
 		if err := json.Unmarshal(accBody, &accData); err != nil {
