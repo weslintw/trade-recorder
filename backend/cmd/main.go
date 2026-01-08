@@ -165,13 +165,14 @@ func main() {
 			{
 				admin.GET("/usage", handlers.GetSystemUsageStat(db))
 			}
+
+			// cTrader OAuth 啟動 (需要認證)
+			authorized.GET("/auth/ctrader/url", handlers.CTraderAuthURL(db))
 		}
 
-		// 分享路由 (公開)
+		// 公開路由
 		api.GET("/shares/public/:token", handlers.GetSharedResource(db))
-
-		// cTrader OAuth
-		api.GET("/auth/ctrader/url", handlers.CTraderAuthURL(db))
+		// cTrader OAuth 回調 (公開路由)
 		api.GET("/auth/ctrader/callback", handlers.CTraderCallback(db))
 
 		// 圖片上傳 (目前先保持公開或也可加入認證)

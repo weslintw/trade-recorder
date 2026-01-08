@@ -160,8 +160,8 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 					firstAccountID = existingID
 				}
 				log.Printf("[cTrader OAuth] Updating existing account record DB ID: %d", existingID)
-				_, err := db.Exec("UPDATE accounts SET ctrader_token = ?, ctrader_client_id = ?, ctrader_client_secret = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-					tokenRes.AccessToken, clientID, clientSecret, existingID)
+				_, err := db.Exec("UPDATE accounts SET name = ?, ctrader_token = ?, ctrader_client_id = ?, ctrader_client_secret = ?, ctrader_env = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+					name, tokenRes.AccessToken, clientID, clientSecret, env, existingID)
 				if err != nil {
 					log.Printf("[cTrader OAuth] FAILED to update account %d: %v", existingID, err)
 				} else {
