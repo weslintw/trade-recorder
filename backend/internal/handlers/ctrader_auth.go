@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 	"trade-journal/internal/ctrader"
 
 	"github.com/gin-gonic/gin"
@@ -94,32 +95,51 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 獲取帳號清單 (改用更穩定的 Header 方式)
-		client := &http.Client{}
-		accRequest, _ := http.NewRequest("GET", "https://openapi.ctrader.com/connect/getaccounts", nil)
+		// 獲取帳號清單 - 採用「多網址自動嘗試」策略以加速除錯
+		endpoints := []string{
+			"https://api.spotware.com/connect/getaccounts",
+			"https://openapi.ctrader.com/connect/getaccounts",
+			"https://api.spotware.com/v2/accounts",
+			"https://openapi.ctrader.com/v2/accounts",
+		}
 
-		// 加入標準 OAuth2 Header
-		accRequest.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
-		accRequest.Header.Set("Accept", "application/json")
-		accRequest.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		var accBody []byte
+		var successEndpoint string
 
-		log.Printf("[cTrader OAuth] Fetching accounts via Bearer token...")
-		accResp, err := client.Do(accRequest)
-		if err != nil {
-			log.Printf("[cTrader OAuth] Failed to get accounts list: %v", err)
-			c.String(http.StatusInternalServerError, "Failed to get accounts")
+		for _, urlAddr := range endpoints {
+			log.Printf("[cTrader OAuth] Probing endpoint: %s", urlAddr)
+			client := &http.Client{Timeout: 10 * time.Second}
+			req, _ := http.NewRequest("GET", urlAddr, nil)
+			req.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+			req.Header.Set("Accept", "application/json")
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+			resp, err := client.Do(req)
+			if err != nil {
+				log.Printf("[cTrader OAuth] Endpoint %s failed: %v", urlAddr, err)
+				continue
+			}
+
+			tmpBody, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if resp.StatusCode == 200 {
+				log.Printf("[cTrader OAuth] SUCCESS at endpoint: %s", urlAddr)
+				accBody = tmpBody
+				successEndpoint = urlAddr
+				break
+			} else {
+				log.Printf("[cTrader OAuth] Endpoint %s returned %d: %s", urlAddr, resp.StatusCode, string(tmpBody))
+			}
+		}
+
+		if len(accBody) == 0 {
+			log.Printf("[cTrader OAuth] ALL endpoints failed. Please check cTrader forum for latest REST URL.")
+			c.String(http.StatusInternalServerError, "找不到有效的帳號獲取介面，請查看後台日誌。")
 			return
 		}
-		defer accResp.Body.Close()
 
-		accBody, _ := io.ReadAll(accResp.Body)
-		if accResp.StatusCode != 200 {
-			log.Printf("[cTrader OAuth] Accounts Error (HTTP %d): %s", accResp.StatusCode, string(accBody))
-		} else {
-			log.Printf("[cTrader OAuth] Accounts List RAW: %s", string(accBody))
-		}
-
-		// 處理多種可能的 cTrader JSON 結構
+		// 處理 JSON 結構
 		var accData struct {
 			TraderAccounts []struct {
 				ID     int64  `json:"ctidTraderAccountId"`
@@ -129,7 +149,7 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			} `json:"traderAccounts"`
 		}
 		if err := json.Unmarshal(accBody, &accData); err != nil {
-			log.Printf("[cTrader OAuth] Failed to parse accounts JSON: %v", err)
+			log.Printf("[cTrader OAuth] JSON parsing failed for %s: %v", successEndpoint, err)
 		}
 
 		log.Printf("[cTrader OAuth] Parsed %d accounts from main structure", len(accData.TraderAccounts))
