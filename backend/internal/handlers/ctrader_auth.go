@@ -27,12 +27,10 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 		}
 
 		// cTrader 要求 scope 必須用空格分隔
-		params := url.Values{}
-		params.Add("client_id", clientID)
-		params.Add("redirect_uri", redirectURI)
-		params.Add("scope", "accounts_info trading")
-
-		authURL := "https://openapi.ctrader.com/apps/auth?" + params.Encode()
+		authURL := fmt.Sprintf("https://openapi.ctrader.com/apps/auth?client_id=%s&redirect_uri=%s&scope=accounts_info%%20trading",
+			url.QueryEscape(clientID),
+			url.QueryEscape(redirectURI),
+		)
 
 		c.JSON(http.StatusOK, gin.H{"url": authURL})
 	}
