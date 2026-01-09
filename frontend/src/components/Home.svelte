@@ -244,9 +244,13 @@
     
     // Step 2: 檢查當前選取的帳號是否有效
     const accountExists = $accounts.some(a => a.id === $selectedAccountId);
-    if ($accounts.length > 0 && (!$selectedAccountId || !accountExists)) {
-      console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
-      selectedAccountId.set($accounts[0].id);
+    if ($accounts.length > 0) {
+      if (!$selectedAccountId || !accountExists) {
+        console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
+        selectedAccountId.set($accounts[0].id);
+      }
+    } else {
+      loading = false; // No accounts, stop loading spinner
     }
     
     // Step 3: 設定定時輪詢
@@ -709,7 +713,7 @@
   {/if}
 
   {#if loading}
-    <div class="loading-state">
+    <div class="loading-overlay">
       <div class="loader"></div>
       <p>正在載入時光機資料...</p>
     </div>

@@ -13,6 +13,7 @@
   export let id = null;
 
   let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
+  let loading = false;
   
   // 複製規劃相關狀態
   let showPlanSelectionModal = false;
@@ -246,6 +247,7 @@
 
   async function loadPlan() {
     try {
+      loading = true;
       const response = await dailyPlansAPI.getOne(id);
       const data = response.data;
       const trendAnalysis = data.trend_analysis ? JSON.parse(data.trend_analysis) : null;
@@ -319,6 +321,8 @@
     } catch (error) {
       console.error('載入規劃失敗:', error);
       alert('載入規劃資料失敗');
+    } finally {
+      loading = false;
     }
   }
 
@@ -606,7 +610,14 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="card">
+{#if loading}
+  <div class="loading-overlay">
+    <div class="loader"></div>
+    <div class="loading-text">正在讀取規劃資料...</div>
+  </div>
+{:else}
+  <div class="card">
+
   <div class="card-header-actions">
     <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
     <div class="header-btns">
@@ -1621,3 +1632,4 @@
     color: #3b82f6;
   }
 </style>
+{/if}

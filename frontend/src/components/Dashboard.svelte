@@ -749,26 +749,6 @@
     font-size: 0.9rem;
   }
 
-  .loading-overlay {
-    height: 400px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .loader {
-    width: 48px;
-    height: 48px;
-    border: 5px solid var(--primary);
-    border-bottom-color: transparent;
-    border-radius: 50%;
-    display: inline-block;
-    box-sizing: border-box;
-    animation: rotation 1s linear infinite;
-    margin-bottom: 1.5rem;
-  }
-
   @keyframes rotation {
     0% {
       transform: rotate(0deg);

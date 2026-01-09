@@ -10,6 +10,7 @@
 
   let plans = [];
   let filteredPlans = [];
+  let loading = true;
   let filters = {
     startDate: '',
     endDate: '',
@@ -29,6 +30,7 @@
 
   async function loadPlans() {
     try {
+      loading = true;
       const params = {
         account_id: $selectedAccountId,
       };
@@ -43,6 +45,8 @@
     } catch (error) {
       console.error('載入規劃失敗:', error);
       alert('載入規劃失敗');
+    } finally {
+      loading = false;
     }
   }
 
@@ -143,7 +147,12 @@
   {/if}
 
   <!-- 規劃列表 -->
-  {#if filteredPlans.length === 0}
+  {#if loading}
+    <div class="loading-overlay">
+      <div class="loader"></div>
+      <p>正在載入規劃紀錄...</p>
+    </div>
+  {:else if filteredPlans.length === 0}
     <div class="empty-state">
       <p>📋 尚無規劃記錄</p>
       <button class="btn btn-primary" on:click={() => navigate('/plans/new')}>

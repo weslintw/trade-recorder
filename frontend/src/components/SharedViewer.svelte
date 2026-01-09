@@ -247,7 +247,7 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
 
 <div class="shared-view-container">
   {#if loading}
-    <div class="status-box card">
+    <div class="loading-overlay">
       <div class="loader"></div>
       <p>正在載入分享內容...</p>
     </div>
@@ -654,7 +654,5 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   .image-modal-close { position: absolute; top: 20px; right: 20px; color: white; font-size: 2rem; background: rgba(0,0,0,0.5); border: none; cursor: pointer; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; transition: all 0.2s; }
   .image-modal-close:hover { background: rgba(255,255,255,0.2); transform: rotate(90deg); }
   .image-modal-caption { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 8px 20px; border-radius: 99px; font-size: 0.9rem; font-weight: 500; pointer-events: none; white-space: nowrap; backdrop-filter: blur(4px); }
-  .loader { width: 40px; height: 40px; border: 4px solid #f1f5f9; border-top-color: #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem; }
-  @keyframes spin { to { transform: rotate(360deg); } }
   .status-box { text-align: center; padding: 4rem 2rem; }
 </style>

@@ -286,7 +286,10 @@
 
   <!-- 交易列表 -->
   {#if loading}
-    <div class="loading">載入中...</div>
+    <div class="loading-overlay">
+      <div class="loader"></div>
+      <p>正在載入交易紀錄...</p>
+    </div>
   {:else if trades.length === 0}
     <div class="empty">
       <p>📭 尚無交易紀錄</p>
@@ -669,7 +672,6 @@
     align-items: flex-end;
   }
 
-  .loading,
   .empty {
     text-align: center;
     padding: 4rem 2rem;

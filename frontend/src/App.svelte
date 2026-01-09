@@ -761,4 +761,31 @@
     color: var(--text-muted);
     border: 1px solid var(--border-color);
   }
+
+  :global(.loading-overlay) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 1rem;
+    width: 100%;
+    color: var(--text-muted);
+  }
+
+  :global(.loader) {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--primary);
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    box-sizing: border-box;
+    animation: rotation 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  @keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 </style>

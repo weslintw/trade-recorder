@@ -971,7 +971,14 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<div class="card {formData.color_tag ? 'tag-' + formData.color_tag : ''}">
+{#if isLoadingTrade}
+  <div class="loading-overlay">
+    <div class="loader"></div>
+    <div class="loading-text">正在讀取交易資料...</div>
+  </div>
+{:else}
+  <div class="card {formData.color_tag ? 'tag-' + formData.color_tag : ''}">
+
   <div class="card-header-pane">
     <div class="header-main-row">
       <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
@@ -3361,3 +3368,4 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
   }
 </style>
+{/if}

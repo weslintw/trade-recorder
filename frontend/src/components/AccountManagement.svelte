@@ -185,7 +185,10 @@
   </div>
 
   {#if loading}
-    <p>載入中...</p>
+    <div class="loading-overlay">
+      <div class="loader"></div>
+      <p>正在載入帳號資料...</p>
+    </div>
   {:else}
     <div class="account-grid">
       {#each $accounts as acc}
