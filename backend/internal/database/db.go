@@ -142,9 +142,12 @@ func createTables(db *sql.DB) error {
 
 	CREATE INDEX IF NOT EXISTS idx_trades_symbol ON trades(symbol);
 	CREATE INDEX IF NOT EXISTS idx_trades_entry_time ON trades(entry_time);
+	CREATE INDEX IF NOT EXISTS idx_trades_acc_sym_time ON trades(account_id, symbol, entry_time);
 	CREATE INDEX IF NOT EXISTS idx_trade_images_trade_id ON trade_images(trade_id);
 	CREATE INDEX IF NOT EXISTS idx_trade_tags_trade_id ON trade_tags(trade_id);
 	CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+	CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
+	CREATE INDEX IF NOT EXISTS idx_daily_plans_acc_sym_date ON daily_plans(account_id, symbol, plan_date);
 
 	CREATE TABLE IF NOT EXISTS daily_plans (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

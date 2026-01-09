@@ -30,32 +30,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 				status, 
 				COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, 
 				COALESCE(last_sync_error, ''), created_at, updated_at,
-				(
-					SELECT COALESCE(SUM(
-						LENGTH(COALESCE(entry_strategy_image, '')) +
-						LENGTH(COALESCE(entry_strategy_image_original, '')) +
-						LENGTH(COALESCE(legend_king_image, '')) +
-						LENGTH(COALESCE(legend_king_image_original, '')) +
-						LENGTH(COALESCE(legend_htf_image, '')) +
-						LENGTH(COALESCE(legend_htf_image_original, '')) +
-						LENGTH(COALESCE(entry_signals, '')) +
-						LENGTH(COALESCE(entry_checklist, '')) +
-						LENGTH(COALESCE(trend_analysis, '')) +
-						LENGTH(COALESCE(notes, '')) +
-						LENGTH(COALESCE(entry_reason, '')) +
-						LENGTH(COALESCE(exit_reason, ''))
-					), 0) FROM trades WHERE account_id = a.id
-				) + (
-					SELECT COALESCE(SUM(LENGTH(COALESCE(ti.image_path, ''))), 0) 
-					FROM trade_images ti
-					JOIN trades t ON ti.trade_id = t.id
-					WHERE t.account_id = a.id
-				) + (
-					SELECT COALESCE(SUM(
-						LENGTH(COALESCE(notes, '')) +
-						LENGTH(COALESCE(trend_analysis, ''))
-					), 0) FROM daily_plans WHERE account_id = a.id
-				) AS storage_usage
+				0 AS storage_usage
 			FROM accounts a 
 			WHERE user_id = ? 
 			ORDER BY created_at ASC`

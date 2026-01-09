@@ -265,7 +265,8 @@
         
         pollingInterval = setInterval(async () => {
           if ($selectedAccountId) {
-            await Promise.all([loadData(true), refreshAccounts()]);
+            await loadData(true);
+            await refreshAccounts();
             updatePollingInterval();
           }
         }, currentPollingInterval);
@@ -274,7 +275,8 @@
 
     pollingInterval = setInterval(async () => {
       if ($selectedAccountId) {
-        await Promise.all([loadData(true), refreshAccounts()]);
+        await loadData(true);
+        await refreshAccounts();
         updatePollingInterval();
       }
     }, currentPollingInterval);
