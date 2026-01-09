@@ -46,9 +46,10 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 						LENGTH(COALESCE(exit_reason, ''))
 					), 0) FROM trades WHERE account_id = a.id
 				) + (
-					SELECT COALESCE(SUM(LENGTH(COALESCE(image_path, ''))), 0) 
-					FROM trade_images 
-					WHERE trade_id IN (SELECT id FROM trades WHERE account_id = a.id)
+					SELECT COALESCE(SUM(LENGTH(COALESCE(ti.image_path, ''))), 0) 
+					FROM trade_images ti
+					JOIN trades t ON ti.trade_id = t.id
+					WHERE t.account_id = a.id
 				) + (
 					SELECT COALESCE(SUM(
 						LENGTH(COALESCE(notes, '')) +

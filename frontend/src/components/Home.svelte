@@ -31,8 +31,14 @@
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
 
+  // 響應式：當帳號或品種改變時，自動重新載入資料
+  $: if ($selectedAccountId && $selectedSymbol) {
+    console.log(`🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`);
+    loadData();
+  }
+
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
-  $: timeGroupedTrades = groupedData.flatMap(day => day.groupedTrades);
+  $: timeGroupedTrades = (groupedData || []).flatMap(day => day.groupedTrades || []);
 
   function navigateWithScroll(path) {
     sessionStorage.setItem('home_scroll_pos', window.scrollY);
@@ -83,7 +89,10 @@
     console.log(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} called, silent:`, silent);
     
     try {
-      if (!silent) loading = true;
+      if (!silent) {
+        loading = true;
+        groupedData = []; // 切換帳號/品種時先清空，確保顯示 Loading 或是正確的新狀態
+      }
       const symbol = $selectedSymbol;
 
       // 更新今天日期文字
@@ -228,76 +237,44 @@
   }
 
   onMount(async () => {
-    console.log('=== onMount START ===');
+    console.log('=== 🏠 Home onMount START ===');
     
-    // Safety timeout to prevent infinite loading
-    setTimeout(() => {
-        if (loading) {
-            console.warn("Loading took too long, forcing display.");
-            loading = false;
-        }
-    }, 5000);
-
-    // Step 1: Initial account fetch
-    console.log('Step 1: Fetching accounts...');
+    // Step 1: 預加載帳號列表
     await refreshAccounts();
     
-    // Step 2: Auto-select first account if needed or if selected one is invalid
+    // Step 2: 檢查當前選取的帳號是否有效
     const accountExists = $accounts.some(a => a.id === $selectedAccountId);
-    console.log(`Step 2 check: SelectedID=${$selectedAccountId}, Exists=${accountExists}, AccountCount=${$accounts.length}`);
     if ($accounts.length > 0 && (!$selectedAccountId || !accountExists)) {
-      console.log(`Step 2: Auto-selecting first account: ${$accounts[0].id} (Current: ${$selectedAccountId}, Exists: ${accountExists})`);
+      console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
       selectedAccountId.set($accounts[0].id);
-      // Wait for store update to propagate
-      await new Promise(resolve => setTimeout(resolve, 50));
-    } else {
-      console.log(`Step 2: Account already selected and valid: ${$selectedAccountId}`);
     }
     
-    // Step 3: Explicitly load initial data if account is selected
-    if ($selectedAccountId && $selectedSymbol) {
-      console.log(`Step 3: Loading initial data for account=${$selectedAccountId}, symbol=${$selectedSymbol}`);
-      await loadData();
-    } else {
-      console.log(`Step 3: Skipping initial load - account=${$selectedAccountId}, symbol=${$selectedSymbol}`);
-    }
+    // Step 3: 設定定時輪詢
+    let currentPollingInterval = 10000;
     
-    console.log('=== onMount: Setup complete, starting adaptive polling ===');
-    
-    let currentPollingInterval = 10000; // Default 10s
-    
-    // Dynamic polling: 2s when有未平仓，10s otherwise
     const updatePollingInterval = () => {
       const hasOpenPositions = timeGroupedTrades.some(group => 
-        group.trades.some(t => !t.exit_time)
+        group.trades && group.trades.some(t => !t.exit_time)
       );
       
       const newInterval = hasOpenPositions ? 2000 : 10000;
       
       if (newInterval !== currentPollingInterval) {
         currentPollingInterval = newInterval;
-        console.log(`📊 Polling interval changed to ${newInterval}ms (open positions: ${hasOpenPositions})`);
+        if (pollingInterval) clearInterval(pollingInterval);
         
-        // Restart interval with new timing
-        if (pollingInterval) {
-          clearInterval(pollingInterval);
-        }
-        
-        pollingInterval = setInterval(() => {
+        pollingInterval = setInterval(async () => {
           if ($selectedAccountId) {
-            loadData(true); // silent update
-            refreshAccounts();
-            updatePollingInterval(); // Re-check if interval needs adjustment
+            await Promise.all([loadData(true), refreshAccounts()]);
+            updatePollingInterval();
           }
         }, currentPollingInterval);
       }
     };
-    
-    // Step 4: 設定初始輪詢
-    pollingInterval = setInterval(() => {
+
+    pollingInterval = setInterval(async () => {
       if ($selectedAccountId) {
-        loadData(true);
-        refreshAccounts();
+        await Promise.all([loadData(true), refreshAccounts()]);
         updatePollingInterval();
       }
     }, currentPollingInterval);
@@ -308,10 +285,10 @@
       setTimeout(() => {
         window.scrollTo(0, parseInt(savedScrollPos));
         sessionStorage.removeItem('home_scroll_pos');
-      }, 500);
+      }, 300);
     }
     
-    console.log('=== onMount END ===');
+    console.log('=== 🏠 Home onMount END ===');
   });
 
   onDestroy(() => {

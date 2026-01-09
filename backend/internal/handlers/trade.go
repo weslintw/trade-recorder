@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"time"
 	"trade-journal/internal/ctrader"
@@ -109,10 +111,66 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-
-			// 載入關聯資料
-			loadTradeRelations(db, &trade)
 			trades = append(trades, trade)
+		}
+
+		// Collect IDs for bulk loading relations
+		tradeIDs := make([]int64, 0, len(trades))
+		tradeMap := make(map[int64]*models.Trade)
+		for i := range trades {
+			tradeIDs = append(tradeIDs, trades[i].ID)
+			tradeMap[trades[i].ID] = &trades[i]
+		}
+
+		if len(tradeIDs) > 0 {
+			// Bulk load images
+			placeholders := make([]string, len(tradeIDs))
+			args := make([]interface{}, len(tradeIDs))
+			for i, id := range tradeIDs {
+				placeholders[i] = "?"
+				args[i] = id
+			}
+
+			imgQuery := fmt.Sprintf(`
+				SELECT id, trade_id, image_type, image_path, created_at
+				FROM trade_images 
+				WHERE trade_id IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			imgRows, err := db.Query(imgQuery, args...)
+			if err == nil {
+				defer imgRows.Close()
+				for imgRows.Next() {
+					var img models.Image
+					if err := imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.CreatedAt); err == nil {
+						if t, ok := tradeMap[img.TradeID]; ok {
+							t.Images = append(t.Images, img)
+						}
+					}
+				}
+			}
+
+			// Bulk load tags
+			tagQuery := fmt.Sprintf(`
+				SELECT tt.trade_id, t.id, t.name, t.created_at
+				FROM tags t
+				JOIN trade_tags tt ON t.id = tt.tag_id
+				WHERE tt.trade_id IN (%s)
+			`, strings.Join(placeholders, ","))
+
+			tagRows, err := db.Query(tagQuery, args...)
+			if err == nil {
+				defer tagRows.Close()
+				for tagRows.Next() {
+					var tradeID int64
+					var tag models.Tag
+					if err := tagRows.Scan(&tradeID, &tag.ID, &tag.Name, &tag.CreatedAt); err == nil {
+						if t, ok := tradeMap[tradeID]; ok {
+							t.Tags = append(t.Tags, tag)
+						}
+					}
+				}
+			}
 		}
 
 		// 計算總數
