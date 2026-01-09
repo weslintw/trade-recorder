@@ -41,7 +41,11 @@
   $: bottomColor = lossColor;
 </script>
 
-<div class="sparkline-container" style="width: {width}px; height: {height}px;" title={parsedData.join(', ')}>
+<div
+  class="sparkline-container"
+  style="width: {width}px; height: {height}px;"
+  title={parsedData.join(', ')}
+>
   {#if parsedData && parsedData.length > 1}
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width: 100%; height: 100%;">
       <defs>
@@ -91,6 +95,12 @@
     border-radius: 4px;
     border: 1px solid #f1f5f9;
   }
+
+  :global(body.dark-mode) .sparkline-container {
+    background: #ffffff;
+    border-color: #ffffff;
+  }
+
   .no-data {
     width: 60%;
     height: 1px;
