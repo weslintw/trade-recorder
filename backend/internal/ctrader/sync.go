@@ -54,8 +54,8 @@ type CTraderMessage struct {
 	Payload     json.RawMessage `json:"payload"`
 }
 
-func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, token string, clientID string, clientSecret string, env string) error {
-	log.Printf("[cTrader Sync] --- Manual Sync START for Account %d (v2.27) ---", accountID)
+func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, token string, clientID string, clientSecret string, env string, fromTimestamp int64) error {
+	log.Printf("[cTrader Sync] --- Manual Sync START for Account %d (v2.36) ---", accountID)
 	db.Exec("UPDATE accounts SET sync_status = 'syncing (Preparing)...', last_sync_error = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 
 	if GlobalManager != nil {
@@ -63,7 +63,7 @@ func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, to
 		time.Sleep(1 * time.Second)
 	}
 
-	err := internalSync(db, accountID, cTraderAccountID, token, clientID, clientSecret, env)
+	err := internalSync(db, accountID, cTraderAccountID, token, clientID, clientSecret, env, fromTimestamp)
 	if err != nil {
 		log.Printf("[cTrader Sync] FAILED: %v", err)
 		db.Exec("UPDATE accounts SET sync_status = 'failed', last_sync_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", err.Error(), accountID)
@@ -135,7 +135,7 @@ type orderInfo struct {
 	} `json:"tradeData"`
 }
 
-func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token string, clientID string, clientSecret string, env string) error {
+func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token string, clientID string, clientSecret string, env string, fromTimestamp int64) error {
 	cTID, _ := strconv.ParseInt(cTraderAccountIDStr, 10, 64)
 	url := CTraderLiveURL
 	if env == "demo" {
@@ -216,12 +216,33 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	allSids := []int64{}
 	orderHistoryMap := make(map[int64][]orderInfo) // PositionID -> Orders
 
-	log.Printf("[cTrader Sync] Step 2: Collecting history (Bulk v2.34)...")
-	// Fetch 120 days of orders to cover cases where entries are older than 90-day deals
-	for i := 0; i < 8; i++ {
-		db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("fetching history (%d/8)...", i+1), accountID)
-		to := now.AddDate(0, 0, -15*(i)).UnixMilli()
+	log.Printf("[cTrader Sync] Step 2: Collecting history (Bulk v2.36)...")
+	// Calculate how many 15-day chunks are needed based on fromTimestamp
+	targetFrom := fromTimestamp
+	if targetFrom <= 0 {
+		targetFrom = now.AddDate(0, 0, -120).UnixMilli() // Default 120 days
+	}
+
+	totalDays := int(math.Ceil(float64(now.UnixMilli()-targetFrom) / (24 * 3600 * 1000)))
+	numChunks := (totalDays + 14) / 15
+	if numChunks < 1 {
+		numChunks = 1
+	}
+	if numChunks > 500 {
+		numChunks = 500
+	} // Safety cap (~20 years)
+
+	for i := 0; i < numChunks; i++ {
+		db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("fetching history (%d/%d)...", i+1, numChunks), accountID)
+		to := now.AddDate(0, 0, -15*i).UnixMilli()
 		from := now.AddDate(0, 0, -15*(i+1)).UnixMilli()
+
+		if from < targetFrom {
+			from = targetFrom
+		}
+		if to <= targetFrom {
+			break
+		}
 		time.Sleep(300 * time.Millisecond)
 
 		// Fetch Deals

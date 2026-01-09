@@ -9,6 +9,7 @@
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
   import BatchShareModal from './BatchShareModal.svelte';
+  import SyncOptionsModal from './SyncOptionsModal.svelte';
 
   let groupedData = [];
   let loading = true;
@@ -25,6 +26,7 @@
   let selectedPlans = new Set();
   let isSharing = false;
   let generatedShareToken = '';
+  let showSyncOptionsModal = false;
 
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
@@ -37,11 +39,19 @@
     navigate(path);
   }
 
-  async function handleSync() {
+  async function handleSync(options = {}) {
     if (!$selectedAccountId || isSyncing) return;
+    
+    // If it's cTrader and no options provided, show modal
+    if (currentAccount?.type === 'ctrader' && Object.keys(options).length === 0 && !showSyncOptionsModal) {
+      showSyncOptionsModal = true;
+      return;
+    }
+
+    showSyncOptionsModal = false;
     isSyncing = true;
     try {
-      await accountsAPI.sync($selectedAccountId);
+      await accountsAPI.sync($selectedAccountId, options);
       // Refresh both account info (for storage usage) and data
       await refreshAccounts();
       await loadData(true);
@@ -1179,6 +1189,12 @@
   bind:show={showBatchShareModal} 
   resourceTitle={currentAccount ? currentAccount.name + '_Shared' : 'SharedAccount'}
   on:startSelection={startSelection} 
+/>
+
+<SyncOptionsModal
+  show={showSyncOptionsModal}
+  on:close={() => (showSyncOptionsModal = false)}
+  on:sync={(e) => handleSync(e.detail)}
 />
 
 {#if selectedImage}

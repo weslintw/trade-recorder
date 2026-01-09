@@ -4,6 +4,7 @@
   import { accountsAPI } from '../lib/api';
   import { accounts, selectedAccountId } from '../lib/stores';
   import AccountModal from './AccountModal.svelte';
+  import SyncOptionsModal from './SyncOptionsModal.svelte';
 
   let loading = true;
   let showAddModal = false;
@@ -52,9 +53,18 @@
     fetchAccounts();
   });
 
-  async function syncAccount(id) {
+  let showSyncOptionsModal = false;
+  let syncingId = null;
+
+  function openSyncModal(id) {
+    syncingId = id;
+    showSyncOptionsModal = true;
+  }
+
+  async function syncAccount(id, options = {}) {
     try {
-      await accountsAPI.sync(id);
+      showSyncOptionsModal = false;
+      await accountsAPI.sync(id, options);
       fetchAccounts(); // 立即更新一次狀態
     } catch (e) {
       console.error(e);
@@ -302,7 +312,7 @@
               on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
             {#if acc.type === 'ctrader'}
-              <button class="btn btn-sync" on:click|stopPropagation={() => syncAccount(acc.id)}>
+              <button class="btn btn-sync" on:click|stopPropagation={() => openSyncModal(acc.id)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
                   <path d="M21 2v6h-6"></path>
                   <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
@@ -412,6 +422,13 @@
         {/if}
       </div>
     </div>
+  {/if}
+  {#if showSyncOptionsModal}
+    <SyncOptionsModal
+      show={showSyncOptionsModal}
+      on:close={() => (showSyncOptionsModal = false)}
+      on:sync={(e) => syncAccount(syncingId, e.detail)}
+    />
   {/if}
 </div>
 

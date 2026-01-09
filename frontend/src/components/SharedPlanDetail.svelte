@@ -35,9 +35,9 @@
       if (t.directions && t.directions.length > 0) return true;
       if (t.direction) return true;
       if (t.image || t.signals_image || t.wave_image) return true;
-      if (t.long && (t.long.has_signals || t.long.has_wave || t.long.signals_image || t.long.wave_image)) return true;
-      if (t.short && (t.short.has_signals || t.short.has_wave || t.short.signals_image || t.short.wave_image)) return true;
-      return (t.signals && t.signals.length > 0) || (t.wave_numbers && t.wave_numbers.length > 0);
+      if (t.long && (t.long.has_signals || t.long.has_expected_signals || t.long.has_wave || t.long.signals_image || t.long.wave_image || (t.long.expected_signals && t.long.expected_signals.length > 0))) return true;
+      if (t.short && (t.short.has_signals || t.short.has_expected_signals || t.short.has_wave || t.short.signals_image || t.short.wave_image || (t.short.expected_signals && t.short.expected_signals.length > 0))) return true;
+      return (t.signals && t.signals.length > 0) || (t.expected_signals && t.expected_signals.length > 0) || (t.wave_numbers && t.wave_numbers.length > 0);
     });
   }
 
@@ -135,18 +135,43 @@
               <div class="analysis-box-container" class:long={dir === 'long'} class:short={dir === 'short'}>
                 <div class="dir-header">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
                 
-                <!-- 達人訊號 -->
+                <!-- 已成立達人訊號 -->
                 {#if analysis.has_signals}
                   <div class="analysis-section">
-                    <div class="section-title">✔️ 達人訊號</div>
+                    <div class="section-title">✔️ 已成立的達人訊號</div>
                     <div class="signal-chips">
                       {#each (analysis.signals || []) as sig}
                         <span class="signal-chip active">{sig}</span>
                       {/each}
                     </div>
                     {#if analysis.signals_image}
-                      <div class="trend-image-preview" on:click={() => openModal(analysis.signals_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 訊號圖`)}>
+                      <div class="trend-image-preview" on:click={() => openModal(analysis.signals_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 已成立訊號圖`)}>
                         <img src={analysis.signals_image} alt="signals" loading="lazy" />
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+
+                <!-- 預期產生達人訊號 -->
+                {#if analysis.has_expected_signals || (analysis.expected_signals && analysis.expected_signals.length > 0)}
+                  <div class="analysis-section expected">
+                    <div class="section-title">✨ 預期產生的達人訊號</div>
+                    <div class="signal-chips">
+                      {#each (analysis.expected_signals || []) as sig}
+                        <span class="signal-chip active expected">{sig.name}</span>
+                      {/each}
+                    </div>
+                    
+                    {#if analysis.expected_signals && analysis.expected_signals.length > 0}
+                      <div class="expected-signals-images-view">
+                        {#each analysis.expected_signals.filter(s => s.image) as sig}
+                          <div class="expected-signal-view-item">
+                            <div class="signal-mini-label">{sig.name} 示意圖</div>
+                            <div class="trend-image-preview" on:click={() => openModal(sig.image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${sig.name}`)}>
+                              <img src={sig.image} alt={sig.name} loading="lazy" />
+                            </div>
+                          </div>
+                        {/each}
                       </div>
                     {/if}
                   </div>
@@ -178,11 +203,11 @@
             {/each}
 
             <!-- 舊格式兼容: 如果沒有 directions 且沒有明確方向但有資料 -->
-            {#if directionsToShow.length === 0 && (trend.has_signals || trend.has_wave)}
+            {#if directionsToShow.length === 0 && (trend.has_signals || trend.has_expected_signals || trend.has_wave)}
                <div class="analysis-box-container">
                   {#if trend.has_signals}
                     <div class="analysis-section">
-                      <div class="section-title">✔️ 達人訊號</div>
+                      <div class="section-title">✔️ 已成立的達人訊號</div>
                       <div class="signal-chips">
                         {#each (trend.signals || []) as sig}
                           <span class="signal-chip active">{sig}</span>
@@ -191,6 +216,29 @@
                       {#if trend.signals_image}
                         <div class="trend-image-preview" on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}>
                           <img src={trend.signals_image} alt="signals" loading="lazy" />
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+
+                  {#if trend.has_expected_signals || (trend.expected_signals && trend.expected_signals.length > 0)}
+                    <div class="analysis-section expected">
+                      <div class="section-title">✨ 預期產生的達人訊號</div>
+                      <div class="signal-chips">
+                        {#each (trend.expected_signals || []) as sig}
+                          <span class="signal-chip active expected">{sig.name}</span>
+                        {/each}
+                      </div>
+                      {#if trend.expected_signals}
+                        <div class="expected-signals-images-view">
+                          {#each trend.expected_signals.filter(s => s.image) as sig}
+                            <div class="expected-signal-view-item">
+                              <div class="signal-mini-label">{sig.name} 示意圖</div>
+                              <div class="trend-image-preview" on:click={() => openModal(sig.image, `${tf} 預期訊號: ${sig.name}`)}>
+                                <img src={sig.image} alt={sig.name} loading="lazy" />
+                              </div>
+                            </div>
+                          {/each}
                         </div>
                       {/if}
                     </div>
@@ -407,14 +455,43 @@
   .analysis-box-container.short { border-left: 4px solid #10b981; }
 
   .dir-header {
-    font-size: 0.8rem;
-    font-weight: 800;
-    color: #475569;
-    padding: 2px 8px;
-    background: #f1f5f9;
-    border-radius: 4px;
     display: inline-block;
     align-self: flex-start;
+  }
+
+  .analysis-section.expected {
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .signal-chip.active.expected {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #1e40af;
+    border-style: dashed;
+  }
+
+  .expected-signals-images-view {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .expected-signal-view-item {
+    background: #f8fafc;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #f1f5f9;
+  }
+
+  .signal-mini-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+    padding-left: 0.2rem;
   }
 
   .na-txt { color: #94a3b8; font-style: italic; font-size: 0.9rem; }

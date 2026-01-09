@@ -112,7 +112,9 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 		if req.Type == "metatrader" {
 			go mt5.SyncMT5History(db, id, req.MT5AccountID, req.MT5Token)
 		} else if req.Type == "ctrader" {
-			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv)
+			// Default to 120 days for new cTrader accounts
+			fromTimestamp := time.Now().AddDate(0, 0, -120).UnixMilli()
+			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, fromTimestamp)
 		}
 
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "帳號建立成功"})
@@ -190,12 +192,35 @@ func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 解析選配的同步參數
+		var syncReq struct {
+			FromDate string `json:"from_date"`
+			SyncAll  bool   `json:"sync_all"`
+		}
+		c.ShouldBindJSON(&syncReq) // 忽略錯誤，可能是舊版前端或無參數
+
+		var fromTimestamp int64
+		if syncReq.SyncAll {
+			// 同步全部：設定為 20 年前
+			fromTimestamp = time.Now().AddDate(-20, 0, 0).UnixMilli()
+		} else if syncReq.FromDate != "" {
+			t, err := time.Parse("2006-01-02", syncReq.FromDate)
+			if err == nil {
+				fromTimestamp = t.UnixMilli()
+			}
+		}
+
+		if fromTimestamp == 0 {
+			// 預設同步 120 天
+			fromTimestamp = time.Now().AddDate(0, 0, -120).UnixMilli()
+		}
+
 		// 執行同步
 		db.Exec("UPDATE accounts SET sync_status = 'syncing', updated_at = CURRENT_TIMESTAMP WHERE id = ?", acc.ID)
 		if acc.Type == "metatrader" {
 			go mt5.SyncMT5History(db, acc.ID, acc.MT5AccountID, acc.MT5Token)
 		} else if acc.Type == "ctrader" {
-			go ctrader.SyncCTraderHistory(db, acc.ID, acc.CTraderAccountID, acc.CTraderToken, acc.CTraderClientID, acc.CTraderClientSecret, acc.CTraderEnv)
+			go ctrader.SyncCTraderHistory(db, acc.ID, acc.CTraderAccountID, acc.CTraderToken, acc.CTraderClientID, acc.CTraderClientSecret, acc.CTraderEnv, fromTimestamp)
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "同步指令已發送，這可能需要一點時間。"})

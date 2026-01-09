@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 	"trade-journal/internal/ctrader"
 
 	"github.com/gin-gonic/gin"
@@ -152,7 +153,8 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 					}
 					processedCount++
 					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync.", acc.ID, newID)
-					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
+					fromTimestamp := time.Now().AddDate(0, 0, -90).UnixMilli()
+					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env, fromTimestamp)
 				}
 			} else {
 				// 更新 Token
@@ -167,7 +169,8 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 				} else {
 					processedCount++
 					log.Printf("[cTrader OAuth] Successfully updated account DB ID %d. Re-starting sync.", existingID)
-					go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env)
+					fromTimestamp := time.Now().AddDate(0, 0, -90).UnixMilli()
+					go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env, fromTimestamp)
 				}
 			}
 		}

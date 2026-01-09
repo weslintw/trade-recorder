@@ -26,6 +26,8 @@
     return {
       has_signals: false,
       signals: [],
+      has_expected_signals: false,
+      expected_signals: [], // { name: string, image: string, originalImage: string }
       has_wave: false,
       wave_numbers: [],
       wave_highlight: '',
@@ -109,6 +111,33 @@
     // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
+  }
+
+  // 切換預期訊號
+  function toggleExpectedSignal(timeframe, direction, signalName) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    if (!target.expected_signals) target.expected_signals = [];
+    
+    const index = target.expected_signals.findIndex(s => s.name === signalName);
+
+    if (index >= 0) {
+      // 取消選擇
+      target.expected_signals = target.expected_signals.filter((_, i) => i !== index);
+    } else {
+      // 新增選擇
+      target.expected_signals = [...target.expected_signals, { name: signalName, image: '', originalImage: '' }];
+    }
+
+    // 強制觸發 Svelte 響應式更新
+    formData = formData;
+    waveButtonKey++;
+  }
+
+  // 檢查預期訊號是否被選中
+  function isExpectedSignalSelected(timeframe, direction, signalName) {
+    const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
+    const signals = target.expected_signals || [];
+    return signals.some(s => s.name === signalName);
   }
 
   // 檢查時區訊號是否被選中
@@ -278,8 +307,10 @@
 
             // 更新標籤
             if (t.long.signals?.length > 0 || t.long.signals_image) t.long.has_signals = true;
+            if (t.long.expected_signals?.length > 0) t.long.has_expected_signals = true;
             if (t.long.wave_numbers?.length > 0 || t.long.wave_image) t.long.has_wave = true;
             if (t.short.signals?.length > 0 || t.short.signals_image) t.short.has_signals = true;
+            if (t.short.expected_signals?.length > 0) t.short.has_expected_signals = true;
             if (t.short.wave_numbers?.length > 0 || t.short.wave_image) t.short.has_wave = true;
           });
         }
@@ -323,7 +354,7 @@
   }
 
   // 處理趨勢圖片貼上
-  function handleTrendImagePaste(event, timeframe, imageType = 'trend', direction = null) {
+  function handleTrendImagePaste(event, timeframe, imageType = 'trend', direction = null, signalName = null) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
 
     for (let item of items) {
@@ -341,6 +372,16 @@
             target.signals_image = e.target.result;
             if (!target.signals_originalImage) {
               target.signals_originalImage = e.target.result;
+            }
+          } else if (imageType === 'expected_signals') {
+            if (target.expected_signals) {
+              const signal = target.expected_signals.find(s => s.name === signalName);
+              if (signal) {
+                signal.image = e.target.result;
+                if (!signal.originalImage) {
+                  signal.originalImage = e.target.result;
+                }
+              }
             }
           } else if (imageType === 'wave') {
             target.wave_image = e.target.result;
@@ -366,13 +407,21 @@
   }
 
   // 移除趨勢圖片
-  function removeTrendImage(timeframe, imageType = 'trend', direction = null) {
+  function removeTrendImage(timeframe, imageType = 'trend', direction = null, signalName = null) {
     const trends = currentTrends[timeframe];
     const target = direction ? trends[direction] : trends;
 
     if (imageType === 'signals') {
       target.signals_image = '';
       target.signals_originalImage = '';
+    } else if (imageType === 'expected_signals') {
+      if (target.expected_signals) {
+        const signal = target.expected_signals.find(s => s.name === signalName);
+        if (signal) {
+          signal.image = '';
+          signal.originalImage = '';
+        }
+      }
     } else if (imageType === 'wave') {
       target.wave_image = '';
       target.wave_originalImage = '';
@@ -405,6 +454,9 @@
         enlargedOriginalImage = target?.signals_originalImage || imageSrc;
       } else if (context.type === 'wave') {
         enlargedOriginalImage = target?.wave_originalImage || imageSrc;
+      } else if (context.type === 'expected_signals') {
+        const signal = target?.expected_signals?.find(s => s.name === context.signalName);
+        enlargedOriginalImage = signal?.originalImage || imageSrc;
       } else {
         enlargedOriginalImage = imageSrc;
       }
@@ -443,6 +495,13 @@
       target.signals_image = annotatedImageSrc;
     } else if (type === 'wave') {
       target.wave_image = annotatedImageSrc;
+    } else if (type === 'expected_signals') {
+      if (target.expected_signals) {
+        const signal = target.expected_signals.find(s => s.name === enlargedImageContext.signalName);
+        if (signal) {
+          signal.image = annotatedImageSrc;
+        }
+      }
     }
 
     // 強制觸發 Svelte 響應式更新
@@ -690,16 +749,16 @@
               <div class="direction-analysis-box" class:long={dir === 'long'} class:short={dir === 'short'}>
                 <div class="direction-badge">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
                 
-                <!-- 達人訊號選擇 -->
+                <!-- 已成立的達人訊號選擇 -->
                 <div class="timeframe-signals">
                   <label class="section-label inline-check">
                     <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_signals} />
-                    達人訊號
+                    已成立的達人訊號
                   </label>
                   
                   {#if currentTrends[timeframe][dir].has_signals}
                     <div class="signal-chips">
-                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-signal-' + signal)}
+                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-established-' + signal)}
                         <button
                           type="button"
                           class="signal-chip"
@@ -718,13 +777,13 @@
                         on:click|stopPropagation={() =>
                           enlargeImage(
                             currentTrends[timeframe][dir].signals_image,
-                            `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 達人訊號圖`,
+                            `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 已成立達人訊號圖`,
                             { type: 'signals', key: timeframe, direction: dir }
                           )}
                       >
                         <img
                           src={currentTrends[timeframe][dir].signals_image}
-                          alt="{timeframe} 達人訊號"
+                          alt="{timeframe} 已成立達人訊號"
                           style="pointer-events: none;"
                         />
                         <button
@@ -745,7 +804,77 @@
                         on:click|stopPropagation={e => e.target.focus()}
                         role="textbox"
                       >
-                        📋 貼上訊號圖
+                        📋 貼上已成立訊號圖
+                      </div>
+                    {/if}
+                  {/if}
+                </div>
+
+                <!-- 預期產生的達人訊號選擇 -->
+                <div class="timeframe-signals expected">
+                  <label class="section-label inline-check">
+                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_expected_signals} />
+                    預期產生的達人訊號
+                  </label>
+                  
+                  {#if currentTrends[timeframe][dir].has_expected_signals}
+                    <div class="signal-chips">
+                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-' + signal)}
+                        <button
+                          type="button"
+                          class="signal-chip expected"
+                          class:active={isExpectedSignalSelected(timeframe, dir, signal)}
+                          on:click|stopPropagation={() => toggleExpectedSignal(timeframe, dir, signal)}
+                        >
+                          {signal}
+                        </button>
+                      {/each}
+                    </div>
+
+                    <!-- 預期訊號個別圖片區 -->
+                    {#if currentTrends[timeframe][dir].expected_signals && currentTrends[timeframe][dir].expected_signals.length > 0}
+                      <div class="expected-signals-images">
+                        {#each currentTrends[timeframe][dir].expected_signals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-img-' + signal.name)}
+                          <div class="expected-signal-item">
+                            <span class="signal-name-label">{signal.name}</span>
+                            {#if signal.image}
+                              <div
+                                class="trend-image-preview"
+                                on:click|stopPropagation={() =>
+                                  enlargeImage(
+                                    signal.image,
+                                    `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${signal.name}`,
+                                    { type: 'expected_signals', key: timeframe, direction: dir, signalName: signal.name }
+                                  )}
+                              >
+                                <img
+                                  src={signal.image}
+                                  alt="{timeframe} 預期訊號: {signal.name}"
+                                  style="pointer-events: none;"
+                                />
+                                <button
+                                  type="button"
+                                  class="remove-image-btn"
+                                  on:click|stopPropagation={() => removeTrendImage(timeframe, 'expected_signals', dir, signal.name)}
+                                  title="移除圖片"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            {:else}
+                              <div
+                                class="trend-image-placeholderExtraSmall"
+                                tabindex="0"
+                                on:paste|preventDefault|stopPropagation={e =>
+                                  handleTrendImagePaste(e, timeframe, 'expected_signals', dir, signal.name)}
+                                on:click|stopPropagation={e => e.target.focus()}
+                                role="textbox"
+                              >
+                                📋 貼上 {signal.name} 示意圖
+                              </div>
+                            {/if}
+                          </div>
+                        {/each}
                       </div>
                     {/if}
                   {/if}
@@ -1429,5 +1558,66 @@
     color: #94a3b8;
     font-size: 0.85rem;
     background: #f8fafc;
+  }
+
+  /* 預期產生的達人訊號 */
+  .timeframe-signals.expected {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .signal-chip.expected {
+    border-style: dashed;
+    background: #eff6ff;
+    color: #1e40af;
+  }
+
+  .signal-chip.expected.active {
+    background: #1e40af;
+    color: white;
+    border-style: solid;
+  }
+
+  .expected-signals-images {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .expected-signal-item {
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .signal-name-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 0.5rem;
+  }
+
+  .trend-image-placeholderExtraSmall {
+    border: 1.5px dashed #cbd5e0;
+    border-radius: 6px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .trend-image-placeholderExtraSmall:hover,
+  .trend-image-placeholderExtraSmall:focus {
+    background: #f1f5f9;
+    border-color: #3b82f6;
+    color: #3b82f6;
   }
 </style>
