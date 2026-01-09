@@ -34,14 +34,19 @@ func CTraderAuthURL(db *sql.DB) gin.HandlerFunc {
 			userID = 1 // 備用機制
 		}
 
+		// 取得同步參數
+		syncAll := c.Query("sync_all") == "true"
+		fromDate := c.Query("from_date")
+
 		// 採用 100% 測試成功的模式：
 		// 1. scope 僅使用 accounts (這已包含交易紀錄權限)
 		// 2. redirect_uri 保持原始字串
-		// 3. 增加 state 參數來傳遞當前 UserID，確保回調時能對應回正確使用者
-		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts&redirect_uri=%s&state=%d",
+		// 3. 增加 state 參數來傳遞當前 UserID 以及同步選項，格式為: userID|syncAll|fromDate
+		state := fmt.Sprintf("%d|%t|%s", userID, syncAll, fromDate)
+		authURL := fmt.Sprintf("https://id.ctrader.com/my/settings/openapi/grantingaccess?client_id=%s&scope=accounts&redirect_uri=%s&state=%s",
 			clientID,
 			redirectURI,
-			userID,
+			url.QueryEscape(state),
 		)
 
 		// 記錄最終固定的極簡模式網址
@@ -111,14 +116,38 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 獲取目前使用者的 ID (從 state 參數獲取)
+		// 獲取目前使用者的 ID (從 state 參數獲取: userID|syncAll|fromDate)
 		state := c.Query("state")
-		userID, _ := strconv.ParseInt(state, 10, 64)
+		parts := strings.Split(state, "|")
+		userID, _ := strconv.ParseInt(parts[0], 10, 64)
 		if userID == 0 {
 			userID = 1 // 備用機制
 			log.Printf("[cTrader OAuth] Warning: No userID in state, falling back to 1")
 		} else {
 			log.Printf("[cTrader OAuth] Link accounts to UserID: %d", userID)
+		}
+
+		// 解析同步選項
+		syncAll := false
+		fromDate := ""
+		if len(parts) >= 3 {
+			syncAll = parts[1] == "true"
+			fromDate = parts[2]
+		}
+
+		var fromTimestamp int64
+		if syncAll {
+			fromTimestamp = time.Now().AddDate(-20, 0, 0).UnixMilli()
+		} else if fromDate != "" {
+			t, err := time.Parse("2006-01-02", fromDate)
+			if err == nil {
+				fromTimestamp = t.UnixMilli()
+			}
+		}
+
+		if fromTimestamp == 0 {
+			// 預設同步 90 天 (配合現有邏輯)
+			fromTimestamp = time.Now().AddDate(0, 0, -90).UnixMilli()
 		}
 
 		// 第一個處理成功的帳號 ID (用於回傳前端自動選取)
@@ -152,8 +181,7 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 						firstAccountID = newID
 					}
 					processedCount++
-					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync.", acc.ID, newID)
-					fromTimestamp := time.Now().AddDate(0, 0, -90).UnixMilli()
+					log.Printf("[cTrader OAuth] Successfully created account %d with DB ID %d. Starting sync with fromTS=%d.", acc.ID, newID, fromTimestamp)
 					go ctrader.SyncCTraderHistory(db, newID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env, fromTimestamp)
 				}
 			} else {
@@ -168,8 +196,7 @@ func CTraderCallback(db *sql.DB) gin.HandlerFunc {
 					log.Printf("[cTrader OAuth] FAILED to update account %d: %v", existingID, err)
 				} else {
 					processedCount++
-					log.Printf("[cTrader OAuth] Successfully updated account DB ID %d. Re-starting sync.", existingID)
-					fromTimestamp := time.Now().AddDate(0, 0, -90).UnixMilli()
+					log.Printf("[cTrader OAuth] Successfully updated account DB ID %d. Re-starting sync with fromTS=%d.", existingID, fromTimestamp)
 					go ctrader.SyncCTraderHistory(db, existingID, fmt.Sprintf("%d", acc.ID), tokenRes.AccessToken, clientID, clientSecret, env, fromTimestamp)
 				}
 			}

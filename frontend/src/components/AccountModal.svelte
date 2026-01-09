@@ -18,7 +18,23 @@
     ctrader_client_secret: '',
     ctrader_env: 'live',
     timezone_offset: 8,
+    sync_all: false,
+    from_date: '',
   };
+  
+  let syncOption = 'default'; // 'default', 'all', 'date'
+  let syncStartDate = new Date().toISOString().split('T')[0];
+
+  $: if (syncOption === 'all') {
+    newAccount.sync_all = true;
+    newAccount.from_date = '';
+  } else if (syncOption === 'date') {
+    newAccount.sync_all = false;
+    newAccount.from_date = syncStartDate;
+  } else {
+    newAccount.sync_all = false;
+    newAccount.from_date = '';
+  }
 
   let lastAccountId = undefined;
   let lastShow = false;
@@ -121,7 +137,11 @@
   async function handleCTraderOAuth() {
     try {
       processing = true;
-      const res = await accountsAPI.getCTraderAuthURL();
+      const params = {};
+      if (syncOption === 'all') params.sync_all = true;
+      if (syncOption === 'date') params.from_date = syncStartDate;
+
+      const res = await accountsAPI.getCTraderAuthURL(params);
       if (res.data.url) {
         // 開啟新視窗進行授權
         const width = 600;
@@ -253,6 +273,21 @@
               <span class="icon">🔗</span> 快速連結 cTrader (免輸 API)
             </button>
             <p class="help-text text-center">推薦！登入 Spotware 帳號即可自動同步多個交易帳號。</p>
+            
+            <div class="sync-options-inline">
+              <label class="sync-opt">
+                <input type="radio" bind:group={syncOption} value="default" /> 近期 (120天)
+              </label>
+              <label class="sync-opt">
+                <input type="radio" bind:group={syncOption} value="all" /> 全部同步
+              </label>
+              <label class="sync-opt">
+                <input type="radio" bind:group={syncOption} value="date" /> 自訂日期
+              </label>
+              {#if syncOption === 'date'}
+                <input type="date" class="form-control date-picker-small" bind:value={syncStartDate} />
+              {/if}
+            </div>
           </div>
 
         </div>
@@ -396,5 +431,39 @@
 
   .text-center {
     text-align: center;
+  }
+
+  .sync-options-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :global(body.dark-mode) .sync-options-inline {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  .sync-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .date-picker-small {
+    padding: 0.25rem 0.5rem !important;
+    font-size: 0.8rem !important;
+    width: auto !important;
+    height: auto !important;
   }
 </style>

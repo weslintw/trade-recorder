@@ -92,7 +92,7 @@ export const accountsAPI = {
       },
     }),
   clearData: id => api.delete(`/accounts/${id}/data`),
-  getCTraderAuthURL: () => api.get('/auth/ctrader/url'),
+  getCTraderAuthURL: params => api.get('/auth/ctrader/url', { params }),
 };
 
 // 分享相關

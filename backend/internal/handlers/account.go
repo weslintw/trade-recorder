@@ -112,8 +112,21 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 		if req.Type == "metatrader" {
 			go mt5.SyncMT5History(db, id, req.MT5AccountID, req.MT5Token)
 		} else if req.Type == "ctrader" {
-			// Default to 120 days for new cTrader accounts
-			fromTimestamp := time.Now().AddDate(0, 0, -120).UnixMilli()
+			var fromTimestamp int64
+			if req.SyncAll {
+				fromTimestamp = time.Now().AddDate(-20, 0, 0).UnixMilli()
+			} else if req.FromDate != "" {
+				t, err := time.Parse("2006-01-02", req.FromDate)
+				if err == nil {
+					fromTimestamp = t.UnixMilli()
+				}
+			}
+
+			if fromTimestamp == 0 {
+				// 預設同步 120 天
+				fromTimestamp = time.Now().AddDate(0, 0, -120).UnixMilli()
+			}
+
 			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, fromTimestamp)
 		}
 
