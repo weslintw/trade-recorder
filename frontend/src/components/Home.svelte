@@ -18,7 +18,8 @@
   let isSyncing = false;
   let showAccountModal = false;
   let showBatchShareModal = false;
-  let pollingInterval;
+  let pollingTimeout;
+  let currentPollingInterval = 10000;
 
   // 批次分享相關狀態
   let selectionMode = false;
@@ -33,7 +34,9 @@
 
   // 響應式：當帳號或品種改變時，自動重新載入資料
   $: if ($selectedAccountId && $selectedSymbol) {
-    console.log(`🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`);
+    console.log(
+      `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
+    );
     loadData();
   }
 
@@ -47,9 +50,13 @@
 
   async function handleSync(options = {}) {
     if (!$selectedAccountId || isSyncing) return;
-    
+
     // If it's cTrader and no options provided, show modal
-    if (currentAccount?.type === 'ctrader' && Object.keys(options).length === 0 && !showSyncOptionsModal) {
+    if (
+      currentAccount?.type === 'ctrader' &&
+      Object.keys(options).length === 0 &&
+      !showSyncOptionsModal
+    ) {
       showSyncOptionsModal = true;
       return;
     }
@@ -72,22 +79,22 @@
   // Unique instance ID to track multiple instances
   const INSTANCE_ID = `Home-${Math.random().toString(36).substr(2, 9)}`;
   console.log(`🏠 Home component created: ${INSTANCE_ID}`);
-  
+
   let loadDataCallCount = 0;
   let refreshAccountsCallCount = 0;
-  let isLoadingData = false;  // Global lock
-  
+  let isLoadingData = false; // Global lock
+
   async function loadData(silent = false) {
     // Prevent concurrent execution
     if (isLoadingData) {
       console.warn(`⚠️ [${INSTANCE_ID}] loadData already running, skipping call`);
       return;
     }
-    
+
     loadDataCallCount++;
     isLoadingData = true;
     console.log(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} called, silent:`, silent);
-    
+
     try {
       if (!silent) {
         loading = true;
@@ -98,7 +105,9 @@
       // 更新今天日期文字
       todayString = new Date().toISOString().slice(0, 10);
 
-      console.log(`🔵 [${INSTANCE_ID}] Fetching data for account=${$selectedAccountId}, symbol=${symbol}`);
+      console.log(
+        `🔵 [${INSTANCE_ID}] Fetching data for account=${$selectedAccountId}, symbol=${symbol}`
+      );
 
       // 分別獲取，避免一個失敗全部失敗
       let plans = [];
@@ -107,7 +116,11 @@
       console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
       try {
         const startPlans = performance.now();
-        const plansRes = await dailyPlansAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 20 });
+        const plansRes = await dailyPlansAPI.getAll({
+          account_id: $selectedAccountId,
+          symbol,
+          page_size: 20,
+        });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
         console.log(`⏱️ Plans fetched in ${(performance.now() - startPlans).toFixed(2)}ms`);
       } catch (e) {
@@ -116,7 +129,11 @@
 
       try {
         const startTrades = performance.now();
-        const tradesRes = await tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 });
+        const tradesRes = await tradesAPI.getAll({
+          account_id: $selectedAccountId,
+          symbol,
+          page_size: 50,
+        });
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
         console.log(`⏱️ Trades fetched in ${(performance.now() - startTrades).toFixed(2)}ms`);
       } catch (e) {
@@ -126,7 +143,9 @@
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
 
-      console.log(`🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`);
+      console.log(
+        `🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`
+      );
 
       // 按日期分組 (YYYY-MM-DD)
       const dateMap = {};
@@ -138,7 +157,7 @@
         try {
           // Pre-parse trend analysis to avoid template errors & const limitations
           plan.trendData = parseJSONSafe(plan.trend_analysis, {});
-          
+
           if (!plan.plan_date) return;
           const planDateObj = new Date(plan.plan_date);
           if (isNaN(planDateObj.getTime())) {
@@ -195,7 +214,7 @@
       newGroupedData.forEach(day => {
         // 先對卡片進行排序：最新平倉的在最上面 (未平倉視為最新)
         day.groupedTrades.sort((a, b) => {
-          const getTime = (g) => {
+          const getTime = g => {
             if (g.trades.some(t => !t.exit_time)) return Infinity; // 未平倉置頂
             return Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
           };
@@ -209,7 +228,7 @@
           }
         });
       });
-      
+
       groupedData = newGroupedData;
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
       console.log('Final groupedData:', groupedData);
@@ -217,44 +236,71 @@
       console.error('載入首頁資料失敗 (Top Level):', error);
     } finally {
       loading = false;
-      isLoadingData = false;  // Release lock
+      isLoadingData = false; // Release lock
     }
   }
 
   // 獨立更新帳號狀態 (不觸發 loading UI)
   let lastAccountsData = null;
+  let isRefreshingAccounts = false;
   async function refreshAccounts() {
+    if (isRefreshingAccounts) return;
+    isRefreshingAccounts = true;
+
     refreshAccountsCallCount++;
     console.log(`🟢 refreshAccounts #${refreshAccountsCallCount} called`);
-    
+
     try {
       const startTime = performance.now();
       const res = await accountsAPI.getAll();
       const duration = (performance.now() - startTime).toFixed(2);
-      
+
       if (res && res.data) {
-        console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: API took ${duration}ms, returned ${res.data.length} accounts`);
-        // 只有当数据真正变化时才更新 store
+        console.log(
+          `🟢 refreshAccounts #${refreshAccountsCallCount}: API took ${duration}ms, returned ${res.data.length} accounts`
+        );
+        // 只有當資料真正變化時才更新 store
         const newData = JSON.stringify(res.data);
         if (newData !== lastAccountsData) {
-          console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: Data changed, updating store`);
+          console.log(
+            `🟢 refreshAccounts #${refreshAccountsCallCount}: Data changed, updating store`
+          );
           lastAccountsData = newData;
           accounts.set(res.data);
         } else {
-          console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: Data unchanged, skipping update`);
+          // console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: Data unchanged, skipping update`);
         }
       }
     } catch (e) {
       console.error('Failed to refresh accounts:', e);
+    } finally {
+      isRefreshingAccounts = false;
     }
+  }
+  async function poll() {
+    if (pollingTimeout) clearTimeout(pollingTimeout);
+
+    if ($selectedAccountId) {
+      console.log(`[Polling] Triggering refresh... interval: ${currentPollingInterval}ms`);
+      await Promise.all([loadData(true), refreshAccounts()]);
+
+      // 動態更新頻率
+      const hasOpenPositions = timeGroupedTrades.some(
+        group => group.trades && group.trades.some(t => !t.exit_time)
+      );
+      currentPollingInterval = hasOpenPositions ? 3000 : 15000;
+    }
+
+    // 只有在組件未銷毀時繼續下一次
+    pollingTimeout = setTimeout(poll, currentPollingInterval);
   }
 
   onMount(async () => {
     console.log('=== 🏠 Home onMount START ===');
-    
+
     // Step 1: 預加載帳號列表
     await refreshAccounts();
-    
+
     // Step 2: 檢查當前選取的帳號是否有效
     const accountExists = $accounts.some(a => a.id === $selectedAccountId);
     if ($accounts.length > 0) {
@@ -265,38 +311,9 @@
     } else {
       loading = false; // No accounts, stop loading spinner
     }
-    
-    // Step 3: 設定定時輪詢
-    let currentPollingInterval = 10000;
-    
-    const updatePollingInterval = () => {
-      const hasOpenPositions = timeGroupedTrades.some(group => 
-        group.trades && group.trades.some(t => !t.exit_time)
-      );
-      
-      const newInterval = hasOpenPositions ? 2000 : 10000;
-      
-      if (newInterval !== currentPollingInterval) {
-        currentPollingInterval = newInterval;
-        if (pollingInterval) clearInterval(pollingInterval);
-        
-        pollingInterval = setInterval(async () => {
-          if ($selectedAccountId) {
-            await loadData(true);
-            await refreshAccounts();
-            updatePollingInterval();
-          }
-        }, currentPollingInterval);
-      }
-    };
 
-    pollingInterval = setInterval(async () => {
-      if ($selectedAccountId) {
-        await loadData(true);
-        await refreshAccounts();
-        updatePollingInterval();
-      }
-    }, currentPollingInterval);
+    // Step 3: 啟動輪詢 (使用延時確保初次載入已完成)
+    setTimeout(poll, 2000);
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
@@ -306,17 +323,17 @@
         sessionStorage.removeItem('home_scroll_pos');
       }, 300);
     }
-    
+
     console.log('=== 🏠 Home onMount END ===');
   });
 
   onDestroy(() => {
     console.log('=== onDestroy: Cleaning up ===');
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
+    if (pollingTimeout) {
+      clearTimeout(pollingTimeout);
     }
   });
-  
+
   // Manual reload function for when user changes selection from UI
   export function reloadData() {
     console.log('🔄 Manual reload triggered');
@@ -384,7 +401,6 @@
     }
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
-
 
   function openImageModal(imagePath) {
     if (!imagePath) return;
@@ -550,9 +566,9 @@
   function toggleDaySelection(group) {
     const tradeIds = group.groupedTrades.flatMap(gt => gt.trades.map(t => t.id));
     const planIds = group.plans.map(p => p.id);
-    
-    const allSelected = tradeIds.every(id => selectedTrades.has(id)) && 
-                        planIds.every(id => selectedPlans.has(id));
+
+    const allSelected =
+      tradeIds.every(id => selectedTrades.has(id)) && planIds.every(id => selectedPlans.has(id));
 
     if (allSelected) {
       tradeIds.forEach(id => selectedTrades.delete(id));
@@ -561,7 +577,7 @@
       tradeIds.forEach(id => selectedTrades.add(id));
       planIds.forEach(id => selectedPlans.add(id));
     }
-    
+
     selectedTrades = selectedTrades;
     selectedPlans = selectedPlans;
   }
@@ -579,12 +595,12 @@
         resource_id: 0,
         resource_ids: {
           trades: Array.from(selectedTrades),
-          plans: Array.from(selectedPlans)
+          plans: Array.from(selectedPlans),
         },
-        share_type: 'public'
+        share_type: 'public',
       });
       generatedShareToken = res.data.token;
-      
+
       // 顯示成功訊息並關閉選取模式
       const shareUrl = `${window.location.origin}/shared/${generatedShareToken}?title=SharedSelection`;
       await navigator.clipboard.writeText(shareUrl);
@@ -612,9 +628,7 @@
                 ? 'badge-mt5'
                 : 'badge-ctrader'}"
           >
-            {currentAccount.type === 'local'
-              ? '本地帳號'
-              : 'cTrader'}
+            {currentAccount.type === 'local' ? '本地帳號' : 'cTrader'}
           </span>
           <span
             class="badge {currentAccount.status === 'active' ? 'badge-success' : 'badge-danger'}"
@@ -643,13 +657,13 @@
           {#if currentAccount.type !== 'local'}
             <div class="sync-status-info">
               <span
-                class="sync-badge {currentAccount.sync_status} {
-                  currentAccount.sync_status?.toLowerCase().includes('syncing') ||
-                  currentAccount.sync_status?.toLowerCase().includes('fetching') ||
-                  currentAccount.sync_status?.toLowerCase().includes('scanning')
+                class="sync-badge {currentAccount.sync_status} {currentAccount.sync_status
+                  ?.toLowerCase()
+                  .includes('syncing') ||
+                currentAccount.sync_status?.toLowerCase().includes('fetching') ||
+                currentAccount.sync_status?.toLowerCase().includes('scanning')
                   ? 'syncing'
-                  : ''}"
-                >{currentAccount.sync_status}</span
+                  : ''}">{currentAccount.sync_status}</span
               >
               {#if currentAccount.last_synced_at}
                 <span class="sync-time">
@@ -672,7 +686,16 @@
                   {#if isSyncing}
                     ⏳
                   {:else}
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
                       <path d="M21 2v6h-6"></path>
                       <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
                       <path d="M3 22v-6h6"></path>
@@ -753,11 +776,13 @@
         <div class="day-wrapper">
           <div class="day-marker">
             {#if selectionMode}
-              <input 
-                type="checkbox" 
-                class="day-checkbox" 
-                checked={group.groupedTrades.flatMap(gt => gt.trades.map(t => t.id)).every(id => selectedTrades.has(id)) && 
-                         group.plans.map(p => p.id).every(id => selectedPlans.has(id))}
+              <input
+                type="checkbox"
+                class="day-checkbox"
+                checked={group.groupedTrades
+                  .flatMap(gt => gt.trades.map(t => t.id))
+                  .every(id => selectedTrades.has(id)) &&
+                  group.plans.map(p => p.id).every(id => selectedPlans.has(id))}
                 on:change={() => toggleDaySelection(group)}
               />
             {/if}
@@ -771,10 +796,22 @@
                 {#each group.plans as plan}
                   {@const trendData = parseJSONSafe(plan.trend_analysis, {})}
                   {@const isUnified = plan.market_session === 'all'}
-                  <div class="plan-item-card {selectionMode && selectedPlans.has(plan.id) ? 'selected' : ''}" on:click={() => selectionMode ? togglePlanSelection(plan.id) : navigate(`/plans/edit/${plan.id}`)}>
+                  <div
+                    class="plan-item-card {selectionMode && selectedPlans.has(plan.id)
+                      ? 'selected'
+                      : ''}"
+                    on:click={() =>
+                      selectionMode
+                        ? togglePlanSelection(plan.id)
+                        : navigate(`/plans/edit/${plan.id}`)}
+                  >
                     {#if selectionMode}
                       <div class="card-selection-overlay">
-                        <input type="checkbox" checked={selectedPlans.has(plan.id)} on:click|stopPropagation />
+                        <input
+                          type="checkbox"
+                          checked={selectedPlans.has(plan.id)}
+                          on:click|stopPropagation
+                        />
                       </div>
                     {/if}
                     <div class="item-header">
@@ -858,14 +895,22 @@
                       <div
                         class="trade-time-group is-multi {timeGroup.trades[0].color_tag
                           ? `tag-${timeGroup.trades[0].color_tag}`
-                          : ''} {selectionMode && timeGroup.trades.every(t => selectedTrades.has(t.id)) ? 'selected' : ''}"
-                        on:click={() => selectionMode ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id)) : navigateWithScroll(`/edit/${timeGroup.trades[0].id}`)}
+                          : ''} {selectionMode &&
+                        timeGroup.trades.every(t => selectedTrades.has(t.id))
+                          ? 'selected'
+                          : ''}"
+                        on:click={() =>
+                          selectionMode
+                            ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id))
+                            : navigateWithScroll(`/edit/${timeGroup.trades[0].id}`)}
                       >
                         {#if selectionMode}
                           <div class="card-selection-overlay">
-                            <input type="checkbox" 
-                              checked={timeGroup.trades.every(t => selectedTrades.has(t.id))} 
-                              on:click|stopPropagation={() => timeGroup.trades.forEach(t => toggleTradeSelection(t.id))} 
+                            <input
+                              type="checkbox"
+                              checked={timeGroup.trades.every(t => selectedTrades.has(t.id))}
+                              on:click|stopPropagation={() =>
+                                timeGroup.trades.forEach(t => toggleTradeSelection(t.id))}
                             />
                           </div>
                         {/if}
@@ -928,25 +973,45 @@
                               </div>
                             {/if}
                             <span
-                              class="pnl-tag {timeGroup.summary.totalPnl >= 0 ? (timeGroup.summary.totalPnl === 0 && !timeGroup.trades.some(t => t.pnl !== null) ? 'na' : 'profit') : 'loss'}"
+                              class="pnl-tag {timeGroup.summary.totalPnl >= 0
+                                ? timeGroup.summary.totalPnl === 0 &&
+                                  !timeGroup.trades.some(t => t.pnl !== null)
+                                  ? 'na'
+                                  : 'profit'
+                                : 'loss'}"
                             >
-                              {timeGroup.summary.totalPnl === 0 && !timeGroup.trades.some(t => t.pnl !== null)
+                              {timeGroup.summary.totalPnl === 0 &&
+                              !timeGroup.trades.some(t => t.pnl !== null)
                                 ? 'NA'
-                                : (timeGroup.summary.totalPnl >= 0 ? '+' : '') + timeGroup.summary.totalPnl?.toFixed?.(2)}
+                                : (timeGroup.summary.totalPnl >= 0 ? '+' : '') +
+                                  timeGroup.summary.totalPnl?.toFixed?.(2)}
                             </span>
                             <button
-                               class="sync-btn-card"
-                               on:click|stopPropagation={() => syncSingleTrade(timeGroup.trades[0].id)}
-                               title="重新整理此交易資料"
+                              class="sync-btn-card"
+                              on:click|stopPropagation={() =>
+                                syncSingleTrade(timeGroup.trades[0].id)}
+                              title="重新整理此交易資料"
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                ><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path
+                                  d="M21 3v5h-5"
+                                /></svg
+                              >
                             </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
-                            <button
-                              class="icon-btn delete"
-                              on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
-                              >🗑️</button
-                            >
+                              <button
+                                class="icon-btn delete"
+                                on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
+                                >🗑️</button
+                              >
                             {/if}
                           </div>
                         </div>
@@ -977,8 +1042,15 @@
                                     >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
                                   >
                                 {/if}
-                                <span class="partial-pnl {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}"
-                                  >{trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + trade.pnl?.toFixed(2)}</span
+                                <span
+                                  class="partial-pnl {trade.pnl >= 0
+                                    ? trade.pnl === null
+                                      ? ''
+                                      : 'profit'
+                                    : 'loss'}"
+                                  >{trade.pnl === null || trade.pnl === undefined
+                                    ? 'NA'
+                                    : (trade.pnl >= 0 ? '+' : '') + trade.pnl?.toFixed(2)}</span
                                 >
                                 {#if trade.pnl_series}
                                   <div class="partial-sparkline">
@@ -1001,13 +1073,18 @@
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
                       <div
-                        class="trade-item-card {trade.color_tag ? `tag-${trade.color_tag}` : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''}"
-                        on:click={() => selectionMode ? toggleTradeSelection(trade.id) : navigateWithScroll(`/edit/${trade.id}`)}
+                        class="trade-item-card {trade.color_tag
+                          ? `tag-${trade.color_tag}`
+                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''}"
+                        on:click={() =>
+                          selectionMode
+                            ? toggleTradeSelection(trade.id)
+                            : navigateWithScroll(`/edit/${trade.id}`)}
                       >
                         {#if selectionMode}
-                          <input 
-                            type="checkbox" 
-                            class="selection-checkbox" 
+                          <input
+                            type="checkbox"
+                            class="selection-checkbox"
                             checked={selectedTrades.has(trade.id)}
                             on:click|stopPropagation={() => toggleTradeSelection(trade.id)}
                           />
@@ -1060,24 +1137,45 @@
                                 />
                               </div>
                             {/if}
-                            <span class="pnl-tag {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}">
-                              {trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + (typeof trade.pnl === 'number'
-                                ? trade.pnl.toFixed(2)
-                                : trade.pnl)}
+                            <span
+                              class="pnl-tag {trade.pnl >= 0
+                                ? trade.pnl === null
+                                  ? ''
+                                  : 'profit'
+                                : 'loss'}"
+                            >
+                              {trade.pnl === null || trade.pnl === undefined
+                                ? 'NA'
+                                : (trade.pnl >= 0 ? '+' : '') +
+                                  (typeof trade.pnl === 'number'
+                                    ? trade.pnl.toFixed(2)
+                                    : trade.pnl)}
                             </span>
                             <button
-                               class="sync-btn-card"
-                               on:click|stopPropagation={() => syncSingleTrade(trade.id)}
-                               title="重新整理此交易資料"
+                              class="sync-btn-card"
+                              on:click|stopPropagation={() => syncSingleTrade(trade.id)}
+                              title="重新整理此交易資料"
                             >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                ><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path
+                                  d="M21 3v5h-5"
+                                /></svg
+                              >
                             </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
-                            <button
-                              class="icon-btn delete"
-                              on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
-                              >🗑️</button
-                            >
+                              <button
+                                class="icon-btn delete"
+                                on:click|stopPropagation={() => deleteTradeGroup(timeGroup)}
+                                >🗑️</button
+                              >
                             {/if}
                           </div>
                         </div>
@@ -1181,16 +1279,16 @@
   }}
 />
 
-<BatchShareModal 
-  bind:show={showBatchShareModal} 
+<BatchShareModal
+  bind:show={showBatchShareModal}
   resourceTitle={currentAccount ? currentAccount.name + '_Shared' : 'SharedAccount'}
-  on:startSelection={startSelection} 
+  on:startSelection={startSelection}
 />
 
 <SyncOptionsModal
   show={showSyncOptionsModal}
   on:close={() => (showSyncOptionsModal = false)}
-  on:sync={(e) => handleSync(e.detail)}
+  on:sync={e => handleSync(e.detail)}
 />
 
 {#if selectedImage}
@@ -1632,7 +1730,7 @@
   }
 
   .is-multi .sync-btn-card {
-     right: 2rem; /* 在組合單中避開可能的垃圾桶 */
+    right: 2rem; /* 在組合單中避開可能的垃圾桶 */
   }
 
   /* Plan Mini styles */
@@ -1817,7 +1915,7 @@
     flex-direction: column;
     gap: 0.35rem; /* 稍微分開標籤行與 ID 行 */
   }
-  
+
   .ticket-tag {
     display: inline-flex;
     align-items: center;
@@ -2406,9 +2504,15 @@
   }
 
   @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.6; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 
   .sync-time {
@@ -2451,7 +2555,8 @@
     margin-left: 0.5rem;
   }
 
-  .storage-info-chip, .login-id-chip {
+  .storage-info-chip,
+  .login-id-chip {
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -2463,12 +2568,14 @@
     color: var(--text-muted);
   }
 
-  .storage-info-chip .label, .login-id-chip .label {
+  .storage-info-chip .label,
+  .login-id-chip .label {
     font-weight: 600;
     opacity: 0.8;
   }
 
-  .storage-info-chip .value, .login-id-chip .value {
+  .storage-info-chip .value,
+  .login-id-chip .value {
     color: var(--text-main);
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
@@ -2560,8 +2667,14 @@
   }
 
   @keyframes barSlideDown {
-    from { top: -5rem; opacity: 0; }
-    to { top: 2rem; opacity: 1; }
+    from {
+      top: -5rem;
+      opacity: 0;
+    }
+    to {
+      top: 2rem;
+      opacity: 1;
+    }
   }
 
   .selection-info {
