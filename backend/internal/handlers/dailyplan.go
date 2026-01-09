@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"trade-journal/internal/models"
+	"trade-journal/internal/ws"
 
 	"github.com/gin-gonic/gin"
 )
@@ -231,6 +232,7 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		id, _ := result.LastInsertId()
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "規劃建立成功"})
+		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
 	}
 }
 
@@ -274,6 +276,7 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "規劃更新成功"})
+		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
 	}
 }
 
@@ -296,5 +299,8 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "規劃刪除成功"})
+		// 這裡因為刪除時沒有傳入 AccountID 在 Request，
+		// 但我們可以使用 0 廣播或是先查詢。為了簡化，廣播 0 (Global)
+		ws.GlobalHub.BroadcastUpdate(0, "TRADE_UPDATE")
 	}
 }

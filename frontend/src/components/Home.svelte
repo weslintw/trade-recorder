@@ -19,7 +19,8 @@
   let showAccountModal = false;
   let showBatchShareModal = false;
   let pollingTimeout;
-  let currentPollingInterval = 10000;
+  let currentPollingInterval = 60000; // 預設閒置輪詢改為 60 秒 (僅作為 WebSocket 的備援)
+  let ws;
 
   // 批次分享相關狀態
   let selectionMode = false;
@@ -277,21 +278,83 @@
       isRefreshingAccounts = false;
     }
   }
+  function initRealtimeNotifications() {
+    if (ws) {
+      ws.onclose = null;
+      ws.close();
+    }
+
+    // 取得當前 API 的 Base URL 並轉換為 ws/wss
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // 假設後端與前端同 Host，或是從 API 配置中取得
+    const host = window.location.host.includes('localhost')
+      ? 'localhost:8080'
+      : window.location.host;
+    const wsUrl = `${protocol}//${host}/api/v1/ws`;
+
+    console.log(`[Realtime] Connecting to ${wsUrl}...`);
+    ws = new WebSocket(wsUrl);
+
+    ws.onmessage = event => {
+      try {
+        const msg = JSON.parse(event.data);
+        // console.log('[Realtime] Message received:', msg);
+
+        if (msg.type === 'TRADE_UPDATE') {
+          if (!msg.account_id || msg.account_id === $selectedAccountId) {
+            console.log('🚀 [Realtime] Trade update detected, reloading...');
+            loadData(true);
+            refreshAccounts();
+          }
+        } else if (msg.type === 'PRICE_UPDATE') {
+          if (!msg.account_id || msg.account_id === $selectedAccountId) {
+            throttledLoadData();
+          }
+        }
+      } catch (e) {
+        console.error('[Realtime] Parse error:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[Realtime] Disconnected, retrying in 5s...');
+      setTimeout(initRealtimeNotifications, 5000);
+    };
+
+    ws.onerror = err => {
+      console.error('[Realtime] WS Error:', err);
+    };
+  }
+
+  // 節流處理價格更新，避免過度頻繁的 API 請求
+  let lastRealtimeLoadTime = 0;
+  function throttledLoadData() {
+    const now = Date.now();
+    if (now - lastRealtimeLoadTime > 2000) {
+      lastRealtimeLoadTime = now;
+      console.log('📈 [Realtime] Price update detected, refreshing...');
+      loadData(true);
+      refreshAccounts();
+    }
+  }
+
   async function poll() {
     if (pollingTimeout) clearTimeout(pollingTimeout);
 
-    if ($selectedAccountId) {
-      console.log(`[Polling] Triggering refresh... interval: ${currentPollingInterval}ms`);
-      await Promise.all([loadData(true), refreshAccounts()]);
-
-      // 動態更新頻率
-      const hasOpenPositions = timeGroupedTrades.some(
-        group => group.trades && group.trades.some(t => !t.exit_time)
-      );
-      currentPollingInterval = hasOpenPositions ? 3000 : 15000;
+    // 如果 WebSocket 斷線，則維持基本的輪詢
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if ($selectedAccountId) {
+        console.log(`[Fallback Polling] Triggering refresh...`);
+        await Promise.all([loadData(true), refreshAccounts()]);
+      }
+    } else {
+      // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
+      if ($selectedAccountId) {
+        // console.log(`[Health Check] Routine refresh...`);
+        await refreshAccounts(); // 僅刷新帳號狀態
+      }
     }
 
-    // 只有在組件未銷毀時繼續下一次
     pollingTimeout = setTimeout(poll, currentPollingInterval);
   }
 
@@ -312,8 +375,9 @@
       loading = false; // No accounts, stop loading spinner
     }
 
-    // Step 3: 啟動輪詢 (使用延時確保初次載入已完成)
-    setTimeout(poll, 2000);
+    // Step 3: 啟動即時通知與備援輪詢
+    initRealtimeNotifications();
+    setTimeout(poll, 5000);
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
@@ -331,6 +395,10 @@
     console.log('=== onDestroy: Cleaning up ===');
     if (pollingTimeout) {
       clearTimeout(pollingTimeout);
+    }
+    if (ws) {
+      ws.onclose = null; // 阻止自動重連
+      ws.close();
     }
   });
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 	"trade-journal/internal/models"
+	"trade-journal/internal/ws"
 )
 
 const MetaApiBaseURL = "https://mt-client-api-v1.new-york.agiliumtrade.ai"
@@ -24,6 +25,7 @@ func SyncMT5History(db *sql.DB, accountID int64, mt5AccountID string, token stri
 	}
 
 	db.Exec("UPDATE accounts SET sync_status = 'success', last_sync_error = '', last_synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
+	ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 	return nil
 }
 

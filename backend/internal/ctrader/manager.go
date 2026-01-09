@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"trade-journal/internal/ws"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -557,6 +559,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				log.Printf("[cTrader Manager] Failed to insert Push Closed trade: %v", err)
 			} else {
 				log.Printf("[cTrader Manager] Successfully inserted Push Closed trade: %s", ticket)
+				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 
 				// TRIGGER IMMEDIATE SPARKLINE SYNC FOR CLOSED TRADE
 				go func(tStr string, accID int64, ent float64, startMilli, endMilli int64, sid int64, sStr string, v int64) {
@@ -603,6 +606,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				log.Printf("[cTrader Manager] Failed to insert Push Open trade: %v", err)
 			} else {
 				log.Printf("[cTrader Manager] Successfully inserted Push Open trade: %s", ticket)
+				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 				// TRIGGER IMMEDIATE SPARKLINE SYNC FOR NEW OPEN POSITION
 				go m.triggerSyncForTrade(accountID, ticket, deal.ExecutionPrice, entryMilli, time.Now().UnixMilli(), deal.SymbolID, side, deal.Volume)
 			}
@@ -692,6 +696,7 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 		if err == nil && res != nil {
 			if n, _ := res.RowsAffected(); n > 0 {
 				// Updated
+				ws.GlobalHub.BroadcastUpdate(accountID, "PRICE_UPDATE")
 			}
 		}
 	}

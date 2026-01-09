@@ -13,6 +13,7 @@ import (
 	"trade-journal/internal/handlers"
 	"trade-journal/internal/middleware"
 	"trade-journal/internal/minio"
+	"trade-journal/internal/ws"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -35,6 +36,8 @@ func changeLogOutput() {
 
 func main() {
 	changeLogOutput()
+	// 初始化 WebSocket Hub
+	ws.Init()
 
 	// 初始化資料庫
 	db, err := database.InitDB()
@@ -168,6 +171,18 @@ func main() {
 
 			// cTrader OAuth 啟動 (需要認證)
 			authorized.GET("/auth/ctrader/url", handlers.CTraderAuthURL(db))
+
+			// WebSocket (同樣在 authorized 底下，但通常不直接進 auth middleware 攔截，除非升級前檢查)
+			authorized.GET("/ws", func(c *gin.Context) {
+				conn, err := ws.GetUpgrader().Upgrade(c.Writer, c.Request, nil)
+				if err != nil {
+					return
+				}
+				client := &ws.Client{Hub: ws.GlobalHub, Conn: conn, Send: make(chan []byte, 256)}
+				ws.GlobalHub.Register() <- client
+				go client.WritePump()
+				go client.ReadPump()
+			})
 		}
 
 		// 公開路由
