@@ -38,13 +38,11 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 
 		offset := (query.Page - 1) * query.PageSize
 
-		// 建立查詢
+		// 建立查詢 (優化版：排除重量級欄位以加速傳輸)
 		sqlQuery := `
 		SELECT DISTINCT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, 
-			   t.lot_size, t.pnl, t.pnl_points, COALESCE(t.notes, ''), t.entry_reason, t.exit_reason,
-			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
-			   t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
-			   t.legend_king_htf, t.legend_king_image, t.legend_king_image_original, t.legend_htf, t.legend_htf_image, t.legend_htf_image_original, t.legend_de_htf,
+			   t.lot_size, t.pnl, t.pnl_points, t.entry_strategy, t.entry_timeframe, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, 
+			   COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
 			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series
 		FROM trades t
 		LEFT JOIN accounts a ON t.account_id = a.id
@@ -103,10 +101,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			var trade models.Trade
 			err := rows.Scan(
 				&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
-				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
-				&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
-				&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio, &trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
-				&trade.LegendKingHTF, &trade.LegendKingImage, &trade.LegendKingImageOriginal, &trade.LegendHTF, &trade.LegendHTFImage, &trade.LegendHTFImageOriginal, &trade.LegendDeHTF,
+				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.EntryStrategy, &trade.EntryTimeframe, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio,
+				&trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
 				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries,
 			)
 			if err != nil {
