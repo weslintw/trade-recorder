@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"time"
@@ -131,7 +132,11 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
 
-		log.Printf("[GetDailyPlans PERF] Total duration: %v, items: %d, total: %d", time.Since(startTime), len(plans), total)
+		// Estimate size
+		jsonData, _ := json.Marshal(plans)
+		sizeKB := float64(len(jsonData)) / 1024
+
+		log.Printf("[GetDailyPlans PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", time.Since(startTime), len(plans), total, sizeKB)
 		c.JSON(http.StatusOK, gin.H{
 			"data":      plans,
 			"total":     total,

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -202,7 +203,11 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		var total int
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
 
-		log.Printf("[GetTrades PERF] Total duration: %v, items: %d, total: %d", time.Since(startTime), len(trades), total)
+		// Estimate size
+		jsonData, _ := json.Marshal(trades)
+		sizeKB := float64(len(jsonData)) / 1024
+
+		log.Printf("[GetTrades PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", time.Since(startTime), len(trades), total, sizeKB)
 
 		c.JSON(http.StatusOK, gin.H{
 			"data": trades,
