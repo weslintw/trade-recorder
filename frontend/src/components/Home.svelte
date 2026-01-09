@@ -1923,8 +1923,28 @@
 
   .group-header .info-group strong {
     font-size: 0.85rem;
-    color: #1e293b;
+    color: var(--text-main);
     font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Dark Mode Overrides for Multi-trade Groups */
+  :global(body.dark-mode) .trade-time-group.is-multi {
+    background: rgba(244, 114, 182, 0.08);
+    border-color: rgba(244, 114, 182, 0.4);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  :global(body.dark-mode) .group-header .info-group {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(244, 114, 182, 0.2);
+  }
+
+  :global(body.dark-mode) .group-header {
+    border-bottom-color: rgba(244, 114, 182, 0.15);
+  }
+
+  :global(body.dark-mode) .partial-close-row:not(:last-child) {
+    border-bottom-color: rgba(255, 255, 255, 0.05);
   }
 
   .group-pnl {
