@@ -377,7 +377,7 @@
 
     // Step 3: 啟動即時通知與備援輪詢
     initRealtimeNotifications();
-    setTimeout(poll, 5000);
+    setTimeout(poll, 12000); // 延後啟動備援輪詢，讓 initial load 先跑完
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');

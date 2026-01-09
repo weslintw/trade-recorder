@@ -645,7 +645,7 @@ func (m *Manager) handleDepthEvent(accountID int64, payload json.RawMessage, sym
 
 	// Throttle: reuse the same map/logic
 	if last, ok := lastSpotUpdates.Load(event.SymbolID); ok {
-		if time.Since(last.(time.Time)) < 1*time.Second {
+		if time.Since(last.(time.Time)) < 5*time.Second {
 			return
 		}
 	}

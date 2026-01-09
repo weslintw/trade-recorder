@@ -54,6 +54,10 @@ func InitDB() (*sql.DB, error) {
 }
 
 func createTables(db *sql.DB) error {
+	// 啟用 WAL 模式提高並發性能
+	db.Exec("PRAGMA journal_mode=WAL;")
+	db.Exec("PRAGMA synchronous=NORMAL;")
+
 	schema := `
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
