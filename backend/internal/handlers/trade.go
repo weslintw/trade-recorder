@@ -17,6 +17,7 @@ import (
 // GetTrades 取得交易清單
 func GetTrades(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		startTime := time.Now()
 		userID := c.GetInt64("user_id")
 		var query models.TradeQuery
 		if err := c.ShouldBindQuery(&query); err != nil {
@@ -201,7 +202,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		var total int
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
 
-		log.Printf("[GetTrades DEBUG] Result: %d items, Total: %d", len(trades), total)
+		log.Printf("[GetTrades PERF] Total duration: %v, items: %d, total: %d", time.Since(startTime), len(trades), total)
 
 		c.JSON(http.StatusOK, gin.H{
 			"data": trades,

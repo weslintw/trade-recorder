@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
+	"time"
 
 	"trade-journal/internal/models"
 
@@ -12,6 +14,7 @@ import (
 // GetDailyPlans 取得每日規劃清單
 func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		startTime := time.Now()
 		userID := c.GetInt64("user_id")
 		var query models.DailyPlanQuery
 		if err := c.ShouldBindQuery(&query); err != nil {
@@ -128,6 +131,7 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
 
+		log.Printf("[GetDailyPlans PERF] Total duration: %v, items: %d, total: %d", time.Since(startTime), len(plans), total)
 		c.JSON(http.StatusOK, gin.H{
 			"data":      plans,
 			"total":     total,

@@ -104,19 +104,27 @@
       let plans = [];
       let trades = [];
 
+      console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
       try {
+        const startPlans = performance.now();
         const plansRes = await dailyPlansAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 20 });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+        console.log(`⏱️ Plans fetched in ${(performance.now() - startPlans).toFixed(2)}ms`);
       } catch (e) {
         console.error('Failed to fetch plans:', e);
       }
 
       try {
+        const startTrades = performance.now();
         const tradesRes = await tradesAPI.getAll({ account_id: $selectedAccountId, symbol, page_size: 50 });
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+        console.log(`⏱️ Trades fetched in ${(performance.now() - startTrades).toFixed(2)}ms`);
       } catch (e) {
         console.error('Failed to fetch trades:', e);
       }
+      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
+
+      console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
 
       console.log(`🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`);
 
@@ -203,6 +211,7 @@
       });
       
       groupedData = newGroupedData;
+      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
       console.log('Final groupedData:', groupedData);
     } catch (error) {
       console.error('載入首頁資料失敗 (Top Level):', error);
@@ -219,8 +228,12 @@
     console.log(`🟢 refreshAccounts #${refreshAccountsCallCount} called`);
     
     try {
+      const startTime = performance.now();
       const res = await accountsAPI.getAll();
+      const duration = (performance.now() - startTime).toFixed(2);
+      
       if (res && res.data) {
+        console.log(`🟢 refreshAccounts #${refreshAccountsCallCount}: API took ${duration}ms, returned ${res.data.length} accounts`);
         // 只有当数据真正变化时才更新 store
         const newData = JSON.stringify(res.data);
         if (newData !== lastAccountsData) {

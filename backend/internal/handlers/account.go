@@ -20,6 +20,7 @@ import (
 // GetAccounts 取得所有帳號
 func GetAccounts(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		startTime := time.Now()
 		userID := c.GetInt64("user_id")
 		query := `
 			SELECT 
@@ -61,6 +62,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 			accounts = append(accounts, acc)
 		}
 
+		log.Printf("[GetAccounts PERF] Total duration: %v, count: %d", time.Since(startTime), len(accounts))
 		c.JSON(http.StatusOK, accounts)
 	}
 }
