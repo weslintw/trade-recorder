@@ -130,18 +130,19 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				args[i] = id
 			}
 
-			imgQuery := fmt.Sprintf(`
-				SELECT id, trade_id, image_type, image_path, created_at
+			imgQuery := `
+				SELECT id, trade_id, image_type, image_path, file_size, created_at
 				FROM trade_images 
 				WHERE trade_id IN (%s)
-			`, strings.Join(placeholders, ","))
+			`
+			imgQuery = fmt.Sprintf(imgQuery, strings.Join(placeholders, ","))
 
 			imgRows, err := db.Query(imgQuery, args...)
 			if err == nil {
 				defer imgRows.Close()
 				for imgRows.Next() {
 					var img models.Image
-					if err := imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.CreatedAt); err == nil {
+					if err := imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt); err == nil {
 						if t, ok := tradeMap[img.TradeID]; ok {
 							t.Images = append(t.Images, img)
 						}
@@ -321,8 +322,8 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		// 插入圖片
 		for _, img := range req.Images {
-			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path) VALUES (?, ?, ?)",
-				tradeID, img.ImageType, img.ImagePath)
+			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size) VALUES (?, ?, ?, ?)",
+				tradeID, img.ImageType, img.ImagePath, img.FileSize)
 		}
 
 		if err := tx.Commit(); err != nil {
@@ -526,14 +527,14 @@ func SyncSingleTrade(db *sql.DB) gin.HandlerFunc {
 func loadTradeRelations(db *sql.DB, trade *models.Trade) {
 	// 載入圖片
 	imgRows, _ := db.Query(`
-		SELECT id, trade_id, image_type, image_path, created_at
+		SELECT id, trade_id, image_type, image_path, file_size, created_at
 		FROM trade_images WHERE trade_id = ?
 	`, trade.ID)
 	defer imgRows.Close()
 
 	for imgRows.Next() {
 		var img models.Image
-		imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.CreatedAt)
+		imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt)
 		trade.Images = append(trade.Images, img)
 	}
 

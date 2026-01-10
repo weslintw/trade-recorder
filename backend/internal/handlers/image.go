@@ -51,9 +51,9 @@ func UploadImage(client *miniogo.Client) gin.HandlerFunc {
 			contentType = "image/jpeg"
 		}
 
-	_, err = client.PutObject(ctx, minio.BucketName, objectPath, file, header.Size, miniogo.PutObjectOptions{
-		ContentType: contentType,
-	})
+		_, err = client.PutObject(ctx, minio.BucketName, objectPath, file, header.Size, miniogo.PutObjectOptions{
+			ContentType: contentType,
+		})
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "圖片上傳失敗: " + err.Error()})
@@ -62,6 +62,7 @@ func UploadImage(client *miniogo.Client) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"path":    objectPath,
+			"size":    header.Size,
 			"message": "圖片上傳成功",
 		})
 	}
@@ -82,8 +83,8 @@ func GetImage(client *miniogo.Client) gin.HandlerFunc {
 			objectPath = filename
 		}
 
-	ctx := context.Background()
-	object, err := client.GetObject(ctx, minio.BucketName, objectPath, miniogo.GetObjectOptions{})
+		ctx := context.Background()
+		object, err := client.GetObject(ctx, minio.BucketName, objectPath, miniogo.GetObjectOptions{})
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "圖片不存在"})
 			return
@@ -106,4 +107,3 @@ func GetImage(client *miniogo.Client) gin.HandlerFunc {
 		io.Copy(c.Writer, object)
 	}
 }
-

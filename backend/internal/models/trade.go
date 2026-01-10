@@ -36,12 +36,12 @@ type Trade struct {
 	LegendKingHTF              *string    `json:"legend_king_htf,omitempty"`               // 傳奇：王者回調時區
 	LegendKingImage            *string    `json:"legend_king_image,omitempty"`             // 傳奇：王者回調圖片
 	LegendKingImageOriginal    *string    `json:"legend_king_image_original,omitempty"`
-	LegendHTF                  *string    `json:"legend_htf,omitempty"`                    // 傳奇：大時區破測破時區
-	LegendHTFImage             *string    `json:"legend_htf_image,omitempty"`              // 傳奇：大時區圖片
+	LegendHTF                  *string    `json:"legend_htf,omitempty"`       // 傳奇：大時區破測破時區
+	LegendHTFImage             *string    `json:"legend_htf_image,omitempty"` // 傳奇：大時區圖片
 	LegendHTFImageOriginal     *string    `json:"legend_htf_image_original,omitempty"`
-	LegendDeHTF                *string    `json:"legend_de_htf,omitempty"`                 // 傳奇：整理段時區
+	LegendDeHTF                *string    `json:"legend_de_htf,omitempty"` // 傳奇：整理段時區
 	EntryTime                  time.Time  `json:"entry_time"`
-	ColorTag                   *string    `json:"color_tag,omitempty"`                     // "red", "yellow", "green"
+	ColorTag                   *string    `json:"color_tag,omitempty"` // "red", "yellow", "green"
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
 	SLHistory                  *string    `json:"sl_history,omitempty"` // 所有曾經設定過的 SL 紀錄 (JSON array)
 	PnLSeries                  *string    `json:"pnl_series,omitempty"` // 持倉期間的盈虧序列 (JSON array)
@@ -57,6 +57,7 @@ type Image struct {
 	TradeID   int64     `json:"trade_id"`
 	ImageType string    `json:"image_type"` // "entry" 或 "exit"
 	ImagePath string    `json:"image_path"`
+	FileSize  int64     `json:"file_size"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -114,6 +115,7 @@ type TradeCreate struct {
 type ImageUpload struct {
 	ImageType string `json:"image_type" binding:"required,oneof=entry exit"`
 	ImagePath string `json:"image_path" binding:"required"`
+	FileSize  int64  `json:"file_size"`
 }
 
 // TradeQuery 查詢參數
@@ -158,12 +160,12 @@ type SymbolStats struct {
 
 // StrategyStats 策略統計 (達人/菁英/傳奇)
 type StrategyStats struct {
-	Strategy      string            `json:"strategy"`
-	TotalTrades   int               `json:"total_trades"`
-	WinningTrades int               `json:"winning_trades"`
-	WinRate       float64           `json:"win_rate"`
-	TotalPnL      float64           `json:"total_pnl"`
-	SubItemStats  []SubItemStats    `json:"sub_item_stats"`
+	Strategy      string         `json:"strategy"`
+	TotalTrades   int            `json:"total_trades"`
+	WinningTrades int            `json:"winning_trades"`
+	WinRate       float64        `json:"win_rate"`
+	TotalPnL      float64        `json:"total_pnl"`
+	SubItemStats  []SubItemStats `json:"sub_item_stats"`
 }
 
 // SubItemStats 策略子項目統計 (訊號/樣態/檢查項)

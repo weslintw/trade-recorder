@@ -121,6 +121,7 @@ func createTables(db *sql.DB) error {
 		trade_id INTEGER NOT NULL,
 		image_type VARCHAR(20) NOT NULL,
 		image_path VARCHAR(500) NOT NULL,
+		file_size INTEGER DEFAULT 0,
 		image_order INTEGER DEFAULT 0,
 		description TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -359,6 +360,9 @@ func createTables(db *sql.DB) error {
 
 	// 進階分享：添加 resource_ids 欄位
 	db.Exec("ALTER TABLE shares ADD COLUMN resource_ids TEXT;")
+
+	// 確保 trade_images 有 file_size
+	db.Exec("ALTER TABLE trade_images ADD COLUMN file_size INTEGER DEFAULT 0;")
 
 	return nil
 }
