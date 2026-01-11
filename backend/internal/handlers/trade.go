@@ -10,6 +10,7 @@ import (
 
 	"time"
 	"trade-journal/internal/ctrader"
+	"trade-journal/internal/database"
 	"trade-journal/internal/models"
 	"trade-journal/internal/ws"
 
@@ -333,6 +334,7 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusCreated, gin.H{"id": tradeID, "message": "交易紀錄建立成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
+		go database.UpdateAccountStorageUsage(db, req.AccountID)
 	}
 }
 
@@ -422,6 +424,7 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{"message": "交易紀錄更新成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
+		go database.UpdateAccountStorageUsage(db, req.AccountID)
 	}
 }
 
@@ -475,6 +478,7 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{"message": "交易紀錄刪除成功"})
 		ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
+		go database.UpdateAccountStorageUsage(db, accountID)
 	}
 }
 

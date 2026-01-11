@@ -19,10 +19,10 @@ type AdminAccountUsage struct {
 }
 
 type AdminUserUsage struct {
-	UserID    int64               `json:"user_id"`
-	Username  string              `json:"username"`
-	IsAdmin   bool                `json:"is_admin"`
-	Accounts  []AdminAccountUsage `json:"accounts"`
+	UserID   int64               `json:"user_id"`
+	Username string              `json:"username"`
+	IsAdmin  bool                `json:"is_admin"`
+	Accounts []AdminAccountUsage `json:"accounts"`
 }
 
 // GetSystemUsageStat 取得全系統使用狀況
@@ -51,7 +51,7 @@ func GetSystemUsageStat(db *sql.DB) gin.HandlerFunc {
 						LENGTH(COALESCE(exit_reason, ''))
 					), 0) FROM trades WHERE account_id = a.id
 				) + (
-					SELECT COALESCE(SUM(LENGTH(COALESCE(image_path, ''))), 0) 
+					SELECT COALESCE(SUM(file_size), 0) 
 					FROM trade_images 
 					WHERE trade_id IN (SELECT id FROM trades WHERE account_id = a.id)
 				) + (

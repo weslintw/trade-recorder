@@ -50,6 +50,10 @@ func InitDB() (*sql.DB, error) {
 	_, _ = db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL")
 
 	log.Println("資料庫初始化成功")
+
+	// 啟動時校準一次所有空間佔用（背景執行）
+	go UpdateAllAccountsStorageUsage(db)
+
 	return db, nil
 }
 

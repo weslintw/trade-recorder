@@ -30,10 +30,10 @@ func MigrateBase64ToMinIO(db *sql.DB, minioClient *miniogo.Client) {
 	// 1. 遷移每日規劃 (daily_plans)
 	migrateDailyPlans(db, minioClient)
 
-	// 2. 遷移交易紀錄 (trades)
-	migrateTrades(db, minioClient)
-
 	log.Printf("[Migration] 遷移作業完成，耗時: %v", time.Since(start))
+
+	// 遷移完成後，校準所有帳號的空間佔用量
+	UpdateAllAccountsStorageUsage(db)
 }
 
 func migrateDailyPlans(db *sql.DB, client *miniogo.Client) {

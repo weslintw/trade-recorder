@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"trade-journal/internal/database"
 	"trade-journal/internal/models"
 	"trade-journal/internal/ws"
 
@@ -270,6 +271,7 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		id, _ := result.LastInsertId()
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "規劃建立成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
+		go database.UpdateAccountStorageUsage(db, req.AccountID)
 	}
 }
 
@@ -314,6 +316,7 @@ func UpdateDailyPlan(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{"message": "規劃更新成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
+		go database.UpdateAccountStorageUsage(db, req.AccountID)
 	}
 }
 
@@ -322,6 +325,9 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 		userID := c.GetInt64("user_id")
+
+		var accountID int64
+		_ = db.QueryRow("SELECT account_id FROM daily_plans WHERE id = ?", id).Scan(&accountID)
 
 		res, err := db.Exec("DELETE FROM daily_plans WHERE id = ? AND id IN (SELECT p.id FROM daily_plans p JOIN accounts a ON p.account_id = a.id WHERE a.user_id = ?)", id, userID)
 		if err != nil {
@@ -336,8 +342,11 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "規劃刪除成功"})
-		// 這裡因為刪除時沒有傳入 AccountID 在 Request，
-		// 但我們可以使用 0 廣播或是先查詢。為了簡化，廣播 0 (Global)
-		ws.GlobalHub.BroadcastUpdate(0, "TRADE_UPDATE")
+		if accountID > 0 {
+			ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
+			go database.UpdateAccountStorageUsage(db, accountID)
+		} else {
+			ws.GlobalHub.BroadcastUpdate(0, "TRADE_UPDATE")
+		}
 	}
 }
