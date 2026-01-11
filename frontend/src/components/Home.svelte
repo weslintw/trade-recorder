@@ -99,7 +99,16 @@
     try {
       if (!silent) {
         loading = true;
-        groupedData = []; // 切換帳號/品種時先清空，確保顯示 Loading 或是正確的新狀態
+        groupedData = [];
+        // 保險機制：如果 8 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (可能是網路連線排隊或 ECONNABORTED)
+        setTimeout(() => {
+          if (loading && isLoadingData) {
+            console.warn(
+              `[${INSTANCE_ID}] Loading state safety timeout triggered (8s). Forcing spinner OFF.`
+            );
+            loading = false;
+          }
+        }, 8000);
       }
       const symbol = $selectedSymbol;
 
@@ -382,9 +391,11 @@
       loading = false; // No accounts, stop loading spinner
     }
 
-    // Step 3: 啟動即時通知與備援輪詢
-    initRealtimeNotifications();
-    setTimeout(poll, 12000); // 延後啟動備援輪詢，讓 initial load 先跑完
+    // Step 3: 延後啟動即時通知與備援輪詢，避免跟 Initial Data 搶瀏覽器併發連線
+    setTimeout(() => {
+      initRealtimeNotifications();
+      poll();
+    }, 5000);
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
