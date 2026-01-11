@@ -89,16 +89,11 @@
 
   let loadDataCallCount = 0;
   let refreshAccountsCallCount = 0;
-  let isLoadingData = false; // Global lock
+  let activeLoadCallId = 0; // 新增：追蹤當前最新的加載 ID，防止舊請求覆蓋新請求
 
   async function loadData(silent = false) {
-    // Prevent concurrent execution
-    if (isLoadingData) {
-      if (!silent) {
-        console.warn(`[${INSTANCE_ID}] loadData already in progress, skipping...`);
-      }
-      return;
-    }
+    const callId = ++loadDataCallCount; // 每次調用產生唯一 ID
+    activeLoadCallId = callId;
 
     // Abort previous request before starting new one
     if (loadController) {
@@ -108,9 +103,7 @@
     loadController = new AbortController();
     const { signal } = loadController;
 
-    loadDataCallCount++;
-    isLoadingData = true;
-    console.log(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} called, silent:`, silent);
+    console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent:`, silent);
 
     try {
       if (!silent) {
@@ -118,7 +111,7 @@
         groupedData = [];
         // 保險機制：如果 8 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (可能是網路連線排隊或 ECONNABORTED)
         setTimeout(() => {
-          if (loading && isLoadingData) {
+          if (loading && activeLoadCallId === callId) {
             console.warn(
               `[${INSTANCE_ID}] Loading state safety timeout triggered (8s). Forcing spinner OFF.`
             );
@@ -276,14 +269,27 @@
         });
       });
 
+      if (activeLoadCallId !== callId) {
+        console.log(
+          `[${INSTANCE_ID}] loadData #${callId} superseded by #${activeLoadCallId}, skipping UI update.`
+        );
+        return;
+      }
+
       groupedData = newGroupedData;
-      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
-      console.log('Final groupedData:', groupedData);
+      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
+      console.log(`Final groupedData (Call #${callId}):`, groupedData);
     } catch (error) {
-      console.error('載入首頁資料失敗 (Top Level):', error);
+      if (error.name === 'CanceledError' || error.name === 'AbortError') {
+        console.log(`[${INSTANCE_ID}] loadData #${callId} caught abort.`);
+      } else {
+        console.error(`載入首頁資料失敗 (Call #${callId}):`, error);
+      }
     } finally {
-      loading = false;
-      isLoadingData = false; // Release lock
+      // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
+      if (activeLoadCallId === callId) {
+        loading = false;
+      }
     }
   }
 
