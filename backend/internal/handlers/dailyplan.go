@@ -85,14 +85,29 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		plans := []models.DailyPlan{}
 		for rows.Next() {
 			var plan models.DailyPlan
+			var rawNotes, rawTrend string
 			err := rows.Scan(
-				&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
-				&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
+				&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &rawNotes,
+				&rawTrend, &plan.CreatedAt, &plan.UpdatedAt,
 			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
+
+			// 限制傳輸體積：如果單筆內容超過 50KB，在列表視圖中進行截斷
+			if len(rawNotes) > 50000 {
+				plan.Notes = rawNotes[:50000] + "... (Content truncated due to size)"
+			} else {
+				plan.Notes = rawNotes
+			}
+
+			if len(rawTrend) > 50000 {
+				plan.TrendAnalysis = "{}" // 列表視圖不需要這麼大的分析數據
+			} else {
+				plan.TrendAnalysis = rawTrend
+			}
+
 			plans = append(plans, plan)
 		}
 
