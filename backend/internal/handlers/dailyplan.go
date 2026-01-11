@@ -103,29 +103,21 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		// 計算總數
 		var total int
-		countQuery := `SELECT COUNT(*) FROM daily_plans p JOIN accounts a ON p.account_id = a.id WHERE a.user_id = ?`
-		countArgs := []interface{}{userID}
-
-		if query.AccountID > 0 {
-			countQuery += " AND p.account_id = ?"
-			countArgs = append(countArgs, query.AccountID)
-		}
+		countQuery := `SELECT COUNT(*) FROM daily_plans WHERE account_id = ?`
+		countArgs := []interface{}{query.AccountID}
 
 		if query.StartDate != "" {
 			countQuery += " AND plan_date >= ?"
 			countArgs = append(countArgs, query.StartDate)
 		}
-
 		if query.EndDate != "" {
 			countQuery += " AND plan_date <= ?"
 			countArgs = append(countArgs, query.EndDate)
 		}
-
 		if query.MarketSession != "" {
 			countQuery += " AND (market_session = ? OR market_session = 'all')"
 			countArgs = append(countArgs, query.MarketSession)
 		}
-
 		if query.Symbol != "" {
 			countQuery += " AND symbol = ?"
 			countArgs = append(countArgs, query.Symbol)
@@ -137,7 +129,14 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		jsonData, _ := json.Marshal(plans)
 		sizeKB := float64(len(jsonData)) / 1024
 
-		log.Printf("[GetDailyPlans PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", time.Since(startTime), len(plans), total, sizeKB)
+		duration := time.Since(startTime)
+		log.Printf("[GetDailyPlans PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", duration, len(plans), total, sizeKB)
+
+		// 如果真的很慢，記錄慢查詢參數
+		if duration > 1*time.Second {
+			log.Printf("[GetDailyPlans SLOW] AccountID: %d, Symbol: %s, duration: %v", query.AccountID, query.Symbol, duration)
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"data":      plans,
 			"total":     total,
