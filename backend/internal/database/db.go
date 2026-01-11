@@ -36,13 +36,10 @@ func InitDB() (*sql.DB, error) {
 		return nil, err
 	}
 
-	// 啟用 WAL 模式以增進併發效能
-	var journalMode string
-	_ = db.QueryRow("PRAGMA journal_mode=WAL;").Scan(&journalMode)
-	log.Printf("[DB] Journal Mode: %s", journalMode)
-
-	// 啟用外鍵約束
+	// 設定 Busy Timeout，避免併發寫入時直接鎖死
 	_, _ = db.Exec("PRAGMA foreign_keys = ON;")
+	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
+	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
 
 	// 執行Schema建立
 	if err := createTables(db); err != nil {
@@ -323,7 +320,7 @@ func createTables(db *sql.DB) error {
 	// db.Exec(`INSERT OR IGNORE INTO accounts (id, name, type, user_id) VALUES (1, '預設帳號', 'local', 1);`)
 
 	// 建立唯一索引，確保同品種同一天只能有一組規劃
-	db.Exec(`DROP INDEX IF EXISTS idx_daily_plans_date_symbol;`)
+	// 注意：移除 DROP INDEX，僅在不存在時建立，避免啟動時重建大索引導致鎖定
 	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_plans_date_symbol ON daily_plans(plan_date, symbol, account_id);`)
 
 	db.Exec("ALTER TABLE accounts ADD COLUMN sync_status VARCHAR(20) DEFAULT 'idle';")

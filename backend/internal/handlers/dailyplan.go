@@ -34,20 +34,15 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 
 		offset := (query.Page - 1) * query.PageSize
 
-		// 建立查詢
+		// 建立查詢 (優化版：移除 JOIN，直接利用複合索引)
 		sqlQuery := `
 			SELECT p.id, p.account_id, p.plan_date, p.symbol, p.market_session, COALESCE(p.notes, ''), COALESCE(p.trend_analysis, '{}'), p.created_at, p.updated_at
 			FROM daily_plans p
 			JOIN accounts a ON p.account_id = a.id
-			WHERE a.user_id = ?
+			WHERE p.account_id = ? AND a.user_id = ?
 		`
 
-		args := []interface{}{userID}
-
-		if query.AccountID > 0 {
-			sqlQuery += " AND p.account_id = ?"
-			args = append(args, query.AccountID)
-		} else {
+		args := []interface{}{query.AccountID, userID}
 			c.JSON(http.StatusOK, gin.H{
 				"data":      []models.DailyPlan{},
 				"total":     0,
