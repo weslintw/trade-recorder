@@ -33,7 +33,6 @@
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
 
-  let ws;
   let loadController; // To abort in-flight requests
 
   // 響應式：當帳號或品種改變時，自動重新載入資料 (加上 Debounce 防止連點)
