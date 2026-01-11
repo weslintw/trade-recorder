@@ -96,15 +96,15 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 				return
 			}
 
-			// 限制傳輸體積：如果單筆內容超過 50KB，在列表視圖中進行截斷
-			if len(rawNotes) > 50000 {
-				plan.Notes = rawNotes[:50000] + "... (Content truncated due to size)"
+			// 限制傳輸體積：如果單筆內容超過 500KB，在列表視圖中進行截斷，防止前端崩潰
+			if len(rawNotes) > 500000 {
+				plan.Notes = rawNotes[:500000] + "... (Content truncated due to size)"
 			} else {
 				plan.Notes = rawNotes
 			}
 
-			if len(rawTrend) > 50000 {
-				plan.TrendAnalysis = "{}" // 列表視圖不需要這麼大的分析數據
+			if len(rawTrend) > 500000 {
+				plan.TrendAnalysis = "{}" // 列表視圖不需要這麼大的分析數據 (通常是貼到了圖片)
 			} else {
 				plan.TrendAnalysis = rawTrend
 			}
