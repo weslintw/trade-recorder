@@ -12,13 +12,20 @@ const api = axios.create({
   },
 });
 
-// 請求攔截器：自動加入 Token 與 診斷 Log
+// 請求攔截器：自動加入 Token, 診斷 Log, 與防止快取 (Cache-buster)
 api.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // 針對 GET 請求加上隨機參數，強制繞過可能堵塞的舊連線
+    if (config.method === 'get') {
+      const separator = config.url.includes('?') ? '&' : '?';
+      config.url = `${config.url}${separator}_t=${Date.now()}`;
+    }
+
     config.metadata = { startTime: performance.now() };
     console.log(`🚀 [API Request] ${config.method.toUpperCase()} ${config.url}`);
     return config;
