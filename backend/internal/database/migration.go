@@ -21,10 +21,10 @@ var base64Regex = regexp.MustCompile(`data:image/([a-zA-Z0-9]+);base64,([a-zA-Z0
 // MigrateBase64ToMinIO 將資料庫中所有 Base64 圖片遷移到 MinIO
 func MigrateBase64ToMinIO(db *sql.DB, minioClient *miniogo.Client) {
 	// 延遲啟動，避免跟伺服器剛啟動時的初始化負載競爭
-	log.Println("[Migration] 遷移腳本已掛載，將在 15 秒後開始處理舊資料...")
-	time.Sleep(15 * time.Second)
+	log.Println("[Migration] 遷移腳本已掛載，將在 60 秒後「超低速」開始處理舊資料...")
+	time.Sleep(60 * time.Second)
 
-	log.Println("[Migration] 開始執行 Base64 -> MinIO 遷移作業...")
+	log.Println("[Migration] 開始執行低速 Base64 -> MinIO 遷移作業...")
 	start := time.Now()
 
 	// 1. 遷移每日規劃 (daily_plans)
@@ -37,7 +37,13 @@ func MigrateBase64ToMinIO(db *sql.DB, minioClient *miniogo.Client) {
 }
 
 func migrateDailyPlans(db *sql.DB, client *miniogo.Client) {
-	rows, err := db.Query("SELECT id, notes, trend_analysis FROM daily_plans WHERE (notes LIKE '%data:image/%' OR trend_analysis LIKE '%data:image/%') AND LENGTH(notes) < 5000000")
+	// 僅處理長度小於 2MB 的，大於 2MB 的留給自動清理腳本或手動處理，避免鎖死
+	rows, err := db.Query(`
+		SELECT id, notes, trend_analysis 
+		FROM daily_plans 
+		WHERE (notes LIKE '%data:image/%' OR trend_analysis LIKE '%data:image/%')
+		  AND (LENGTH(notes) < 2000000 AND LENGTH(trend_analysis) < 2000000)
+	`)
 	if err != nil {
 		log.Printf("[Migration] 查詢 daily_plans 失敗: %v", err)
 		return
@@ -59,10 +65,10 @@ func migrateDailyPlans(db *sql.DB, client *miniogo.Client) {
 			if err != nil {
 				log.Printf("[Migration] 更新 daily_plans ID:%d 失敗: %v", id, err)
 			} else {
-				log.Printf("[Migration] 已遷移 daily_plans ID:%d 的圖片 (%d 欄位有變動)", id, countChanges(nChanged, tChanged))
+				log.Printf("[Migration] 已遷移 daily_plans ID:%d", id)
 			}
-			// 關鍵：每更新完一筆就放開鎖定一陣子，讓前端 API 可以擠進去
-			time.Sleep(300 * time.Millisecond)
+			// 超低速：每完成一筆休息 2 秒，徹底釋放鎖定
+			time.Sleep(2 * time.Second)
 		}
 	}
 }
@@ -78,7 +84,7 @@ func migrateTrades(db *sql.DB, client *miniogo.Client) {
 		   OR exit_reason LIKE '%data:image/%' OR entry_signals LIKE '%data:image/%'
 		   OR entry_pattern LIKE '%data:image/%' OR entry_strategy_image LIKE 'data:image/%'
 		   OR legend_king_image LIKE 'data:image/%' OR legend_htf_image LIKE 'data:image/%')
-		   AND LENGTH(notes) < 5000000
+		   AND (LENGTH(notes) < 2000000)
 	`
 	rows, err := db.Query(query)
 	if err != nil {
@@ -119,10 +125,10 @@ func migrateTrades(db *sql.DB, client *miniogo.Client) {
 			if err != nil {
 				log.Printf("[Migration] 更新 trades ID:%d 失敗: %v", id, err)
 			} else {
-				log.Printf("[Migration] 已遷移 trades ID:%d 的圖片", id)
+				log.Printf("[Migration] 已遷移 trades ID:%d", id)
 			}
-			// 關鍵：每更新完一筆就放開鎖定一陣子
-			time.Sleep(300 * time.Millisecond)
+			// 超低速：每完成一筆休息 2 秒
+			time.Sleep(2 * time.Second)
 		}
 	}
 }
@@ -142,21 +148,22 @@ func processContent(content string, client *miniogo.Client, prefix string) (stri
 		return content, false
 	}
 
-	// 額外防護：如果字串長度大得離譜，先檢查是否真的包含正則匹配提到的特徵，減少空轉消耗
-	if len(content) > 10000000 {
-		log.Printf("[Migration] 發現超大型欄位 (%d bytes)，謹慎處理中...", len(content))
+	matches := base64Regex.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return content, false
 	}
 
+	// 使用記憶體高效的方式進行替換
+	result := content
 	changed := false
-	matches := base64Regex.FindAllStringSubmatch(content, -1)
 
 	for _, match := range matches {
 		fullMatch := match[0]
 		ext := match[1]
 		b64Data := match[2]
 
-		// 限制單張圖片大小，太大的 Base64 直接忽略以保全系統
-		if len(b64Data) > 10000000 {
+		// 限制單張圖片大小，避免記憶體爆炸 (max 5MB per image during migration)
+		if len(b64Data) > 7000000 {
 			continue
 		}
 
@@ -181,10 +188,11 @@ func processContent(content string, client *miniogo.Client, prefix string) (stri
 		})
 
 		if err == nil {
-			content = strings.Replace(content, fullMatch, objectPath, 1)
+			// 一次只替換一個，避免 ReplaceAll 對巨型字串造成的多次全量拷貝
+			result = strings.Replace(result, fullMatch, objectPath, 1)
 			changed = true
 		}
 	}
 
-	return content, changed
+	return result, changed
 }
