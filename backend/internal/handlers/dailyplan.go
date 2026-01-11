@@ -97,14 +97,27 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 			}
 
 			// 限制傳輸體積：如果單筆內容超過 500KB，在列表視圖中進行截斷，防止前端崩潰
-			if len(rawNotes) > 500000 {
-				plan.Notes = rawNotes[:500000] + "... (Content truncated due to size)"
-			} else {
-				plan.Notes = rawNotes
+			// 使用 rune 切片確保 UTF-8 安全，不分段截斷多位元組字元
+			safeTruncate := func(s string, limit int) string {
+				if len(s) <= limit {
+					return s
+				}
+				// 先按字節截斷到大概位置
+				sub := s[:limit]
+				// 找到最後一個完整的 UTF-8 字元邊界
+				for i := len(sub); i > 0; i-- {
+					if (sub[i-1] & 0xc0) != 0x80 { // 不是從屬位元組
+						return sub[:i] + "... (Truncated)"
+					}
+				}
+				return "... (Truncated)"
 			}
 
+			plan.Notes = safeTruncate(rawNotes, 500000)
+
+			// TrendAnalysis 若過大直接回傳空物件，因為列表視圖通常不顯示它
 			if len(rawTrend) > 500000 {
-				plan.TrendAnalysis = "{}" // 列表視圖不需要這麼大的分析數據 (通常是貼到了圖片)
+				plan.TrendAnalysis = "{}"
 			} else {
 				plan.TrendAnalysis = rawTrend
 			}

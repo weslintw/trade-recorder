@@ -123,7 +123,9 @@
           page_size: 20,
         });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-        console.log(`⏱️ Plans fetched in ${(performance.now() - startPlans).toFixed(2)}ms`);
+        console.log(
+          `⏱️ Plans fetched: ${plans.length} items. Time: ${(performance.now() - startPlans).toFixed(2)}ms`
+        );
       } catch (e) {
         console.error('Failed to fetch plans:', e);
       }
@@ -136,11 +138,14 @@
           page_size: 50,
         });
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
-        console.log(`⏱️ Trades fetched in ${(performance.now() - startTrades).toFixed(2)}ms`);
+        console.log(
+          `⏱️ Trades fetched: ${trades.length} items. Time: ${(performance.now() - startTrades).toFixed(2)}ms`
+        );
       } catch (e) {
         console.error('Failed to fetch trades:', e);
       }
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
+      console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
 
