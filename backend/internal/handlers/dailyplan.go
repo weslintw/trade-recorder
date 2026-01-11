@@ -43,6 +43,7 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		`
 
 		args := []interface{}{query.AccountID, userID}
+		if query.AccountID <= 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"data":      []models.DailyPlan{},
 				"total":     0,
