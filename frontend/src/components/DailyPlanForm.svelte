@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { navigate } from 'svelte-routing';
-  import { dailyPlansAPI } from '../lib/api';
+  import { dailyPlansAPI, imagesAPI } from '../lib/api';
   import { SYMBOLS, TIMEFRAMES, MARKET_SESSIONS } from '../lib/constants';
   import { selectedAccountId } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
@@ -14,7 +14,7 @@
 
   let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
   let loading = false;
-  
+
   // 複製規劃相關狀態
   let showPlanSelectionModal = false;
   let plansToSelect = [];
@@ -88,7 +88,7 @@
   // 達人訊號選項
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
-  
+
   // 全部訊號清單
   const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
 
@@ -118,7 +118,7 @@
   function toggleExpectedSignal(timeframe, direction, signalName) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     if (!target.expected_signals) target.expected_signals = [];
-    
+
     const index = target.expected_signals.findIndex(s => s.name === signalName);
 
     if (index >= 0) {
@@ -126,7 +126,10 @@
       target.expected_signals = target.expected_signals.filter((_, i) => i !== index);
     } else {
       // 新增選擇
-      target.expected_signals = [...target.expected_signals, { name: signalName, image: '', originalImage: '' }];
+      target.expected_signals = [
+        ...target.expected_signals,
+        { name: signalName, image: '', originalImage: '' },
+      ];
     }
 
     // 強制觸發 Svelte 響應式更新
@@ -191,7 +194,7 @@
   function toggleTrendDirection(timeframe, direction) {
     const directions = currentTrends[timeframe].directions || [];
     const index = directions.indexOf(direction);
-    
+
     if (index >= 0) {
       // 如果已經選中，則移除
       currentTrends[timeframe].directions = directions.filter(d => d !== direction);
@@ -199,14 +202,14 @@
       // 如果未選中，則加入
       currentTrends[timeframe].directions = [...directions, direction];
     }
-    
+
     // 向後兼容：如果只有一個方向，也更新舊的 direction 欄位
     if (currentTrends[timeframe].directions.length === 1) {
-        currentTrends[timeframe].direction = currentTrends[timeframe].directions[0];
+      currentTrends[timeframe].direction = currentTrends[timeframe].directions[0];
     } else if (currentTrends[timeframe].directions.length === 0) {
-        currentTrends[timeframe].direction = '';
+      currentTrends[timeframe].direction = '';
     } else {
-        currentTrends[timeframe].direction = 'both';
+      currentTrends[timeframe].direction = 'both';
     }
 
     // 強制觸發 Svelte 響應式更新
@@ -277,34 +280,38 @@
 
             // 初始化新欄位
             if (!t.directions) {
-                t.directions = t.direction ? (t.direction === 'both' ? ['long', 'short'] : [t.direction]) : [];
+              t.directions = t.direction
+                ? t.direction === 'both'
+                  ? ['long', 'short']
+                  : [t.direction]
+                : [];
             }
             if (!t.long) t.long = createDirectionData();
             if (!t.short) t.short = createDirectionData();
 
             // 遷移舊資料到 long 或 short 下 (如果舊資料有 direction)
             if (t.direction && t.direction !== 'both') {
-                const dir = t.direction; // 'long' 或 'short'
-                const target = t[dir];
-                
-                // 如果 target 目前是空的，則遷移過來
-                if (target.signals.length === 0 && !target.signals_image) {
-                   target.signals = t.signals || [];
-                   target.has_signals = t.has_signals || false;
-                   target.signals_image = t.signals_image || '';
-                   target.signals_originalImage = t.signals_originalImage || '';
-                }
-                if (target.wave_numbers.length === 0 && !target.wave_image) {
-                   target.wave_numbers = t.wave_numbers || [];
-                   target.has_wave = t.has_wave || false;
-                   target.wave_highlight = t.wave_highlight || '';
-                   target.wave_image = t.wave_image || '';
-                   target.wave_originalImage = t.wave_originalImage || '';
-                }
+              const dir = t.direction; // 'long' 或 'short'
+              const target = t[dir];
+
+              // 如果 target 目前是空的，則遷移過來
+              if (target.signals.length === 0 && !target.signals_image) {
+                target.signals = t.signals || [];
+                target.has_signals = t.has_signals || false;
+                target.signals_image = t.signals_image || '';
+                target.signals_originalImage = t.signals_originalImage || '';
+              }
+              if (target.wave_numbers.length === 0 && !target.wave_image) {
+                target.wave_numbers = t.wave_numbers || [];
+                target.has_wave = t.has_wave || false;
+                target.wave_highlight = t.wave_highlight || '';
+                target.wave_image = t.wave_image || '';
+                target.wave_originalImage = t.wave_originalImage || '';
+              }
             } else if (!t.direction && (t.signals?.length > 0 || t.wave_numbers?.length > 0)) {
-                // 如果沒有方向但有資料，暫且放到 long 或者保持在頂層？
-                // 為了兼容性，UI 會在 directions 有值時顯示對應區塊。 
-                // 若 directions 為空，我們可能需要一個『通用』顯示區塊，或者引導使用者選方向。
+              // 如果沒有方向但有資料，暫且放到 long 或者保持在頂層？
+              // 為了兼容性，UI 會在 directions 有值時顯示對應區塊。
+              // 若 directions 為空，我們可能需要一個『通用』顯示區塊，或者引導使用者選方向。
             }
 
             // 更新標籤
@@ -357,54 +364,70 @@
     }
   }
 
-  // 處理趨勢圖片貼上
-  function handleTrendImagePaste(event, timeframe, imageType = 'trend', direction = null, signalName = null) {
+  // 處理趨勢圖片貼上 (優化版：改為直接上傳伺服器，不再存 Base64)
+  async function handleTrendImagePaste(
+    event,
+    timeframe,
+    imageType = 'trend',
+    direction = null,
+    signalName = null
+  ) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
 
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         event.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
 
-        reader.onload = e => {
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'plan');
+
+          // 上傳並取得 URL
+          const response = await import('../lib/api').then(m =>
+            m.imagesAPI.upload(formDataToUpload)
+          );
+          const imageUrl = response.data.path; // 後端回傳的路徑
+
           const trends = currentTrends[timeframe];
           const target = direction ? trends[direction] : trends;
 
           // 根據 imageType 設置不同的圖片欄位
           if (imageType === 'signals') {
-            target.signals_image = e.target.result;
+            target.signals_image = imageUrl;
             if (!target.signals_originalImage) {
-              target.signals_originalImage = e.target.result;
+              target.signals_originalImage = imageUrl;
             }
           } else if (imageType === 'expected_signals') {
             if (target.expected_signals) {
               const signal = target.expected_signals.find(s => s.name === signalName);
               if (signal) {
-                signal.image = e.target.result;
+                signal.image = imageUrl;
                 if (!signal.originalImage) {
-                  signal.originalImage = e.target.result;
+                  signal.originalImage = imageUrl;
                 }
               }
             }
           } else if (imageType === 'wave') {
-            target.wave_image = e.target.result;
+            target.wave_image = imageUrl;
             if (!target.wave_originalImage) {
-              target.wave_originalImage = e.target.result;
+              target.wave_originalImage = imageUrl;
             }
           } else {
-            trends.image = e.target.result;
+            trends.image = imageUrl;
             if (!trends.originalImage) {
-              trends.originalImage = e.target.result;
+              trends.originalImage = imageUrl;
             }
           }
 
           // 強制觸發 Svelte 響應式更新
           formData = formData;
           waveButtonKey++;
-        };
-
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('圖片貼上上傳失敗:', error);
+          alert('圖片處理失敗，請重試');
+        }
         break;
       }
     }
@@ -501,7 +524,9 @@
       target.wave_image = annotatedImageSrc;
     } else if (type === 'expected_signals') {
       if (target.expected_signals) {
-        const signal = target.expected_signals.find(s => s.name === enlargedImageContext.signalName);
+        const signal = target.expected_signals.find(
+          s => s.name === enlargedImageContext.signalName
+        );
         if (signal) {
           signal.image = annotatedImageSrc;
         }
@@ -523,7 +548,7 @@
         account_id: formData.account_id, // 必須指定帳號
         symbol: formData.symbol, // 必須指定品種
         sort: 'plan_date', // 假設後端預設就是依日期排序
-        desc: true
+        desc: true,
       });
 
       if (response.data && response.data.data && response.data.data.length > 0) {
@@ -550,33 +575,33 @@
     if (sourceContent) {
       // 深拷貝以確保圖片字串是複製的，非引用
       const copiedData = JSON.parse(JSON.stringify(sourceContent));
-      
+
       // 這裡的 copiedData 應該是單一個 Session 的資料結構 { notes:..., trends:... }
       // 或者如果是舊格式 (sourceSessionKey === 'all')，可能是包含 trends 的大物件
 
       if (sourceSessionKey === 'all') {
-         // 舊格式處理：嘗試把整包舊資料塞進目標 session
-         // 如果舊資料結構像 { asian:..., european:... } 則無法直接塞
-         // 但如果是更舊的 { notes:..., trends: { H1:..., H4:... } } 則可以
-         if (copiedData.trends && !copiedData.asian) {
-             formData.sessions[targetSession] = copiedData;
-         } else {
-             // 結構複雜，無法精確轉換，提示使用者
-             alert('該規劃格式過舊，無法精確複製到單一時段。');
-             return;
-         }
+        // 舊格式處理：嘗試把整包舊資料塞進目標 session
+        // 如果舊資料結構像 { asian:..., european:... } 則無法直接塞
+        // 但如果是更舊的 { notes:..., trends: { H1:..., H4:... } } 則可以
+        if (copiedData.trends && !copiedData.asian) {
+          formData.sessions[targetSession] = copiedData;
+        } else {
+          // 結構複雜，無法精確轉換，提示使用者
+          alert('該規劃格式過舊，無法精確複製到單一時段。');
+          return;
+        }
       } else {
-         // 新格式：直接覆蓋目標 session
-         // 保險起見，檢查一下結構
-         if (copiedData.trends) {
-            formData.sessions[targetSession] = copiedData;
-         } else {
-            console.error("複製來源結構異常", copiedData);
-            alert('複製來源資料結構異常。');
-            return;
-         }
+        // 新格式：直接覆蓋目標 session
+        // 保險起見，檢查一下結構
+        if (copiedData.trends) {
+          formData.sessions[targetSession] = copiedData;
+        } else {
+          console.error('複製來源結構異常', copiedData);
+          alert('複製來源資料結構異常。');
+          return;
+        }
       }
-      
+
       // 重新計算 has_signals / has_wave 標記，確保 UI 正確顯示
       const sess = formData.sessions[targetSession];
       if (sess && sess.trends) {
@@ -591,11 +616,13 @@
 
       formData = formData; // 觸發更新
       waveButtonKey++; // 強制刷新 UI 元件
-      
+
       // 切換到目標分頁，讓使用者立刻看到結果
       activeSession = targetSession;
 
-      alert(`已成功將 ${new Date(lastPlan.plan_date).toLocaleDateString()} 的內容複製到 ${targetSession} 時段！`);
+      alert(
+        `已成功將 ${new Date(lastPlan.plan_date).toLocaleDateString()} 的內容複製到 ${targetSession} 時段！`
+      );
     } else {
       alert('該筆規劃沒有詳細內容可複製。');
     }
@@ -605,6 +632,15 @@
     if (e.key === 'Escape' && enlargedImage) {
       closeEnlargedImage();
     }
+  }
+
+  // 取得圖片 URL 的 Helper (相容 Base64 與 伺服器路徑)
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) {
+      return src;
+    }
+    return imagesAPI.getUrl(src);
   }
 </script>
 
@@ -617,1019 +653,1087 @@
   </div>
 {:else}
   <div class="card">
-
-  <div class="card-header-actions">
-    <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
-    <div class="header-btns">
-      <button type="button" class="btn btn-primary" on:click={handleSubmit}>
-        {id ? '💾 更新規劃' : '✅ 建立規劃'}
-      </button>
-
-      {#if id}
-        <button type="button" class="btn btn-outline-share" on:click={() => (showShareModal = true)}>
-          📤 分享
+    <div class="card-header-actions">
+      <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
+      <div class="header-btns">
+        <button type="button" class="btn btn-primary" on:click={handleSubmit}>
+          {id ? '💾 更新規劃' : '✅ 建立規劃'}
         </button>
-      {/if}
 
-      <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
-        <span class="icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h12a4 4 0 0 1 4 4v2"/></svg>
-        </span> 返回
-      </button>
+        {#if id}
+          <button
+            type="button"
+            class="btn btn-outline-share"
+            on:click={() => (showShareModal = true)}
+          >
+            📤 分享
+          </button>
+        {/if}
+
+        <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
+          <span class="icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M9 14 4 9l5-5" /><path d="M4 9h12a4 4 0 0 1 4 4v2" /></svg
+            >
+          </span> 返回
+        </button>
+      </div>
     </div>
-  </div>
 
-  <form on:submit|preventDefault={handleSubmit}>
-    <!-- 基本資料 -->
-    <div class="form-section">
-      <h3>📅 基本資料</h3>
+    <form on:submit|preventDefault={handleSubmit}>
+      <!-- 基本資料 -->
+      <div class="form-section">
+        <h3>📅 基本資料</h3>
 
-      <!-- 規劃日期 -->
-      <div class="form-group">
-        <label for="plan_date">規劃日期</label>
-        <div class="date-input-group">
-          <input
-            type="date"
-            id="plan_date"
+        <!-- 規劃日期 -->
+        <div class="form-group">
+          <label for="plan_date">規劃日期</label>
+          <div class="date-input-group">
+            <input
+              type="date"
+              id="plan_date"
+              class="form-control"
+              bind:value={formData.plan_date}
+              required
+            />
+            <button
+              type="button"
+              class="btn btn-outline-info"
+              on:click={copyLastPlan}
+              title="複製上一筆規劃的內容（含圖片）"
+            >
+              📋 複製上次規劃
+            </button>
+          </div>
+        </div>
+
+        <!-- 交易品種 -->
+        <div class="form-group">
+          <label for="symbol">交易品種</label>
+          <select id="symbol" class="form-control" bind:value={formData.symbol}>
+            {#each symbols as sym}
+              <option value={sym}>{sym}</option>
+            {/each}
+          </select>
+        </div>
+
+        <!-- 市場時段 (分頁切換) -->
+        <div class="form-group">
+          <label>市場時段 (分頁)</label>
+          <div class="market-session-tabs">
+            <button
+              type="button"
+              class="session-tab"
+              class:active={activeSession === 'asian'}
+              on:click={() => (activeSession = 'asian')}
+            >
+              {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
+              {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
+            </button>
+            <button
+              type="button"
+              class="session-tab"
+              class:active={activeSession === 'european'}
+              on:click={() => (activeSession = 'european')}
+            >
+              {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
+              {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
+            </button>
+            <button
+              type="button"
+              class="session-tab"
+              class:active={activeSession === 'us'}
+              on:click={() => (activeSession = 'us')}
+            >
+              {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
+              {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
+            </button>
+          </div>
+        </div>
+
+        <!-- 備註 -->
+        <div class="form-group">
+          <label for="notes">備註</label>
+          <textarea
+            id="notes"
             class="form-control"
-            bind:value={formData.plan_date}
-            required
-          />
-          <button type="button" class="btn btn-outline-info" on:click={copyLastPlan} title="複製上一筆規劃的內容（含圖片）">
-             📋 複製上次規劃
-          </button>
+            bind:value={currentSessionData.notes}
+            rows="3"
+            placeholder="今日盤面重點、注意事項..."
+          ></textarea>
         </div>
       </div>
 
-      <!-- 交易品種 -->
-      <div class="form-group">
-        <label for="symbol">交易品種</label>
-        <select id="symbol" class="form-control" bind:value={formData.symbol}>
-          {#each symbols as sym}
-            <option value={sym}>{sym}</option>
-          {/each}
-        </select>
-      </div>
+      <!-- 當前各時區趨勢 -->
+      <div class="form-group trend-analysis-section">
+        <label class="trend-label">📊 當前各時區趨勢</label>
+        <div class="trend-grid">
+          {#each TIMEFRAMES as timeframe}
+            <div
+              class="trend-item"
+              tabindex="0"
+              on:paste={e => handleTrendImagePaste(e, timeframe)}
+              on:click={e => {
+                if (!e.target.closest('.trend-options')) {
+                  e.currentTarget.focus();
+                }
+              }}
+            >
+              <label class="timeframe-label">{timeframe}</label>
 
-      <!-- 市場時段 (分頁切換) -->
-      <div class="form-group">
-        <label>市場時段 (分頁)</label>
-        <div class="market-session-tabs">
-          <button
-            type="button"
-            class="session-tab"
-            class:active={activeSession === 'asian'}
-            on:click={() => (activeSession = 'asian')}
-          >
-            {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
-            {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
-          </button>
-          <button
-            type="button"
-            class="session-tab"
-            class:active={activeSession === 'european'}
-            on:click={() => (activeSession = 'european')}
-          >
-            {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
-            {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
-          </button>
-          <button
-            type="button"
-            class="session-tab"
-            class:active={activeSession === 'us'}
-            on:click={() => (activeSession = 'us')}
-          >
-            {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
-            {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
-          </button>
-        </div>
-      </div>
+              <!-- 多空選擇 -->
+              <div class="trend-options">
+                <button
+                  type="button"
+                  class="trend-option long"
+                  class:active={currentTrends[timeframe]?.directions?.includes('long')}
+                  on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
+                >
+                  <span class="trend-name">多</span>
+                </button>
+                <button
+                  type="button"
+                  class="trend-option short"
+                  class:active={currentTrends[timeframe]?.directions?.includes('short')}
+                  on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
+                >
+                  <span class="trend-name">空</span>
+                </button>
+              </div>
 
-      <!-- 備註 -->
-      <div class="form-group">
-        <label for="notes">備註</label>
-        <textarea
-          id="notes"
-          class="form-control"
-          bind:value={currentSessionData.notes}
-          rows="3"
-          placeholder="今日盤面重點、注意事項..."
-        ></textarea>
-      </div>
-    </div>
+              <!-- 分析區塊：根據選擇的方向顯示 -->
+              {#each currentTrends[timeframe]?.directions || [] as dir}
+                <div
+                  class="direction-analysis-box"
+                  class:long={dir === 'long'}
+                  class:short={dir === 'short'}
+                >
+                  <div class="direction-badge">
+                    {dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}
+                  </div>
 
-    <!-- 當前各時區趨勢 -->
-    <div class="form-group trend-analysis-section">
-      <label class="trend-label">📊 當前各時區趨勢</label>
-      <div class="trend-grid">
-        {#each TIMEFRAMES as timeframe}
-          <div
-            class="trend-item"
-            tabindex="0"
-            on:paste={e => handleTrendImagePaste(e, timeframe)}
-            on:click={e => {
-              if (!e.target.closest('.trend-options')) {
-                e.currentTarget.focus();
-              }
-            }}
-          >
-            <label class="timeframe-label">{timeframe}</label>
+                  <!-- 已成立的達人訊號選擇 -->
+                  <div class="timeframe-signals">
+                    <label class="section-label inline-check">
+                      <input
+                        type="checkbox"
+                        bind:checked={currentTrends[timeframe][dir].has_signals}
+                      />
+                      已成立的達人訊號
+                    </label>
 
-            <!-- 多空選擇 -->
-            <div class="trend-options">
-              <button
-                type="button"
-                class="trend-option long"
-                class:active={currentTrends[timeframe]?.directions?.includes('long')}
-                on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
-              >
-                <span class="trend-name">多</span>
-              </button>
-              <button
-                type="button"
-                class="trend-option short"
-                class:active={currentTrends[timeframe]?.directions?.includes('short')}
-                on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
-              >
-                <span class="trend-name">空</span>
-              </button>
-            </div>
-
-            <!-- 分析區塊：根據選擇的方向顯示 -->
-            {#each (currentTrends[timeframe]?.directions || []) as dir}
-              <div class="direction-analysis-box" class:long={dir === 'long'} class:short={dir === 'short'}>
-                <div class="direction-badge">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
-                
-                <!-- 已成立的達人訊號選擇 -->
-                <div class="timeframe-signals">
-                  <label class="section-label inline-check">
-                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_signals} />
-                    已成立的達人訊號
-                  </label>
-                  
-                  {#if currentTrends[timeframe][dir].has_signals}
-                    <div class="signal-chips">
-                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-established-' + signal)}
-                        <button
-                          type="button"
-                          class="signal-chip"
-                          class:active={isTimeframeSignalSelected(timeframe, dir, signal)}
-                          on:click|stopPropagation={() => toggleTimeframeSignal(timeframe, dir, signal)}
-                        >
-                          {signal}
-                        </button>
-                      {/each}
-                    </div>
-
-                    <!-- 達人訊號圖片 -->
-                    {#if currentTrends[timeframe][dir].signals_image}
-                      <div
-                        class="trend-image-preview"
-                        on:click|stopPropagation={() =>
-                          enlargeImage(
-                            currentTrends[timeframe][dir].signals_image,
-                            `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 已成立達人訊號圖`,
-                            { type: 'signals', key: timeframe, direction: dir }
-                          )}
-                      >
-                        <img
-                          src={currentTrends[timeframe][dir].signals_image}
-                          alt="{timeframe} 已成立達人訊號"
-                          style="pointer-events: none;"
-                        />
-                        <button
-                          type="button"
-                          class="remove-image-btn"
-                          on:click|stopPropagation={() => removeTrendImage(timeframe, 'signals', dir)}
-                          title="移除圖片"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    {:else}
-                      <div
-                        class="trend-image-placeholderSmall"
-                        tabindex="0"
-                        on:paste|preventDefault|stopPropagation={e =>
-                          handleTrendImagePaste(e, timeframe, 'signals', dir)}
-                        on:click|stopPropagation={e => e.target.focus()}
-                        role="textbox"
-                      >
-                        📋 貼上已成立訊號圖
-                      </div>
-                    {/if}
-                  {/if}
-                </div>
-
-                <!-- 預期產生的達人訊號選擇 -->
-                <div class="timeframe-signals expected">
-                  <label class="section-label inline-check">
-                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_expected_signals} />
-                    預期產生的達人訊號
-                  </label>
-                  
-                  {#if currentTrends[timeframe][dir].has_expected_signals}
-                    <div class="signal-chips">
-                      {#each (dir === 'long' ? expertSignalsLong : expertSignalsShort) as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-' + signal)}
-                        <button
-                          type="button"
-                          class="signal-chip expected"
-                          class:active={isExpectedSignalSelected(timeframe, dir, signal)}
-                          on:click|stopPropagation={() => toggleExpectedSignal(timeframe, dir, signal)}
-                        >
-                          {signal}
-                        </button>
-                      {/each}
-                    </div>
-
-                    <!-- 預期訊號個別圖片區 -->
-                    {#if currentTrends[timeframe][dir].expected_signals && currentTrends[timeframe][dir].expected_signals.length > 0}
-                      <div class="expected-signals-images">
-                        {#each currentTrends[timeframe][dir].expected_signals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-img-' + signal.name)}
-                          <div class="expected-signal-item">
-                            <span class="signal-name-label">{signal.name}</span>
-                            {#if signal.image}
-                              <div
-                                class="trend-image-preview"
-                                on:click|stopPropagation={() =>
-                                  enlargeImage(
-                                    signal.image,
-                                    `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${signal.name}`,
-                                    { type: 'expected_signals', key: timeframe, direction: dir, signalName: signal.name }
-                                  )}
-                              >
-                                <img
-                                  src={signal.image}
-                                  alt="{timeframe} 預期訊號: {signal.name}"
-                                  style="pointer-events: none;"
-                                />
-                                <button
-                                  type="button"
-                                  class="remove-image-btn"
-                                  on:click|stopPropagation={() => removeTrendImage(timeframe, 'expected_signals', dir, signal.name)}
-                                  title="移除圖片"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            {:else}
-                              <div
-                                class="trend-image-placeholderExtraSmall"
-                                tabindex="0"
-                                on:paste|preventDefault|stopPropagation={e =>
-                                  handleTrendImagePaste(e, timeframe, 'expected_signals', dir, signal.name)}
-                                on:click|stopPropagation={e => e.target.focus()}
-                                role="textbox"
-                              >
-                                📋 貼上 {signal.name} 示意圖
-                              </div>
-                            {/if}
-                          </div>
+                    {#if currentTrends[timeframe][dir].has_signals}
+                      <div class="signal-chips">
+                        {#each dir === 'long' ? expertSignalsLong : expertSignalsShort as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-established-' + signal)}
+                          <button
+                            type="button"
+                            class="signal-chip"
+                            class:active={isTimeframeSignalSelected(timeframe, dir, signal)}
+                            on:click|stopPropagation={() =>
+                              toggleTimeframeSignal(timeframe, dir, signal)}
+                          >
+                            {signal}
+                          </button>
                         {/each}
                       </div>
-                    {/if}
-                  {/if}
-                </div>
 
-                <!-- 波浪浪數選擇 -->
-                <div class="timeframe-wave">
-                  <label class="section-label inline-check">
-                    <input type="checkbox" bind:checked={currentTrends[timeframe][dir].has_wave} />
-                    波浪浪數
-                  </label>
-
-                  {#if currentTrends[timeframe][dir].has_wave}
-                    <div class="wave-numbers">
-                      {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + dir + '-' + num)}
-                        <button
-                          type="button"
-                          class="wave-number-btn"
-                          class:selected={isWaveNumberSelected(timeframe, dir, num)}
-                          class:highlighted={isWaveNumberHighlighted(timeframe, dir, num)}
-                          on:click|stopPropagation={() => clickWaveNumber(timeframe, dir, num)}
+                      <!-- 達人訊號圖片 -->
+                      {#if currentTrends[timeframe][dir].signals_image}
+                        <div
+                          class="trend-image-preview"
+                          on:click|stopPropagation={() =>
+                            enlargeImage(
+                              currentTrends[timeframe][dir].signals_image,
+                              `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 已成立達人訊號圖`,
+                              { type: 'signals', key: timeframe, direction: dir }
+                            )}
                         >
-                          {num}
-                        </button>
-                      {/each}
-                    </div>
-
-                    <!-- 波浪圖片 -->
-                    {#if currentTrends[timeframe][dir].wave_image}
-                      <div
-                        class="trend-image-preview"
-                        on:click|stopPropagation={() =>
-                          enlargeImage(currentTrends[timeframe][dir].wave_image, `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`, {
-                            type: 'wave',
-                            key: timeframe,
-                            direction: dir
-                          })}
-                      >
-                        <img
-                          src={currentTrends[timeframe][dir].wave_image}
-                          alt="{timeframe} 波浪"
-                          style="pointer-events: none;"
-                        />
-                        <button
-                          type="button"
-                          class="remove-image-btn"
-                          on:click|stopPropagation={() => removeTrendImage(timeframe, 'wave', dir)}
-                          title="移除圖片"
+                          <img
+                            src={getImageUrl(currentTrends[timeframe][dir].signals_image)}
+                            alt="{timeframe} 已成立達人訊號"
+                            style="pointer-events: none;"
+                          />
+                          <button
+                            type="button"
+                            class="remove-image-btn"
+                            on:click|stopPropagation={() =>
+                              removeTrendImage(timeframe, 'signals', dir)}
+                            title="移除圖片"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      {:else}
+                        <div
+                          class="trend-image-placeholderSmall"
+                          tabindex="0"
+                          on:paste|preventDefault|stopPropagation={e =>
+                            handleTrendImagePaste(e, timeframe, 'signals', dir)}
+                          on:click|stopPropagation={e => e.target.focus()}
+                          role="textbox"
                         >
-                          ×
-                        </button>
-                      </div>
-                    {:else}
-                      <div
-                        class="trend-image-placeholderSmall"
-                        tabindex="0"
-                        on:paste|preventDefault|stopPropagation={e =>
-                          handleTrendImagePaste(e, timeframe, 'wave', dir)}
-                        on:click|stopPropagation={e => e.target.focus()}
-                        role="textbox"
-                      >
-                        📋 貼上波浪圖
-                      </div>
+                          📋 貼上已成立訊號圖
+                        </div>
+                      {/if}
                     {/if}
-                  {/if}
+                  </div>
+
+                  <!-- 預期產生的達人訊號選擇 -->
+                  <div class="timeframe-signals expected">
+                    <label class="section-label inline-check">
+                      <input
+                        type="checkbox"
+                        bind:checked={currentTrends[timeframe][dir].has_expected_signals}
+                      />
+                      預期產生的達人訊號
+                    </label>
+
+                    {#if currentTrends[timeframe][dir].has_expected_signals}
+                      <div class="signal-chips">
+                        {#each dir === 'long' ? expertSignalsLong : expertSignalsShort as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-' + signal)}
+                          <button
+                            type="button"
+                            class="signal-chip expected"
+                            class:active={isExpectedSignalSelected(timeframe, dir, signal)}
+                            on:click|stopPropagation={() =>
+                              toggleExpectedSignal(timeframe, dir, signal)}
+                          >
+                            {signal}
+                          </button>
+                        {/each}
+                      </div>
+
+                      <!-- 預期訊號個別圖片區 -->
+                      {#if currentTrends[timeframe][dir].expected_signals && currentTrends[timeframe][dir].expected_signals.length > 0}
+                        <div class="expected-signals-images">
+                          {#each currentTrends[timeframe][dir].expected_signals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-img-' + signal.name)}
+                            <div class="expected-signal-item">
+                              <span class="signal-name-label">{signal.name}</span>
+                              {#if signal.image}
+                                <div
+                                  class="trend-image-preview"
+                                  on:click|stopPropagation={() =>
+                                    enlargeImage(
+                                      signal.image,
+                                      `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${signal.name}`,
+                                      {
+                                        type: 'expected_signals',
+                                        key: timeframe,
+                                        direction: dir,
+                                        signalName: signal.name,
+                                      }
+                                    )}
+                                >
+                                  <img
+                                    src={getImageUrl(signal.image)}
+                                    alt="{timeframe} 預期訊號: {signal.name}"
+                                    style="pointer-events: none;"
+                                  />
+                                  <button
+                                    type="button"
+                                    class="remove-image-btn"
+                                    on:click|stopPropagation={() =>
+                                      removeTrendImage(
+                                        timeframe,
+                                        'expected_signals',
+                                        dir,
+                                        signal.name
+                                      )}
+                                    title="移除圖片"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              {:else}
+                                <div
+                                  class="trend-image-placeholderExtraSmall"
+                                  tabindex="0"
+                                  on:paste|preventDefault|stopPropagation={e =>
+                                    handleTrendImagePaste(
+                                      e,
+                                      timeframe,
+                                      'expected_signals',
+                                      dir,
+                                      signal.name
+                                    )}
+                                  on:click|stopPropagation={e => e.target.focus()}
+                                  role="textbox"
+                                >
+                                  📋 貼上 {signal.name} 示意圖
+                                </div>
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
+
+                  <!-- 波浪浪數選擇 -->
+                  <div class="timeframe-wave">
+                    <label class="section-label inline-check">
+                      <input
+                        type="checkbox"
+                        bind:checked={currentTrends[timeframe][dir].has_wave}
+                      />
+                      波浪浪數
+                    </label>
+
+                    {#if currentTrends[timeframe][dir].has_wave}
+                      <div class="wave-numbers">
+                        {#each waveNumbers as num (waveButtonKey + '-' + timeframe + '-' + dir + '-' + num)}
+                          <button
+                            type="button"
+                            class="wave-number-btn"
+                            class:selected={isWaveNumberSelected(timeframe, dir, num)}
+                            class:highlighted={isWaveNumberHighlighted(timeframe, dir, num)}
+                            on:click|stopPropagation={() => clickWaveNumber(timeframe, dir, num)}
+                          >
+                            {num}
+                          </button>
+                        {/each}
+                      </div>
+
+                      <!-- 波浪圖片 -->
+                      {#if currentTrends[timeframe][dir].wave_image}
+                        <div
+                          class="trend-image-preview"
+                          on:click|stopPropagation={() =>
+                            enlargeImage(
+                              currentTrends[timeframe][dir].wave_image,
+                              `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`,
+                              {
+                                type: 'wave',
+                                key: timeframe,
+                                direction: dir,
+                              }
+                            )}
+                        >
+                          <img
+                            src={getImageUrl(currentTrends[timeframe][dir].wave_image)}
+                            alt="{timeframe} 波浪"
+                            style="pointer-events: none;"
+                          />
+                          <button
+                            type="button"
+                            class="remove-image-btn"
+                            on:click|stopPropagation={() =>
+                              removeTrendImage(timeframe, 'wave', dir)}
+                            title="移除圖片"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      {:else}
+                        <div
+                          class="trend-image-placeholderSmall"
+                          tabindex="0"
+                          on:paste|preventDefault|stopPropagation={e =>
+                            handleTrendImagePaste(e, timeframe, 'wave', dir)}
+                          on:click|stopPropagation={e => e.target.focus()}
+                          role="textbox"
+                        >
+                          📋 貼上波浪圖
+                        </div>
+                      {/if}
+                    {/if}
+                  </div>
                 </div>
-              </div>
-            {/each}
+              {/each}
 
-            <!-- 如果沒有選方向，顯示提示 -->
-            {#if (currentTrends[timeframe]?.directions || []).length === 0}
-               <div class="no-direction-hint">
-                 請選擇「多」或「空」以開始分析
-               </div>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    </div>
-
-    <!-- 操作按鈕 -->
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
-        {id ? '💾 更新規劃' : '✅ 建立規劃'}
-      </button>
-      <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
-        <span class="icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h12a4 4 0 0 1 4 4v2"/></svg>
-        </span> 返回
-      </button>
-    </div>
-  </form>
-</div>
-
-<!-- 圖片放大模態框 -->
-{#if enlargedImage}
-  <div class="image-modal" on:click={closeEnlargedImage}>
-    <div class="image-modal-content" on:click|stopPropagation>
-      <div class="image-modal-header">
-        <h3>{enlargedImageTitle}</h3>
-        <div class="image-modal-actions">
-          <button class="modal-action-btn" on:click={toggleAnnotator}>
-            {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
-          </button>
-          <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+              <!-- 如果沒有選方向，顯示提示 -->
+              {#if (currentTrends[timeframe]?.directions || []).length === 0}
+                <div class="no-direction-hint">請選擇「多」或「空」以開始分析</div>
+              {/if}
+            </div>
+          {/each}
         </div>
       </div>
 
-      {#if showAnnotator}
-        <ImageAnnotator
-          imageSrc={enlargedImage}
-          originalImageSrc={enlargedOriginalImage}
-          onSave={handleAnnotatedImage}
-        />
-      {:else}
-        <img src={enlargedImage} alt={enlargedImageTitle} class="image-modal-img" />
-      {/if}
-    </div>
+      <!-- 操作按鈕 -->
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">
+          {id ? '💾 更新規劃' : '✅ 建立規劃'}
+        </button>
+        <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
+          <span class="icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M9 14 4 9l5-5" /><path d="M4 9h12a4 4 0 0 1 4 4v2" /></svg
+            >
+          </span> 返回
+        </button>
+      </div>
+    </form>
   </div>
-{/if}
-
-<!-- 規劃選擇模態框 -->
-<PlanSelectionModal
-  show={showPlanSelectionModal}
-  plans={plansToSelect}
-  activeSession={activeSession} 
-  onConfirm={handlePlanSelection}
-  onClose={() => (showPlanSelectionModal = false)}
-/>
-
-<ShareModal 
-  show={showShareModal} 
-  resourceType="plan" 
-  resourceId={id} 
-  resourceTitle={formData.plan_date.replace(/-/g, '') + '_DailyPlan'}
-  onClose={() => (showShareModal = false)} 
-/>
-
-<style>
-  .card-header-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-  }
-
-  .header-btns {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  h2 {
-    margin-bottom: 0;
-    color: var(--text-main);
-  }
-
-  h3 {
-    font-size: 1.2rem;
-    color: var(--text-main);
-    margin-bottom: 1rem;
-  }
-
-  .form-section {
-    margin-bottom: 2rem;
-    padding: 1.5rem;
-    background: var(--bg-main);
-    border-radius: 12px;
-  }
-
-  /* 市場時段分頁 */
-  .market-session-tabs {
-    display: flex;
-    gap: 0.5rem;
-    background: var(--nav-group-bg);
-    padding: 0.4rem;
-    border-radius: 12px;
-  }
-
-  .session-tab {
-    flex: 1;
-    padding: 0.75rem;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    color: #4a5568;
-    transition: all 0.2s;
-  }
-
-  .session-tab.active {
-    background: var(--card-bg);
-    color: var(--primary);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .session-tab:hover:not(.active) {
-    background: #f7fafc;
-  }
-
-  /* 趨勢分析 */
-  .trend-analysis-section {
-    margin-top: 2rem;
-  }
-
-  .trend-label {
-    display: block;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-main);
-    margin-bottom: 1rem;
-  }
-
-  .trend-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .trend-item {
-    padding: 1rem;
-    background: var(--card-bg);
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .trend-item:hover {
-    border-color: #cbd5e0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  }
-
-  .trend-item:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .timeframe-label {
-    display: block;
-    font-weight: 600;
-    color: var(--text-main);
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-  }
-
-  .trend-options {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .trend-option {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.5rem;
-    border: 2px solid var(--border-color);
-    background: var(--card-bg);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    user-select: none;
-    outline: none;
-    line-height: 1;
-  }
-
-  .trend-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-  }
-  
-  .date-input-group {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-  
-  .date-input-group input {
-    flex: 1;
-  }
-
-  .btn-outline-info {
-    background: white;
-    border: 1px solid #0bc5ea;
-    color: #0bc5ea;
-    padding: 0.625rem 1rem;
-    white-space: nowrap;
-  }
-  
-  .btn-outline-info:hover {
-    background: #e6fffa;
-  }
-
-  .trend-option.active.long {
-    border-color: #ef4444;
-    background: #ef4444;
-  }
-
-  .trend-option.active.short {
-    border-color: #10b981;
-    background: #10b981;
-  }
-
-  .trend-option input[type='radio'] {
-    display: none;
-  }
-
-  .trend-name {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: var(--text-main);
-  }
-
-  .trend-option.active .trend-name {
-    color: white;
-  }
-
-  /* 時區訊號選擇 */
-  .timeframe-signals {
-    margin-top: 0.75rem;
-  }
-
-  .section-label {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-  }
-
-  .section-label.inline-check {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .section-label.inline-check input {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-  }
-
-  .signal-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .signal-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.3rem 0.6rem;
-    border: 1.5px solid #cbd5e0;
-    border-radius: 6px;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.75rem;
-    user-select: none;
-    line-height: 1;
-  }
-
-  .signal-chip:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-  }
-
-  .signal-chip.active {
-    border-color: #667eea;
-    background: #667eea;
-    color: white;
-  }
-
-  /* 波浪浪數選擇 */
-  .timeframe-wave {
-    margin-top: 0.75rem;
-  }
-
-  .wave-numbers {
-    display: flex;
-    gap: 0.4rem;
-  }
-
-  .wave-number-btn {
-    flex: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.4rem;
-    border: 1.5px solid #cbd5e0;
-    border-radius: 6px;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.8rem;
-    font-weight: 600;
-    user-select: none;
-    color: #2d3748;
-    line-height: 1;
-  }
-
-  .wave-number-btn:hover {
-    border-color: #48bb78;
-    background: #f7fafc;
-  }
-
-  .wave-number-btn.selected {
-    border-color: #48bb78 !important;
-    background: #48bb78 !important;
-    color: white !important;
-  }
-
-  .wave-number-btn.highlighted {
-    border-color: #e53e3e !important;
-    background: #e53e3e !important;
-    color: white !important;
-  }
-
-  .trend-image-preview {
-    position: relative;
-    margin-top: 0.5rem;
-    border-radius: 8px;
-    overflow: hidden;
-    cursor: pointer;
-    border: 2px solid #e2e8f0;
-  }
-
-  .trend-image-preview:hover {
-    border-color: #667eea;
-  }
-
-  .trend-image-preview img {
-    width: 100%;
-    height: auto;
-    display: block;
-  }
-
-  .remove-image-btn {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 28px;
-    height: 28px;
-    border: none;
-    border-radius: 50%;
-    background: rgba(239, 68, 68, 0.9);
-    color: white;
-    font-size: 1.5rem;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .remove-image-btn:hover {
-    background: rgb(239, 68, 68);
-    transform: scale(1.1);
-  }
-
-  .trend-image-placeholder {
-    margin-top: 0.5rem;
-    padding: 1.5rem;
-    border: 2px dashed #cbd5e0;
-    border-radius: 8px;
-    text-align: center;
-    color: #a0aec0;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-  }
-
-  .trend-image-placeholder:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-    color: #667eea;
-  }
-
-  .trend-image-placeholder:focus {
-    border-color: #667eea;
-    background: #edf2f7;
-    color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  /* 操作按鈕 */
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 2px solid #e2e8f0;
-  }
-
-  .btn-secondary {
-    background: #e2e8f0;
-    color: #2d3748;
-  }
-
-  .btn-secondary:hover {
-    background: #cbd5e0;
-  }
-
-  .btn-outline-share {
-    background: white;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-    font-weight: 700;
-  }
-  .btn-outline-share:hover {
-    background: #f8fafc;
-    color: #4f46e5;
-    border-color: #6366f1;
-  }
-
-  .header-btns {
-    display: flex;
-    gap: 0.75rem;
-  }
-
-  /* 圖片放大模態框 */
-  .image-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 2rem;
-  }
-
-  .image-modal-content {
-    background: white;
-    border-radius: 12px;
-    max-width: 90vw;
-    max-height: 90vh;
-    overflow: auto;
-    position: relative;
-  }
-
-  .image-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    border-bottom: 2px solid #e2e8f0;
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 10;
-  }
-
-  .image-modal-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: #2d3748;
-  }
-
-  .image-modal-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .modal-action-btn {
-    padding: 0.5rem 1rem;
-    border: 2px solid #667eea;
-    border-radius: 6px;
-    background: white;
-    color: #667eea;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.2s ease;
-  }
-
-  .modal-action-btn:hover {
-    background: #667eea;
-    color: white;
-  }
-
-  .image-modal-close {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 50%;
-    background: #f56565;
-    color: white;
-    font-size: 1.5rem;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-  }
-
-  .image-modal-close:hover {
-    background: #e53e3e;
-    transform: rotate(90deg);
-  }
-
-  .image-modal-img {
-    display: block;
-    max-width: 100%;
-    height: auto;
-    padding: 1rem;
-  }
-
-  textarea.form-control {
-    resize: vertical;
-    font-family: inherit;
-  }
-
-  .trend-image-placeholderSmall {
-    border: 1.5px dashed #cbd5e0;
-    border-radius: 8px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    color: #718096;
-    margin-top: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .trend-image-placeholderSmall:hover,
-  .trend-image-placeholderSmall:focus {
-    background: #edf2f7;
-    border-color: #667eea;
-    color: #667eea;
-  }
-
-  .direction-analysis-box {
-    margin-top: 1rem;
-    padding: 1rem;
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
-    background: #fcfcfc;
-  }
-
-  .direction-analysis-box.long {
-    border-left: 4px solid #ef4444;
-  }
-
-  .direction-analysis-box.short {
-    border-left: 4px solid #10b981;
-  }
-
-  .direction-badge {
-    font-size: 0.8rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: #f1f5f9;
-    color: #475569;
-  }
-
-  .no-direction-hint {
-    margin-top: 1rem;
-    padding: 1.5rem;
-    border: 1px dashed #cbd5e0;
-    border-radius: 10px;
-    text-align: center;
-    color: #94a3b8;
-    font-size: 0.85rem;
-    background: #f8fafc;
-  }
-
-  /* 預期產生的達人訊號 */
-  .timeframe-signals.expected {
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px dashed #e2e8f0;
-  }
-
-  .signal-chip.expected {
-    border-style: dashed;
-    background: #eff6ff;
-    color: #1e40af;
-  }
-
-  .signal-chip.expected.active {
-    background: #1e40af;
-    color: white;
-    border-style: solid;
-  }
-
-  .expected-signals-images {
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .expected-signal-item {
-    border: 1px solid #e2e8f0;
-    padding: 0.75rem;
-    border-radius: 8px;
-    background: #ffffff;
-  }
-
-  .signal-name-label {
-    display: block;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #475569;
-    margin-bottom: 0.5rem;
-  }
-
-  .trend-image-placeholderExtraSmall {
-    border: 1.5px dashed #cbd5e0;
-    border-radius: 6px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    color: #94a3b8;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .trend-image-placeholderExtraSmall:hover,
-  .trend-image-placeholderExtraSmall:focus {
-    background: #f1f5f9;
-    border-color: #3b82f6;
-    color: #3b82f6;
-  }
-</style>
+
+  <!-- 圖片放大模態框 -->
+  {#if enlargedImage}
+    <div class="image-modal" on:click={closeEnlargedImage}>
+      <div class="image-modal-content" on:click|stopPropagation>
+        <div class="image-modal-header">
+          <h3>{enlargedImageTitle}</h3>
+          <div class="image-modal-actions">
+            <button class="modal-action-btn" on:click={toggleAnnotator}>
+              {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
+            </button>
+            <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+          </div>
+        </div>
+
+        {#if showAnnotator}
+          <ImageAnnotator
+            imageSrc={enlargedImage}
+            originalImageSrc={enlargedOriginalImage}
+            onSave={handleAnnotatedImage}
+          />
+        {:else}
+          <img src={getImageUrl(enlargedImage)} alt={enlargedImageTitle} class="image-modal-img" />
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  <!-- 規劃選擇模態框 -->
+  <PlanSelectionModal
+    show={showPlanSelectionModal}
+    plans={plansToSelect}
+    {activeSession}
+    onConfirm={handlePlanSelection}
+    onClose={() => (showPlanSelectionModal = false)}
+  />
+
+  <ShareModal
+    show={showShareModal}
+    resourceType="plan"
+    resourceId={id}
+    resourceTitle={formData.plan_date.replace(/-/g, '') + '_DailyPlan'}
+    onClose={() => (showShareModal = false)}
+  />
+
+  <style>
+    .card-header-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .header-btns {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      color: var(--text-main);
+    }
+
+    h3 {
+      font-size: 1.2rem;
+      color: var(--text-main);
+      margin-bottom: 1rem;
+    }
+
+    .form-section {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: var(--bg-main);
+      border-radius: 12px;
+    }
+
+    /* 市場時段分頁 */
+    .market-session-tabs {
+      display: flex;
+      gap: 0.5rem;
+      background: var(--nav-group-bg);
+      padding: 0.4rem;
+      border-radius: 12px;
+    }
+
+    .session-tab {
+      flex: 1;
+      padding: 0.75rem;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      color: #4a5568;
+      transition: all 0.2s;
+    }
+
+    .session-tab.active {
+      background: var(--card-bg);
+      color: var(--primary);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .session-tab:hover:not(.active) {
+      background: #f7fafc;
+    }
+
+    /* 趨勢分析 */
+    .trend-analysis-section {
+      margin-top: 2rem;
+    }
+
+    .trend-label {
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 1rem;
+    }
+
+    .trend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .trend-item {
+      padding: 1rem;
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .trend-item:hover {
+      border-color: #cbd5e0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .trend-item:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .timeframe-label {
+      display: block;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .trend-options {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .trend-option {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      border: 2px solid var(--border-color);
+      background: var(--card-bg);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+      outline: none;
+      line-height: 1;
+    }
+
+    .trend-option:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+    }
+
+    .date-input-group {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .date-input-group input {
+      flex: 1;
+    }
+
+    .btn-outline-info {
+      background: white;
+      border: 1px solid #0bc5ea;
+      color: #0bc5ea;
+      padding: 0.625rem 1rem;
+      white-space: nowrap;
+    }
+
+    .btn-outline-info:hover {
+      background: #e6fffa;
+    }
+
+    .trend-option.active.long {
+      border-color: #ef4444;
+      background: #ef4444;
+    }
+
+    .trend-option.active.short {
+      border-color: #10b981;
+      background: #10b981;
+    }
+
+    .trend-option input[type='radio'] {
+      display: none;
+    }
+
+    .trend-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .trend-option.active .trend-name {
+      color: white;
+    }
+
+    /* 時區訊號選擇 */
+    .timeframe-signals {
+      margin-top: 0.75rem;
+    }
+
+    .section-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-label.inline-check {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .section-label.inline-check input {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .signal-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .signal-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.3rem 0.6rem;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.75rem;
+      user-select: none;
+      line-height: 1;
+    }
+
+    .signal-chip:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+    }
+
+    .signal-chip.active {
+      border-color: #667eea;
+      background: #667eea;
+      color: white;
+    }
+
+    /* 波浪浪數選擇 */
+    .timeframe-wave {
+      margin-top: 0.75rem;
+    }
+
+    .wave-numbers {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .wave-number-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.4rem;
+      border: 1.5px solid #cbd5e0;
+      border-radius: 6px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 0.8rem;
+      font-weight: 600;
+      user-select: none;
+      color: #2d3748;
+      line-height: 1;
+    }
+
+    .wave-number-btn:hover {
+      border-color: #48bb78;
+      background: #f7fafc;
+    }
+
+    .wave-number-btn.selected {
+      border-color: #48bb78 !important;
+      background: #48bb78 !important;
+      color: white !important;
+    }
+
+    .wave-number-btn.highlighted {
+      border-color: #e53e3e !important;
+      background: #e53e3e !important;
+      color: white !important;
+    }
+
+    .trend-image-preview {
+      position: relative;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid #e2e8f0;
+    }
+
+    .trend-image-preview:hover {
+      border-color: #667eea;
+    }
+
+    .trend-image-preview img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .remove-image-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.9);
+      color: white;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .remove-image-btn:hover {
+      background: rgb(239, 68, 68);
+      transform: scale(1.1);
+    }
+
+    .trend-image-placeholder {
+      margin-top: 0.5rem;
+      padding: 1.5rem;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      text-align: center;
+      color: #a0aec0;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .trend-image-placeholder:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+      color: #667eea;
+    }
+
+    .trend-image-placeholder:focus {
+      border-color: #667eea;
+      background: #edf2f7;
+      color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* 操作按鈕 */
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #e2e8f0;
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e0;
+    }
+
+    .btn-outline-share {
+      background: white;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      font-weight: 700;
+    }
+    .btn-outline-share:hover {
+      background: #f8fafc;
+      color: #4f46e5;
+      border-color: #6366f1;
+    }
+
+    .header-btns {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    /* 圖片放大模態框 */
+    .image-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 2rem;
+    }
+
+    .image-modal-content {
+      background: white;
+      border-radius: 12px;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow: auto;
+      position: relative;
+    }
+
+    .image-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      border-bottom: 2px solid #e2e8f0;
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 10;
+    }
+
+    .image-modal-header h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      color: #2d3748;
+    }
+
+    .image-modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .modal-action-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid #667eea;
+      border-radius: 6px;
+      background: white;
+      color: #667eea;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .modal-action-btn:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    .image-modal-close {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 50%;
+      background: #f56565;
+      color: white;
+      font-size: 1.5rem;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .image-modal-close:hover {
+      background: #e53e3e;
+      transform: rotate(90deg);
+    }
+
+    .image-modal-img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      padding: 1rem;
+    }
+
+    textarea.form-control {
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .trend-image-placeholderSmall {
+      border: 1.5px dashed #cbd5e0;
+      border-radius: 8px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: #718096;
+      margin-top: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .trend-image-placeholderSmall:hover,
+    .trend-image-placeholderSmall:focus {
+      background: #edf2f7;
+      border-color: #667eea;
+      color: #667eea;
+    }
+
+    .direction-analysis-box {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      background: #fcfcfc;
+    }
+
+    .direction-analysis-box.long {
+      border-left: 4px solid #ef4444;
+    }
+
+    .direction-analysis-box.short {
+      border-left: 4px solid #10b981;
+    }
+
+    .direction-badge {
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .no-direction-hint {
+      margin-top: 1rem;
+      padding: 1.5rem;
+      border: 1px dashed #cbd5e0;
+      border-radius: 10px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 0.85rem;
+      background: #f8fafc;
+    }
+
+    /* 預期產生的達人訊號 */
+    .timeframe-signals.expected {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px dashed #e2e8f0;
+    }
+
+    .signal-chip.expected {
+      border-style: dashed;
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
+    .signal-chip.expected.active {
+      background: #1e40af;
+      color: white;
+      border-style: solid;
+    }
+
+    .expected-signals-images {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .expected-signal-item {
+      border: 1px solid #e2e8f0;
+      padding: 0.75rem;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .signal-name-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 0.5rem;
+    }
+
+    .trend-image-placeholderExtraSmall {
+      border: 1.5px dashed #cbd5e0;
+      border-radius: 6px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .trend-image-placeholderExtraSmall:hover,
+    .trend-image-placeholderExtraSmall:focus {
+      background: #f1f5f9;
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+  </style>
 {/if}

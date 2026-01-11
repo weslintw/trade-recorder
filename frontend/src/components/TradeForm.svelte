@@ -1,7 +1,7 @@
 <script>
   import { navigate } from 'svelte-routing';
   import { onMount } from 'svelte';
-  import { tradesAPI, dailyPlansAPI } from '../lib/api';
+  import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
   import { selectedAccountId, accounts, selectedSymbol } from '../lib/stores';
   import RichTextEditor from './RichTextEditor.svelte';
@@ -595,36 +595,40 @@
         entry_signals: (() => {
           let val = response.data.entry_signals;
           console.log('[DEBUG] Raw entry_signals:', val, typeof val);
-          
+
           if (typeof val === 'string') {
-             try {
-                let parsed = JSON.parse(val);
-                // Handle potential double-encoding
-                if (typeof parsed === 'string') {
-                    console.log('[DEBUG] entry_signals was double-encoded, parsing again');
-                    parsed = JSON.parse(parsed);
-                }
-                val = parsed;
-             } catch(e) {
-                console.error("[DEBUG] Entry signals parse error", e);
-                // If it's a non-empty string that failed parsing, maybe it's just a single string item? (Unlikely for signals)
-                val = [];
-             }
+            try {
+              let parsed = JSON.parse(val);
+              // Handle potential double-encoding
+              if (typeof parsed === 'string') {
+                console.log('[DEBUG] entry_signals was double-encoded, parsing again');
+                parsed = JSON.parse(parsed);
+              }
+              val = parsed;
+            } catch (e) {
+              console.error('[DEBUG] Entry signals parse error', e);
+              // If it's a non-empty string that failed parsing, maybe it's just a single string item? (Unlikely for signals)
+              val = [];
+            }
           }
-          
+
           console.log('[DEBUG] Parsed entry_signals:', val);
           if (!Array.isArray(val)) return [];
           // Normalize strings to objects
-          return val.map(v => typeof v === 'string' ? {name: v, image: ''} : v);
+          return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
         })(),
         entry_checklist: parseJSONSafe(response.data.entry_checklist, {}),
         entry_pattern: (() => {
-           let val = response.data.entry_pattern;
-           if (typeof val === 'string') {
-               try { val = JSON.parse(val); } catch(e) { val = []; }
-           }
-           if (!Array.isArray(val)) return [];
-           return val.map(v => typeof v === 'string' ? {name: v, image: ''} : v);
+          let val = response.data.entry_pattern;
+          if (typeof val === 'string') {
+            try {
+              val = JSON.parse(val);
+            } catch (e) {
+              val = [];
+            }
+          }
+          if (!Array.isArray(val)) return [];
+          return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
         })(),
         trend_analysis: parseJSONSafe(response.data.trend_analysis, {}),
         entry_timeframe: response.data.entry_timeframe || '',
@@ -663,16 +667,16 @@
           }
         });
       }
-      
+
       patternImagesCache = {};
       if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
         formData.entry_pattern.forEach(p => {
-           if (p.name && (p.image || p.originalImage)) {
-             patternImagesCache[p.name] = {
-               image: p.image || '',
-               originalImage: p.originalImage || '',
-             };
-           }
+          if (p.name && (p.image || p.originalImage)) {
+            patternImagesCache[p.name] = {
+              image: p.image || '',
+              originalImage: p.originalImage || '',
+            };
+          }
         });
       }
       // 檢查是否為組合單（相同進場時間、帳號、品種）
@@ -735,6 +739,13 @@
       formData.entry_signals = [];
     }
     previousSide = formData.side;
+  }
+
+  // 處理圖片顯示 Helper
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) return src;
+    return imagesAPI.getUrl(src);
   }
 
   // 放大查看圖片
@@ -978,2394 +989,2418 @@
   </div>
 {:else}
   <div class="card {formData.color_tag ? 'tag-' + formData.color_tag : ''}">
+    <div class="card-header-pane">
+      <div class="header-main-row">
+        <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
+      </div>
 
-  <div class="card-header-pane">
-    <div class="header-main-row">
-      <h2>{id ? '編輯' : '新增'}交易紀錄</h2>
-    </div>
-
-    <div class="header-sub-row">
-      {#if formData.trade_type === 'actual' && (formData.ticket || formData.pnl_series)}
-        <div class="form-header-metadata">
-          {#if formData.ticket}
-            <span class="ticket-label" title="cTrader Order ID">#{formData.ticket}</span>
-          {/if}
-          {#if formData.pnl_series}
-            <div class="header-sparkline-box">
-              <Sparkline data={formData.pnl_series} side={formData.side} width={100} height={32} />
-            </div>
-          {/if}
-        </div>
-      {:else}
-        <div class="header-spacer"></div>
-      {/if}
-
-      <div class="header-form-actions">
-        <button type="button" class="btn btn-sm btn-ghost" on:click={() => navigate('/')}>
-          <span class="icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h12a4 4 0 0 1 4 4v2"/></svg>
-          </span> 返回
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-sm btn-primary"
-          on:click={handleSubmit}
-          disabled={saving}
-        >
-          <span class="icon">{saving ? '⏳' : '💾'}</span>
-          {#if saving}
-            儲存中...
-          {:else}
-            {id ? '更新' : '儲存'}交易
-          {/if}
-        </button>
-
-        {#if id}
-          <button
-            type="button"
-            class="btn btn-sm btn-secondary"
-            on:click={() => (showShareModal = true)}
-          >
-            <span class="icon">📫</span> 分享
-          </button>
+      <div class="header-sub-row">
+        {#if formData.trade_type === 'actual' && (formData.ticket || formData.pnl_series)}
+          <div class="form-header-metadata">
+            {#if formData.ticket}
+              <span class="ticket-label" title="cTrader Order ID">#{formData.ticket}</span>
+            {/if}
+            {#if formData.pnl_series}
+              <div class="header-sparkline-box">
+                <Sparkline
+                  data={formData.pnl_series}
+                  side={formData.side}
+                  width={100}
+                  height={32}
+                />
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="header-spacer"></div>
         {/if}
 
-        <div class="merge-action-container header-merge">
-          {#if formData.trade_type === 'actual'}
+        <div class="header-form-actions">
+          <button type="button" class="btn btn-sm btn-ghost" on:click={() => navigate('/')}>
+            <span class="icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M9 14 4 9l5-5" /><path d="M4 9h12a4 4 0 0 1 4 4v2" /></svg
+              >
+            </span> 返回
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-sm btn-primary"
+            on:click={handleSubmit}
+            disabled={saving}
+          >
+            <span class="icon">{saving ? '⏳' : '💾'}</span>
+            {#if saving}
+              儲存中...
+            {:else}
+              {id ? '更新' : '儲存'}交易
+            {/if}
+          </button>
+
+          {#if id}
             <button
               type="button"
-              class="btn btn-sm btn-accent"
-              on:click={openWatchlistModal}
-              title="從過去的觀察單匯入分析資料"
+              class="btn btn-sm btn-secondary"
+              on:click={() => (showShareModal = true)}
             >
-              <span class="icon">📋</span> 併入觀察單
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="btn btn-sm btn-accent"
-              on:click={openActualTradesModal}
-              title="併入現有的實單交易"
-            >
-              <span class="icon">💰</span> 併入實單
+              <span class="icon">📫</span> 分享
             </button>
           {/if}
+
+          <div class="merge-action-container header-merge">
+            {#if formData.trade_type === 'actual'}
+              <button
+                type="button"
+                class="btn btn-sm btn-accent"
+                on:click={openWatchlistModal}
+                title="從過去的觀察單匯入分析資料"
+              >
+                <span class="icon">📋</span> 併入觀察單
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="btn btn-sm btn-accent"
+                on:click={openActualTradesModal}
+                title="併入現有的實單交易"
+              >
+                <span class="icon">💰</span> 併入實單
+              </button>
+            {/if}
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <form on:submit|preventDefault={handleSubmit}>
-    <!-- 交易類型選擇 -->
-    <div class="form-group trade-type-section">
-      <label class="trade-type-label">紀錄類型</label>
-      <div class="trade-type-options">
-        <label class="radio-option" class:active={formData.trade_type === 'observation'}>
-          <input type="radio" bind:group={formData.trade_type} value="observation" />
-          <span class="radio-label">
-            <span class="radio-icon">👁️</span>
-            <span class="radio-text">
-              <strong>觀察中 (尚未進單)</strong>
-              <small>純觀察記錄</small>
+    <form on:submit|preventDefault={handleSubmit}>
+      <!-- 交易類型選擇 -->
+      <div class="form-group trade-type-section">
+        <label class="trade-type-label">紀錄類型</label>
+        <div class="trade-type-options">
+          <label class="radio-option" class:active={formData.trade_type === 'observation'}>
+            <input type="radio" bind:group={formData.trade_type} value="observation" />
+            <span class="radio-label">
+              <span class="radio-icon">👁️</span>
+              <span class="radio-text">
+                <strong>觀察中 (尚未進單)</strong>
+                <small>純觀察記錄</small>
+              </span>
             </span>
-          </span>
-        </label>
-        <label class="radio-option" class:active={formData.trade_type === 'actual'}>
-          <input type="radio" bind:group={formData.trade_type} value="actual" />
-          <span class="radio-label">
-            <span class="radio-icon">💰</span>
-            <span class="radio-text">
-              <strong>有進單</strong>
-              <small>實際交易記錄</small>
+          </label>
+          <label class="radio-option" class:active={formData.trade_type === 'actual'}>
+            <input type="radio" bind:group={formData.trade_type} value="actual" />
+            <span class="radio-label">
+              <span class="radio-icon">💰</span>
+              <span class="radio-text">
+                <strong>有進單</strong>
+                <small>實際交易記錄</small>
+              </span>
             </span>
-          </span>
-        </label>
-      </div>
-    </div>
-
-    <!-- 顏色標記 -->
-    <div class="form-group color-tag-section">
-      <label class="section-label">顏色標記</label>
-      <div class="color-tags-options">
-        <button
-          type="button"
-          class="color-select-btn green {formData.color_tag === 'green' ? 'active' : ''}"
-          on:click={() => (formData.color_tag = formData.color_tag === 'green' ? '' : 'green')}
-        ></button>
-        <button
-          type="button"
-          class="color-select-btn yellow {formData.color_tag === 'yellow' ? 'active' : ''}"
-          on:click={() => (formData.color_tag = formData.color_tag === 'yellow' ? '' : 'yellow')}
-        ></button>
-        <button
-          type="button"
-          class="color-select-btn red {formData.color_tag === 'red' ? 'active' : ''}"
-          on:click={() => (formData.color_tag = formData.color_tag === 'red' ? '' : 'red')}
-        ></button>
-      </div>
-    </div>
-
-    <!-- 基本資訊 -->
-    <div class="form-row">
-      <div class="form-group">
-        <label for="symbol">交易品種</label>
-        <select id="symbol" class="form-control" bind:value={formData.symbol} required>
-          {#each symbols as symbol}
-            <option value={symbol}>{symbol}</option>
-          {/each}
-        </select>
+          </label>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="side">做多或做空</label>
-        <select id="side" class="form-control" bind:value={formData.side} required>
-          <option value="long">做多 (Long)</option>
-          <option value="short">做空 (Short)</option>
-        </select>
+      <!-- 顏色標記 -->
+      <div class="form-group color-tag-section">
+        <label class="section-label">顏色標記</label>
+        <div class="color-tags-options">
+          <button
+            type="button"
+            class="color-select-btn green {formData.color_tag === 'green' ? 'active' : ''}"
+            on:click={() => (formData.color_tag = formData.color_tag === 'green' ? '' : 'green')}
+          ></button>
+          <button
+            type="button"
+            class="color-select-btn yellow {formData.color_tag === 'yellow' ? 'active' : ''}"
+            on:click={() => (formData.color_tag = formData.color_tag === 'yellow' ? '' : 'yellow')}
+          ></button>
+          <button
+            type="button"
+            class="color-select-btn red {formData.color_tag === 'red' ? 'active' : ''}"
+            on:click={() => (formData.color_tag = formData.color_tag === 'red' ? '' : 'red')}
+          ></button>
+        </div>
       </div>
 
-      {#if isActualTrade}
+      <!-- 基本資訊 -->
+      <div class="form-row">
         <div class="form-group">
-          <label for="lot_size">手數</label>
-          {#if isGroup}
-            <div class="readonly-value-badge">
-              總共 {totalLot.toFixed(2)} 手 ({groupTrades.length} 次平倉)
-            </div>
-          {:else}
+          <label for="symbol">交易品種</label>
+          <select id="symbol" class="form-control" bind:value={formData.symbol} required>
+            {#each symbols as symbol}
+              <option value={symbol}>{symbol}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="side">做多或做空</label>
+          <select id="side" class="form-control" bind:value={formData.side} required>
+            <option value="long">做多 (Long)</option>
+            <option value="short">做空 (Short)</option>
+          </select>
+        </div>
+
+        {#if isActualTrade}
+          <div class="form-group">
+            <label for="lot_size">手數</label>
+            {#if isGroup}
+              <div class="readonly-value-badge">
+                總共 {totalLot.toFixed(2)} 手 ({groupTrades.length} 次平倉)
+              </div>
+            {:else}
+              <input
+                type="number"
+                step="0.01"
+                id="lot_size"
+                class="form-control"
+                bind:value={formData.lot_size}
+                required
+              />
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      {#if isActualTrade && !isGroup}
+        <div class="form-row four-cols">
+          <div class="form-group">
+            <label for="entry_price">進場價格</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="entry_price"
+              class="form-control"
+              bind:value={formData.entry_price}
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="initial_sl">初始ＳＬ</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="initial_sl"
+              class="form-control"
+              bind:value={formData.initial_sl}
+              placeholder="用於計算子彈大小"
+            />
+            {#if formData.sl_history}
+              <div class="sl-history-chips">
+                {#each parseSLHistory(formData.sl_history) as entry}
+                  <button
+                    type="button"
+                    class="sl-chip {parseFloat(formData.initial_sl) === entry.price
+                      ? 'active'
+                      : ''}"
+                    on:click={() => (formData.initial_sl = entry.price)}
+                    title={entry.time ? new Date(entry.time).toLocaleString() : ''}
+                  >
+                    <span class="sl-price">{entry.price}</span>
+                    {#if entry.time}
+                      <span class="sl-time"
+                        >{new Date(entry.time).toLocaleTimeString('zh-TW', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}</span
+                      >
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+
+          <div class="form-group">
+            <label for="exit_price">平倉價格</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="exit_price"
+              class="form-control"
+              bind:value={formData.exit_price}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="exit_sl">平倉ＳＬ</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="exit_sl"
+              class="form-control"
+              bind:value={formData.exit_sl}
+              placeholder="平倉當下的 ＳＬ"
+            />
+          </div>
+        </div>
+
+        <div class="form-row four-cols">
+          <div class="form-group">
+            <label for="pnl">盈虧金額</label>
             <input
               type="number"
               step="0.01"
-              id="lot_size"
+              id="pnl"
               class="form-control"
-              bind:value={formData.lot_size}
+              bind:value={formData.pnl}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="pnl_points">盈虧點數</label>
+            <input
+              type="number"
+              step="0.1"
+              id="pnl_points"
+              class="form-control readonly-calc"
+              bind:value={formData.pnl_points}
+              readonly
+              placeholder="自動計算"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bullet_size">子彈大小 (Bullet)</label>
+            <input
+              type="number"
+              id="bullet_size"
+              class="form-control readonly-calc"
+              bind:value={formData.bullet_size}
+              readonly
+              placeholder="自動計算"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="rr_ratio">風報比 (R:R)</label>
+            <input
+              type="number"
+              id="rr_ratio"
+              class="form-control readonly-calc"
+              bind:value={formData.rr_ratio}
+              readonly
+              placeholder="自動計算"
+            />
+          </div>
+        </div>
+        {#if !formData.entry_price || !formData.initial_sl}
+          <div style="margin-top: -0.5rem; margin-bottom: 1rem;">
+            <small class="form-hint"
+              >💡 請填寫「進場價格」與「初始停損」以自動計算子彈大小與風報比</small
+            >
+          </div>
+        {/if}
+      {:else if isActualTrade && isGroup}
+        <!-- 組合單專用 Execution 配置 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="entry_price">進場價格</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="entry_price"
+              class="form-control"
+              bind:value={formData.entry_price}
               required
             />
-          {/if}
-        </div>
-      {/if}
-    </div>
-
-    {#if isActualTrade && !isGroup}
-      <div class="form-row four-cols">
-        <div class="form-group">
-          <label for="entry_price">進場價格</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="entry_price"
-            class="form-control"
-            bind:value={formData.entry_price}
-            required
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="initial_sl">初始ＳＬ</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="initial_sl"
-            class="form-control"
-            bind:value={formData.initial_sl}
-            placeholder="用於計算子彈大小"
-          />
-          {#if formData.sl_history}
-            <div class="sl-history-chips">
-              {#each parseSLHistory(formData.sl_history) as entry}
-                <button
-                  type="button"
-                  class="sl-chip {parseFloat(formData.initial_sl) === entry.price ? 'active' : ''}"
-                  on:click={() => (formData.initial_sl = entry.price)}
-                  title={entry.time ? new Date(entry.time).toLocaleString() : ''}
-                >
-                  <span class="sl-price">{entry.price}</span>
-                  {#if entry.time}
-                    <span class="sl-time"
-                      >{new Date(entry.time).toLocaleTimeString('zh-TW', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}</span
-                    >
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-
-        <div class="form-group">
-          <label for="exit_price">平倉價格</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="exit_price"
-            class="form-control"
-            bind:value={formData.exit_price}
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="exit_sl">平倉ＳＬ</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="exit_sl"
-            class="form-control"
-            bind:value={formData.exit_sl}
-            placeholder="平倉當下的 ＳＬ"
-          />
-        </div>
-      </div>
-
-      <div class="form-row four-cols">
-        <div class="form-group">
-          <label for="pnl">盈虧金額</label>
-          <input
-            type="number"
-            step="0.01"
-            id="pnl"
-            class="form-control"
-            bind:value={formData.pnl}
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="pnl_points">盈虧點數</label>
-          <input
-            type="number"
-            step="0.1"
-            id="pnl_points"
-            class="form-control readonly-calc"
-            bind:value={formData.pnl_points}
-            readonly
-            placeholder="自動計算"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="bullet_size">子彈大小 (Bullet)</label>
-          <input
-            type="number"
-            id="bullet_size"
-            class="form-control readonly-calc"
-            bind:value={formData.bullet_size}
-            readonly
-            placeholder="自動計算"
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="rr_ratio">風報比 (R:R)</label>
-          <input
-            type="number"
-            id="rr_ratio"
-            class="form-control readonly-calc"
-            bind:value={formData.rr_ratio}
-            readonly
-            placeholder="自動計算"
-          />
-        </div>
-      </div>
-      {#if !formData.entry_price || !formData.initial_sl}
-        <div style="margin-top: -0.5rem; margin-bottom: 1rem;">
-          <small class="form-hint"
-            >💡 請填寫「進場價格」與「初始停損」以自動計算子彈大小與風報比</small
-          >
-        </div>
-      {/if}
-    {:else if isActualTrade && isGroup}
-      <!-- 組合單專用 Execution 配置 -->
-      <div class="form-row">
-        <div class="form-group">
-          <label for="entry_price">進場價格</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="entry_price"
-            class="form-control"
-            bind:value={formData.entry_price}
-            required
-          />
-        </div>
-        <div class="form-group">
-          <label for="initial_sl">初始ＳＬ</label>
-          <input
-            type="number"
-            step="0.00001"
-            id="initial_sl"
-            class="form-control"
-            bind:value={formData.initial_sl}
-          />
-          {#if formData.sl_history}
-            <div class="sl-history-chips">
-              {#each parseSLHistory(formData.sl_history) as entry}
-                <button
-                  type="button"
-                  class="sl-chip {parseFloat(formData.initial_sl) === entry.price ? 'active' : ''}"
-                  on:click={() => (formData.initial_sl = entry.price)}
-                  title={entry.time ? new Date(entry.time).toLocaleString() : ''}
-                >
-                  <span class="sl-price">{entry.price}</span>
-                  {#if entry.time}
-                    <span class="sl-time"
-                      >{new Date(entry.time).toLocaleTimeString('zh-TW', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}</span
-                    >
-                  {/if}
-                </button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-        <div class="form-group">
-          <label>總計盈虧</label>
-          <div class="readonly-value-badge pnl {totalPnl >= 0 ? 'profit' : 'loss'}">
-            {totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)} USD
           </div>
-        </div>
-        <div class="form-group">
-          <label>總持單時間</label>
-          <div class="readonly-value-badge duration">
-            {calculateDuration(
-              formData.entry_time,
-              groupTrades[groupTrades.length - 1]?.exit_time
-            ) || '--'}
-          </div>
-        </div>
-      </div>
-
-      <div class="execution-timeline-section">
-        <label class="section-subtitle">📋 平倉時間軸 (分批出場記錄)</label>
-        <div class="timeline-container-mini">
-          {#each groupTrades as t, i}
-            <div class="timeline-item-mini">
-              <div class="item-time">
-                平倉 {i + 1}:
-                <strong
-                  >{new Date(t.exit_time).toLocaleString('zh-TW', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}</strong
-                >
-                <span class="duration-mini"
-                  >({calculateDuration(formData.entry_time, t.exit_time)})</span
-                >
+          <div class="form-group">
+            <label for="initial_sl">初始ＳＬ</label>
+            <input
+              type="number"
+              step="0.00001"
+              id="initial_sl"
+              class="form-control"
+              bind:value={formData.initial_sl}
+            />
+            {#if formData.sl_history}
+              <div class="sl-history-chips">
+                {#each parseSLHistory(formData.sl_history) as entry}
+                  <button
+                    type="button"
+                    class="sl-chip {parseFloat(formData.initial_sl) === entry.price
+                      ? 'active'
+                      : ''}"
+                    on:click={() => (formData.initial_sl = entry.price)}
+                    title={entry.time ? new Date(entry.time).toLocaleString() : ''}
+                  >
+                    <span class="sl-price">{entry.price}</span>
+                    {#if entry.time}
+                      <span class="sl-time"
+                        >{new Date(entry.time).toLocaleTimeString('zh-TW', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                        })}</span
+                      >
+                    {/if}
+                  </button>
+                {/each}
               </div>
-              <div class="item-details">
-                <span class="badge-mini">價格: {t.exit_price}</span>
-                <span class="badge-mini">手數: {t.lot_size}</span>
-                <span class="badge-mini pnl {t.pnl >= 0 ? 'profit' : 'loss'}"
-                  >盈虧: {t.pnl >= 0 ? '+' : ''}{t.pnl?.toFixed(2)}</span
-                >
-                {#if t.ticket}<span class="badge-mini ticket">#{t.ticket}</span>{/if}
-              </div>
+            {/if}
+          </div>
+          <div class="form-group">
+            <label>總計盈虧</label>
+            <div class="readonly-value-badge pnl {totalPnl >= 0 ? 'profit' : 'loss'}">
+              {totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)} USD
             </div>
-          {/each}
-        </div>
-      </div>
-    {/if}
-
-    <div class="form-row time-row">
-      <div class="form-group">
-        <label for="entry_time">
-          開倉時間
-          <span class="utc-label-info"
-            >(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span
-          >
-        </label>
-        <input
-          type="datetime-local"
-          id="entry_time"
-          class="form-control"
-          bind:value={formData.entry_time}
-          step="1"
-          required
-        />
-      </div>
-
-      {#if formData.market_session}
-        <div class="form-group">
-          <label>市場時段與規劃</label>
-          <div class="session-status-card {formData.market_session}">
-            <div class="session-badge-mini">
-              {marketSessionNames[formData.market_session]}
-            </div>
-            <div class="session-info-line">
-              <span class="session-time-text">{getMarketSessionTime(formData.market_session)}</span>
-              <span class="session-dot">·</span>
-              <span class="session-season-text">{getSeasonLabel()}</span>
-            </div>
-
-            <div class="plan-status-mini">
-              {#if matchedPlan}
-                <span class="status-yes" on:click={() => navigate(`/plans/edit/${matchedPlan.id}`)}>
-                  <i class="icon">✅</i> 已有規劃
-                </span>
-              {:else}
-                <span
-                  class="status-no"
-                  on:click={() => {
-                    const date = new Date(formData.entry_time).toISOString().slice(0, 10);
-                    navigate(
-                      `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
-                    );
-                  }}
-                >
-                  <i class="icon">❓</i> 缺規劃
-                </span>
-              {/if}
+          </div>
+          <div class="form-group">
+            <label>總持單時間</label>
+            <div class="readonly-value-badge duration">
+              {calculateDuration(
+                formData.entry_time,
+                groupTrades[groupTrades.length - 1]?.exit_time
+              ) || '--'}
             </div>
           </div>
         </div>
-      {/if}
-    </div>
 
-    {#if isActualTrade && !isGroup}
-      <div class="form-row">
+        <div class="execution-timeline-section">
+          <label class="section-subtitle">📋 平倉時間軸 (分批出場記錄)</label>
+          <div class="timeline-container-mini">
+            {#each groupTrades as t, i}
+              <div class="timeline-item-mini">
+                <div class="item-time">
+                  平倉 {i + 1}:
+                  <strong
+                    >{new Date(t.exit_time).toLocaleString('zh-TW', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}</strong
+                  >
+                  <span class="duration-mini"
+                    >({calculateDuration(formData.entry_time, t.exit_time)})</span
+                  >
+                </div>
+                <div class="item-details">
+                  <span class="badge-mini">價格: {t.exit_price}</span>
+                  <span class="badge-mini">手數: {t.lot_size}</span>
+                  <span class="badge-mini pnl {t.pnl >= 0 ? 'profit' : 'loss'}"
+                    >盈虧: {t.pnl >= 0 ? '+' : ''}{t.pnl?.toFixed(2)}</span
+                  >
+                  {#if t.ticket}<span class="badge-mini ticket">#{t.ticket}</span>{/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <div class="form-row time-row">
         <div class="form-group">
-          <label for="exit_time">
-            平倉時間
+          <label for="entry_time">
+            開倉時間
             <span class="utc-label-info"
               >(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span
             >
           </label>
           <input
             type="datetime-local"
-            id="exit_time"
+            id="entry_time"
             class="form-control"
-            bind:value={formData.exit_time}
+            bind:value={formData.entry_time}
             step="1"
+            required
           />
         </div>
-        <div class="form-group">
-          <label>持單時間</label>
-          <div class="readonly-value-badge duration">
-            {calculateDuration(formData.entry_time, formData.exit_time) || '--'}
+
+        {#if formData.market_session}
+          <div class="form-group">
+            <label>市場時段與規劃</label>
+            <div class="session-status-card {formData.market_session}">
+              <div class="session-badge-mini">
+                {marketSessionNames[formData.market_session]}
+              </div>
+              <div class="session-info-line">
+                <span class="session-time-text"
+                  >{getMarketSessionTime(formData.market_session)}</span
+                >
+                <span class="session-dot">·</span>
+                <span class="session-season-text">{getSeasonLabel()}</span>
+              </div>
+
+              <div class="plan-status-mini">
+                {#if matchedPlan}
+                  <span
+                    class="status-yes"
+                    on:click={() => navigate(`/plans/edit/${matchedPlan.id}`)}
+                  >
+                    <i class="icon">✅</i> 已有規劃
+                  </span>
+                {:else}
+                  <span
+                    class="status-no"
+                    on:click={() => {
+                      const date = new Date(formData.entry_time).toISOString().slice(0, 10);
+                      navigate(
+                        `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
+                      );
+                    }}
+                  >
+                    <i class="icon">❓</i> 缺規劃
+                  </span>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      {#if isActualTrade && !isGroup}
+        <div class="form-row">
+          <div class="form-group">
+            <label for="exit_time">
+              平倉時間
+              <span class="utc-label-info"
+                >(UTC{formData.timezone_offset >= 0 ? '+' : ''}{formData.timezone_offset})</span
+              >
+            </label>
+            <input
+              type="datetime-local"
+              id="exit_time"
+              class="form-control"
+              bind:value={formData.exit_time}
+              step="1"
+            />
+          </div>
+          <div class="form-group">
+            <label>持單時間</label>
+            <div class="readonly-value-badge duration">
+              {calculateDuration(formData.entry_time, formData.exit_time) || '--'}
+            </div>
           </div>
         </div>
-      </div>
-    {/if}
-
-    <!-- 進場種類選擇 -->
-    <div class="form-group entry-strategy-section">
-      <div class="highlight-label">
-        <label>📍 進場分析</label>
-      </div>
-
-      <!-- 盤面規劃狀態 (從上方移至此處) -->
-      <TradePlanStatus {matchedPlan} {formData} />
-
-      <!-- 進場種類和進場時區 -->
-      <EntryStrategySelector bind:formData />
-
-      <!-- 達人訊號（卡片形式，可貼圖） -->
-      {#if formData.entry_strategy === 'expert'}
-        <ExpertStrategy
-          bind:formData
-          bind:signalImagesCache
-          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-        />
       {/if}
 
-      {#if formData.entry_strategy === 'elite'}
-        <EliteStrategy
-          bind:formData
-          bind:patternImagesCache
-          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-        />
-      {/if}
+      <!-- 進場種類選擇 -->
+      <div class="form-group entry-strategy-section">
+        <div class="highlight-label">
+          <label>📍 進場分析</label>
+        </div>
 
-      {#if formData.entry_strategy === 'legend'}
-        <LegendStrategy
-          bind:formData
-          bind:signalImagesCache
-          on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-        />
-      {/if}
-    </div>
+        <!-- 盤面規劃狀態 (從上方移至此處) -->
+        <TradePlanStatus {matchedPlan} {formData} />
 
-    <div class="form-group">
-      <label for="exit_reason">
-        🎯 平倉理由
-        <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
-      </label>
-      <RichTextEditor
-        bind:this={exitReasonEditor}
-        bind:value={formData.exit_reason}
-        placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
-        height="180px"
-      />
-    </div>
+        <!-- 進場種類和進場時區 -->
+        <EntryStrategySelector bind:formData />
 
-    <div class="form-group">
-      <label for="notes">
-        📝 交易復盤
-        <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
-      </label>
-      <RichTextEditor
-        bind:this={notesEditor}
-        bind:value={formData.notes}
-        placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
-        height="200px"
-      />
-    </div>
-
-    <div class="form-group">
-      <label for="trade-tags">標籤</label>
-      <div class="tag-input-wrapper">
-        <input
-          id="trade-tags"
-          type="text"
-          class="form-control"
-          bind:value={tagInput}
-          placeholder="輸入標籤（如：突破、回踩、新聞單）"
-          on:keypress={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
-        />
-        <button type="button" class="btn btn-primary" on:click={addTag}>新增</button>
-      </div>
-      <div class="tags-container">
-        {#each formData.tags as tag}
-          <span class="tag">
-            #{tag}
-            <button type="button" class="tag-remove" on:click={() => removeTag(tag)}>×</button>
-          </span>
-        {/each}
-      </div>
-    </div>
-
-    <div class="form-actions">
-      <button type="button" class="btn" on:click={() => navigate('/')}>返回</button>
-      <button type="submit" class="btn btn-primary" disabled={saving}>
-        {#if saving}
-          儲存中...
-        {:else}
-          {id ? '更新' : '建立'}交易
+        <!-- 達人訊號（卡片形式，可貼圖） -->
+        {#if formData.entry_strategy === 'expert'}
+          <ExpertStrategy
+            bind:formData
+            bind:signalImagesCache
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
         {/if}
-      </button>
-    </div>
-  </form>
-</div>
 
-<!-- 圖片放大查看模態視窗 -->
-{#if enlargedImage}
-  <div class="image-modal" on:click={closeEnlargedImage} role="presentation">
-    <div class="image-modal-content" on:click={e => e.stopPropagation()} role="presentation">
-      <div class="image-modal-header">
-        <h3 class="image-modal-title">{enlargedImageTitle}</h3>
-        <div class="image-modal-actions">
-          <button
-            class="annotator-toggle-btn"
-            class:active={showAnnotator}
-            on:click={e => {
-              e.stopPropagation();
-              toggleAnnotator();
-            }}
-            title="標註工具"
-          >
-            {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
-          </button>
-          <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+        {#if formData.entry_strategy === 'elite'}
+          <EliteStrategy
+            bind:formData
+            bind:patternImagesCache
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
+        {/if}
+
+        {#if formData.entry_strategy === 'legend'}
+          <LegendStrategy
+            bind:formData
+            bind:signalImagesCache
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
+        {/if}
+      </div>
+
+      <div class="form-group">
+        <label for="exit_reason">
+          🎯 平倉理由
+          <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
+        </label>
+        <RichTextEditor
+          bind:this={exitReasonEditor}
+          bind:value={formData.exit_reason}
+          placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
+          height="180px"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="notes">
+          📝 交易復盤
+          <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
+        </label>
+        <RichTextEditor
+          bind:this={notesEditor}
+          bind:value={formData.notes}
+          placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
+          height="200px"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="trade-tags">標籤</label>
+        <div class="tag-input-wrapper">
+          <input
+            id="trade-tags"
+            type="text"
+            class="form-control"
+            bind:value={tagInput}
+            placeholder="輸入標籤（如：突破、回踩、新聞單）"
+            on:keypress={e => e.key === 'Enter' && (e.preventDefault(), addTag())}
+          />
+          <button type="button" class="btn btn-primary" on:click={addTag}>新增</button>
+        </div>
+        <div class="tags-container">
+          {#each formData.tags as tag}
+            <span class="tag">
+              #{tag}
+              <button type="button" class="tag-remove" on:click={() => removeTag(tag)}>×</button>
+            </span>
+          {/each}
         </div>
       </div>
 
-      {#if showAnnotator}
-        <ImageAnnotator
-          imageSrc={enlargedImage}
-          originalImageSrc={enlargedOriginalImage}
-          onSave={handleAnnotatedImage}
-        />
-      {:else}
-        <img src={enlargedImage} alt={enlargedImageTitle} class="image-modal-img" />
-      {/if}
-    </div>
+      <div class="form-actions">
+        <button type="button" class="btn" on:click={() => navigate('/')}>返回</button>
+        <button type="submit" class="btn btn-primary" disabled={saving}>
+          {#if saving}
+            儲存中...
+          {:else}
+            {id ? '更新' : '建立'}交易
+          {/if}
+        </button>
+      </div>
+    </form>
   </div>
-{/if}
 
-<!-- 觀察單選擇模態框 -->
-<WatchlistSelectionModal
-  show={showWatchlistModal}
-  trades={watchlistTrades}
-  currentSymbol={formData.symbol}
-  onConfirm={formData.trade_type === 'actual' ? handleMergeWatchlist : handleMergeActualTrade}
-  onClose={() => (showWatchlistModal = false)}
-/>
-
-<ShareModal
-  show={showShareModal}
-  resourceType="trade"
-  resourceId={id}
-  resourceTitle={formData.symbol + '_TradeReport'}
-  onClose={() => (showShareModal = false)}
-/>
-
-<style>
-  .card-header-pane {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid #edf2f7;
-  }
-
-  .header-main-row h2 {
-    font-size: 1.75rem;
-    font-weight: 800;
-    color: #1e293b;
-    margin: 0;
-    letter-spacing: -0.02em;
-  }
-
-  .header-sub-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    gap: 1.5rem;
-  }
-
-  .header-spacer {
-    flex: 1;
-  }
-
-  .header-form-actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-  }
-
-  .btn-sm {
-    padding: 0.6rem 1.25rem;
-    font-size: 0.85rem;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-  }
-  .btn-ghost:hover {
-    background: #f8fafc;
-    border-color: #cbd5e1;
-    color: #334155;
-  }
-
-  .btn-secondary {
-    background: white;
-    color: #4f46e5;
-    border: 1px solid #e0e7ff;
-  }
-  .btn-secondary:hover {
-    background: #f5f3ff;
-    border-color: #c7d2fe;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
-  }
-
-  .btn-accent {
-    background: #f0fdfa;
-    color: #0d9488;
-    border: 1px solid #ccfbf1;
-  }
-  .btn-accent:hover {
-    background: #ccfbf1;
-    border-color: #99f6e4;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
-  }
-
-  .color-tag-section {
-    background: #f7fafc;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .color-tags-options {
-    display: flex;
-    gap: 1rem;
-  }
-
-  .color-select-btn {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 50%;
-    border: 2px solid #e2e8f0;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 0;
-  }
-
-  .color-select-btn:hover {
-    transform: scale(1.1);
-  }
-
-  .color-select-btn.active {
-    border: 3px solid #4a5568;
-    transform: scale(1.1);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  }
-
-  .color-select-btn.green {
-    background-color: #22c55e;
-  }
-  .color-select-btn.yellow {
-    background-color: #eab308;
-  }
-  .color-select-btn.red {
-    background-color: #ef4444;
-  }
-
-  /* 交易類型選擇 */
-  .trade-type-section {
-    margin-bottom: 2rem;
-    padding: 1.5rem;
-    background: #f7fafc;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-  }
-
-  .trade-type-label {
-    display: block;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 1rem;
-  }
-
-  .trade-type-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .radio-option {
-    position: relative;
-    cursor: pointer;
-    border: 2px solid #cbd5e0;
-    border-radius: 12px;
-    padding: 1.25rem;
-    background: white;
-    transition: all 0.2s ease;
-  }
-
-  .radio-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
-  }
-
-  .radio-option.active {
-    border-color: #667eea;
-    background: #edf2f7;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .radio-option input[type='radio'] {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .radio-label {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-  }
-
-  .radio-icon {
-    font-size: 2rem;
-    line-height: 1;
-  }
-
-  .radio-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .radio-text strong {
-    font-size: 1rem;
-    color: #2d3748;
-  }
-
-  .radio-text small {
-    font-size: 0.85rem;
-    color: #718096;
-  }
-
-  .form-row {
-    display: grid;
-    grid-template-columns: 1fr 1.5fr 1fr; /* 品種, 方向, 手數 分配比例 */
-    gap: 1.25rem;
-    margin-bottom: 0.85rem;
-  }
-
-  /* 針對特定行數調整欄位 */
-  /* 針對特定行數調整欄位 */
-  .form-row.four-cols {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .form-row.time-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-  }
-
-  /* 當寬度足夠時，限制最大寬度以避免過度展開 */
-  :global(.card) {
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 2rem !important;
-  }
-
-  .readonly-calc {
-    background-color: var(--bg-main);
-    color: var(--text-main);
-    cursor: default;
-    font-weight: 600;
-    border: 1px solid var(--border-color);
-  }
-
-  .time-input-container {
-    display: flex;
-    align-items: center;
-  }
-
-  .utc-label-info {
-    font-size: 0.8rem;
-    color: #a0aec0;
-    margin-left: 0.5rem;
-    font-weight: 500;
-  }
-
-  .form-hint {
-    display: block;
-    margin-top: 0.4rem;
-    color: #718096;
-    font-size: 0.8rem;
-    font-style: italic;
-  }
-
-  /* 進場分析區塊 */
-  .highlight-label {
-    margin-bottom: 1rem;
-    border-left: 4px solid #667eea;
-    padding-left: 0.75rem;
-  }
-
-  .highlight-label label {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-main);
-  }
-
-  .entry-strategy-section {
-    margin: 1.5rem 0;
-    padding: 2rem 1.5rem 1.5rem; /* Increased top padding */
-    background: var(--bg-main);
-    border-radius: 12px;
-    border: 2px solid var(--border-color);
-    position: relative; /* Context for absolute positioning if needed */
-  }
-
-  .entry-strategy-section .highlight-label {
-    margin-bottom: 1.5rem;
-    padding-left: 0.5rem; /* Ensure text isn't flush left */
-  }
-
-  .section-label-group {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .plan-status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    border-radius: 20px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .plan-status-badge.linked {
-    background: #f0fdf4;
-    color: #166534;
-    border-color: #bcf0da;
-  }
-
-  .plan-status-badge.linked:hover {
-    background: #dcfce7;
-  }
-
-  .plan-status-badge.missing {
-    background: #fff5f5;
-    color: #c53030;
-    border-color: #feb2b2;
-  }
-
-  .plan-status-badge.missing:hover {
-    background: #fff5f5;
-  }
-
-  .view-link,
-  .add-link {
-    font-size: 0.75rem;
-    text-decoration: underline;
-    opacity: 0.8;
-  }
-
-  .plan-details-summary {
-    background: var(--card-bg);
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-  }
-
-  .plan-general-notes {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-    font-style: italic;
-  }
-
-  /* 時序進展視圖 */
-  .progression-view {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .progression-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.9rem;
-  }
-
-  .tf-name {
-    font-weight: 700;
-    color: var(--text-muted);
-    min-width: 40px;
-  }
-
-  .steps {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: nowrap;
-  }
-
-  .step {
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: 600;
-    font-size: 0.85rem;
-  }
-
-  .step.long {
-    background: #f0fdf4;
-    color: #166534;
-  }
-
-  .step.short {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-
-  .arrow {
-    color: #94a3b8;
-    font-weight: bold;
-    font-size: 0.8rem;
-  }
-
-  .plan-session-notes {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-color);
-  }
-
-  .plan-note-item {
-    display: flex;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-  }
-
-  .session-tag {
-    font-weight: 700;
-    white-space: nowrap;
-    font-size: 0.8rem;
-  }
-
-  .session-tag.asian {
-    color: #2b6cb0;
-  }
-  .session-tag.european {
-    color: #975a16;
-  }
-  .session-tag.us {
-    color: #c53030;
-  }
-
-  .note-text {
-    color: #4a5568;
-  }
-
-  .strategy-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-  }
-
-  .strategy-label {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #4a5568;
-    margin-bottom: 0;
-  }
-
-  .timeframe-trend-row {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    margin-bottom: 1rem;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: 2rem;
-  }
-
-  .timeframe-trend-row .form-group {
-    margin-bottom: 0;
-  }
-
-  .timeframe-trend-row label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #718096;
-    margin-bottom: 0.4rem;
-    display: block;
-  }
-
-  .strategy-options {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .strategy-option {
-    position: relative;
-    cursor: pointer;
-    padding: 0.75rem 1.5rem;
-    border: 2px solid #cbd5e0;
-    border-radius: 8px;
-    background: white;
-    transition: all 0.2s ease;
-  }
-
-  .strategy-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-    transform: translateY(-1px);
-  }
-
-  .strategy-option.active {
-    border-color: #667eea;
-    background: #edf2f7;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .strategy-options.mini {
-    gap: 0.5rem;
-  }
-
-  .strategy-options.mini .strategy-option {
-    padding: 0.5rem 0.85rem;
-    border-width: 1.5px;
-    border-radius: 6px;
-  }
-
-  .strategy-options.mini .strategy-name {
-    font-size: 0.85rem;
-  }
-
-  /* 精緻合併按鈕樣式 */
-  .merge-action-container {
-    display: flex;
-    align-items: center;
-    padding-left: 1rem;
-    margin-left: 1rem;
-    border-left: 1.5px dashed #e2e8f0;
-  }
-
-  .merge-action-container.header-merge {
-    border-left: none;
-    padding-left: 0.5rem;
-    margin-left: 0.5rem;
-  }
-
-  .btn-merge {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 1rem;
-    background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
-    border: 1px solid #c4b5fd;
-    border-radius: 10px;
-    color: #6d28d9;
-    font-weight: 700;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow:
-      0 4px 6px -1px rgba(109, 40, 217, 0.05),
-      0 2px 4px -1px rgba(109, 40, 217, 0.03);
-    white-space: nowrap;
-  }
-
-  .btn-merge:hover {
-    background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
-    color: white;
-    border-color: #7c3aed;
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(109, 40, 217, 0.2);
-  }
-
-  .btn-merge:active {
-    transform: translateY(0);
-  }
-
-  .btn-merge .icon {
-    font-size: 1.1rem;
-    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.1));
-  }
-
-  .strategy-option input[type='radio'] {
-    position: absolute;
-    opacity: 0;
-  }
-
-  .strategy-name {
-    font-weight: 600;
-    color: #2d3748;
-  }
-
-  .strategy-option.active .strategy-name {
-    color: #667eea;
-  }
-
-  /* 訊號和檢查清單 */
-  .signals-section,
-  .checklist-section {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-  }
-
-  .signals-label,
-  .checklist-label {
-    display: block;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 0.75rem;
-  }
-
-  .signals-section.nested {
-    margin-top: 1rem;
-    padding: 1.25rem;
-    background: #f8fafc;
-    border: 2px dashed #6366f1;
-    border-radius: 12px;
-    animation: slideIn 0.3s ease-out;
-  }
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
+  <!-- 圖片放大查看模態視窗 -->
+  {#if enlargedImage}
+    <div class="image-modal" on:click={closeEnlargedImage} role="presentation">
+      <div class="image-modal-content" on:click={e => e.stopPropagation()} role="presentation">
+        <div class="image-modal-header">
+          <h3 class="image-modal-title">{enlargedImageTitle}</h3>
+          <div class="image-modal-actions">
+            <button
+              class="annotator-toggle-btn"
+              class:active={showAnnotator}
+              on:click={e => {
+                e.stopPropagation();
+                toggleAnnotator();
+              }}
+              title="標註工具"
+            >
+              {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
+            </button>
+            <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+          </div>
+        </div>
+
+        {#if showAnnotator}
+          <ImageAnnotator
+            imageSrc={enlargedImage}
+            originalImageSrc={enlargedOriginalImage}
+            onSave={handleAnnotatedImage}
+          />
+        {:else}
+          <img src={getImageUrl(enlargedImage)} alt={enlargedImageTitle} class="image-modal-img" />
+        {/if}
+      </div>
+    </div>
+  {/if}
+
+  <!-- 觀察單選擇模態框 -->
+  <WatchlistSelectionModal
+    show={showWatchlistModal}
+    trades={watchlistTrades}
+    currentSymbol={formData.symbol}
+    onConfirm={formData.trade_type === 'actual' ? handleMergeWatchlist : handleMergeActualTrade}
+    onClose={() => (showWatchlistModal = false)}
+  />
+
+  <ShareModal
+    show={showShareModal}
+    resourceType="trade"
+    resourceId={id}
+    resourceTitle={formData.symbol + '_TradeReport'}
+    onClose={() => (showShareModal = false)}
+  />
+
+  <style>
+    .card-header-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #edf2f7;
     }
-    to {
-      opacity: 1;
+
+    .header-main-row h2 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #1e293b;
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+
+    .header-sub-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      gap: 1.5rem;
+    }
+
+    .header-spacer {
+      flex: 1;
+    }
+
+    .header-form-actions {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn-sm {
+      padding: 0.6rem 1.25rem;
+      font-size: 0.85rem;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-ghost:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+      color: #334155;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #4f46e5;
+      border: 1px solid #e0e7ff;
+    }
+    .btn-secondary:hover {
+      background: #f5f3ff;
+      border-color: #c7d2fe;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+    }
+
+    .btn-accent {
+      background: #f0fdfa;
+      color: #0d9488;
+      border: 1px solid #ccfbf1;
+    }
+    .btn-accent:hover {
+      background: #ccfbf1;
+      border-color: #99f6e4;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.1);
+    }
+
+    .color-tag-section {
+      background: #f7fafc;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .color-tags-options {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .color-select-btn {
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      border: 2px solid #e2e8f0;
+      cursor: pointer;
+      transition: all 0.2s;
+      padding: 0;
+    }
+
+    .color-select-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .color-select-btn.active {
+      border: 3px solid #4a5568;
+      transform: scale(1.1);
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .color-select-btn.green {
+      background-color: #22c55e;
+    }
+    .color-select-btn.yellow {
+      background-color: #eab308;
+    }
+    .color-select-btn.red {
+      background-color: #ef4444;
+    }
+
+    /* 交易類型選擇 */
+    .trade-type-section {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: #f7fafc;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+    }
+
+    .trade-type-label {
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 1rem;
+    }
+
+    .trade-type-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .radio-option {
+      position: relative;
+      cursor: pointer;
+      border: 2px solid #cbd5e0;
+      border-radius: 12px;
+      padding: 1.25rem;
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    .radio-option:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+    }
+
+    .radio-option.active {
+      border-color: #667eea;
+      background: #edf2f7;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .radio-option input[type='radio'] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .radio-icon {
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    .radio-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .radio-text strong {
+      font-size: 1rem;
+      color: #2d3748;
+    }
+
+    .radio-text small {
+      font-size: 0.85rem;
+      color: #718096;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr 1fr; /* 品種, 方向, 手數 分配比例 */
+      gap: 1.25rem;
+      margin-bottom: 0.85rem;
+    }
+
+    /* 針對特定行數調整欄位 */
+    /* 針對特定行數調整欄位 */
+    .form-row.four-cols {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .form-row.time-row {
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    /* 當寬度足夠時，限制最大寬度以避免過度展開 */
+    :global(.card) {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem !important;
+    }
+
+    .readonly-calc {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      cursor: default;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+    }
+
+    .time-input-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .utc-label-info {
+      font-size: 0.8rem;
+      color: #a0aec0;
+      margin-left: 0.5rem;
+      font-weight: 500;
+    }
+
+    .form-hint {
+      display: block;
+      margin-top: 0.4rem;
+      color: #718096;
+      font-size: 0.8rem;
+      font-style: italic;
+    }
+
+    /* 進場分析區塊 */
+    .highlight-label {
+      margin-bottom: 1rem;
+      border-left: 4px solid #667eea;
+      padding-left: 0.75rem;
+    }
+
+    .highlight-label label {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .entry-strategy-section {
+      margin: 1.5rem 0;
+      padding: 2rem 1.5rem 1.5rem; /* Increased top padding */
+      background: var(--bg-main);
+      border-radius: 12px;
+      border: 2px solid var(--border-color);
+      position: relative; /* Context for absolute positioning if needed */
+    }
+
+    .entry-strategy-section .highlight-label {
+      margin-bottom: 1.5rem;
+      padding-left: 0.5rem; /* Ensure text isn't flush left */
+    }
+
+    .section-label-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .plan-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .plan-status-badge.linked {
+      background: #f0fdf4;
+      color: #166534;
+      border-color: #bcf0da;
+    }
+
+    .plan-status-badge.linked:hover {
+      background: #dcfce7;
+    }
+
+    .plan-status-badge.missing {
+      background: #fff5f5;
+      color: #c53030;
+      border-color: #feb2b2;
+    }
+
+    .plan-status-badge.missing:hover {
+      background: #fff5f5;
+    }
+
+    .view-link,
+    .add-link {
+      font-size: 0.75rem;
+      text-decoration: underline;
+      opacity: 0.8;
+    }
+
+    .plan-details-summary {
+      background: var(--card-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .plan-general-notes {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      font-style: italic;
+    }
+
+    /* 時序進展視圖 */
+    .progression-view {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .progression-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+
+    .tf-name {
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 40px;
+    }
+
+    .steps {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: nowrap;
+    }
+
+    .step {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .step.long {
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .step.short {
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .arrow {
+      color: #94a3b8;
+      font-weight: bold;
+      font-size: 0.8rem;
+    }
+
+    .plan-session-notes {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .plan-note-item {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .session-tag {
+      font-weight: 700;
+      white-space: nowrap;
+      font-size: 0.8rem;
+    }
+
+    .session-tag.asian {
+      color: #2b6cb0;
+    }
+    .session-tag.european {
+      color: #975a16;
+    }
+    .session-tag.us {
+      color: #c53030;
+    }
+
+    .note-text {
+      color: #4a5568;
+    }
+
+    .strategy-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .strategy-label {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 0;
+    }
+
+    .timeframe-trend-row {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 1rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: start;
+      gap: 2rem;
+    }
+
+    .timeframe-trend-row .form-group {
+      margin-bottom: 0;
+    }
+
+    .timeframe-trend-row label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #718096;
+      margin-bottom: 0.4rem;
+      display: block;
+    }
+
+    .strategy-options {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .strategy-option {
+      position: relative;
+      cursor: pointer;
+      padding: 0.75rem 1.5rem;
+      border: 2px solid #cbd5e0;
+      border-radius: 8px;
+      background: white;
+      transition: all 0.2s ease;
+    }
+
+    .strategy-option:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+      transform: translateY(-1px);
+    }
+
+    .strategy-option.active {
+      border-color: #667eea;
+      background: #edf2f7;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .strategy-options.mini {
+      gap: 0.5rem;
+    }
+
+    .strategy-options.mini .strategy-option {
+      padding: 0.5rem 0.85rem;
+      border-width: 1.5px;
+      border-radius: 6px;
+    }
+
+    .strategy-options.mini .strategy-name {
+      font-size: 0.85rem;
+    }
+
+    /* 精緻合併按鈕樣式 */
+    .merge-action-container {
+      display: flex;
+      align-items: center;
+      padding-left: 1rem;
+      margin-left: 1rem;
+      border-left: 1.5px dashed #e2e8f0;
+    }
+
+    .merge-action-container.header-merge {
+      border-left: none;
+      padding-left: 0.5rem;
+      margin-left: 0.5rem;
+    }
+
+    .btn-merge {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 1rem;
+      background: linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%);
+      border: 1px solid #c4b5fd;
+      border-radius: 10px;
+      color: #6d28d9;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow:
+        0 4px 6px -1px rgba(109, 40, 217, 0.05),
+        0 2px 4px -1px rgba(109, 40, 217, 0.03);
+      white-space: nowrap;
+    }
+
+    .btn-merge:hover {
+      background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+      color: white;
+      border-color: #7c3aed;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(109, 40, 217, 0.2);
+    }
+
+    .btn-merge:active {
       transform: translateY(0);
     }
-  }
 
-  .htf-selector-row {
-    margin-bottom: 1rem;
-  }
+    .btn-merge .icon {
+      font-size: 1.1rem;
+      filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.1));
+    }
 
-  .signal-card.htf-image-card {
-    max-width: 500px;
-    min-height: 250px;
-  }
-
-  /* 訊號卡片網格 */
-  .signals-card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  /* 訊號卡片 */
-  .signal-card {
-    background: white;
-    border: 2px solid #cbd5e0;
-    border-radius: 12px;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .signal-card.legend-image-card {
-    max-width: 400px;
-    min-height: 200px;
-  }
-
-  .signal-card:hover {
-    border-color: #667eea;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
-    transform: translateY(-2px);
-  }
-
-  .signal-card:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .signal-card.selected {
-    border-color: #667eea;
-    background: #edf2f7;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .signal-checkbox-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .signal-checkbox {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: #667eea;
-  }
-
-  .signal-name {
-    font-weight: 600;
-    color: #2d3748;
-    font-size: 0.95rem;
-  }
-
-  .signal-card.selected .signal-name {
-    color: #667eea;
-  }
-
-  /* 訊號圖片預覽 */
-  .signal-image-preview {
-    position: relative;
-    margin-top: 0.5rem;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-  }
-
-  .signal-image-preview img {
-    width: 100%;
-    height: auto;
-    display: block;
-    max-height: 200px;
-    object-fit: contain;
-    background: white;
-  }
-
-  .remove-signal-image {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 24px;
-    height: 24px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    padding: 0;
-  }
-
-  .remove-signal-image:hover {
-    background: rgba(239, 68, 68, 0.9);
-    transform: scale(1.1);
-  }
-
-  /* 訊號圖片佔位符 */
-  .signal-image-placeholder {
-    margin-top: 0.5rem;
-    padding: 2rem 1rem;
-    border: 2px dashed #cbd5e0;
-    border-radius: 8px;
-    text-align: center;
-    background: #f7fafc;
-    transition: all 0.2s ease;
-  }
-
-  .signal-card:hover .signal-image-placeholder {
-    border-color: #667eea;
-    background: #edf2f7;
-  }
-
-  .placeholder-text {
-    font-size: 0.85rem;
-    color: #718096;
-    display: block;
-  }
-
-  .checklist-items {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .checkbox-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 6px;
-    transition: background 0.2s ease;
-  }
-
-  .checkbox-item:hover {
-    background: #f7fafc;
-  }
-
-  .checkbox-item input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: #667eea;
-  }
-
-  .checkbox-label {
-    font-size: 0.9rem;
-    color: #2d3748;
-    user-select: none;
-  }
-
-  /* 進場樣態 */
-  .entry-pattern-section {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-  }
-
-  .entry-pattern-label {
-    display: block;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 0.75rem;
-  }
-
-  .entry-pattern-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-  }
-
-  .pattern-option {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.5rem 1rem;
-    border: 2px solid #cbd5e0;
-    border-radius: 8px;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    user-select: none;
-  }
-
-  .pattern-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-  }
-
-  .pattern-option.active {
-    border-color: #667eea;
-    background: #667eea;
-  }
-
-  .pattern-option input[type='radio'] {
-    display: none;
-  }
-
-  .pattern-name {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #4a5568;
-  }
-
-  .pattern-option.active .pattern-name {
-    color: white;
-  }
-
-  .pattern-cards-grid {
-    margin-top: 1.5rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .pattern-image-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.2s ease;
-  }
-
-  .pattern-image-card:hover {
-    border-color: #667eea;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-
-  .pattern-card-header {
-    padding: 0.5rem 0.75rem;
-    background: #edf2f7;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .pattern-card-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #4a5568;
-  }
-
-  .pattern-card-body {
-    padding: 0.75rem;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 120px;
-    position: relative;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .pattern-image-preview {
-    width: 100%;
-    cursor: zoom-in;
-    border-radius: 6px;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .pattern-image-preview img {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-    display: block;
-  }
-
-  .remove-pattern-image {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s;
-    line-height: 1;
-    padding-bottom: 2px;
-  }
-
-  .remove-pattern-image:hover {
-    background: rgba(0, 0, 0, 0.8);
-  }
-
-  .pattern-image-placeholder {
-    width: 100%;
-    height: 120px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    border: 2px dashed #cbd5e0;
-    border-radius: 8px;
-    padding: 0.5rem;
-  }
-
-  .placeholder-text {
-    font-size: 0.75rem;
-    color: #a0aec0;
-    line-height: 1.4;
-  }
-
-  /* 進場時區按鈕組 */
-  .timeframe-options {
-    display: flex;
-    gap: 2px;
-    background: #1a1a1a;
-    padding: 4px;
-    border-radius: 8px;
-    width: fit-content;
-  }
-
-  .timeframe-btn {
-    padding: 6px 10px;
-    background: transparent;
-    border: none;
-    border-radius: 6px;
-    color: #888;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: fit-content;
-  }
-
-  .timeframe-btn:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .timeframe-btn.active {
-    background: #333;
-    color: #60a5fa; /* 藍色亮顯，符合交易軟體習慣 */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  }
-
-  /* 市場時段狀態卡片 */
-  .session-status-card {
-    display: flex;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0 1rem;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    height: 42px; /* 精準匹配 input 高度 */
-  }
-
-  .session-badge-mini {
-    padding: 2px 10px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: white;
-  }
-
-  .session-status-card.asian .session-badge-mini {
-    background: #6366f1;
-  }
-  .session-status-card.european .session-badge-mini {
-    background: #f43f5e;
-  }
-  .session-status-card.us .session-badge-mini {
-    background: #0ea5e9;
-  }
-
-  .session-status-card.asian {
-    border-left: 4px solid #6366f1;
-    background: rgba(99, 102, 241, 0.05);
-  }
-  .session-status-card.european {
-    border-left: 4px solid #f43f5e;
-    background: rgba(244, 63, 94, 0.05);
-  }
-  .session-status-card.us {
-    border-left: 4px solid #0ea5e9;
-    background: rgba(14, 165, 233, 0.05);
-  }
-
-  .session-info-line {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    color: #64748b;
-  }
-
-  .session-time-text {
-    font-weight: 600;
-    color: #334155;
-  }
-  .session-dot {
-    opacity: 0.5;
-  }
-  .session-season-text {
-    font-size: 0.75rem;
-  }
-
-  .plan-status-mini {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-  }
-
-  .plan-status-mini span {
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-  }
-
-  .status-yes {
-    color: #16a34a;
-    background: #f0fdf4;
-    border: 1px solid #dcfce7;
-  }
-  .status-yes:hover {
-    background: #dcfce7;
-    transform: translateY(-1px);
-  }
-  .status-no {
-    color: #dc2626;
-    background: #fef2f2;
-    border: 1px solid #fee2e2;
-  }
-  .status-no:hover {
-    background: #fee2e2;
-    transform: translateY(-1px);
-  }
-
-  .plan-status-mini .icon {
-    font-style: normal;
-    margin-right: 2px;
-  }
-
-  .plan-link-section {
-    display: flex;
-    align-items: center;
-  }
-
-  .plan-status {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.625rem 1.25rem;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    background: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-
-  .plan-status.linked {
-    background: #f0fdf4;
-    border-color: #bbf7d0;
-    color: #166534;
-  }
-
-  .plan-status.linked:hover {
-    background: #dcfce7;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(22, 101, 52, 0.1);
-  }
-
-  .plan-status.missing {
-    background: #fffaf0;
-    border-color: #fbd38d;
-    color: #9c4221;
-  }
-
-  .plan-status.missing:hover {
-    background: #fff0d6;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(156, 66, 33, 0.1);
-  }
-
-  .status-icon {
-    font-size: 1.1rem;
-    margin-top: 0.1rem;
-  }
-
-  .status-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    text-align: left;
-  }
-
-  .status-top {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .plan-mini-summary {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .mini-trend {
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 0px 4px;
-    border-radius: 4px;
-  }
-
-  .mini-trend.bulls {
-    color: #166534;
-    background: #dcfce7;
-  }
-
-  .mini-trend.bears {
-    color: #991b1b;
-    background: #fee2e2;
-  }
-
-  .view-link,
-  .add-link {
-    font-size: 0.8rem;
-    opacity: 0.8;
-    margin-left: 0.25rem;
-    padding-left: 0.75rem;
-    border-left: 1px solid currentColor;
-  }
-
-  /* 當前趨勢選擇 */
-  .trend-analysis-section {
-    margin: 1.5rem 0;
-    padding: 1.5rem;
-    background: #f7fafc;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-  }
-
-  .trend-label {
-    display: block;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 1rem;
-  }
-
-  .trend-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .trend-item {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    outline: none;
-  }
-
-  .trend-item:hover {
-    border-color: #667eea;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  }
-
-  .trend-item:focus {
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  }
-
-  .timeframe-label {
-    display: block;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 0.5rem;
-    font-size: 0.9rem;
-  }
-
-  .trend-options {
-    display: flex;
-    gap: 0.5rem;
-  }
-
-  .trend-option {
-    flex: 1;
-    position: relative;
-    cursor: pointer;
-    padding: 0.5rem;
-    border: 2px solid #cbd5e0;
-    border-radius: 6px;
-    background: white;
-    transition: all 0.2s ease;
-    text-align: center;
-  }
-
-  .trend-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
-  }
-
-  .trend-option.active {
-    border-color: #667eea;
-    background: #edf2f7;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-  }
-
-  .trend-option input[type='radio'] {
-    position: absolute;
-    opacity: 0;
-  }
-
-  .trend-name {
-    font-weight: 600;
-    color: #2d3748;
-    font-size: 0.9rem;
-  }
-
-  .trend-option.active .trend-name {
-    color: #667eea;
-  }
-
-  /* 趨勢圖片預覽 */
-  .trend-image-preview {
-    position: relative;
-    margin-top: 0.5rem;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    cursor: zoom-in;
-  }
-
-  .trend-image-preview img {
-    width: 100%;
-    height: auto;
-    display: block;
-    max-height: 200px;
-    object-fit: contain;
-    background: #f7fafc;
-  }
-
-  .remove-trend-image {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 24px;
-    height: 24px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    padding: 0;
-  }
-
-  .remove-trend-image:hover {
-    background: rgba(239, 68, 68, 0.9);
-    transform: scale(1.1);
-  }
-
-  /* 圖片放大查看模態視窗 */
-  .image-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    padding: 2rem;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from {
+    .strategy-option input[type='radio'] {
+      position: absolute;
       opacity: 0;
     }
-    to {
-      opacity: 1;
+
+    .strategy-name {
+      font-weight: 600;
+      color: #2d3748;
     }
-  }
 
-  .image-modal-content {
-    position: relative;
-    max-width: 90vw;
-    max-height: 90vh;
-    background: white;
-    border-radius: 12px;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    animation: slideIn 0.3s ease-out;
-    overflow: hidden;
-  }
+    .strategy-option.active .strategy-name {
+      color: #667eea;
+    }
 
-  .image-modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1.5rem 2rem;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f7fafc;
-  }
+    /* 訊號和檢查清單 */
+    .signals-section,
+    .checklist-section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
 
-  .image-modal-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
+    .signals-label,
+    .checklist-label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.75rem;
+    }
 
-  .annotator-toggle-btn {
-    padding: 0.5rem 1rem;
-    border: 2px solid #cbd5e0;
-    border-radius: 6px;
-    background: white;
-    color: #4a5568;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-  }
+    .signals-section.nested {
+      margin-top: 1rem;
+      padding: 1.25rem;
+      background: #f8fafc;
+      border: 2px dashed #6366f1;
+      border-radius: 12px;
+      animation: slideIn 0.3s ease-out;
+    }
 
-  .annotator-toggle-btn:hover {
-    border-color: #667eea;
-    background: #edf2f7;
-  }
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
 
-  .annotator-toggle-btn.active {
-    border-color: #667eea;
-    background: #667eea;
-    color: white;
-  }
+    .htf-selector-row {
+      margin-bottom: 1rem;
+    }
 
-  @keyframes slideIn {
-    from {
-      transform: scale(0.9);
+    .signal-card.htf-image-card {
+      max-width: 500px;
+      min-height: 250px;
+    }
+
+    /* 訊號卡片網格 */
+    .signals-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    /* 訊號卡片 */
+    .signal-card {
+      background: white;
+      border: 2px solid #cbd5e0;
+      border-radius: 12px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .signal-card.legend-image-card {
+      max-width: 400px;
+      min-height: 200px;
+    }
+
+    .signal-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+      transform: translateY(-2px);
+    }
+
+    .signal-card:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .signal-card.selected {
+      border-color: #667eea;
+      background: #edf2f7;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .signal-checkbox-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .signal-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #667eea;
+    }
+
+    .signal-name {
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 0.95rem;
+    }
+
+    .signal-card.selected .signal-name {
+      color: #667eea;
+    }
+
+    /* 訊號圖片預覽 */
+    .signal-image-preview {
+      position: relative;
+      margin-top: 0.5rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+
+    .signal-image-preview img {
+      width: 100%;
+      height: auto;
+      display: block;
+      max-height: 200px;
+      object-fit: contain;
+      background: white;
+    }
+
+    .remove-signal-image {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: 24px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      padding: 0;
+    }
+
+    .remove-signal-image:hover {
+      background: rgba(239, 68, 68, 0.9);
+      transform: scale(1.1);
+    }
+
+    /* 訊號圖片佔位符 */
+    .signal-image-placeholder {
+      margin-top: 0.5rem;
+      padding: 2rem 1rem;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      text-align: center;
+      background: #f7fafc;
+      transition: all 0.2s ease;
+    }
+
+    .signal-card:hover .signal-image-placeholder {
+      border-color: #667eea;
+      background: #edf2f7;
+    }
+
+    .placeholder-text {
+      font-size: 0.85rem;
+      color: #718096;
+      display: block;
+    }
+
+    .checklist-items {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 6px;
+      transition: background 0.2s ease;
+    }
+
+    .checkbox-item:hover {
+      background: #f7fafc;
+    }
+
+    .checkbox-item input[type='checkbox'] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #667eea;
+    }
+
+    .checkbox-label {
+      font-size: 0.9rem;
+      color: #2d3748;
+      user-select: none;
+    }
+
+    /* 進場樣態 */
+    .entry-pattern-section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .entry-pattern-label {
+      display: block;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.75rem;
+    }
+
+    .entry-pattern-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .pattern-option {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      border: 2px solid #cbd5e0;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .pattern-option:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+    }
+
+    .pattern-option.active {
+      border-color: #667eea;
+      background: #667eea;
+    }
+
+    .pattern-option input[type='radio'] {
+      display: none;
+    }
+
+    .pattern-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #4a5568;
+    }
+
+    .pattern-option.active .pattern-name {
+      color: white;
+    }
+
+    .pattern-cards-grid {
+      margin-top: 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .pattern-image-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s ease;
+    }
+
+    .pattern-image-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .pattern-card-header {
+      padding: 0.5rem 0.75rem;
+      background: #edf2f7;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .pattern-card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #4a5568;
+    }
+
+    .pattern-card-body {
+      padding: 0.75rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 120px;
+      position: relative;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pattern-image-preview {
+      width: 100%;
+      cursor: zoom-in;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .pattern-image-preview img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .remove-pattern-image {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 20px;
+      height: 20px;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+      line-height: 1;
+      padding-bottom: 2px;
+    }
+
+    .remove-pattern-image:hover {
+      background: rgba(0, 0, 0, 0.8);
+    }
+
+    .pattern-image-placeholder {
+      width: 100%;
+      height: 120px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      border: 2px dashed #cbd5e0;
+      border-radius: 8px;
+      padding: 0.5rem;
+    }
+
+    .placeholder-text {
+      font-size: 0.75rem;
+      color: #a0aec0;
+      line-height: 1.4;
+    }
+
+    /* 進場時區按鈕組 */
+    .timeframe-options {
+      display: flex;
+      gap: 2px;
+      background: #1a1a1a;
+      padding: 4px;
+      border-radius: 8px;
+      width: fit-content;
+    }
+
+    .timeframe-btn {
+      padding: 6px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: #888;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: fit-content;
+    }
+
+    .timeframe-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .timeframe-btn.active {
+      background: #333;
+      color: #60a5fa; /* 藍色亮顯，符合交易軟體習慣 */
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    /* 市場時段狀態卡片 */
+    .session-status-card {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0 1rem;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      height: 42px; /* 精準匹配 input 高度 */
+    }
+
+    .session-badge-mini {
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: white;
+    }
+
+    .session-status-card.asian .session-badge-mini {
+      background: #6366f1;
+    }
+    .session-status-card.european .session-badge-mini {
+      background: #f43f5e;
+    }
+    .session-status-card.us .session-badge-mini {
+      background: #0ea5e9;
+    }
+
+    .session-status-card.asian {
+      border-left: 4px solid #6366f1;
+      background: rgba(99, 102, 241, 0.05);
+    }
+    .session-status-card.european {
+      border-left: 4px solid #f43f5e;
+      background: rgba(244, 63, 94, 0.05);
+    }
+    .session-status-card.us {
+      border-left: 4px solid #0ea5e9;
+      background: rgba(14, 165, 233, 0.05);
+    }
+
+    .session-info-line {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .session-time-text {
+      font-weight: 600;
+      color: #334155;
+    }
+    .session-dot {
+      opacity: 0.5;
+    }
+    .session-season-text {
+      font-size: 0.75rem;
+    }
+
+    .plan-status-mini {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+    }
+
+    .plan-status-mini span {
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .status-yes {
+      color: #16a34a;
+      background: #f0fdf4;
+      border: 1px solid #dcfce7;
+    }
+    .status-yes:hover {
+      background: #dcfce7;
+      transform: translateY(-1px);
+    }
+    .status-no {
+      color: #dc2626;
+      background: #fef2f2;
+      border: 1px solid #fee2e2;
+    }
+    .status-no:hover {
+      background: #fee2e2;
+      transform: translateY(-1px);
+    }
+
+    .plan-status-mini .icon {
+      font-style: normal;
+      margin-right: 2px;
+    }
+
+    .plan-link-section {
+      display: flex;
+      align-items: center;
+    }
+
+    .plan-status {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.625rem 1.25rem;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: white;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .plan-status.linked {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    .plan-status.linked:hover {
+      background: #dcfce7;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(22, 101, 52, 0.1);
+    }
+
+    .plan-status.missing {
+      background: #fffaf0;
+      border-color: #fbd38d;
+      color: #9c4221;
+    }
+
+    .plan-status.missing:hover {
+      background: #fff0d6;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(156, 66, 33, 0.1);
+    }
+
+    .status-icon {
+      font-size: 1.1rem;
+      margin-top: 0.1rem;
+    }
+
+    .status-content {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      text-align: left;
+    }
+
+    .status-top {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .plan-mini-summary {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .mini-trend {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0px 4px;
+      border-radius: 4px;
+    }
+
+    .mini-trend.bulls {
+      color: #166534;
+      background: #dcfce7;
+    }
+
+    .mini-trend.bears {
+      color: #991b1b;
+      background: #fee2e2;
+    }
+
+    .view-link,
+    .add-link {
+      font-size: 0.8rem;
+      opacity: 0.8;
+      margin-left: 0.25rem;
+      padding-left: 0.75rem;
+      border-left: 1px solid currentColor;
+    }
+
+    /* 當前趨勢選擇 */
+    .trend-analysis-section {
+      margin: 1.5rem 0;
+      padding: 1.5rem;
+      background: #f7fafc;
+      border-radius: 12px;
+      border: 2px solid #e2e8f0;
+    }
+
+    .trend-label {
+      display: block;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 1rem;
+    }
+
+    .trend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .trend-item {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+    }
+
+    .trend-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .trend-item:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .timeframe-label {
+      display: block;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .trend-options {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .trend-option {
+      flex: 1;
+      position: relative;
+      cursor: pointer;
+      padding: 0.5rem;
+      border: 2px solid #cbd5e0;
+      border-radius: 6px;
+      background: white;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+
+    .trend-option:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+    }
+
+    .trend-option.active {
+      border-color: #667eea;
+      background: #edf2f7;
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+    }
+
+    .trend-option input[type='radio'] {
+      position: absolute;
       opacity: 0;
     }
-    to {
-      transform: scale(1);
-      opacity: 1;
+
+    .trend-name {
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 0.9rem;
     }
-  }
 
-  .image-modal-close {
-    width: 36px;
-    height: 36px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.5rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    padding: 0;
-  }
+    .trend-option.active .trend-name {
+      color: #667eea;
+    }
 
-  .image-modal-close:hover {
-    background: rgba(239, 68, 68, 0.9);
-    transform: scale(1.1);
-  }
+    /* 趨勢圖片預覽 */
+    .trend-image-preview {
+      position: relative;
+      margin-top: 0.5rem;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      cursor: zoom-in;
+    }
 
-  .image-modal-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin: 0;
-  }
+    .trend-image-preview img {
+      width: 100%;
+      height: auto;
+      display: block;
+      max-height: 200px;
+      object-fit: contain;
+      background: #f7fafc;
+    }
 
-  .image-modal-img {
-    max-width: 100%;
-    max-height: calc(90vh - 8rem);
-    object-fit: contain;
-    padding: 1rem;
-  }
+    .remove-trend-image {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      width: 24px;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.2rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      padding: 0;
+    }
 
-  .image-modal-content :global(.annotator-container) {
-    padding: 1rem;
-    max-height: calc(90vh - 6rem);
-    overflow: auto;
-  }
+    .remove-trend-image:hover {
+      background: rgba(239, 68, 68, 0.9);
+      transform: scale(1.1);
+    }
 
-  .tag-input-wrapper {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
+    /* 圖片放大查看模態視窗 */
+    .image-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 2rem;
+      animation: fadeIn 0.2s ease-out;
+    }
 
-  .tags-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-  }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
 
-  .tag {
-    background: #667eea;
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
-    line-height: 1;
-  }
+    .image-modal-content {
+      position: relative;
+      max-width: 90vw;
+      max-height: 90vh;
+      background: white;
+      border-radius: 12px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.3s ease-out;
+      overflow: hidden;
+    }
 
-  .tag-remove {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    line-height: 1;
-  }
+    .image-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f7fafc;
+    }
 
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 2rem;
-    padding-top: 2rem;
-    border-top: 2px solid #e2e8f0;
-  }
+    .image-modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
 
-  textarea.form-control {
-    resize: vertical;
-    font-family: inherit;
-  }
+    .annotator-toggle-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid #cbd5e0;
+      border-radius: 6px;
+      background: white;
+      color: #4a5568;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
 
-  .hint-inline {
-    color: #a0aec0;
-    font-size: 0.85rem;
-    font-weight: normal;
-    margin-left: 0.5rem;
-  }
+    .annotator-toggle-btn:hover {
+      border-color: #667eea;
+      background: #edf2f7;
+    }
 
-  label {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
+    .annotator-toggle-btn.active {
+      border-color: #667eea;
+      background: #667eea;
+      color: white;
+    }
 
-  /* 組合單 Execution 樣式 */
-  .readonly-value-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.625rem 1rem;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    font-weight: 700;
-    color: #475569;
-    font-size: 0.95rem;
-    line-height: 1;
-  }
+    @keyframes slideIn {
+      from {
+        transform: scale(0.9);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
 
-  .readonly-value-badge.pnl.profit {
-    background: #f0fdf4;
-    color: #166534;
-    border-color: #bbf7d0;
-  }
-  .readonly-value-badge.pnl.loss {
-    background: #fef2f2;
-    color: #991b1b;
-    border-color: #fecaca;
-  }
+    .image-modal-close {
+      width: 36px;
+      height: 36px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.5rem;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      padding: 0;
+    }
 
-  .readonly-value-badge.duration {
-    background: #eff6ff;
-    color: #1e40af;
-    border-color: #bfdbfe;
-  }
+    .image-modal-close:hover {
+      background: rgba(239, 68, 68, 0.9);
+      transform: scale(1.1);
+    }
 
-  .execution-timeline-section {
-    margin-top: 1.5rem;
-    margin-bottom: 2rem;
-    padding: 1.5rem;
-    background: #f8fafc;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-  }
+    .image-modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #2d3748;
+      margin: 0;
+    }
 
-  .section-subtitle {
-    display: block !important;
-    font-size: 1rem;
-    font-weight: 800;
-    color: #1e293b;
-    margin-bottom: 1rem !important;
-  }
+    .image-modal-img {
+      max-width: 100%;
+      max-height: calc(90vh - 8rem);
+      object-fit: contain;
+      padding: 1rem;
+    }
 
-  .timeline-container-mini {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
+    .image-modal-content :global(.annotator-container) {
+      padding: 1rem;
+      max-height: calc(90vh - 6rem);
+      overflow: auto;
+    }
 
-  .timeline-item-mini {
-    background: white;
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+    .tag-input-wrapper {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
 
-  .item-time {
-    font-size: 0.9rem;
-    color: #64748b;
-  }
+    .tags-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
 
-  .duration-mini {
-    margin-left: 0.5rem;
-    font-size: 0.8rem;
-    color: #3b82f6;
-    font-weight: 600;
-  }
+    .tag {
+      background: #667eea;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+      line-height: 1;
+    }
 
-  .item-details {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-  }
+    .tag-remove {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
 
-  .badge-mini {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px 8px;
-    background: #f1f5f9;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #475569;
-    line-height: 1;
-  }
+    .form-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #e2e8f0;
+    }
 
-  .badge-mini.pnl.profit {
-    color: #059669;
-    background: #ecfdf5;
-  }
-  .badge-mini.pnl.loss {
-    color: #dc2626;
-    background: #fef2f2;
-  }
-  .badge-mini.ticket {
-    font-family: monospace;
-    color: #94a3b8;
-  }
-  /* 圖片放大模態框相關 styles ...略... */
+    textarea.form-control {
+      resize: vertical;
+      font-family: inherit;
+    }
 
-  .btn-icon {
-    background: none;
-    border: 1px solid #63b3ed;
-    color: #3182ce;
-    border-radius: 4px;
-    padding: 0.2rem 0.6rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-    margin-left: 1rem;
-    transition: all 0.2s;
-  }
+    .hint-inline {
+      color: #a0aec0;
+      font-size: 0.85rem;
+      font-weight: normal;
+      margin-left: 0.5rem;
+    }
 
-  .btn-icon:hover {
-    background: #ebf8ff;
-  }
+    label {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
 
-  .btn-share {
-    background: #f8fafc;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-    font-weight: 700;
-  }
+    /* 組合單 Execution 樣式 */
+    .readonly-value-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.625rem 1rem;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-weight: 700;
+      color: #475569;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
 
-  .btn-share:hover {
-    background: #f1f5f9;
-    color: #4f46e5;
-    border-color: #6366f1;
-  }
+    .readonly-value-badge.pnl.profit {
+      background: #f0fdf4;
+      color: #166534;
+      border-color: #bbf7d0;
+    }
+    .readonly-value-badge.pnl.loss {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
 
-  /* Color Tags for Card */
-  .card.tag-green {
-    border-left: 5px solid #28a745;
-  }
-  .card.tag-yellow {
-    border-left: 5px solid #ffc107;
-  }
-  .card.tag-red {
-    border-left: 5px solid #dc3545;
-  }
-  .sl-history-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
-  }
+    .readonly-value-badge.duration {
+      background: #eff6ff;
+      color: #1e40af;
+      border-color: #bfdbfe;
+    }
 
-  .sl-chip {
-    padding: 0.3rem 0.6rem;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 60px;
-    line-height: 1.2;
-  }
+    .execution-timeline-section {
+      margin-top: 1.5rem;
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+    }
 
-  .sl-price {
-    font-size: 0.75rem;
-    color: #334155;
-    font-weight: 700;
-  }
+    .section-subtitle {
+      display: block !important;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #1e293b;
+      margin-bottom: 1rem !important;
+    }
 
-  .sl-time {
-    font-size: 0.6rem;
-    color: #64748b;
-    font-weight: 500;
-  }
+    .timeline-container-mini {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
 
-  .sl-chip:hover {
-    background: #e2e8f0;
-    border-color: #cbd5e1;
-    transform: translateY(-1px);
-  }
+    .timeline-item-mini {
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-  .sl-chip.active {
-    background: #0ea5e9;
-    border-color: #0284c7;
-    box-shadow: 0 2px 4px rgba(14, 165, 233, 0.2);
-  }
+    .item-time {
+      font-size: 0.9rem;
+      color: #64748b;
+    }
 
-  .sl-chip.active .sl-price,
-  .sl-chip.active .sl-time {
-    color: white;
-  }
+    .duration-mini {
+      margin-left: 0.5rem;
+      font-size: 0.8rem;
+      color: #3b82f6;
+      font-weight: 600;
+    }
 
-  .form-header-metadata {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex: 1;
-  }
+    .item-details {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
 
-  .ticket-label {
-    font-family:
-      'Inter',
-      system-ui,
-      -apple-system,
-      sans-serif;
-    color: #64748b;
-    background: #f8fafc;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    border: 1px solid #e2e8f0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    white-space: nowrap;
-    line-height: 1;
-  }
+    .badge-mini {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1;
+    }
 
-  .ticket-label::before {
-    content: 'TICKET';
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: #94a3b8;
-    background: #f1f5f9;
-    padding: 1px 4px;
-    border-radius: 4px;
-  }
+    .badge-mini.pnl.profit {
+      color: #059669;
+      background: #ecfdf5;
+    }
+    .badge-mini.pnl.loss {
+      color: #dc2626;
+      background: #fef2f2;
+    }
+    .badge-mini.ticket {
+      font-family: monospace;
+      color: #94a3b8;
+    }
+    /* 圖片放大模態框相關 styles ...略... */
 
-  .header-sparkline-box {
-    background: white;
-    padding: 1px 6px;
-    border-radius: 8px;
-    border: 1px solid #f1f5f9;
-    display: flex;
-    align-items: center;
-    height: 38px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-  }
-</style>
+    .btn-icon {
+      background: none;
+      border: 1px solid #63b3ed;
+      color: #3182ce;
+      border-radius: 4px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      margin-left: 1rem;
+      transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+      background: #ebf8ff;
+    }
+
+    .btn-share {
+      background: #f8fafc;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+      font-weight: 700;
+    }
+
+    .btn-share:hover {
+      background: #f1f5f9;
+      color: #4f46e5;
+      border-color: #6366f1;
+    }
+
+    /* Color Tags for Card */
+    .card.tag-green {
+      border-left: 5px solid #28a745;
+    }
+    .card.tag-yellow {
+      border-left: 5px solid #ffc107;
+    }
+    .card.tag-red {
+      border-left: 5px solid #dc3545;
+    }
+    .sl-history-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+
+    .sl-chip {
+      padding: 0.3rem 0.6rem;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 60px;
+      line-height: 1.2;
+    }
+
+    .sl-price {
+      font-size: 0.75rem;
+      color: #334155;
+      font-weight: 700;
+    }
+
+    .sl-time {
+      font-size: 0.6rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+
+    .sl-chip:hover {
+      background: #e2e8f0;
+      border-color: #cbd5e1;
+      transform: translateY(-1px);
+    }
+
+    .sl-chip.active {
+      background: #0ea5e9;
+      border-color: #0284c7;
+      box-shadow: 0 2px 4px rgba(14, 165, 233, 0.2);
+    }
+
+    .sl-chip.active .sl-price,
+    .sl-chip.active .sl-time {
+      color: white;
+    }
+
+    .form-header-metadata {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex: 1;
+    }
+
+    .ticket-label {
+      font-family:
+        'Inter',
+        system-ui,
+        -apple-system,
+        sans-serif;
+      color: #64748b;
+      background: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid #e2e8f0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    .ticket-label::before {
+      content: 'TICKET';
+      font-size: 0.65rem;
+      font-weight: 800;
+      color: #94a3b8;
+      background: #f1f5f9;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    .header-sparkline-box {
+      background: white;
+      padding: 1px 6px;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      height: 38px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+    }
+  </style>
 {/if}

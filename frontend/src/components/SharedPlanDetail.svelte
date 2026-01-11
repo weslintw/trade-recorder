@@ -20,13 +20,13 @@
   const sessionConfig = {
     asian: { label: '亞盤', icon: '🇯🇵', color: '#3b82f6' },
     european: { label: '歐盤', icon: '🇬🇧', color: '#d97706' },
-    us: { label: '美盤', icon: '🇺🇸', color: '#dc2626' }
+    us: { label: '美盤', icon: '🇺🇸', color: '#dc2626' },
   };
 
   let activeSession = 'asian'; // Default
 
   $: trendAnalysis = parseJSON(plan.trend_analysis, {});
-  
+
   function hasContent(session) {
     if (!session) return false;
     if (session.notes && session.notes.trim()) return true;
@@ -35,9 +35,31 @@
       if (t.directions && t.directions.length > 0) return true;
       if (t.direction) return true;
       if (t.image || t.signals_image || t.wave_image) return true;
-      if (t.long && (t.long.has_signals || t.long.has_expected_signals || t.long.has_wave || t.long.signals_image || t.long.wave_image || (t.long.expected_signals && t.long.expected_signals.length > 0))) return true;
-      if (t.short && (t.short.has_signals || t.short.has_expected_signals || t.short.has_wave || t.short.signals_image || t.short.wave_image || (t.short.expected_signals && t.short.expected_signals.length > 0))) return true;
-      return (t.signals && t.signals.length > 0) || (t.expected_signals && t.expected_signals.length > 0) || (t.wave_numbers && t.wave_numbers.length > 0);
+      if (
+        t.long &&
+        (t.long.has_signals ||
+          t.long.has_expected_signals ||
+          t.long.has_wave ||
+          t.long.signals_image ||
+          t.long.wave_image ||
+          (t.long.expected_signals && t.long.expected_signals.length > 0))
+      )
+        return true;
+      if (
+        t.short &&
+        (t.short.has_signals ||
+          t.short.has_expected_signals ||
+          t.short.has_wave ||
+          t.short.signals_image ||
+          t.short.wave_image ||
+          (t.short.expected_signals && t.short.expected_signals.length > 0))
+      )
+        return true;
+      return (
+        (t.signals && t.signals.length > 0) ||
+        (t.expected_signals && t.expected_signals.length > 0) ||
+        (t.wave_numbers && t.wave_numbers.length > 0)
+      );
     });
   }
 
@@ -58,13 +80,23 @@
   function isWaveNumberHighlighted(trend, direction, number) {
     const target = direction ? trend[direction] : trend;
     if (!target) return false;
-    return target.wave_highlight === number.toString() || target.wave_highlight === parseInt(number);
+    return (
+      target.wave_highlight === number.toString() || target.wave_highlight === parseInt(number)
+    );
   }
 
   function isWaveNumberSelected(trend, direction, number) {
     const target = direction ? trend[direction] : trend;
     if (!target) return false;
     return (target.wave_numbers || []).some(n => n.toString() === number.toString());
+  }
+
+  // 取得圖片 URL Helper (支持新舊格式)
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) return src;
+    // 這裡我們假設圖片 API 路徑是固定的，因為 SharedView 也是同個端點
+    return `/api/v1/images/file/${src}`;
   }
 </script>
 
@@ -115,16 +147,31 @@
       {#each timeframes as tf}
         {@const trend = currentSessionData.trends?.[tf]}
         {#if trend && (trend.direction || trend.has_signals || trend.has_wave)}
-          {@const directionsToShow = trend.directions && trend.directions.length > 0 ? trend.directions : (trend.direction && trend.direction !== 'both' ? [trend.direction] : [])}
+          {@const directionsToShow =
+            trend.directions && trend.directions.length > 0
+              ? trend.directions
+              : trend.direction && trend.direction !== 'both'
+                ? [trend.direction]
+                : []}
           <div class="trend-item">
             <div class="timeframe-label">{tf}</div>
 
             <!-- 多空顯示 -->
             <div class="trend-options-view">
-              <div class="trend-option-box long" class:active={trend.directions?.includes('long') || trend.direction === 'long' || trend.direction === 'both'}>
+              <div
+                class="trend-option-box long"
+                class:active={trend.directions?.includes('long') ||
+                  trend.direction === 'long' ||
+                  trend.direction === 'both'}
+              >
                 多
               </div>
-              <div class="trend-option-box short" class:active={trend.directions?.includes('short') || trend.direction === 'short' || trend.direction === 'both'}>
+              <div
+                class="trend-option-box short"
+                class:active={trend.directions?.includes('short') ||
+                  trend.direction === 'short' ||
+                  trend.direction === 'both'}
+              >
                 空
               </div>
             </div>
@@ -132,21 +179,36 @@
             <!-- 分析區塊 (支持多個方向) -->
             {#each directionsToShow as dir}
               {@const analysis = trend[dir] || trend}
-              <div class="analysis-box-container" class:long={dir === 'long'} class:short={dir === 'short'}>
+              <div
+                class="analysis-box-container"
+                class:long={dir === 'long'}
+                class:short={dir === 'short'}
+              >
                 <div class="dir-header">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
-                
+
                 <!-- 已成立達人訊號 -->
                 {#if analysis.has_signals}
                   <div class="analysis-section">
                     <div class="section-title">✔️ 已成立的達人訊號</div>
                     <div class="signal-chips">
-                      {#each (analysis.signals || []) as sig}
+                      {#each analysis.signals || [] as sig}
                         <span class="signal-chip active">{sig}</span>
                       {/each}
                     </div>
                     {#if analysis.signals_image}
-                      <div class="trend-image-preview" on:click={() => openModal(analysis.signals_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 已成立訊號圖`)}>
-                        <img src={analysis.signals_image} alt="signals" loading="lazy" />
+                      <div
+                        class="trend-image-preview"
+                        on:click={() =>
+                          openModal(
+                            analysis.signals_image,
+                            `${tf} ${dir === 'long' ? '多頭' : '空頭'} 已成立訊號圖`
+                          )}
+                      >
+                        <img
+                          src={getImageUrl(analysis.signals_image)}
+                          alt="signals"
+                          loading="lazy"
+                        />
                       </div>
                     {/if}
                   </div>
@@ -157,18 +219,25 @@
                   <div class="analysis-section expected">
                     <div class="section-title">✨ 預期產生的達人訊號</div>
                     <div class="signal-chips">
-                      {#each (analysis.expected_signals || []) as sig}
+                      {#each analysis.expected_signals || [] as sig}
                         <span class="signal-chip active expected">{sig.name}</span>
                       {/each}
                     </div>
-                    
+
                     {#if analysis.expected_signals && analysis.expected_signals.length > 0}
                       <div class="expected-signals-images-view">
                         {#each analysis.expected_signals.filter(s => s.image) as sig}
                           <div class="expected-signal-view-item">
                             <div class="signal-mini-label">{sig.name} 示意圖</div>
-                            <div class="trend-image-preview" on:click={() => openModal(sig.image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${sig.name}`)}>
-                              <img src={sig.image} alt={sig.name} loading="lazy" />
+                            <div
+                              class="trend-image-preview"
+                              on:click={() =>
+                                openModal(
+                                  sig.image,
+                                  `${tf} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${sig.name}`
+                                )}
+                            >
+                              <img src={getImageUrl(sig.image)} alt={sig.name} loading="lazy" />
                             </div>
                           </div>
                         {/each}
@@ -183,8 +252,8 @@
                     <div class="section-title">✔️ 波浪浪數</div>
                     <div class="wave-numbers">
                       {#each ['1', '2', '3', '4', '5'] as num}
-                        <span 
-                          class="wave-number-box" 
+                        <span
+                          class="wave-number-box"
                           class:selected={isWaveNumberSelected(trend, dir, num)}
                           class:highlighted={isWaveNumberHighlighted(trend, dir, num)}
                         >
@@ -193,8 +262,15 @@
                       {/each}
                     </div>
                     {#if analysis.wave_image}
-                      <div class="trend-image-preview" on:click={() => openModal(analysis.wave_image, `${tf} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`)}>
-                        <img src={analysis.wave_image} alt="wave" loading="lazy" />
+                      <div
+                        class="trend-image-preview"
+                        on:click={() =>
+                          openModal(
+                            analysis.wave_image,
+                            `${tf} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`
+                          )}
+                      >
+                        <img src={getImageUrl(analysis.wave_image)} alt="wave" loading="lazy" />
                       </div>
                     {/if}
                   </div>
@@ -204,76 +280,84 @@
 
             <!-- 舊格式兼容: 如果沒有 directions 且沒有明確方向但有資料 -->
             {#if directionsToShow.length === 0 && (trend.has_signals || trend.has_expected_signals || trend.has_wave)}
-               <div class="analysis-box-container">
-                  {#if trend.has_signals}
-                    <div class="analysis-section">
-                      <div class="section-title">✔️ 已成立的達人訊號</div>
-                      <div class="signal-chips">
-                        {#each (trend.signals || []) as sig}
-                          <span class="signal-chip active">{sig}</span>
-                        {/each}
-                      </div>
-                      {#if trend.signals_image}
-                        <div class="trend-image-preview" on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}>
-                          <img src={trend.signals_image} alt="signals" loading="lazy" />
-                        </div>
-                      {/if}
+              <div class="analysis-box-container">
+                {#if trend.has_signals}
+                  <div class="analysis-section">
+                    <div class="section-title">✔️ 已成立的達人訊號</div>
+                    <div class="signal-chips">
+                      {#each trend.signals || [] as sig}
+                        <span class="signal-chip active">{sig}</span>
+                      {/each}
                     </div>
-                  {/if}
-
-                  {#if trend.has_expected_signals || (trend.expected_signals && trend.expected_signals.length > 0)}
-                    <div class="analysis-section expected">
-                      <div class="section-title">✨ 預期產生的達人訊號</div>
-                      <div class="signal-chips">
-                        {#each (trend.expected_signals || []) as sig}
-                          <span class="signal-chip active expected">{sig.name}</span>
-                        {/each}
+                    {#if trend.signals_image}
+                      <div
+                        class="trend-image-preview"
+                        on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}
+                      >
+                        <img src={getImageUrl(trend.signals_image)} alt="signals" loading="lazy" />
                       </div>
-                      {#if trend.expected_signals}
-                        <div class="expected-signals-images-view">
-                          {#each trend.expected_signals.filter(s => s.image) as sig}
-                            <div class="expected-signal-view-item">
-                              <div class="signal-mini-label">{sig.name} 示意圖</div>
-                              <div class="trend-image-preview" on:click={() => openModal(sig.image, `${tf} 預期訊號: ${sig.name}`)}>
-                                <img src={sig.image} alt={sig.name} loading="lazy" />
-                              </div>
+                    {/if}
+                  </div>
+                {/if}
+
+                {#if trend.has_expected_signals || (trend.expected_signals && trend.expected_signals.length > 0)}
+                  <div class="analysis-section expected">
+                    <div class="section-title">✨ 預期產生的達人訊號</div>
+                    <div class="signal-chips">
+                      {#each trend.expected_signals || [] as sig}
+                        <span class="signal-chip active expected">{sig.name}</span>
+                      {/each}
+                    </div>
+                    {#if trend.expected_signals}
+                      <div class="expected-signals-images-view">
+                        {#each trend.expected_signals.filter(s => s.image) as sig}
+                          <div class="expected-signal-view-item">
+                            <div class="signal-mini-label">{sig.name} 示意圖</div>
+                            <div
+                              class="trend-image-preview"
+                              on:click={() => openModal(sig.image, `${tf} 預期訊號: ${sig.name}`)}
+                            >
+                              <img src={getImageUrl(sig.image)} alt={sig.name} loading="lazy" />
                             </div>
-                          {/each}
-                        </div>
-                      {/if}
-                    </div>
-                  {/if}
-
-                  {#if trend.has_wave}
-                    <div class="analysis-section">
-                      <div class="section-title">✔️ 波浪浪數</div>
-                      <div class="wave-numbers">
-                        {#each ['1', '2', '3', '4', '5'] as num}
-                          <span 
-                            class="wave-number-box" 
-                            class:selected={isWaveNumberSelected(trend, null, num)}
-                            class:highlighted={isWaveNumberHighlighted(trend, null, num)}
-                          >
-                            {num}
-                          </span>
+                          </div>
                         {/each}
                       </div>
-                      {#if trend.wave_image}
-                        <div class="trend-image-preview" on:click={() => openModal(trend.wave_image, `${tf} 波浪圖`)}>
-                          <img src={trend.wave_image} alt="wave" loading="lazy" />
-                        </div>
-                      {/if}
-                    </div>
-                  {/if}
-               </div>
-            {/if}
+                    {/if}
+                  </div>
+                {/if}
 
+                {#if trend.has_wave}
+                  <div class="analysis-section">
+                    <div class="section-title">✔️ 波浪浪數</div>
+                    <div class="wave-numbers">
+                      {#each ['1', '2', '3', '4', '5'] as num}
+                        <span
+                          class="wave-number-box"
+                          class:selected={isWaveNumberSelected(trend, null, num)}
+                          class:highlighted={isWaveNumberHighlighted(trend, null, num)}
+                        >
+                          {num}
+                        </span>
+                      {/each}
+                    </div>
+                    {#if trend.wave_image}
+                      <div
+                        class="trend-image-preview"
+                        on:click={() => openModal(trend.wave_image, `${tf} 波浪圖`)}
+                      >
+                        <img src={getImageUrl(trend.wave_image)} alt="wave" loading="lazy" />
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {:else}
-           <div class="trend-item empty">
-             <div class="timeframe-label">{tf}</div>
-             <p class="na-txt">無紀錄</p>
-           </div>
+          <div class="trend-item empty">
+            <div class="timeframe-label">{tf}</div>
+            <p class="na-txt">無紀錄</p>
+          </div>
         {/if}
       {/each}
     </div>
@@ -281,17 +365,65 @@
 </div>
 
 <style>
-  .card { background: white; border-radius: 1.5rem; padding: 2.5rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); border: 1px solid #f1f5f9; margin-bottom: 2rem; }
-  .view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #f1f5f9; padding-bottom: 1.5rem; }
-  .symbol-tag { display: inline-flex; align-items: center; justify-content: center; background: #4f46e5; color: white; padding: 0.25rem 0.75rem; border-radius: 6px; font-weight: 800; font-size: 0.875rem; line-height: 1; }
-  .plan-date-tag { font-size: 0.9rem; color: #64748b; font-weight: 700; background: #f8fafc; padding: 0.4rem 1rem; border-radius: 99px; border: 1px solid #e2e8f0; }
-  
-  .section-box { margin-bottom: 2rem; }
-  .section-box h3 { font-size: 1.1rem; font-weight: 800; color: #1e293b; margin-bottom: 1rem; }
-  .notes-content { padding: 1.5rem; background: #f8fafc; border-radius: 1rem; line-height: 1.6; color: #334155; }
+  .card {
+    background: white;
+    border-radius: 1.5rem;
+    padding: 2.5rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+    border: 1px solid #f1f5f9;
+    margin-bottom: 2rem;
+  }
+  .view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 1.5rem;
+  }
+  .symbol-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #4f46e5;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+  .plan-date-tag {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-weight: 700;
+    background: #f8fafc;
+    padding: 0.4rem 1rem;
+    border-radius: 99px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .section-box {
+    margin-bottom: 2rem;
+  }
+  .section-box h3 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 1rem;
+  }
+  .notes-content {
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-radius: 1rem;
+    line-height: 1.6;
+    color: #334155;
+  }
 
   /* Market Session Tabs */
-  .market-session-tabs-container { margin-bottom: 2rem; }
+  .market-session-tabs-container {
+    margin-bottom: 2rem;
+  }
   .market-session-tabs {
     display: flex;
     background: #f1f5f9;
@@ -317,9 +449,11 @@
   .session-tab.active {
     background: white;
     color: #4f46e5;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
-  .sess-icon { font-size: 1.2rem; }
+  .sess-icon {
+    font-size: 1.2rem;
+  }
 
   /* Trend Grid - Matching Editor */
   .trend-grid {
@@ -336,7 +470,13 @@
     flex-direction: column;
     gap: 1.25rem;
   }
-  .trend-item.empty { opacity: 0.5; min-height: 100px; justify-content: center; align-items: center; background: #f8fafc; }
+  .trend-item.empty {
+    opacity: 0.5;
+    min-height: 100px;
+    justify-content: center;
+    align-items: center;
+    background: #f8fafc;
+  }
   .timeframe-label {
     font-size: 1.1rem;
     font-weight: 800;
@@ -396,9 +536,9 @@
     color: #64748b;
   }
   .signal-chip.active {
-      border-color: #6366f1;
-      background: #eef2ff;
-      color: #4338ca;
+    border-color: #6366f1;
+    background: #eef2ff;
+    color: #4338ca;
   }
 
   .wave-numbers {
@@ -418,14 +558,14 @@
     color: #cbd5e1;
   }
   .wave-number-box.selected {
-      background: #f0fdf4;
-      color: #166534;
-      border-color: #dcfce7;
+    background: #f0fdf4;
+    color: #166534;
+    border-color: #dcfce7;
   }
   .wave-number-box.highlighted {
-      background: #fef2f2;
-      color: #dc2626;
-      border-color: #fee2e2;
+    background: #fef2f2;
+    color: #dc2626;
+    border-color: #fee2e2;
   }
 
   /* Images */
@@ -436,12 +576,18 @@
     cursor: pointer;
     background: #f8fafc;
     position: relative;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     transition: transform 0.2s;
   }
-  .trend-image-preview:hover { transform: scale(1.02); }
-  .trend-image-preview img { width: 100%; height: auto; display: block; }
-  
+  .trend-image-preview:hover {
+    transform: scale(1.02);
+  }
+  .trend-image-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
   .analysis-box-container {
     padding: 1rem;
     border-radius: 12px;
@@ -451,8 +597,12 @@
     flex-direction: column;
     gap: 1.25rem;
   }
-  .analysis-box-container.long { border-left: 4px solid #ef4444; }
-  .analysis-box-container.short { border-left: 4px solid #10b981; }
+  .analysis-box-container.long {
+    border-left: 4px solid #ef4444;
+  }
+  .analysis-box-container.short {
+    border-left: 4px solid #10b981;
+  }
 
   .dir-header {
     display: inline-block;
@@ -494,10 +644,18 @@
     padding-left: 0.2rem;
   }
 
-  .na-txt { color: #94a3b8; font-style: italic; font-size: 0.9rem; }
+  .na-txt {
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.9rem;
+  }
 
   @media (max-width: 640px) {
-    .trend-grid { grid-template-columns: 1fr; }
-    .market-session-tabs { flex-direction: column; }
+    .trend-grid {
+      grid-template-columns: 1fr;
+    }
+    .market-session-tabs {
+      flex-direction: column;
+    }
   }
 </style>

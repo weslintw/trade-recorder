@@ -26,20 +26,37 @@
     dispatch('enlarge', { image, title, context });
   }
 
+  // 處理圖片顯示 Helper
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) return src;
+    return `/api/v1/images/file/${src}`;
+  }
+
   // Handle King/Queen Image
-  function handleLegendKingImagePaste(e) {
+  async function handleLegendKingImagePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = event => {
-          formData.legend_king_image = event.target.result;
-          formData.legend_king_image_original = event.target.result;
+
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          const { imagesAPI } = await import('../../lib/api');
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+
+          formData.legend_king_image = imageUrl;
+          formData.legend_king_image_original = imageUrl;
           formData = formData;
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('王后圖上傳失敗:', error);
+          alert('圖片處理失敗');
+        }
         break;
       }
     }
@@ -52,19 +69,29 @@
   }
 
   // Handle HTF Image
-  function handleLegendHTFImagePaste(e) {
+  async function handleLegendHTFImagePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = event => {
-          formData.legend_htf_image = event.target.result;
-          formData.legend_htf_image_original = event.target.result;
+
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          const { imagesAPI } = await import('../../lib/api');
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+
+          formData.legend_htf_image = imageUrl;
+          formData.legend_htf_image_original = imageUrl;
           formData = formData;
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('大時區圖上傳失敗:', error);
+          alert('圖片處理失敗');
+        }
         break;
       }
     }
@@ -77,19 +104,29 @@
   }
 
   // Handle Strategy Image (General Legend Image)
-  function handleStrategyImagePaste(e) {
+  async function handleStrategyImagePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = event => {
-          formData.entry_strategy_image = event.target.result;
-          formData.entry_strategy_image_original = event.target.result;
+
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          const { imagesAPI } = await import('../../lib/api');
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+
+          formData.entry_strategy_image = imageUrl;
+          formData.entry_strategy_image_original = imageUrl;
           formData = formData;
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('傳奇策略圖上傳失敗:', error);
+          alert('圖片處理失敗');
+        }
         break;
       }
     }
@@ -160,7 +197,7 @@
     >
       {#if formData.legend_king_image}
         <div class="signal-image-preview">
-          <img src={formData.legend_king_image} alt="王者回調截圖" />
+          <img src={getImageUrl(formData.legend_king_image)} alt="王者回調截圖" />
           <button
             type="button"
             class="remove-signal-image"
@@ -217,7 +254,7 @@
     >
       {#if formData.legend_htf_image}
         <div class="signal-image-preview">
-          <img src={formData.legend_htf_image} alt="大時區截圖" />
+          <img src={getImageUrl(formData.legend_htf_image)} alt="大時區截圖" />
           <button
             type="button"
             class="remove-signal-image"
@@ -285,7 +322,7 @@
   >
     {#if formData.entry_strategy_image}
       <div class="signal-image-preview">
-        <img src={formData.entry_strategy_image} alt="傳奇觀察圖" />
+        <img src={getImageUrl(formData.entry_strategy_image)} alt="傳奇觀察圖" />
         <button
           type="button"
           class="remove-signal-image"

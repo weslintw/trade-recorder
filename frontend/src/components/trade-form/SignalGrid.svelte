@@ -48,7 +48,7 @@
 
   function toggleSignal(signalName) {
     if (!entry_signals) entry_signals = [];
-    
+
     const index = entry_signals.findIndex(s =>
       typeof s === 'string' ? s === signalName : s.name === signalName
     );
@@ -105,15 +105,32 @@
     }
   }
 
-  function handleSignalImagePaste(event, signalName) {
+  // 處理圖片顯示 Helper
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) return src;
+    // 這裡我們需要 import imagesAPI，但因為這是在元件內部，
+    // 我們可以從 lib/api 動態 import 或者讓父元件傳入
+    return `/api/v1/images/file/${src}`;
+  }
+
+  async function handleSignalImagePaste(event, signalName) {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         event.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
 
-        reader.onload = e => {
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          // 動態載入 API 以避免迴圈引用或過早載入
+          const { imagesAPI } = await import('../../lib/api');
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+
           if (!entry_signals) entry_signals = [];
           const index = entry_signals.findIndex(s =>
             typeof s === 'string' ? s === signalName : s.name === signalName
@@ -123,16 +140,15 @@
             let newSignals = [...entry_signals];
             const newSignal =
               typeof newSignals[index] === 'string'
-                ? { name: signalName, image: e.target.result, originalImage: e.target.result }
+                ? { name: signalName, image: imageUrl, originalImage: imageUrl }
                 : {
                     ...newSignals[index],
-                    image: e.target.result,
-                    originalImage: newSignals[index].originalImage || e.target.result,
+                    image: imageUrl,
+                    originalImage: newSignals[index].originalImage || imageUrl,
                   };
             newSignals[index] = newSignal;
             entry_signals = newSignals;
-            
-            // Update cache immediately too for safety
+
             signalImagesCache[signalName] = {
               image: newSignal.image,
               originalImage: newSignal.originalImage,
@@ -140,8 +156,8 @@
           } else {
             const newSignal = {
               name: signalName,
-              image: e.target.result,
-              originalImage: e.target.result,
+              image: imageUrl,
+              originalImage: imageUrl,
             };
             entry_signals = [...entry_signals, newSignal];
             signalImagesCache[signalName] = {
@@ -149,8 +165,10 @@
               originalImage: newSignal.originalImage,
             };
           }
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('圖片貼上失敗:', error);
+          alert('圖片處理失敗');
+        }
         break;
       }
     }
@@ -193,7 +211,7 @@
         {#if signalData.image}
           <div class="signal-image-preview">
             <img
-              src={signalData.image}
+              src={getImageUrl(signalData.image)}
               alt={signal}
               on:click={e => {
                 e.stopPropagation();

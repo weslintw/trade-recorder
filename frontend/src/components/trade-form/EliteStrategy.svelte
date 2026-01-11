@@ -63,26 +63,42 @@
     dispatch('enlarge', { image, title, context });
   }
 
-  function handlePatternImagePaste(e, pattern) {
+  // 處理圖片顯示 Helper
+  function getImageUrl(src) {
+    if (!src) return '';
+    if (src.startsWith('data:') || src.startsWith('http')) return src;
+    return `/api/v1/images/file/${src}`;
+  }
+
+  async function handlePatternImagePaste(e, pattern) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
         e.preventDefault();
         const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = event => {
-          const imgData = event.target.result;
-          pattern.image = imgData;
-          pattern.originalImage = imgData;
+
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          const { imagesAPI } = await import('../../lib/api');
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+
+          pattern.image = imageUrl;
+          pattern.originalImage = imageUrl;
           // Sync to cache
           patternImagesCache[pattern.name] = {
-            image: imgData,
-            originalImage: imgData,
+            image: imageUrl,
+            originalImage: imageUrl,
           };
           formData.entry_pattern = formData.entry_pattern; // Trigger reactivity
           formData = formData;
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('圖片貼上失敗:', error);
+          alert('圖片處理失敗');
+        }
         break;
       }
     }
@@ -162,7 +178,7 @@
                     key: pattern.name,
                   })}
               >
-                <img src={pattern.image} alt={pattern.name} />
+                <img src={getImageUrl(pattern.image)} alt={pattern.name} />
                 <button
                   type="button"
                   class="remove-pattern-image"
