@@ -6,22 +6,54 @@ const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 秒超時保護
+  timeout: 60000, // 增加到 60 秒，避免緩慢網路導致 ECONNABORTED
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// 請求攔截器：自動加入 Token
+// 請求攔截器：自動加入 Token 與 診斷 Log
 api.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.metadata = { startTime: performance.now() };
+    console.log(`🚀 [API Request] ${config.method.toUpperCase()} ${config.url}`);
     return config;
   },
   error => {
+    return Promise.reject(error);
+  }
+);
+
+// 回應攔截器：計算耗時
+api.interceptors.response.use(
+  response => {
+    const duration = performance.now() - response.config.metadata.startTime;
+    console.log(
+      `✅ [API Response] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration.toFixed(
+        2
+      )}ms`
+    );
+    return response;
+  },
+  error => {
+    const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+    const duration = error.config?.metadata
+      ? (performance.now() - error.config.metadata.startTime).toFixed(2)
+      : 'unknown';
+    
+    if (isTimeout) {
+      console.warn(`⏳ [API Timeout] ${error.config?.url} 請求超時 (${duration}ms)。請檢查是否開啟過多分頁或網路不穩。`);
+    }
+
+    console.error(
+      `❌ [API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${duration}ms - Error: ${
+        error.message
+      } (Code: ${error.code})`
+    );
     return Promise.reject(error);
   }
 );

@@ -116,33 +116,35 @@
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
       try {
-        const startPlans = performance.now();
-        const plansRes = await dailyPlansAPI.getAll({
-          account_id: $selectedAccountId,
-          symbol,
-          page_size: 20,
-        });
-        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-        console.log(
-          `⏱️ Plans fetched: ${plans.length} items. Time: ${(performance.now() - startPlans).toFixed(2)}ms`
-        );
-      } catch (e) {
-        console.error('Failed to fetch plans:', e);
-      }
+        const [plansRes, tradesRes] = await Promise.all([
+          dailyPlansAPI
+            .getAll({
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 20,
+            })
+            .catch(e => {
+              console.error('Plans fetch error:', e);
+              return { data: [] };
+            }),
+          tradesAPI
+            .getAll({
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 50,
+            })
+            .catch(e => {
+              console.error('Trades fetch error:', e);
+              return { data: [] };
+            }),
+        ]);
 
-      try {
-        const startTrades = performance.now();
-        const tradesRes = await tradesAPI.getAll({
-          account_id: $selectedAccountId,
-          symbol,
-          page_size: 50,
-        });
+        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
-        console.log(
-          `⏱️ Trades fetched: ${trades.length} items. Time: ${(performance.now() - startTrades).toFixed(2)}ms`
-        );
-      } catch (e) {
-        console.error('Failed to fetch trades:', e);
+
+        console.log(`⏱️ Fetched: ${plans.length} plans, ${trades.length} trades.`);
+      } catch (err) {
+        console.error('Critical failure in parallel fetch:', err);
       }
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
       console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
