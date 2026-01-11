@@ -364,5 +364,9 @@ func createTables(db *sql.DB) error {
 	// 確保 trade_images 有 file_size
 	db.Exec("ALTER TABLE trade_images ADD COLUMN file_size INTEGER DEFAULT 0;")
 
+	// 【數據大掃除】如果 daily_plans 或 trades 中有單筆超過 5MB 的文字內容，執行清理以免撐爆系統
+	_, _ = db.Exec("UPDATE daily_plans SET notes = '(Cleared due to excessive size)', trend_analysis = '{}' WHERE LENGTH(notes) > 5000000 OR LENGTH(trend_analysis) > 5000000;")
+	_, _ = db.Exec("UPDATE trades SET notes = '(Cleared due to excessive size)' WHERE LENGTH(notes) > 5000000;")
+
 	return nil
 }

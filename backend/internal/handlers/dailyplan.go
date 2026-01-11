@@ -164,14 +164,15 @@ func GetDailyPlan(db *sql.DB) gin.HandlerFunc {
 		userID := c.GetInt64("user_id")
 
 		var plan models.DailyPlan
+		var rawNotes, rawTrend string
 		err := db.QueryRow(`
 			SELECT p.id, p.account_id, p.plan_date, p.symbol, p.market_session, COALESCE(p.notes, ''), COALESCE(p.trend_analysis, '{}'), p.created_at, p.updated_at
 			FROM daily_plans p
 			JOIN accounts a ON p.account_id = a.id
 			WHERE p.id = ? AND a.user_id = ?
 		`, id, userID).Scan(
-			&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &plan.Notes,
-			&plan.TrendAnalysis, &plan.CreatedAt, &plan.UpdatedAt,
+			&plan.ID, &plan.AccountID, &plan.PlanDate, &plan.Symbol, &plan.MarketSession, &rawNotes,
+			&rawTrend, &plan.CreatedAt, &plan.UpdatedAt,
 		)
 
 		if err == sql.ErrNoRows {
@@ -181,6 +182,19 @@ func GetDailyPlan(db *sql.DB) gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
+		}
+
+		// 單筆詳情也進行截斷保護，如果真的超過 1MB 則強行報警並截斷
+		if len(rawNotes) > 1000000 {
+			plan.Notes = rawNotes[:1000000] + "... (Content exceeds 1MB, truncated to prevent crash)"
+		} else {
+			plan.Notes = rawNotes
+		}
+
+		if len(rawTrend) > 1000000 {
+			plan.TrendAnalysis = "{}" // 過大則重設
+		} else {
+			plan.TrendAnalysis = rawTrend
 		}
 
 		c.JSON(http.StatusOK, plan)
