@@ -33,12 +33,19 @@
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
 
-  // 響應式：當帳號或品種改變時，自動重新載入資料
+  let ws;
+  let loadController; // To abort in-flight requests
+
+  // 響應式：當帳號或品種改變時，自動重新載入資料 (加上 Debounce 防止連點)
+  let debounceTimer;
   $: if ($selectedAccountId && $selectedSymbol) {
-    console.log(
-      `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
-    );
-    loadData();
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      console.log(
+        `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
+      );
+      loadData();
+    }, 300); // 300ms 防抖
   }
 
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
@@ -88,9 +95,19 @@
   async function loadData(silent = false) {
     // Prevent concurrent execution
     if (isLoadingData) {
-      console.warn(`⚠️ [${INSTANCE_ID}] loadData already running, skipping call`);
+      if (!silent) {
+        console.warn(`[${INSTANCE_ID}] loadData already in progress, skipping...`);
+      }
       return;
     }
+
+    // Abort previous request before starting new one
+    if (loadController) {
+      console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests...`);
+      loadController.abort();
+    }
+    loadController = new AbortController();
+    const { signal } = loadController;
 
     loadDataCallCount++;
     isLoadingData = true;
@@ -127,12 +144,16 @@
       try {
         console.log(`⏱️ [#${loadDataCallCount}] Step 1: Fetching Plans...`);
         const plansRes = await dailyPlansAPI
-          .getAll({
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: 20,
-          })
+          .getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 20,
+            },
+            signal
+          )
           .catch(e => {
+            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
             console.error('Plans fetch error:', e);
             return { data: [] };
           });
@@ -140,12 +161,16 @@
 
         console.log(`⏱️ [#${loadDataCallCount}] Step 2: Fetching Trades...`);
         const tradesRes = await tradesAPI
-          .getAll({
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: 50,
-          })
+          .getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 50,
+            },
+            signal
+          )
           .catch(e => {
+            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
             console.error('Trades fetch error:', e);
             return { data: [] };
           });
@@ -155,7 +180,11 @@
           `⏱️ [#${loadDataCallCount}] Sequence finished: ${plans.length} plans, ${trades.length} trades.`
         );
       } catch (err) {
-        console.error('Critical failure in sequence fetch:', err);
+        if (err.name === 'CanceledError' || err.name === 'AbortError') {
+          console.log('Request was aborted intentionally.');
+        } else {
+          console.error('Critical failure in sequence fetch:', err);
+        }
       }
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
       console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
@@ -413,8 +442,14 @@
 
   onDestroy(() => {
     console.log('=== onDestroy: Cleaning up ===');
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
     if (pollingTimeout) {
       clearTimeout(pollingTimeout);
+    }
+    if (loadController) {
+      loadController.abort();
     }
     if (ws) {
       ws.onclose = null; // 阻止自動重連

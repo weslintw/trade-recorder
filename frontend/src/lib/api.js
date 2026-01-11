@@ -72,8 +72,8 @@ export const authAPI = {
 
 // 交易紀錄相關
 export const tradesAPI = {
-  getAll: params => api.get('/trades', { params }),
-  getOne: id => api.get(`/trades/${id}`),
+  getAll: (params, signal) => api.get('/trades', { params, signal }),
+  getOne: (id, signal) => api.get(`/trades/${id}`, { signal }),
   create: data => api.post('/trades', data),
   update: (id, data) => api.put(`/trades/${id}`, data),
   delete: id => api.delete(`/trades/${id}`),
@@ -97,22 +97,25 @@ export const imagesAPI = {
 
 // 統計相關
 export const statsAPI = {
-  getSummary: params => api.get('/stats/summary', { params }),
-  getEquityCurve: params => api.get('/stats/equity-curve', { params }),
-  getBySymbol: params => api.get('/stats/by-symbol', { params }),
-  getByStrategy: params => api.get('/stats/by-strategy', { params }),
-  getByColorTag: params => api.get('/stats/by-color', { params }),
+  getSummary: (params, signal) => api.get('/stats/summary', { params, signal }),
+  getEquityCurve: (params, signal) =>
+    api.get('/stats/equity-curve', { params, signal }),
+  getBySymbol: (params, signal) => api.get('/stats/by-symbol', { params, signal }),
+  getByStrategy: (params, signal) =>
+    api.get('/stats/by-strategy', { params, signal }),
+  getByColorTag: (params, signal) =>
+    api.get('/stats/by-color', { params, signal }),
 };
 
 // 標籤相關
 export const tagsAPI = {
-  getAll: () => api.get('/tags'),
+  getAll: signal => api.get('/tags', { signal }),
 };
 
 // 每日盤面規劃相關
 export const dailyPlansAPI = {
-  getAll: params => api.get('/daily-plans', { params }),
-  getOne: id => api.get(`/daily-plans/${id}`),
+  getAll: (params, signal) => api.get('/daily-plans', { params, signal }),
+  getOne: (id, signal) => api.get(`/daily-plans/${id}`, { signal }),
   create: data => api.post('/daily-plans', data),
   update: (id, data) => api.put(`/daily-plans/${id}`, data),
   delete: id => api.delete(`/daily-plans/${id}`),
@@ -120,7 +123,7 @@ export const dailyPlansAPI = {
 
 // 帳號管理相關
 export const accountsAPI = {
-  getAll: () => api.get('/accounts'),
+  getAll: signal => api.get('/accounts', { signal }),
   create: data => api.post('/accounts', data),
   update: (id, data) => api.put(`/accounts/${id}`, data),
   delete: id => api.delete(`/accounts/${id}`),
@@ -138,12 +141,12 @@ export const accountsAPI = {
 // 分享相關
 export const sharesAPI = {
   create: data => api.post('/shares', data),
-  getPublic: token => api.get(`/shares/public/${token}`),
+  getPublic: (token, signal) => api.get(`/shares/public/${token}`, { signal }),
 };
 
 // 管理員相關
 export const adminAPI = {
-  getUsage: () => api.get('/admin/usage'),
+  getUsage: signal => api.get('/admin/usage', { signal }),
 };
 
 export default api;
