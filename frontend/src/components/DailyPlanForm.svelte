@@ -1417,9 +1417,9 @@
     }
 
     .trend-option.active.neutral {
-      background: #e2e8f0; /* Darker gray */
-      color: #1e293b; /* Darker text */
-      border-color: #94a3b8; /* Darker border */
+      background: #eff6ff;
+      color: #2563eb;
+      border-color: #bfdbfe;
       font-weight: 700;
     }
 
