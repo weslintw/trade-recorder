@@ -190,23 +190,37 @@
     waveButtonKey++;
   }
 
-  // 切換趨勢方向 (多/空)，再次點選可取消
-  function toggleTrendDirection(timeframe, direction) {
+  // 切換趨勢方向 (多/空/整理 三選一)，再次點選可取消
+  function toggleTrendDirection(timeframe, selection) {
     const directions = currentTrends[timeframe].directions || [];
-    const index = directions.indexOf(direction);
 
-    if (index >= 0) {
-      // 如果已經選中，則移除
-      currentTrends[timeframe].directions = directions.filter(d => d !== direction);
-    } else {
-      // 如果未選中，則加入
-      currentTrends[timeframe].directions = [...directions, direction];
+    // 判斷目前狀態
+    const isLong = directions.length === 1 && directions[0] === 'long';
+    const isShort = directions.length === 1 && directions[0] === 'short';
+    const isNeutral =
+      directions.length === 2 &&
+      directions.includes('long') &&
+      directions.includes('short');
+
+    let newDirections = [];
+
+    if (selection === 'long') {
+      // 如果目前就是純多頭，則取消；否則設為純多頭
+      newDirections = isLong ? [] : ['long'];
+    } else if (selection === 'short') {
+      // 如果目前就是純空頭，則取消；否則設為純空頭
+      newDirections = isShort ? [] : ['short'];
+    } else if (selection === 'neutral') {
+      // 如果目前就是整理(雙向)，則取消；否則設為整理(雙向)
+      newDirections = isNeutral ? [] : ['long', 'short'];
     }
 
+    currentTrends[timeframe].directions = newDirections;
+
     // 向後兼容：如果只有一個方向，也更新舊的 direction 欄位
-    if (currentTrends[timeframe].directions.length === 1) {
-      currentTrends[timeframe].direction = currentTrends[timeframe].directions[0];
-    } else if (currentTrends[timeframe].directions.length === 0) {
+    if (newDirections.length === 1) {
+      currentTrends[timeframe].direction = newDirections[0];
+    } else if (newDirections.length === 0) {
       currentTrends[timeframe].direction = '';
     } else {
       currentTrends[timeframe].direction = 'both';
@@ -873,15 +887,27 @@
                 <button
                   type="button"
                   class="trend-option long"
-                  class:active={currentTrends[timeframe]?.directions?.includes('long')}
+                  class:active={currentTrends[timeframe]?.directions?.length === 1 &&
+                    currentTrends[timeframe]?.directions?.includes('long')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
                 >
                   <span class="trend-name">多</span>
                 </button>
                 <button
                   type="button"
+                  class="trend-option neutral"
+                  class:active={currentTrends[timeframe]?.directions?.length === 2 &&
+                    currentTrends[timeframe]?.directions?.includes('long') &&
+                    currentTrends[timeframe]?.directions?.includes('short')}
+                  on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'neutral')}
+                >
+                  <span class="trend-name">整理</span>
+                </button>
+                <button
+                  type="button"
                   class="trend-option short"
-                  class:active={currentTrends[timeframe]?.directions?.includes('short')}
+                  class:active={currentTrends[timeframe]?.directions?.length === 1 &&
+                    currentTrends[timeframe]?.directions?.includes('short')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
                 >
                   <span class="trend-name">空</span>
@@ -1376,6 +1402,24 @@
     .trend-option:hover {
       border-color: #667eea;
       background: #f7fafc;
+    }
+
+    .trend-option.active.long {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fee2e2;
+    }
+
+    .trend-option.active.short {
+      background: #f0fdf4;
+      color: #16a34a;
+      border-color: #dcfce7;
+    }
+
+    .trend-option.active.neutral {
+      background: #f3f4f6;
+      color: #4b5563;
+      border-color: #d1d5db;
     }
 
     .date-input-group {
