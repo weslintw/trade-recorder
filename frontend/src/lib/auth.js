@@ -1,9 +1,6 @@
 import { writable } from 'svelte/store';
-import axios from 'axios';
+import api from './api';
 import { selectedAccountId } from './stores';
-
-// API 基礎路徑
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8080/api/v1' : '/api/v1');
 
 // 初始化時從 localStorage 讀取
 const initialToken = localStorage.getItem('token');
@@ -27,35 +24,33 @@ auth.subscribe(value => {
 });
 
 export const login = async (username, password) => {
-    console.log('[DEBUG] Attempting login to:', `${API_BASE_URL}/auth/login`);
     try {
-        const response = await axios.post(`${API_BASE_URL}/auth/login`, { username, password });
+        const response = await api.post(`/auth/login`, { username, password });
         const { token, user } = response.data;
         localStorage.removeItem('selectedAccountId');
         selectedAccountId.set(null);
         auth.set({ token, user, isAuthenticated: true });
         return { success: true };
     } catch (error) {
-        return { 
-            success: false, 
-            error: error.response?.data?.error || error.message || '登入失敗，請檢查網路連線' 
+        return {
+            success: false,
+            error: error.response?.data?.error || error.message || '登入失敗，請檢查網路連線'
         };
     }
 };
 
 export const register = async (username, password) => {
-    console.log('[DEBUG] Attempting register to:', `${API_BASE_URL}/auth/register`);
     try {
-        const response = await axios.post(`${API_BASE_URL}/auth/register`, { username, password });
+        const response = await api.post(`/auth/register`, { username, password });
         const { token, user } = response.data;
         localStorage.removeItem('selectedAccountId');
         selectedAccountId.set(null);
         auth.set({ token, user, isAuthenticated: true });
         return { success: true };
     } catch (error) {
-        return { 
-            success: false, 
-            error: error.response?.data?.error || error.message || '註冊失敗' 
+        return {
+            success: false,
+            error: error.response?.data?.error || error.message || '註冊失敗'
         };
     }
 };
@@ -73,9 +68,7 @@ export const checkAuth = async () => {
     if (!token) return false;
 
     try {
-        const response = await axios.get(`${API_BASE_URL}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
+        const response = await api.get(`/auth/me`);
         auth.update(a => ({ ...a, user: response.data, isAuthenticated: true }));
         return true;
     } catch (error) {
