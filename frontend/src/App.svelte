@@ -91,7 +91,10 @@
                 <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
               {/if}
             </div>
-            <span class="app-version-tag">{buildTime}</span>
+            <span class="app-version-tag">
+              <span class="build-label">BUILD TIME</span>
+              {buildTime}
+            </span>
           </Link>
 
           {#if $auth.isAuthenticated}
@@ -328,20 +331,28 @@
   }
 
   :global(.app-version-tag) {
-    display: inline-flex !important;
+    display: flex !important;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     font-size: 0.65rem;
     color: var(--text-muted);
     background: var(--nav-group-bg);
-    padding: 0.2rem 0.6rem;
-    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    border-radius: 8px;
     font-weight: 700;
     pointer-events: none;
     margin-top: 0;
     align-self: center;
-    line-height: 1;
+    line-height: 1.2;
     border: 1px solid var(--border-color);
+  }
+
+  :global(.app-version-tag .build-label) {
+    font-size: 0.5rem;
+    opacity: 0.6;
+    margin-bottom: 1px;
+    letter-spacing: 0.05em;
   }
 
   .nav-links {
