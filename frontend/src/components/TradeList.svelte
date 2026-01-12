@@ -502,7 +502,7 @@
                     {:else if image.image_type === 'trailing_stop'}
                       🎯 移動停利
                     {:else if image.image_type === 'observation'}
-                      👁️ 觀察
+                      📓 圖面紀錄
                     {:else}
                       📷 圖片
                     {/if}

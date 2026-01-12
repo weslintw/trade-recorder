@@ -47,17 +47,17 @@
   <div class="modal-overlay" on:click|self={onClose} transition:fade={{ duration: 200 }}>
     <div class="modal-card" transition:scale={{ start: 0.95, duration: 200 }}>
       <div class="modal-header">
-        <h3>📋 從觀察單選擇併入</h3>
+        <h3>📓 從圖面紀錄選擇併入</h3>
         <button class="close-btn" on:click={onClose}>&times;</button>
       </div>
 
       <div class="modal-body">
         {#if trades.length === 0}
             <div class="empty-state">
-                <p>找不到同品種 ({currentSymbol}) 的觀察單。</p>
+                <p>找不到同品種 ({currentSymbol}) 的圖面紀錄。</p>
             </div>
         {:else}
-            <p class="description">請選擇要併入的觀察單 ({currentSymbol})：</p>
+            <p class="description">請選擇要併入的圖面紀錄 ({currentSymbol})：</p>
             <div class="trade-list">
             {#each trades as trade}
                 <label class="trade-item" class:selected={selectedTradeId === trade.id}>

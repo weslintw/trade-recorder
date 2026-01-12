@@ -108,7 +108,7 @@
       }
     } catch (error) {
       console.error('Fetch trades error:', error);
-      alert('讀取觀察單失敗');
+      alert('讀取圖面紀錄失敗');
     }
   }
 
@@ -118,7 +118,7 @@
 
     if (
       confirm(
-        `確定要併入觀察單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`
+        `確定要併入圖面紀錄 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`
       )
     ) {
       // 1. 併入進場分析 (Entry Analysis)
@@ -172,7 +172,7 @@
       }
 
       formData = formData;
-      alert('觀察單資料併入完成！');
+      alert('圖面紀錄資料併入完成！');
     }
   }
 
@@ -1080,9 +1080,9 @@
                 type="button"
                 class="btn btn-sm btn-accent"
                 on:click={openWatchlistModal}
-                title="從過去的觀察單匯入分析資料"
+                title="從過去的圖面紀錄匯入分析資料"
               >
-                <span class="icon">📋</span> 併入觀察單
+                <span class="icon">📋</span> 併入圖面紀錄
               </button>
             {:else}
               <button
@@ -1107,10 +1107,10 @@
           <label class="radio-option" class:active={formData.trade_type === 'observation'}>
             <input type="radio" bind:group={formData.trade_type} value="observation" />
             <span class="radio-label">
-              <span class="radio-icon">👁️</span>
+              <span class="radio-icon">📓</span>
               <span class="radio-text">
-                <strong>觀察中 (尚未進單)</strong>
-                <small>純觀察記錄</small>
+                <strong>圖面紀錄</strong>
+                <small>純圖面記錄</small>
               </span>
             </span>
           </label>
