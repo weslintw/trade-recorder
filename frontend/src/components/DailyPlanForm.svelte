@@ -1417,9 +1417,9 @@
     }
 
     .trend-option.active.neutral {
-      background: #eff6ff;
-      color: #2563eb;
-      border-color: #bfdbfe;
+      background: #1d4ed8; /* Deep Blue */
+      color: #ffffff;
+      border-color: #1e40af;
       font-weight: 700;
     }
 
