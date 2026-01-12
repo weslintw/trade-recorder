@@ -229,11 +229,18 @@ func main() {
 			// 檢查路徑是否對應到靜態目錄下的檔案（例如 /logo.png, /favicon.ico）
 			filePath := filepath.Join(staticDir, path)
 			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+				// 為靜態資源加上基本的快取控制
+				if strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css") || strings.Contains(path, "/assets/") {
+					c.Header("Cache-Control", "public, max-age=31536000, immutable")
+				} else {
+					c.Header("Cache-Control", "public, max-age=3600")
+				}
 				c.File(filePath)
 				return
 			}
 
-			// 其餘所有路徑回傳 index.html
+			// 其餘所有路徑回傳 index.html (SPA 路由)
+			c.Header("Cache-Control", "no-cache")
 			c.File(filepath.Join(staticDir, "index.html"))
 		})
 	}
