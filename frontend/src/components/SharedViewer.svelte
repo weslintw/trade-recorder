@@ -46,6 +46,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
   let startY = 0;
 
   function handleWheel(e) {
+    if (isAnnotating) return; // 標註模式下允許原生捲動
     if (!enlargedImage) return;
     e.preventDefault();
     const delta = e.deltaY;
@@ -498,15 +499,17 @@ import ImageAnnotator from './ImageAnnotator.svelte';
 
 <style>
   .annotator-wrapper-modal {
-    width: 90vw;
-    height: 90vh;
+    width: 95vw;
+    height: 85vh; /* 避免太滿 */
     background: white;
     border-radius: 8px;
     padding: 1rem;
-    overflow: auto;
+    overflow: auto; /* 允許內部捲動 */
     display: flex;
+    flex-direction: column; /* 確保內容垂直排列 */
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start; /* 從頂部開始 */
+    margin-top: 50px; /* 避開頂部的關閉按鈕 */
   }
   
   .annotate-toggle-btn {
