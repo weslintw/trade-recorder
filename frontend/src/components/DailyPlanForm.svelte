@@ -644,8 +644,8 @@
   }
 
   // 檢查時段是否有任何資料
-  function hasSessionData(sessionKey) {
-    const session = formData.sessions[sessionKey];
+  function hasSessionData(sessionKey, currentData) {
+    const session = currentData.sessions[sessionKey];
     if (!session) return false;
 
     // 檢查是否有備註
@@ -678,6 +678,13 @@
 
     return false;
   }
+
+  // 響應式追蹤各時段狀態
+  $: sessionStatus = {
+    asian: hasSessionData('asian', formData),
+    european: hasSessionData('european', formData),
+    us: hasSessionData('us', formData),
+  };
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -775,7 +782,7 @@
               <span class="session-tab-inner">
                 {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
                 {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
-                {#if hasSessionData('asian')}
+                {#if sessionStatus.asian}
                   <span class="data-indicator"></span>
                 {/if}
               </span>
@@ -789,7 +796,7 @@
               <span class="session-tab-inner">
                 {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
                 {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
-                {#if hasSessionData('european')}
+                {#if sessionStatus.european}
                   <span class="data-indicator"></span>
                 {/if}
               </span>
@@ -803,7 +810,7 @@
               <span class="session-tab-inner">
                 {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
                 {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
-                {#if hasSessionData('us')}
+                {#if sessionStatus.us}
                   <span class="data-indicator"></span>
                 {/if}
               </span>
@@ -1250,12 +1257,27 @@
     }
 
     .data-indicator {
-      display: inline-block;
+      position: absolute;
+      top: -2px;
+      right: -10px;
       width: 8px;
       height: 8px;
       background-color: #10b981;
       border-radius: 50%;
       box-shadow: 0 0 0 2px white;
+      animation: pulse-green 2s infinite;
+    }
+
+    @keyframes pulse-green {
+      0% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+      }
     }
 
     .dark-mode .data-indicator {
