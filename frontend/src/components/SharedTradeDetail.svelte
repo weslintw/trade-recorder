@@ -87,6 +87,7 @@
     H1: '1小時',
     H4: '4小時',
     D1: '天',
+    SuperK: '超k',
   };
 
   const legendChecklist = {
@@ -252,7 +253,7 @@
           <div class="analysis-sub-group">
             <label class="sub-label">🕒 進場時區</label>
             <div class="mock-tf-pills">
-              {#each ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'] as tf}
+              {#each ['M1', 'M5', 'M15', 'H1', 'H4', 'D1', ...(trade.entry_strategy === 'legend' ? ['SuperK'] : [])] as tf}
                 <span
                   class="tf-pill {trade.entry_timeframe === tf ||
                   trade.entry_timeframe === tf.toLowerCase()
@@ -271,6 +272,63 @@
 
   {#if trade.entry_strategy === 'expert' || trade.entry_strategy === 'elite' || trade.entry_strategy === 'legend'}
     <div class="section-box analysis-section">
+      {#if trade.entry_strategy === 'legend'}
+        <div class="legend-specifics">
+          <label class="legend-section-title">👑 傳奇策略圖面</label>
+          <div class="legend-images-grid">
+            {#if trade.legend_king_image}
+              <div class="legend-card">
+                <div class="legend-header">
+                  <span>王者 (King)</span>
+                  {#if trade.legend_king_htf}<span class="htf-tag">{trade.legend_king_htf}</span>{/if}
+                </div>
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <div
+                  class="legend-img-container"
+                  on:click={() =>
+                    openModal(getImageUrl(trade.legend_king_image), '王者 (King) 圖面')}
+                >
+                  <img src={getImageUrl(trade.legend_king_image)} alt="Legend King" loading="lazy" />
+                </div>
+              </div>
+            {/if}
+
+            {#if trade.legend_htf_image}
+              <div class="legend-card">
+                <div class="legend-header">
+                  <span>傳奇觀察</span>
+                  {#if trade.legend_htf}<span class="htf-tag">{trade.legend_htf}</span>{/if}
+                </div>
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <div
+                  class="legend-img-container"
+                  on:click={() =>
+                    openModal(getImageUrl(trade.legend_htf_image), '傳奇觀察圖面')}
+                >
+                  <img src={getImageUrl(trade.legend_htf_image)} alt="Legend HTF" loading="lazy" />
+                </div>
+              </div>
+            {/if}
+
+            {#if trade.entry_strategy_image}
+              <div class="legend-card">
+                <div class="legend-header">
+                  <span>傳奇全局圖</span>
+                </div>
+                <!-- svelte-ignore a11y-click-events-have-key-events -->
+                <div
+                  class="legend-img-container"
+                  on:click={() =>
+                    openModal(getImageUrl(trade.entry_strategy_image), '傳奇全局圖')}
+                >
+                  <img src={getImageUrl(trade.entry_strategy_image)} alt="Legend General" loading="lazy" />
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <div class="analysis-grid">
         {#if signals && signals.length > 0}
           <div class="analysis-item">

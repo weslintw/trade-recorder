@@ -11,6 +11,13 @@
     ...(formData.entry_strategy === 'legend' ? [{ label: '超k', value: 'SuperK' }] : [])
   ];
 
+  /* 如果切換到傳奇模式，預設選擇「超k」 */
+  let lastStrategy = formData.entry_strategy;
+  $: if (formData.entry_strategy === 'legend' && lastStrategy !== 'legend') {
+    formData.entry_timeframe = 'SuperK';
+  }
+  $: lastStrategy = formData.entry_strategy;
+
   /* 如果切換離傳奇模式，重置「超k」選擇 */
   $: if (formData.entry_strategy !== 'legend' && formData.entry_timeframe === 'SuperK') {
     formData.entry_timeframe = '';
