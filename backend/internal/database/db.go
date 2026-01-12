@@ -373,5 +373,22 @@ func createTables(db *sql.DB) error {
 	_, _ = db.Exec("UPDATE daily_plans SET notes = '(Cleared due to excessive size)', trend_analysis = '{}' WHERE LENGTH(notes) > 5000000 OR LENGTH(trend_analysis) > 5000000;")
 	_, _ = db.Exec("UPDATE trades SET notes = '(Cleared due to excessive size)' WHERE LENGTH(notes) > 5000000;")
 
+	// 【數據修復】清理重複的 Ticket (保留 ID 最小的舊資料)
+	_, _ = db.Exec(`
+		DELETE FROM trades 
+		WHERE id NOT IN (
+			SELECT MIN(id) 
+			FROM trades 
+			GROUP BY account_id, ticket 
+			HAVING ticket IS NOT NULL AND ticket != ''
+			UNION 
+			SELECT id FROM trades WHERE ticket IS NULL OR ticket = ''
+		);
+	`)
+
+	// 【Schema 強制】建立 Ticket 唯一索引，防止未來產生重複 (部分索引，排除 NULL/Empty)
+	// SQLite 支援 partial index (WHERE clause)
+	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_account_ticket ON trades(account_id, ticket) WHERE ticket IS NOT NULL AND ticket != '';`)
+
 	return nil
 }

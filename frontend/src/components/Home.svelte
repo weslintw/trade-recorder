@@ -374,6 +374,24 @@
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
 
+      // De-duplicate trades on client side as a safety measure
+      // Priority: Keep the one with ID if others don't have it, or keeps latest
+      const seenTickets = new Set();
+      const uniqueTrades = [];
+      trades.forEach(trade => {
+         // If trade has ticket, use it for checking uniqueness
+         if (trade.ticket && trade.ticket.startsWith('ctrader-')) {
+            if (seenTickets.has(trade.ticket)) {
+                console.warn(`[Client Dedup] Duplicate ticket found and skipped: ${trade.ticket} (ID: ${trade.id})`);
+                return;
+            }
+            seenTickets.add(trade.ticket);
+         }
+         // Also check by ID if possible (though API returns unique IDs usually, but just in case of merge)
+         uniqueTrades.push(trade);
+      });
+      trades = uniqueTrades;
+
       console.log(
         `🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`
       );
