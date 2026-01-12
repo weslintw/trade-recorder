@@ -98,6 +98,33 @@
     const filename = src.split('/').pop();
     return `/api/v1/images/${filename}?path=${encodeURIComponent(src)}`;
   }
+
+  function isLongActive(trend) {
+    if (!trend) return false;
+    // 純多頭：只有 long 且沒有 short (directions 為 ['long'] 或 direction 為 'long')
+    return (
+      (trend.directions?.length === 1 && trend.directions[0] === 'long') ||
+      (trend.direction === 'long' && (!trend.directions || trend.directions.length === 0))
+    );
+  }
+
+  function isNeutralActive(trend) {
+    if (!trend) return false;
+    // 整理 (雙向)：directions 包含 long 和 short，或 direction 為 'both'
+    return (
+      (trend.directions?.includes('long') && trend.directions?.includes('short')) ||
+      trend.direction === 'both'
+    );
+  }
+
+  function isShortActive(trend) {
+    if (!trend) return false;
+    // 純空頭：只有 short 且沒有 long
+    return (
+      (trend.directions?.length === 1 && trend.directions[0] === 'short') ||
+      (trend.direction === 'short' && (!trend.directions || trend.directions.length === 0))
+    );
+  }
 </script>
 
 <div class="plan-detail-view card">
@@ -160,31 +187,19 @@
             <div class="trend-options-view">
               <div
                 class="trend-option-box long"
-                class:active={
-                  // 純多頭：只有 long 且沒有 short (directions 為 ['long'] 或 direction 為 'long')
-                  (trend.directions?.length === 1 && trend.directions[0] === 'long') ||
-                  (trend.direction === 'long' && (!trend.directions || trend.directions.length === 0))
-                }
+                class:active={isLongActive(trend)}
               >
                 多
               </div>
               <div
                 class="trend-option-box neutral"
-                class:active={
-                  // 整理 (雙向)：directions 包含 long 和 short，或 direction 為 'both'
-                  (trend.directions?.includes('long') && trend.directions?.includes('short')) ||
-                  trend.direction === 'both'
-                }
+                class:active={isNeutralActive(trend)}
               >
                 整
               </div>
               <div
                 class="trend-option-box short"
-                class:active={
-                  // 純空頭：只有 short 且沒有 long
-                  (trend.directions?.length === 1 && trend.directions[0] === 'short') ||
-                  (trend.direction === 'short' && (!trend.directions || trend.directions.length === 0))
-                }
+                class:active={isShortActive(trend)}
               >
                 空
               </div>
