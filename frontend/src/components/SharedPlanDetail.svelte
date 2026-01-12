@@ -91,12 +91,12 @@
     return (target.wave_numbers || []).some(n => n.toString() === number.toString());
   }
 
-  // 取得圖片 URL Helper (支持新舊格式)
+  // 取得圖片 URL Helper (修正: 配合 api.js 的邏輯)
   function getImageUrl(src) {
     if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('http')) return src;
-    // 這裡我們假設圖片 API 路徑是固定的，因為 SharedView 也是同個端點
-    return `/api/v1/images/file/${src}`;
+    const filename = src.split('/').pop();
+    return `/api/v1/images/${filename}?path=${encodeURIComponent(src)}`;
   }
 </script>
 
@@ -160,17 +160,31 @@
             <div class="trend-options-view">
               <div
                 class="trend-option-box long"
-                class:active={trend.directions?.includes('long') ||
-                  trend.direction === 'long' ||
-                  trend.direction === 'both'}
+                class:active={
+                  // 純多頭：只有 long 且沒有 short (directions 為 ['long'] 或 direction 為 'long')
+                  (trend.directions?.length === 1 && trend.directions[0] === 'long') ||
+                  (trend.direction === 'long' && (!trend.directions || trend.directions.length === 0))
+                }
               >
                 多
               </div>
               <div
+                class="trend-option-box neutral"
+                class:active={
+                  // 整理 (雙向)：directions 包含 long 和 short，或 direction 為 'both'
+                  (trend.directions?.includes('long') && trend.directions?.includes('short')) ||
+                  trend.direction === 'both'
+                }
+              >
+                整
+              </div>
+              <div
                 class="trend-option-box short"
-                class:active={trend.directions?.includes('short') ||
-                  trend.direction === 'short' ||
-                  trend.direction === 'both'}
+                class:active={
+                  // 純空頭：只有 short 且沒有 long
+                  (trend.directions?.length === 1 && trend.directions[0] === 'short') ||
+                  (trend.direction === 'short' && (!trend.directions || trend.directions.length === 0))
+                }
               >
                 空
               </div>
@@ -503,6 +517,11 @@
     background: #fef2f2;
     color: #dc2626;
     border-color: #fee2e2;
+  }
+  .trend-option-box.neutral.active {
+    background: #1d4ed8; /* Deep Blue */
+    color: #ffffff;
+    border-color: #1e40af;
   }
   .trend-option-box.short.active {
     background: #f0fdf4;
