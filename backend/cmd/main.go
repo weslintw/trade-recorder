@@ -3,7 +3,6 @@ package main
 import (
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,23 +214,27 @@ func main() {
 
 	if staticDir != "" {
 		log.Printf("正在從 %s 服務靜態檔案", staticDir)
-		// 服務靜態資源 (assets 由於有雜湊檔名，建議保留專屬路由)
-		r.StaticFS("/assets", http.Dir(filepath.Join(staticDir, "assets")))
+		// 服務靜態資源
+		r.Static("/assets", filepath.Join(staticDir, "assets"))
 
 		// SPA Fallback: 任何不匹配 API 的路由都導向 index.html
 		r.NoRoute(func(c *gin.Context) {
-			// 首先檢查路徑是否對應到靜態目錄下的檔案（例如 /logo.png, /favicon.ico）
 			path := c.Request.URL.Path
+
+			// API 請求不走 SPA fallback
+			if strings.HasPrefix(path, "/api/") {
+				return
+			}
+
+			// 檢查路徑是否對應到靜態目錄下的檔案（例如 /logo.png, /favicon.ico）
 			filePath := filepath.Join(staticDir, path)
 			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
 				c.File(filePath)
 				return
 			}
 
-			// 如果不是檔案且不是 API 請求，則返回 index.html (SPA 路由)
-			if !strings.HasPrefix(path, "/api/") {
-				c.File(filepath.Join(staticDir, "index.html"))
-			}
+			// 其餘所有路徑回傳 index.html
+			c.File(filepath.Join(staticDir, "index.html"))
 		})
 	}
 

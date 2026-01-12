@@ -81,7 +81,7 @@
 <Router>
   <div class="app">
     {#if !window.location.pathname.startsWith('/shared/')}
-      <nav class="navbar">
+      <nav class="navbar" class:not-auth={!$auth.isAuthenticated}>
         <div class="navbar-content">
           <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
             <div class="logo-image-container">
@@ -94,72 +94,72 @@
             <span class="app-version-tag">{buildTime}</span>
           </Link>
 
-          <div class="header-tools">
-            <div class="symbol-selector-wrapper">
-              <div class="symbol-selector">
-                <span class="selector-icon">📊</span>
-                <select bind:value={$selectedSymbol}>
-                  {#each SYMBOLS as sym}
-                    <option value={sym}>{sym}</option>
-                  {/each}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="market-status">
-            <div class="current-time-box">
-              <span class="date">{formatDate(currentTime)}</span>
-              <span class="time">{formatTime(currentTime)}</span>
-            </div>
-            {#if currentSession}
-              <div class="current-session-tag {currentSessionValue}">
-                <span class="session-icon">{currentSession?.icon || ''}</span>
-                <span class="session-label">{currentSession?.label || ''}</span>
-              </div>
-            {/if}
-          </div>
-
-          <div class="nav-links">
-            <div class="nav-primary-group">
-              <div class="account-switcher-box">
-                <AccountSelector />
+          {#if $auth.isAuthenticated}
+            <div class="header-tools">
+              <div class="symbol-selector-wrapper">
+                <div class="symbol-selector">
+                  <span class="selector-icon">📊</span>
+                  <select bind:value={$selectedSymbol}>
+                    {#each SYMBOLS as sym}
+                      <option value={sym}>{sym}</option>
+                    {/each}
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div class="nav-secondary-group">
-              <div class="action-icons">
-                <Link
-                  to="/accounts"
-                  class={activeNav === 'accounts' ? 'nav-icon-btn active' : 'nav-icon-btn'}
-                  on:click={() => (activeNav = 'accounts')}
-                  title="帳號管理"
-                >
-                  ⚙️
-                </Link>
+            <div class="market-status">
+              <div class="current-time-box">
+                <span class="date">{formatDate(currentTime)}</span>
+                <span class="time">{formatTime(currentTime)}</span>
+              </div>
+              {#if currentSession}
+                <div class="current-session-tag {currentSessionValue}">
+                  <span class="session-icon">{currentSession?.icon || ''}</span>
+                  <span class="session-label">{currentSession?.label || ''}</span>
+                </div>
+              {/if}
+            </div>
 
-                <Link
-                  to="/dashboard"
-                  class={activeNav === 'dashboard' ? 'nav-icon-btn active' : 'nav-icon-btn'}
-                  on:click={() => (activeNav = 'dashboard')}
-                  title="統計面板"
-                >
-                  📊
-                </Link>
+            <div class="nav-links">
+              <div class="nav-primary-group">
+                <div class="account-switcher-box">
+                  <AccountSelector />
+                </div>
+              </div>
 
-                {#if $auth.user?.is_admin}
+              <div class="nav-secondary-group">
+                <div class="action-icons">
                   <Link
-                    to="/admin/dashboard"
-                    class={activeNav === 'admin' ? 'nav-icon-btn active' : 'nav-icon-btn'}
-                    on:click={() => (activeNav = 'admin')}
-                    title="系統管理"
+                    to="/accounts"
+                    class={activeNav === 'accounts' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                    on:click={() => (activeNav = 'accounts')}
+                    title="帳號管理"
                   >
-                    🛡️
+                    ⚙️
                   </Link>
-                {/if}
-              </div>
 
-              {#if $auth.isAuthenticated}
+                  <Link
+                    to="/dashboard"
+                    class={activeNav === 'dashboard' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                    on:click={() => (activeNav = 'dashboard')}
+                    title="統計面板"
+                  >
+                    📊
+                  </Link>
+
+                  {#if $auth.user?.is_admin}
+                    <Link
+                      to="/admin/dashboard"
+                      class={activeNav === 'admin' ? 'nav-icon-btn active' : 'nav-icon-btn'}
+                      on:click={() => (activeNav = 'admin')}
+                      title="系統管理"
+                    >
+                      🛡️
+                    </Link>
+                  {/if}
+                </div>
+
                 <div class="user-profile-box">
                   <button 
                     class="theme-toggle-btn" 
@@ -180,9 +180,9 @@
                   </span>
                   <button class="logout-btn" on:click={handleLogout} title="登出">🚪</button>
                 </div>
-              {/if}
+              </div>
             </div>
-          </div>
+          {/if}
         </div>
       </nav>
     {/if}
