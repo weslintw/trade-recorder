@@ -1417,9 +1417,10 @@
     }
 
     .trend-option.active.neutral {
-      background: #f3f4f6;
-      color: #4b5563;
-      border-color: #d1d5db;
+      background: #e2e8f0; /* Darker gray */
+      color: #1e293b; /* Darker text */
+      border-color: #94a3b8; /* Darker border */
+      font-weight: 700;
     }
 
     .date-input-group {
