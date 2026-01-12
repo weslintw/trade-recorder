@@ -64,32 +64,38 @@
   };
 
   // Date Filter State
-  let activeDateRange = '1W'; // '1D', '1W', '1M', 'custom'
-  let customStartDate = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]; // Default to 1 week ago
-  let customEndDate = new Date().toISOString().split('T')[0];
+  // Date Filter State
+  let activeDateRange = 'all'; // Default to 'all' (no filter)
+  let customStartDate = '';
+  let customEndDate = '';
 
   function setDateRange(range) {
-    activeDateRange = range;
-    if (range === '1D') {
-      const today = new Date().toISOString().split('T')[0];
-      customStartDate = today;
-      customEndDate = today;
-    } else if (range === '1W') {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      customStartDate = d.toISOString().split('T')[0];
-      customEndDate = new Date().toISOString().split('T')[0];
-    } else if (range === '1M') {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 1);
-      customStartDate = d.toISOString().split('T')[0];
-      customEndDate = new Date().toISOString().split('T')[0];
+    if (activeDateRange === range) {
+      // Toggle off if clicking the same range again
+      activeDateRange = 'all';
+      customStartDate = '';
+      customEndDate = '';
+    } else {
+      activeDateRange = range;
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      
+      if (range === '1D') {
+        customStartDate = todayStr;
+        customEndDate = todayStr;
+      } else if (range === '1W') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        customStartDate = d.toISOString().split('T')[0];
+        customEndDate = todayStr;
+      } else if (range === '1M') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        customStartDate = d.toISOString().split('T')[0];
+        customEndDate = todayStr;
+      }
+      // For 'custom', we check in the button click handler, usually sets activeDateRange directly
     }
-    // For custom, we prefer to keep the last manual selection or default to current values,
-    // so we don't overwrite customStartDate/End immediately if switching TO custom,
-    // but the loadData depends on customStartDate/End variables being set correctly.
-    // The previous logic for 1D/1W/1M updates the variables so loadData can use them genericallly.
-    
     loadData();
   }
 
@@ -324,9 +330,9 @@
             { 
               account_id: $selectedAccountId, 
               symbol, 
-              page_size: 1000, 
-              start_date: customStartDate, 
-              end_date: customEndDate 
+              page_size: activeDateRange === 'all' ? 20 : 1000, 
+              start_date: activeDateRange === 'all' ? undefined : customStartDate, 
+              end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined)
             },
             signal
           ).catch(e => {
@@ -338,9 +344,9 @@
             { 
               account_id: $selectedAccountId, 
               symbol, 
-              page_size: 1000,
-              start_date: customStartDate, 
-              end_date: customEndDate 
+              page_size: activeDateRange === 'all' ? 50 : 1000,
+              start_date: activeDateRange === 'all' ? undefined : customStartDate, 
+              end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined)
             },
             signal
           ).catch(e => {
@@ -626,8 +632,12 @@
       loading = false; // No accounts, stop loading spinner
     }
 
-    // 初始化日期範圍 (Trigger initial load)
-    setDateRange('1W');
+    // 初始化日期範圍 (Default to all)
+    // setDateRange('all'); // Already default
+    // We already call loadData below implicitly or explicitly?
+    // Actually the symbol watcher debouncer will call loadData.
+    // But we also want to ensure we don't double load.
+    // The previous code had setDateRange('1W') here. Remove it.
 
     // Step 3: 延後啟動即時通知與備援輪詢，避免跟 Initial Data 搶瀏覽器併發連線
     setTimeout(() => {
@@ -1091,7 +1101,24 @@
           </button>
           <button 
             class="filter-type-btn {activeDateRange === 'custom' ? 'active' : ''}" 
-            on:click={() => activeDateRange = 'custom'}
+            on:click={() => {
+              if (activeDateRange === 'custom') {
+                 activeDateRange = 'all'; // Toggle off
+                 customStartDate = '';
+                 customEndDate = '';
+                 loadData();
+              } else {
+                 activeDateRange = 'custom';
+                 // Set default custom range if empty
+                 if (!customStartDate) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 7);
+                    customStartDate = d.toISOString().split('T')[0];
+                    customEndDate = new Date().toISOString().split('T')[0];
+                 }
+                 // Don't auto-load, let user pick dates
+              }
+            }}
           >
             <span class="btn-icon">📅</span> 自訂
           </button>
