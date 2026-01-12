@@ -229,7 +229,7 @@
                         class="trend-image-preview"
                         on:click={() =>
                           openModal(
-                            analysis.signals_image,
+                            getImageUrl(analysis.signals_image),
                             `${tf} ${dir === 'long' ? '多頭' : '空頭'} 已成立訊號圖`
                           )}
                       >
@@ -262,7 +262,7 @@
                               class="trend-image-preview"
                               on:click={() =>
                                 openModal(
-                                  sig.image,
+                                  getImageUrl(sig.image),
                                   `${tf} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${sig.name}`
                                 )}
                             >
@@ -295,7 +295,7 @@
                         class="trend-image-preview"
                         on:click={() =>
                           openModal(
-                            analysis.wave_image,
+                            getImageUrl(analysis.wave_image),
                             `${tf} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`
                           )}
                       >
@@ -321,7 +321,7 @@
                     {#if trend.signals_image}
                       <div
                         class="trend-image-preview"
-                        on:click={() => openModal(trend.signals_image, `${tf} 訊號圖`)}
+                        on:click={() => openModal(getImageUrl(trend.signals_image), `${tf} 訊號圖`)}
                       >
                         <img src={getImageUrl(trend.signals_image)} alt="signals" loading="lazy" />
                       </div>
@@ -344,7 +344,7 @@
                             <div class="signal-mini-label">{sig.name} 示意圖</div>
                             <div
                               class="trend-image-preview"
-                              on:click={() => openModal(sig.image, `${tf} 預期訊號: ${sig.name}`)}
+                              on:click={() => openModal(getImageUrl(sig.image), `${tf} 預期訊號: ${sig.name}`)}
                             >
                               <img src={getImageUrl(sig.image)} alt={sig.name} loading="lazy" />
                             </div>
@@ -372,7 +372,7 @@
                     {#if trend.wave_image}
                       <div
                         class="trend-image-preview"
-                        on:click={() => openModal(trend.wave_image, `${tf} 波浪圖`)}
+                        on:click={() => openModal(getImageUrl(trend.wave_image), `${tf} 波浪圖`)}
                       >
                         <img src={getImageUrl(trend.wave_image)} alt="wave" loading="lazy" />
                       </div>
