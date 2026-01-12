@@ -1,6 +1,8 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import SignalGrid from './SignalGrid.svelte';
+  import { imagesAPI } from '../../lib/api';
+
   const dispatch = createEventDispatcher();
 
   export let formData = {};
@@ -30,7 +32,7 @@
   function getImageUrl(src) {
     if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('http')) return src;
-    return `/api/v1/images/file/${src}`;
+    return imagesAPI.getUrl(src);
   }
 
   // Handle King/Queen Image
@@ -46,7 +48,6 @@
           formDataToUpload.append('image', file);
           formDataToUpload.append('symbol', formData.symbol || 'trade');
 
-          const { imagesAPI } = await import('../../lib/api');
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
 
@@ -81,7 +82,6 @@
           formDataToUpload.append('image', file);
           formDataToUpload.append('symbol', formData.symbol || 'trade');
 
-          const { imagesAPI } = await import('../../lib/api');
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
 
@@ -116,7 +116,6 @@
           formDataToUpload.append('image', file);
           formDataToUpload.append('symbol', formData.symbol || 'trade');
 
-          const { imagesAPI } = await import('../../lib/api');
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
 

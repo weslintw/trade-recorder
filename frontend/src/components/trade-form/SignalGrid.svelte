@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { imagesAPI } from '../../lib/api';
   const dispatch = createEventDispatcher();
 
   export let formData = {};
@@ -109,9 +110,7 @@
   function getImageUrl(src) {
     if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('http')) return src;
-    // 這裡我們需要 import imagesAPI，但因為這是在元件內部，
-    // 我們可以從 lib/api 動態 import 或者讓父元件傳入
-    return `/api/v1/images/file/${src}`;
+    return imagesAPI.getUrl(src);
   }
 
   async function handleSignalImagePaste(event, signalName) {
@@ -126,8 +125,6 @@
           formDataToUpload.append('image', file);
           formDataToUpload.append('symbol', formData.symbol || 'trade');
 
-          // 動態載入 API 以避免迴圈引用或過早載入
-          const { imagesAPI } = await import('../../lib/api');
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
 
