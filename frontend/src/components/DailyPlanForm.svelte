@@ -891,7 +891,7 @@
 
                     {#if currentTrends[timeframe][dir].has_signals}
                       <div class="signal-chips">
-                        {#each dir === 'long' ? expertSignalsLong : expertSignalsShort as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-established-' + signal)}
+                        {#each allExpertSignals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-established-' + signal)}
                           <button
                             type="button"
                             class="signal-chip"
@@ -957,7 +957,7 @@
 
                     {#if currentTrends[timeframe][dir].has_expected_signals}
                       <div class="signal-chips">
-                        {#each dir === 'long' ? expertSignalsLong : expertSignalsShort as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-' + signal)}
+                        {#each allExpertSignals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-' + signal)}
                           <button
                             type="button"
                             class="signal-chip expected"
