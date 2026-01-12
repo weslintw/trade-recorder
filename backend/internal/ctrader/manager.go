@@ -563,6 +563,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 
 				// TRIGGER IMMEDIATE SPARKLINE SYNC FOR CLOSED TRADE
 				go func(tStr string, accID int64, ent float64, startMilli, endMilli int64, sid int64, sStr string, v int64) {
+					time.Sleep(3 * time.Second) // Wait for server to finalize candle data
 					m.mu.RLock()
 					ac, ok := m.connections[accID]
 					m.mu.RUnlock()
