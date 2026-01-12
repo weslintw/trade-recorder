@@ -901,7 +901,7 @@
                     currentTrends[timeframe]?.directions?.includes('short')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'neutral')}
                 >
-                  <span class="trend-name">整理</span>
+                  <span class="trend-name">整</span>
                 </button>
                 <button
                   type="button"
