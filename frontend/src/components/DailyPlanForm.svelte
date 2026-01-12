@@ -642,6 +642,42 @@
     }
     return imagesAPI.getUrl(src);
   }
+
+  // 檢查時段是否有任何資料
+  function hasSessionData(sessionKey) {
+    const session = formData.sessions[sessionKey];
+    if (!session) return false;
+
+    // 檢查是否有備註
+    if (session.notes && session.notes.trim()) return true;
+
+    // 檢查各時區是否有資料
+    if (session.trends) {
+      for (const tf of TIMEFRAMES) {
+        const trend = session.trends[tf];
+        if (!trend) continue;
+
+        // 檢查方向
+        if (trend.directions && trend.directions.length > 0) return true;
+
+        // 檢查圖片 (頂層)
+        if (trend.image) return true;
+
+        // 檢查多/空具體內容
+        for (const dir of ['long', 'short']) {
+          const dData = trend[dir];
+          if (!dData) continue;
+
+          if (dData.signals && dData.signals.length > 0) return true;
+          if (dData.expected_signals && dData.expected_signals.length > 0) return true;
+          if (dData.wave_numbers && dData.wave_numbers.length > 0) return true;
+          if (dData.signals_image || dData.wave_image) return true;
+        }
+      }
+    }
+
+    return false;
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -736,8 +772,13 @@
               class:active={activeSession === 'asian'}
               on:click={() => (activeSession = 'asian')}
             >
-              {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
-              {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
+              <span class="session-tab-inner">
+                {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
+                {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
+                {#if hasSessionData('asian')}
+                  <span class="data-indicator"></span>
+                {/if}
+              </span>
             </button>
             <button
               type="button"
@@ -745,8 +786,13 @@
               class:active={activeSession === 'european'}
               on:click={() => (activeSession = 'european')}
             >
-              {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
-              {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
+              <span class="session-tab-inner">
+                {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
+                {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
+                {#if hasSessionData('european')}
+                  <span class="data-indicator"></span>
+                {/if}
+              </span>
             </button>
             <button
               type="button"
@@ -754,8 +800,13 @@
               class:active={activeSession === 'us'}
               on:click={() => (activeSession = 'us')}
             >
-              {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
-              {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
+              <span class="session-tab-inner">
+                {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
+                {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
+                {#if hasSessionData('us')}
+                  <span class="data-indicator"></span>
+                {/if}
+              </span>
             </button>
           </div>
         </div>
@@ -1188,6 +1239,27 @@
 
     .session-tab:hover:not(.active) {
       background: #f7fafc;
+    }
+
+    .session-tab-inner {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      position: relative;
+    }
+
+    .data-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px white;
+    }
+
+    .dark-mode .data-indicator {
+      box-shadow: 0 0 0 2px #2d3748;
     }
 
     /* 趨勢分析 */
