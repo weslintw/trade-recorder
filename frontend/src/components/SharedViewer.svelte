@@ -383,7 +383,7 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
                                 </div>
                                 {#if trade.pnl_series}
                                   <div class="header-sparkline">
-                                    <Sparkline data={trade.pnl_series} width={100} height={32} side={trade.side} />
+                                    <Sparkline data={trade.pnl_series} width={100} height={32} isOpen={!trade.exit_time} />
                                   </div>
                                 {/if}
                                 <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">

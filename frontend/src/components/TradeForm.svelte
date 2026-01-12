@@ -1004,9 +1004,9 @@
               <div class="header-sparkline-box">
                 <Sparkline
                   data={formData.pnl_series}
-                  side={formData.side}
                   width={100}
                   height={32}
+                  isOpen={!formData.exit_time}
                 />
               </div>
             {/if}

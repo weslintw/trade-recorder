@@ -1096,7 +1096,7 @@
                                   data={timeGroup.trades[0].pnl_series}
                                   width={80}
                                   height={28}
-                                  side={timeGroup.trades[0].side}
+                                  isOpen={timeGroup.trades.some(t => !t.exit_time)}
                                 />
                               </div>
                             {/if}
@@ -1186,7 +1186,7 @@
                                       data={trade.pnl_series}
                                       width={60}
                                       height={20}
-                                      side={trade.side}
+                                      isOpen={!trade.exit_time}
                                     />
                                   </div>
                                 {/if}
@@ -1261,7 +1261,7 @@
                                   data={trade.pnl_series}
                                   width={100}
                                   height={32}
-                                  side={trade.side}
+                                  isOpen={!trade.exit_time}
                                 />
                               </div>
                             {/if}

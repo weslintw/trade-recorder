@@ -124,7 +124,7 @@
       {/if}
       {#if trade.pnl_series}
         <div class="sparkline-container-shared">
-          <Sparkline data={trade.pnl_series} side={trade.side} width={120} height={40} />
+          <Sparkline data={trade.pnl_series} isOpen={!trade.exit_time} width={120} height={40} />
         </div>
       {/if}
     </div>

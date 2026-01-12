@@ -3,12 +3,13 @@
   export let width = 120;
   export let height = 36;
   export let side = 'long'; // 'long' or 'short'
+  export let isOpen = false;
 
   $: parsedData = typeof data === 'string' ? JSON.parse(data || '[]') : data;
 
   let min, max, range, zeroLineY;
 
-  $: if (parsedData.length > 1) {
+  $: if (!isOpen && parsedData.length > 1) {
     const dataMin = Math.min(...parsedData);
     const dataMax = Math.max(...parsedData);
     min = Math.min(0, dataMin);
@@ -18,7 +19,7 @@
   }
 
   $: points =
-    parsedData.length > 1
+    !isOpen && parsedData.length > 1
       ? parsedData
           .map((val, i) => {
             const x = (i / (parsedData.length - 1)) * 100;
@@ -29,6 +30,7 @@
       : '';
 
   const gradientId = 'sparkline-gradient-' + Math.random().toString(36).substr(2, 9);
+  const patternId = 'diagonal-stripes-' + Math.random().toString(36).substr(2, 9);
 
   // Profit/Loss colors
   $: profitColor = '#22c55e';
@@ -43,10 +45,20 @@
 
 <div
   class="sparkline-container"
+  class:is-open={isOpen}
   style="width: {width}px; height: {height}px;"
-  title={parsedData.join(', ')}
+  title={isOpen ? '開倉中，暫不顯示 PnL 波動' : parsedData.join(', ')}
 >
-  {#if parsedData && parsedData.length > 1}
+  {#if isOpen}
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width: 100%; height: 100%;">
+      <defs>
+        <pattern id={patternId} patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(45)">
+          <line x1="0" y1="0" x2="0" y2="10" class="stripe-line" stroke-width="4" />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#{patternId})" />
+    </svg>
+  {:else if parsedData && parsedData.length > 1}
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width: 100%; height: 100%;">
       <defs>
         <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
@@ -94,11 +106,29 @@
     background: rgba(248, 250, 252, 0.5);
     border-radius: 4px;
     border: 1px solid #f1f5f9;
+    overflow: hidden;
+  }
+
+  .stripe-line {
+    stroke: #e2e8f0;
+  }
+
+  .sparkline-container.is-open {
+    background: #f8fafc;
+    border-color: #e2e8f0;
   }
 
   :global(body.dark-mode) .sparkline-container {
-    background: #ffffff;
-    border-color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(body.dark-mode) .sparkline-container.is-open {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  :global(body.dark-mode) .stripe-line {
+    stroke: #334155;
   }
 
   .no-data {
