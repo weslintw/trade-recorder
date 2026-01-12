@@ -1131,21 +1131,27 @@
       <div class="form-group color-tag-section">
         <label class="section-label">顏色標記</label>
         <div class="color-tags-options">
-          <button
-            type="button"
-            class="color-select-btn green {formData.color_tag === 'green' ? 'active' : ''}"
+          <div
+            class="color-tag-item {formData.color_tag === 'green' ? 'active' : ''}"
             on:click={() => (formData.color_tag = formData.color_tag === 'green' ? '' : 'green')}
-          ></button>
-          <button
-            type="button"
-            class="color-select-btn yellow {formData.color_tag === 'yellow' ? 'active' : ''}"
+          >
+            <button type="button" class="color-select-btn green"></button>
+            <span class="color-label">綠色 (有照標準進單)</span>
+          </div>
+          <div
+            class="color-tag-item {formData.color_tag === 'yellow' ? 'active' : ''}"
             on:click={() => (formData.color_tag = formData.color_tag === 'yellow' ? '' : 'yellow')}
-          ></button>
-          <button
-            type="button"
-            class="color-select-btn red {formData.color_tag === 'red' ? 'active' : ''}"
+          >
+            <button type="button" class="color-select-btn yellow"></button>
+            <span class="color-label">黃色 (有討論空間)</span>
+          </div>
+          <div
+            class="color-tag-item {formData.color_tag === 'red' ? 'active' : ''}"
             on:click={() => (formData.color_tag = formData.color_tag === 'red' ? '' : 'red')}
-          ></button>
+          >
+            <button type="button" class="color-select-btn red"></button>
+            <span class="color-label">紅色 (衝動，沒有照標準)</span>
+          </div>
         </div>
       </div>
 
@@ -1744,27 +1750,57 @@
 
     .color-tags-options {
       display: flex;
-      gap: 1rem;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .color-tag-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      padding: 0.4rem 0.8rem;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: white;
+    }
+
+    .color-tag-item:hover {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+    }
+
+    .color-tag-item.active {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .color-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .color-tag-item.active .color-label {
+      color: #1e40af;
     }
 
     .color-select-btn {
-      width: 2rem;
-      height: 2rem;
+      width: 1.5rem;
+      height: 1.5rem;
       border-radius: 50%;
       border: 2px solid #e2e8f0;
       cursor: pointer;
       transition: all 0.2s;
       padding: 0;
+      flex-shrink: 0;
     }
 
-    .color-select-btn:hover {
+    .color-tag-item.active .color-select-btn {
+      border: 3px solid #3b82f6;
       transform: scale(1.1);
-    }
-
-    .color-select-btn.active {
-      border: 3px solid #4a5568;
-      transform: scale(1.1);
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     }
 
     .color-select-btn.green {

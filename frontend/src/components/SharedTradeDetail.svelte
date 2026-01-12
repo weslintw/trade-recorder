@@ -99,6 +99,12 @@
   $: checklist = parseJSON(trade.entry_checklist, {});
   $: patterns = parseJSON(trade.entry_pattern, []);
 
+  const colorTagMeanings = {
+    green: '有照標準進單',
+    yellow: '有討論空間',
+    red: '衝動，沒有照標準',
+  };
+
   function getImageUrl(src) {
     if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('http')) return src;
@@ -113,7 +119,10 @@
       <span class="side-tag {trade.side || ''}"
         >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
       >
-      {#if trade.color_tag}<span class="color-dot {trade.color_tag}" title="顏色標記"></span>{/if}
+      {#if trade.color_tag}<span
+          class="color-dot {trade.color_tag}"
+          title={colorTagMeanings[trade.color_tag] || '顏色標記'}
+        ></span>{/if}
       <h1>交易紀錄詳情</h1>
     </div>
     <div class="pnl-section">

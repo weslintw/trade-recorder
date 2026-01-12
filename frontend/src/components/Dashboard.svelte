@@ -64,18 +64,18 @@
 
   function getColorDescription(color) {
     const map = {
-      green: '符合規則',
-      yellow: '尚可接受',
-      red: '衝動/不應進單',
+      green: '有照標準進單',
+      yellow: '有討論空間',
+      red: '衝動，沒有照標準',
     };
     return map[color] || color;
   }
 
   function getColorLabel(color) {
     const map = {
-      green: '🟢 良好',
-      yellow: '🟡 普通',
-      red: '🔴 危險',
+      green: '🟢 合格',
+      yellow: '🟡 討論',
+      red: '🔴 衝動',
     };
     return map[color] || color;
   }

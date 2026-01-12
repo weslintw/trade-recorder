@@ -29,6 +29,152 @@
   let isSharing = false;
   let generatedShareToken = '';
   let showSyncOptionsModal = false;
+  let activeFilterType = 'all'; // 'all', 'expert', 'elite', 'legend'
+  let activeSubFilter = null;
+
+  const EXPERT_SIGNALS = [
+    '向下蘇美',
+    '起漲靠山',
+    '雙柱',
+    '倚天',
+    '攻城池上',
+    '起跌靠山',
+    '君臨城下',
+    '雙塔',
+    '向上蘇美',
+    '雷霆',
+  ];
+  const ELITE_PATTERNS = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
+  const LEGEND_CHECKLIST = [
+    { id: 'item_618_786', label: '王者回調' },
+    { id: 'item_che', label: '大時區破測破' },
+    { id: 'item_de', label: '整理段訊號' },
+  ];
+
+  const subFilters = {
+    expert: EXPERT_SIGNALS.map(s => ({ value: s, label: s })),
+    elite: ELITE_PATTERNS.map(p => ({ value: p, label: p })),
+    legend: LEGEND_CHECKLIST.map(l => ({ value: l.id, label: l.label })),
+  };
+
+  const colorTagMeanings = {
+    green: '有照標準進單',
+    yellow: '有討論空間',
+    red: '衝動，沒有照標準',
+  };
+
+  function selectFilterType(type) {
+    if (activeFilterType === type) {
+      activeFilterType = 'all';
+      activeSubFilter = null;
+    } else {
+      activeFilterType = type;
+      activeSubFilter = null;
+    }
+  }
+
+  function toggleSubFilter(value) {
+    if (activeSubFilter === value) {
+      activeSubFilter = null;
+    } else {
+      activeSubFilter = value;
+    }
+  }
+
+  $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
+
+  function applyFilters(data, type, sub) {
+    if (!data) return [];
+    if (type === 'all' && !sub) return data;
+
+    return data
+      .map(day => {
+        const filteredPlans = day.plans.filter(plan => {
+          // 規劃目前僅支持達人訊號過濾
+          if (type !== 'expert' && type !== 'all') return false;
+
+          const trendData = parseJSONSafe(plan.trend_analysis, {});
+          // 檢查所有時段與時區
+          for (const sessionKey of ['asian', 'european', 'us']) {
+            const sessData = trendData[sessionKey];
+            if (!sessData || !sessData.trends) continue;
+
+            for (const tf of TIMEFRAMES) {
+              const trend = sessData.trends[tf];
+              if (!trend) continue;
+
+              // 檢查 long 和 short 方向
+              for (const dir of ['long', 'short']) {
+                const dData = trend[dir];
+                if (!dData) continue;
+
+                if (type === 'expert' || type === 'all') {
+                  const signals = dData.signals || [];
+                  const expected = dData.expected_signals || [];
+
+                  if (!sub) {
+                    // 如果沒選子項目，只要是達人有訊號就顯示
+                    if (signals.length > 0 || expected.length > 0) return true;
+                  } else {
+                    if (signals.includes(sub)) return true;
+                    if (expected.some(s => s.name === sub)) return true;
+                  }
+                }
+              }
+            }
+          }
+          return false;
+        });
+
+        const filteredGroupedTrades = day.groupedTrades
+          .map(group => {
+            const filteredTrades = group.trades.filter(trade => {
+              if (type !== 'all' && trade.entry_strategy !== type) return false;
+
+              if (type === 'expert') {
+                const signals = parseJSONSafe(trade.entry_signals, []);
+                if (!sub) return true;
+                return signals.some(s => (typeof s === 'object' ? s.name === sub : s === sub));
+              }
+
+              if (type === 'elite') {
+                const patterns = parseJSONSafe(trade.entry_pattern, []);
+                if (!sub) return true;
+                return patterns.some(p => (typeof p === 'object' ? p.name === sub : p === sub));
+              }
+
+              if (type === 'legend') {
+                const checklist = parseJSONSafe(trade.entry_checklist, {});
+                if (!sub) return true;
+                return checklist[sub] === true;
+              }
+
+              // 如果 type 為 all 且有 sub，這情況較少見，目前暫不特別處理
+              return type === 'all';
+            });
+
+            if (filteredTrades.length === 0) return null;
+
+            return {
+              ...group,
+              trades: filteredTrades,
+              summary: {
+                ...group.summary,
+                totalPnl: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
+                totalLot: filteredTrades.reduce((sum, t) => sum + (t.lot_size || 0), 0),
+              },
+            };
+          })
+          .filter(Boolean);
+
+        return {
+          ...day,
+          plans: filteredPlans,
+          groupedTrades: filteredGroupedTrades,
+        };
+      })
+      .filter(day => day.plans.length > 0 || day.groupedTrades.length > 0);
+  }
 
   // 追蹤當前選取的帳號詳情
   $: currentAccount = $accounts.find(a => a.id === $selectedAccountId);
@@ -866,6 +1012,57 @@
     </div>
   </div>
 
+  <!-- 現代感過濾器 -->
+  <div class="filter-section">
+    <div class="filter-glass-container">
+      <div class="filter-main-types">
+        <button
+          class="filter-type-btn {activeFilterType === 'all' ? 'active' : ''}"
+          on:click={() => selectFilterType('all')}
+        >
+          <span class="btn-text">全部</span>
+        </button>
+        <div class="divider"></div>
+        <button
+          class="filter-type-btn {activeFilterType === 'expert' ? 'active' : ''}"
+          on:click={() => selectFilterType('expert')}
+        >
+          <span class="btn-icon">👨‍🏫</span>
+          <span class="btn-text">達人</span>
+        </button>
+        <button
+          class="filter-type-btn {activeFilterType === 'elite' ? 'active' : ''}"
+          on:click={() => selectFilterType('elite')}
+        >
+          <span class="btn-icon">🛡️</span>
+          <span class="btn-text">菁英</span>
+        </button>
+        <button
+          class="filter-type-btn {activeFilterType === 'legend' ? 'active' : ''}"
+          on:click={() => selectFilterType('legend')}
+        >
+          <span class="btn-icon">👑</span>
+          <span class="btn-text">傳奇</span>
+        </button>
+      </div>
+
+      {#if activeFilterType !== 'all'}
+        <div class="sub-filter-scroll-wrapper">
+          <div class="sub-filter-container">
+            {#each subFilters[activeFilterType] as sub}
+              <button
+                class="sub-filter-chip {activeSubFilter === sub.value ? 'active' : ''}"
+                on:click={() => toggleSubFilter(sub.value)}
+              >
+                {sub.label}
+              </button>
+            {/each}
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
+
   {#if selectionMode}
     <div class="selection-bar">
       <div class="selection-info">
@@ -904,7 +1101,7 @@
     </div>
   {:else}
     <div class="timeline">
-      {#each groupedData as group}
+      {#each filteredGroupedData as group}
         <div class="day-wrapper">
           <div class="day-marker">
             {#if selectionMode}
@@ -1075,24 +1272,27 @@
                           </div>
                           <div class="group-pnl">
                             <div class="color-tags" on:click|stopPropagation>
-                              <button
-                                class="color-btn green {timeGroup.trades[0].color_tag === 'green'
-                                  ? 'active'
-                                  : ''}"
-                                on:click={() => toggleColorTagForGroup(timeGroup, 'green')}
-                              ></button>
-                              <button
-                                class="color-btn yellow {timeGroup.trades[0].color_tag === 'yellow'
-                                  ? 'active'
-                                  : ''}"
-                                on:click={() => toggleColorTagForGroup(timeGroup, 'yellow')}
-                              ></button>
-                              <button
-                                class="color-btn red {timeGroup.trades[0].color_tag === 'red'
-                                  ? 'active'
-                                  : ''}"
-                                on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
-                              ></button>
+                                <button
+                                  class="color-btn green {timeGroup.trades[0].color_tag === 'green'
+                                    ? 'active'
+                                    : ''}"
+                                  on:click={() => toggleColorTagForGroup(timeGroup, 'green')}
+                                  title={colorTagMeanings.green}
+                                ></button>
+                                <button
+                                  class="color-btn yellow {timeGroup.trades[0].color_tag === 'yellow'
+                                    ? 'active'
+                                    : ''}"
+                                  on:click={() => toggleColorTagForGroup(timeGroup, 'yellow')}
+                                  title={colorTagMeanings.yellow}
+                                ></button>
+                                <button
+                                  class="color-btn red {timeGroup.trades[0].color_tag === 'red'
+                                    ? 'active'
+                                    : ''}"
+                                  on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
+                                  title={colorTagMeanings.red}
+                                ></button>
                             </div>
                             {#if timeGroup.trades[0]?.pnl_series}
                               <div class="header-sparkline">
@@ -1242,22 +1442,25 @@
                           </div>
                           <div class="trade-right">
                             <div class="color-tags" on:click|stopPropagation>
-                              <button
-                                class="color-btn green {trade.color_tag === 'green'
-                                  ? 'active'
-                                  : ''}"
-                                on:click={() => toggleColorTag(trade, 'green')}
-                              ></button>
-                              <button
-                                class="color-btn yellow {trade.color_tag === 'yellow'
-                                  ? 'active'
-                                  : ''}"
-                                on:click={() => toggleColorTag(trade, 'yellow')}
-                              ></button>
-                              <button
-                                class="color-btn red {trade.color_tag === 'red' ? 'active' : ''}"
-                                on:click={() => toggleColorTag(trade, 'red')}
-                              ></button>
+                                <button
+                                  class="color-btn green {trade.color_tag === 'green'
+                                    ? 'active'
+                                    : ''}"
+                                  on:click={() => toggleColorTag(trade, 'green')}
+                                  title={colorTagMeanings.green}
+                                ></button>
+                                <button
+                                  class="color-btn yellow {trade.color_tag === 'yellow'
+                                    ? 'active'
+                                    : ''}"
+                                  on:click={() => toggleColorTag(trade, 'yellow')}
+                                  title={colorTagMeanings.yellow}
+                                ></button>
+                                <button
+                                  class="color-btn red {trade.color_tag === 'red' ? 'active' : ''}"
+                                  on:click={() => toggleColorTag(trade, 'red')}
+                                  title={colorTagMeanings.red}
+                                ></button>
                             </div>
                             {#if trade.pnl_series}
                               <div class="header-sparkline">
@@ -2901,5 +3104,133 @@
     border-color: #6366f1 !important;
     background: #f5f3ff !important;
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  }
+
+  /* 過濾器樣式 */
+  .filter-section {
+    margin: 0.5rem 0 1.5rem 0;
+    padding: 0 1rem;
+    z-index: 10;
+  }
+
+  .filter-glass-container {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :global(body.dark-mode) .filter-glass-container {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .filter-main-types {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .filter-type-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  :global(body.dark-mode) .filter-type-btn {
+    color: #94a3b8;
+  }
+
+  .filter-type-btn:hover {
+    background: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
+  :global(body.dark-mode) .filter-type-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .filter-type-btn.active {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  }
+
+  .divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 0.25rem;
+  }
+
+  :global(body.dark-mode) .divider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .sub-filter-scroll-wrapper {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .sub-filter-scroll-wrapper::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+  }
+
+  :global(body.dark-mode) .sub-filter-scroll-wrapper {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .sub-filter-container {
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .sub-filter-chip {
+    white-space: nowrap;
+    padding: 0.4rem 1rem;
+    border-radius: 100px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: white;
+    font-size: 0.85rem;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  :global(body.dark-mode) .sub-filter-chip {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+  }
+
+  .sub-filter-chip:hover {
+    border-color: #6366f1;
+    color: #6366f1;
+  }
+
+  .sub-filter-chip.active {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
   }
 </style>
