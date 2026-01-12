@@ -1030,7 +1030,7 @@
                           : ''} {selectionMode &&
                         timeGroup.trades.every(t => selectedTrades.has(t.id))
                           ? 'selected'
-                          : ''}"
+                          : ''} {timeGroup.trades.some(t => !t.exit_time) ? 'is-ongoing' : ''}"
                         on:click={() =>
                           selectionMode
                             ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id))
@@ -1207,7 +1207,7 @@
                       <div
                         class="trade-item-card {trade.color_tag
                           ? `tag-${trade.color_tag}`
-                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''}"
+                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''} {!trade.exit_time ? 'is-ongoing' : ''}"
                         on:click={() =>
                           selectionMode
                             ? toggleTradeSelection(trade.id)
@@ -1753,6 +1753,50 @@
     border: 1px solid var(--border-color);
     position: relative;
     overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Ongoing Trade Animation */
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+    100% { transform: translateY(0px); }
+  }
+
+  @keyframes pulse-bg {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+
+  .trade-item-card.is-ongoing,
+  .trade-time-group.is-multi.is-ongoing {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%);
+    border-color: rgba(99, 102, 241, 0.4);
+    border-style: solid;
+    animation: float 4s ease-in-out infinite;
+    box-shadow: 0 15px 35px rgba(99, 102, 241, 0.12);
+    z-index: 5;
+  }
+
+  .trade-item-card.is-ongoing::after,
+  .trade-time-group.is-multi.is-ongoing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.1), transparent 70%);
+    pointer-events: none;
+    animation: pulse-bg 3s ease-in-out infinite;
+  }
+
+  :global(body.dark-mode) .trade-item-card.is-ongoing,
+  :global(body.dark-mode) .trade-time-group.is-multi.is-ongoing {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+    border-color: rgba(99, 102, 241, 0.5);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
   }
 
   .trade-item-card.tag-green {

@@ -367,7 +367,7 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
                     {#if group.trades.length > 0}
                       <div class="trades-stack">
                         {#each group.trades as trade}
-                          <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
+                          <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''} {!trade.exit_time ? 'is-ongoing' : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
                             <div class="item-header">
                               <div class="trade-meta">
                                 <span class="symbol-inline-tag">{trade.symbol}</span>
@@ -558,6 +558,47 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
     box-shadow: 0 2px 4px rgba(0,0,0,0.02);
     position: relative;
     overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Ongoing Trade Animation */
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-6px); }
+    100% { transform: translateY(0px); }
+  }
+
+  @keyframes pulse-bg {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+  }
+
+  .trade-item-card.is-ongoing {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%) !important;
+    border-color: rgba(99, 102, 241, 0.4) !important;
+    border-style: solid;
+    animation: float 4s ease-in-out infinite;
+    box-shadow: 0 15px 35px rgba(99, 102, 241, 0.12);
+    z-index: 5;
+  }
+
+  .trade-item-card.is-ongoing::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.1), transparent 70%);
+    pointer-events: none;
+    animation: pulse-bg 3s ease-in-out infinite;
+  }
+
+  :global(body.dark-mode) .trade-item-card.is-ongoing {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%) !important;
+    border-color: rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
   }
 
   .trade-item-card.tag-green { border-left: 5px solid #22c55e; }
