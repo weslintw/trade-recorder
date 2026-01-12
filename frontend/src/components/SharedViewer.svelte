@@ -6,6 +6,7 @@
 import Sparkline from './Sparkline.svelte';
 import SharedTradeDetail from './SharedTradeDetail.svelte';
 import SharedPlanDetail from './SharedPlanDetail.svelte';
+import ImageAnnotator from './ImageAnnotator.svelte';
 
   export let token = '';
 
@@ -19,11 +20,13 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   // Image Modal State
   let enlargedImage = null;
   let enlargedImageTitle = '';
+  let isAnnotating = false;
 
   function openModal(src, title) {
     if (!src) return;
     enlargedImage = src;
     enlargedImageTitle = title || '圖片';
+    isAnnotating = false;
   }
 
   function closeModal() {
@@ -467,15 +470,67 @@ import SharedPlanDetail from './SharedPlanDetail.svelte';
   <div class="image-modal" on:click={closeModal} role="button" tabindex="0" on:keydown={e => e.key === 'Escape' && closeModal()} on:wheel={handleWheel}>
     <div class="image-modal-content" on:click|stopPropagation role="button" tabindex="0" on:keypress|stopPropagation on:mousedown={handleMouseDown} on:mousemove={handleMouseMove} on:mouseup={handleMouseUp} on:mouseleave={handleMouseUp}>
       <button class="image-modal-close" on:click={closeModal}>×</button>
-      <div class="zoom-container" style="transform: scale({zoom}) translate({offsetX / zoom}px, {offsetY / zoom}px); cursor: {zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'}">
-        <img src={enlargedImage} alt={enlargedImageTitle} class="modal-img" />
-      </div>
-      {#if enlargedImageTitle}<div class="image-modal-caption">{enlargedImageTitle} (滾輪可縮放，放大的圖片可拖動)</div>{/if}
+      
+      {#if isAnnotating}
+        <div class="annotator-wrapper-modal">
+           <ImageAnnotator 
+             imageSrc={enlargedImage} 
+             originalImageSrc={enlargedImage} 
+             showSaveButton={false}
+           />
+        </div>
+        <button class="annotate-toggle-btn active" on:click={() => isAnnotating = false}>
+           ❌ 結束標註 (無法存檔)
+        </button>
+      {:else}
+        <div class="zoom-container" style="transform: scale({zoom}) translate({offsetX / zoom}px, {offsetY / zoom}px); cursor: {zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'}">
+            <img src={enlargedImage} alt={enlargedImageTitle} class="modal-img" />
+        </div>
+        {#if enlargedImageTitle}<div class="image-modal-caption">{enlargedImageTitle} (滾輪可縮放，放大的圖片可拖動)</div>{/if}
+        
+        <button class="annotate-toggle-btn" on:click|stopPropagation={() => isAnnotating = true}>
+           ✏️ 標註
+        </button>
+      {/if}
     </div>
   </div>
 {/if}
 
 <style>
+  .annotator-wrapper-modal {
+    width: 90vw;
+    height: 90vh;
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .annotate-toggle-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    padding: 8px 16px;
+    border-radius: 99px;
+    cursor: pointer;
+    font-weight: 700;
+    backdrop-filter: blur(4px);
+    transition: all 0.2s;
+    z-index: 20;
+  }
+  .annotate-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+  }
+  .annotate-toggle-btn.active {
+    background: #ef4444; /* red for exit */
+    border-color: #f87171;
+  }
   .shared-view-container { max-width: 1200px; margin: 3rem auto; padding: 0 1.25rem; font-family: 'Inter', sans-serif; }
   .detail-overlay-header { margin-bottom: 1.5rem; }
   .back-btn { 

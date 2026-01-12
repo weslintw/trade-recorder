@@ -4,6 +4,7 @@
   export let imageSrc = '';
   export let originalImageSrc = ''; // 最原始的圖片版本
   export let onSave = null; // 回調函數，接收標註後的圖片 base64
+  export let showSaveButton = true; // 是否顯示保存按鈕
 
   let canvas;
   let ctx;
@@ -438,9 +439,11 @@
       <button class="action-btn clear" on:click={clearCanvas} title="清除所有標註">
         🗑️
       </button>
-      <button class="action-btn save" on:click={saveImage} title="保存標註">
-        💾
-      </button>
+      {#if showSaveButton}
+        <button class="action-btn save" on:click={saveImage} title="保存標註">
+          💾
+        </button>
+      {/if}
     </div>
   </div>
 
