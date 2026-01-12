@@ -40,6 +40,7 @@ type Trade struct {
 	LegendHTFImage             *string    `json:"legend_htf_image,omitempty"` // 傳奇：大時區圖片
 	LegendHTFImageOriginal     *string    `json:"legend_htf_image_original,omitempty"`
 	LegendDeHTF                *string    `json:"legend_de_htf,omitempty"` // 傳奇：整理段時區
+	Journal                    *string    `json:"journal,omitempty"`       // 紀事
 	EntryTime                  time.Time  `json:"entry_time"`
 	ColorTag                   *string    `json:"color_tag,omitempty"` // "red", "yellow", "green"
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
@@ -104,6 +105,7 @@ type TradeCreate struct {
 	LegendHTFImage             string        `json:"legend_htf_image"`
 	LegendHTFImageOriginal     string        `json:"legend_htf_image_original"`
 	LegendDeHTF                string        `json:"legend_de_htf"`
+	Journal                    string        `json:"journal"` // 紀事
 	EntryTime                  time.Time     `json:"entry_time" binding:"required"`
 	ColorTag                   string        `json:"color_tag"`
 	ExitTime                   *time.Time    `json:"exit_time"`

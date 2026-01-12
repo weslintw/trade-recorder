@@ -349,22 +349,33 @@
   {/if}
 
   <div class="section-box">
-    <h3>🎯 平倉理由</h3>
-    {#if trade.exit_reason}
-      <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.exit_reason)}</div>
+    <h3>📓 紀事</h3>
+    {#if trade.journal}
+      <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.journal)}</div>
     {:else}
-      <p class="empty-placeholder">無平倉理由紀錄</p>
+      <p class="empty-placeholder">無紀事紀錄</p>
     {/if}
   </div>
 
-  <div class="section-box">
-    <h3>📝 交易復盤筆記</h3>
-    {#if trade.notes}
-      <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div>
-    {:else}
-      <p class="empty-placeholder">無交易復盤紀錄</p>
-    {/if}
-  </div>
+  {#if trade.trade_type === 'actual' || !trade.trade_type}
+    <div class="section-box">
+      <h3>🎯 平倉理由</h3>
+      {#if trade.exit_reason}
+        <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.exit_reason)}</div>
+      {:else}
+        <p class="empty-placeholder">無平倉理由紀錄</p>
+      {/if}
+    </div>
+
+    <div class="section-box">
+      <h3>📝 交易復盤筆記</h3>
+      {#if trade.notes}
+        <div class="notes-content ql-editor">{@html lazyLoadHTML(trade.notes)}</div>
+      {:else}
+        <p class="empty-placeholder">無交易復盤紀錄</p>
+      {/if}
+    </div>
+  {/if}
   {#if trade.images && trade.images.length > 0}
     <div class="section-box">
       <h3>🖼️ 圖表截圖</h3>

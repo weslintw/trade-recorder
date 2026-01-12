@@ -66,7 +66,10 @@
     color_tag: '', // 顏色標記 (red, yellow, green)
     ticket: '', // 平台成交編號
     pnl_series: '', // PnL 序列
+    journal: '', // 紀事
   };
+
+  $: isActualTrade = formData.trade_type === 'actual';
 
   // 觀察單併入相關
   let showWatchlistModal = false;
@@ -161,6 +164,7 @@
       }
 
       formData.exit_reason = sourceTrade.exit_reason || '';
+      formData.journal = sourceTrade.journal || '';
       if (sourceTrade.tags && Array.isArray(sourceTrade.tags)) {
         formData.tags = sourceTrade.tags
           .map(t => (t && typeof t === 'object' ? t.name : t))
@@ -493,6 +497,7 @@
   let entryReasonEditor;
   let exitReasonEditor;
   let notesEditor;
+  let journalEditor;
 
   let isGroup = false;
   let groupTrades = [];
@@ -653,6 +658,7 @@
         color_tag: response.data.color_tag || '',
         ticket: response.data.ticket || '',
         pnl_series: response.data.pnl_series || '',
+        journal: response.data.journal || '',
       };
 
       // Manually populate caches to ensuring binding works correctly
@@ -893,6 +899,7 @@
         entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
         exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
         notes: notesEditor ? notesEditor.getContent() : formData.notes,
+        journal: journalEditor ? journalEditor.getContent() : formData.journal,
         entry_signals: JSON.stringify(normalizedSignals),
         entry_checklist: JSON.stringify(formData.entry_checklist),
         entry_pattern: JSON.stringify(formData.entry_pattern),
@@ -1549,30 +1556,45 @@
       </div>
 
       <div class="form-group">
-        <label for="exit_reason">
-          🎯 平倉理由
+        <label for="journal">
+          📓 紀事
           <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
         </label>
         <RichTextEditor
-          bind:this={exitReasonEditor}
-          bind:value={formData.exit_reason}
-          placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
+          bind:this={journalEditor}
+          bind:value={formData.journal}
+          placeholder="記錄這筆交易的相關細節、觀察或心情..."
           height="180px"
         />
       </div>
 
-      <div class="form-group">
-        <label for="notes">
-          📝 交易復盤
-          <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
-        </label>
-        <RichTextEditor
-          bind:this={notesEditor}
-          bind:value={formData.notes}
-          placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
-          height="200px"
-        />
-      </div>
+      {#if isActualTrade}
+        <div class="form-group">
+          <label for="exit_reason">
+            🎯 平倉理由
+            <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
+          </label>
+          <RichTextEditor
+            bind:this={exitReasonEditor}
+            bind:value={formData.exit_reason}
+            placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
+            height="180px"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="notes">
+            📝 交易復盤
+            <span class="hint-inline">（支援圖片貼上：Ctrl+V 或點擊工具列圖片按鈕）</span>
+          </label>
+          <RichTextEditor
+            bind:this={notesEditor}
+            bind:value={formData.notes}
+            placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
+            height="200px"
+          />
+        </div>
+      {/if}
 
       <div class="form-group">
         <label for="trade-tags">標籤</label>

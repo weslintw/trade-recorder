@@ -63,6 +63,39 @@
     red: '衝動，沒有照標準',
   };
 
+  // Date Filter State
+  let activeDateRange = '1W'; // '1D', '1W', '1M', 'custom'
+  let customStartDate = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0]; // Default to 1 week ago
+  let customEndDate = new Date().toISOString().split('T')[0];
+
+  function setDateRange(range) {
+    activeDateRange = range;
+    if (range === '1D') {
+      const today = new Date().toISOString().split('T')[0];
+      customStartDate = today;
+      customEndDate = today;
+    } else if (range === '1W') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      customStartDate = d.toISOString().split('T')[0];
+      customEndDate = new Date().toISOString().split('T')[0];
+    } else if (range === '1M') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      customStartDate = d.toISOString().split('T')[0];
+      customEndDate = new Date().toISOString().split('T')[0];
+    }
+    // For custom, we prefer to keep the last manual selection or default to current values,
+    // so we don't overwrite customStartDate/End immediately if switching TO custom,
+    // but the loadData depends on customStartDate/End variables being set correctly.
+    // The previous logic for 1D/1W/1M updates the variables so loadData can use them genericallly.
+    
+    loadData();
+  }
+
+  // Initial call to set defaults correctly if needed, though loadData handles it.
+  // We prefer to update the date variables when the range button is clicked.
+
   function selectFilterType(type) {
     if (activeFilterType === type) {
       activeFilterType = 'all';
@@ -189,6 +222,10 @@
       console.log(
         `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
       );
+      // Initialize date range based on default or stored logic? 
+      // For now, we just reload, using current activeDateRange/custom dates.
+      // If we want to reset date on symbol change, do it here.
+      // setDateRange('1W'); // Optional: reset to 1W on symbol change
       loadData();
     }, 300); // 300ms 防抖
   }
@@ -284,7 +321,13 @@
         
         const [plansRes, tradesRes] = await Promise.all([
           dailyPlansAPI.getAll(
-            { account_id: $selectedAccountId, symbol, page_size: 20 },
+            { 
+              account_id: $selectedAccountId, 
+              symbol, 
+              page_size: 1000, 
+              start_date: customStartDate, 
+              end_date: customEndDate 
+            },
             signal
           ).catch(e => {
             if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
@@ -292,7 +335,13 @@
             return { data: [] };
           }),
           tradesAPI.getAll(
-            { account_id: $selectedAccountId, symbol, page_size: 50 },
+            { 
+              account_id: $selectedAccountId, 
+              symbol, 
+              page_size: 1000,
+              start_date: customStartDate, 
+              end_date: customEndDate 
+            },
             signal
           ).catch(e => {
             if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
@@ -577,6 +626,9 @@
       loading = false; // No accounts, stop loading spinner
     }
 
+    // 初始化日期範圍 (Trigger initial load)
+    setDateRange('1W');
+
     // Step 3: 延後啟動即時通知與備援輪詢，避免跟 Initial Data 搶瀏覽器併發連線
     setTimeout(() => {
       initRealtimeNotifications();
@@ -731,6 +783,7 @@
       entry_strategy_image: fullTrade.entry_strategy_image || '',
       entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
       notes: fullTrade.notes || '',
+      journal: fullTrade.journal || '',
       timezone_offset:
         fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
           ? fullTrade.timezone_offset
@@ -1015,6 +1068,56 @@
   <!-- 現代感過濾器 -->
   <div class="filter-section">
     <div class="filter-glass-container">
+      <!-- 日期篩選區 (新增) -->
+      <div class="filter-date-row">
+        <div class="date-presets">
+          <button 
+            class="filter-type-btn {activeDateRange === '1D' ? 'active' : ''}" 
+            on:click={() => setDateRange('1D')}
+          >
+            1日
+          </button>
+          <button 
+            class="filter-type-btn {activeDateRange === '1W' ? 'active' : ''}" 
+            on:click={() => setDateRange('1W')}
+          >
+            1週
+          </button>
+          <button 
+            class="filter-type-btn {activeDateRange === '1M' ? 'active' : ''}" 
+            on:click={() => setDateRange('1M')}
+          >
+            1月
+          </button>
+          <button 
+            class="filter-type-btn {activeDateRange === 'custom' ? 'active' : ''}" 
+            on:click={() => activeDateRange = 'custom'}
+          >
+            <span class="btn-icon">📅</span> 自訂
+          </button>
+        </div>
+        
+        {#if activeDateRange === 'custom'}
+          <div class="custom-date-inputs">
+            <input 
+              type="date" 
+              class="date-input" 
+              bind:value={customStartDate} 
+              on:change={() => loadData()}
+            />
+            <span class="date-sep">~</span>
+            <input 
+              type="date" 
+              class="date-input" 
+              bind:value={customEndDate}
+              on:change={() => loadData()}
+            />
+          </div>
+        {/if}
+      </div>
+
+      <div class="divider-horizontal"></div>
+
       <div class="filter-main-types">
         <button
           class="filter-type-btn {activeFilterType === 'all' ? 'active' : ''}"
@@ -3232,5 +3335,75 @@
     border-color: #6366f1;
     color: white;
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  }
+  /* 日期篩選樣式 */
+  .filter-date-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+
+  .date-presets {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .custom-date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .date-input {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    color: #475569;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .date-input:focus {
+    border-color: #6366f1;
+    background: white;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+
+  :global(body.dark-mode) .date-input {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+  }
+  
+  :global(body.dark-mode) .date-input:focus {
+    background: #1e293b;
+    border-color: #818cf8;
+  }
+
+  .date-sep {
+    color: #94a3b8;
+    font-weight: bold;
+  }
+
+  .divider-horizontal {
+    height: 1px;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.05);
+    margin: 0.5rem 0;
+  }
+
+  :global(body.dark-mode) .divider-horizontal {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>

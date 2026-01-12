@@ -113,6 +113,7 @@ func createTables(db *sql.DB) error {
 		legend_htf_image TEXT,
 		legend_htf_image_original TEXT,
 		legend_de_htf VARCHAR(20),
+		journal TEXT,
 		entry_time DATETIME NOT NULL,
 		exit_time DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -358,7 +359,7 @@ func createTables(db *sql.DB) error {
 	`
 	db.Exec(migrationSQL16)
 
-	// 確保新欄位存在
+	db.Exec("ALTER TABLE trades ADD COLUMN journal TEXT;")
 	db.Exec("ALTER TABLE trades ADD COLUMN sl_history TEXT;")
 	db.Exec("ALTER TABLE trades ADD COLUMN pnl_series TEXT;")
 
