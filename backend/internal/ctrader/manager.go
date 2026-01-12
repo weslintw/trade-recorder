@@ -758,35 +758,8 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 				newJSON, _ := json.Marshal(series)
 				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", string(newJSON), ticket)
 
-				// 2. Periodic Resample: Every 1 minute, re-fetch historical distribution from API
-				last, ok := m.lastResample.Load(ticket)
-				if !ok || time.Since(last.(time.Time)) > 1*time.Minute {
-					m.lastResample.Store(ticket, time.Now())
-
-					// Run API fetch in background to not block price updates
-					go func(t string, accID int64, e float64, et time.Time, sID int64, sStr string) {
-						m.mu.RLock()
-						conn, ok := m.connections[accID]
-						m.mu.RUnlock()
-
-						if ok && conn != nil && conn.Conn != nil {
-							sideInt := 1
-							if sStr == "short" {
-								sideInt = 2
-							}
-							// Using fetchPnLSeries from sync.go (accessible within same package)
-							digits := 5
-							if d, ok := m.symbolDigitsMap.Load(sID); ok {
-								digits = d.(int)
-							}
-							newSeriesStr := fetchPnLSeries(conn, conn.Conn, accID, sID, et.UnixMilli(), time.Now().UnixMilli(), e, 100, sideInt, digits)
-							if newSeriesStr != "" {
-								log.Printf("[cTrader Manager] Debug: Ticket %s PnL Series (32 points): %s", t, newSeriesStr)
-								m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, t)
-							}
-						}
-					}(ticket, accountID, entry, entryTime, symbolID, side)
-				}
+				// 2. Open Trades no longer fetch historical series via API to save performance
+				// PnL series is updated only at the current tip (point 31)
 			}
 		}
 	}

@@ -19,7 +19,16 @@
     }
   }
 
-  onMount(fetchAccounts);
+  onMount(() => {
+    fetchAccounts();
+    // 安全超時：如果 API 響應太慢，6 秒後強制關閉載入動畫
+    setTimeout(() => {
+      if (loading) {
+        console.warn('[AccountManagement] Safety timeout triggered (6s). Forcing spinner OFF.');
+        loading = false;
+      }
+    }, 6000);
+  });
 
   async function deleteAccount(id) {
     if (!confirm('確定要刪除此帳號嗎？相關的交易紀錄與規劃將會一併刪除！')) return;
@@ -49,9 +58,6 @@
     }
   }
 
-  onMount(() => {
-    fetchAccounts();
-  });
 
   let showSyncOptionsModal = false;
   let syncingId = null;

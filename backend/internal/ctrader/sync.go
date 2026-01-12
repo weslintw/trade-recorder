@@ -786,7 +786,8 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				}
 				vol := float64(pos.TradeData.Volume) / float64(lotSize)
 
-				pnlSeries := fetchPnLSeries(nil, conn, cTID, pos.TradeData.SymbolID, pos.TradeData.OpenTimestamp, time.Now().UnixMilli(), pos.Price, pos.TradeData.Volume, pos.TradeData.TradeSide, getDigits(symbol))
+				// Open positions no longer fetch historical series during sync to save performance
+				pnlSeries := ""
 
 				res, err := db.Exec(`
 					INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, sl_history, pnl_series)

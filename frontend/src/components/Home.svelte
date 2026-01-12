@@ -132,44 +132,34 @@
       let plans = [];
       let trades = [];
 
-      console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
+      console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       try {
-        console.log(`⏱️ [#${loadDataCallCount}] Step 1: Fetching Plans...`);
-        const plansRes = await dailyPlansAPI
-          .getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: 20,
-            },
+        console.log(`⏱️ [#${callId}] Parallel Fetching Plans & Trades...`);
+        
+        const [plansRes, tradesRes] = await Promise.all([
+          dailyPlansAPI.getAll(
+            { account_id: $selectedAccountId, symbol, page_size: 20 },
             signal
-          )
-          .catch(e => {
+          ).catch(e => {
             if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
             console.error('Plans fetch error:', e);
             return { data: [] };
-          });
-        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-
-        console.log(`⏱️ [#${loadDataCallCount}] Step 2: Fetching Trades...`);
-        const tradesRes = await tradesAPI
-          .getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: 50,
-            },
+          }),
+          tradesAPI.getAll(
+            { account_id: $selectedAccountId, symbol, page_size: 50 },
             signal
-          )
-          .catch(e => {
+          ).catch(e => {
             if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
             console.error('Trades fetch error:', e);
             return { data: [] };
-          });
+          })
+        ]);
+
+        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
 
         console.log(
-          `⏱️ [#${loadDataCallCount}] Sequence finished: ${plans.length} plans, ${trades.length} trades.`
+          `⏱️ [#${callId}] Sequence finished: ${plans.length} plans, ${trades.length} trades.`
         );
       } catch (err) {
         if (err.name === 'CanceledError' || err.name === 'AbortError') {
@@ -178,10 +168,10 @@
           console.error('Critical failure in sequence fetch:', err);
         }
       }
-      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} API Calls`);
+      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
 
-      console.time(`🔵 [${INSTANCE_ID}] loadData #${loadDataCallCount} Data Processing`);
+      console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
 
       console.log(
         `🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`
@@ -296,8 +286,18 @@
   // 獨立更新帳號狀態 (不觸發 loading UI)
   let lastAccountsData = null;
   let isRefreshingAccounts = false;
+  let refreshAccountsController = null;
   async function refreshAccounts() {
-    if (isRefreshingAccounts) return;
+    if (isRefreshingAccounts) {
+      console.log('🟢 [refreshAccounts] Already refreshing, skipping.');
+      return;
+    }
+    
+    // Abort previous refresh if any
+    if (refreshAccountsController) refreshAccountsController.abort();
+    refreshAccountsController = new AbortController();
+    const { signal } = refreshAccountsController;
+
     isRefreshingAccounts = true;
 
     refreshAccountsCallCount++;
@@ -305,7 +305,7 @@
 
     try {
       const startTime = performance.now();
-      const res = await accountsAPI.getAll();
+      const res = await accountsAPI.getAll(signal);
       const duration = (performance.now() - startTime).toFixed(2);
 
       if (res && res.data) {
@@ -325,7 +325,11 @@
         }
       }
     } catch (e) {
-      console.error('Failed to refresh accounts:', e);
+      if (e.name === 'CanceledError' || e.name === 'AbortError') {
+        // console.log('🟢 [refreshAccounts] Request was aborted.');
+      } else {
+        console.error('Failed to refresh accounts:', e);
+      }
     } finally {
       isRefreshingAccounts = false;
     }
@@ -382,7 +386,7 @@
   let lastRealtimeLoadTime = 0;
   function throttledLoadData() {
     const now = Date.now();
-    if (now - lastRealtimeLoadTime > 2000) {
+    if (now - lastRealtimeLoadTime > 5000) {
       lastRealtimeLoadTime = now;
       console.log('📈 [Realtime] Price update detected, refreshing...');
       loadData(true);
