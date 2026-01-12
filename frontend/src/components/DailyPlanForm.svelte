@@ -506,38 +506,58 @@
   }
 
   // 處理標註後的圖片
-  function handleAnnotatedImage(annotatedImageSrc) {
-    if (!enlargedImageContext) {
-      enlargedImage = annotatedImageSrc;
-      return;
-    }
+  async function handleAnnotatedImage(annotatedImageSrc) {
+    try {
+      // 標註後的圖片是 base64，必須上傳到伺服器 (遵循 MinIO 規則)
+      // 將 base64 轉換為 Blob
+      const res = await fetch(annotatedImageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], 'annotated_plan.png', { type: 'image/png' });
 
-    const { type, key, direction } = enlargedImageContext;
-    const trends = currentTrends[key];
-    const target = direction ? trends[direction] : trends;
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+      uploadData.append('symbol', formData.symbol || 'plan');
 
-    if (type === 'trend') {
-      trends.image = annotatedImageSrc;
-    } else if (type === 'signals') {
-      target.signals_image = annotatedImageSrc;
-    } else if (type === 'wave') {
-      target.wave_image = annotatedImageSrc;
-    } else if (type === 'expected_signals') {
-      if (target.expected_signals) {
-        const signal = target.expected_signals.find(
-          s => s.name === enlargedImageContext.signalName
-        );
-        if (signal) {
-          signal.image = annotatedImageSrc;
+      const uploadRes = await imagesAPI.upload(uploadData);
+      const serverPath = uploadRes.data.path;
+
+      if (!enlargedImageContext) {
+        enlargedImage = serverPath;
+        return;
+      }
+
+      const { type, key, direction } = enlargedImageContext;
+      const trends = currentTrends[key];
+      const target = direction ? trends[direction] : trends;
+
+      if (type === 'trend') {
+        trends.image = serverPath;
+      } else if (type === 'signals') {
+        target.signals_image = serverPath;
+      } else if (type === 'wave') {
+        target.wave_image = serverPath;
+      } else if (type === 'expected_signals') {
+        if (target.expected_signals) {
+          const signal = target.expected_signals.find(
+            s => s.name === enlargedImageContext.signalName
+          );
+          if (signal) {
+            signal.image = serverPath;
+          }
         }
       }
+
+      // 強制觸發 Svelte 響應式更新
+      formData = formData;
+      waveButtonKey++;
+
+      // 更新目前顯示的圖片路徑
+      enlargedImage = serverPath;
+      showAnnotator = false; // 保存後切換回查看模式
+    } catch (error) {
+      console.error('保存標註圖片失敗:', error);
+      alert('無法儲存標註後的圖片，請稍後再試');
     }
-
-    // 強制觸發 Svelte 響應式更新
-    formData = formData;
-    waveButtonKey++;
-
-    enlargedImage = annotatedImageSrc;
   }
   // 複製上一次的規劃 (開啟選單)
   async function copyLastPlan() {
@@ -1158,8 +1178,8 @@
 
         {#if showAnnotator}
           <ImageAnnotator
-            imageSrc={enlargedImage}
-            originalImageSrc={enlargedOriginalImage}
+            imageSrc={getImageUrl(enlargedImage)}
+            originalImageSrc={getImageUrl(enlargedOriginalImage)}
             onSave={handleAnnotatedImage}
           />
         {:else}

@@ -789,67 +789,84 @@
   }
 
   // 處理標註後的圖片保存
-  function handleAnnotatedImage(annotatedImageSrc) {
-    if (!enlargedImageContext) {
-      // 如果沒有上下文，只更新顯示的圖片
-      enlargedImage = annotatedImageSrc;
-      return;
+  async function handleAnnotatedImage(annotatedImageSrc) {
+    try {
+      // 標註後的圖片是 base64，必須上傳到伺服器 (遵循 MinIO 規則)
+      const res = await fetch(annotatedImageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], 'annotated_trade.png', { type: 'image/png' });
+
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+      uploadData.append('symbol', formData.symbol || 'trade');
+
+      const uploadRes = await imagesAPI.upload(uploadData);
+      const serverPath = uploadRes.data.path;
+
+      if (!enlargedImageContext) {
+        // 如果沒有上下文，只更新顯示的圖片
+        enlargedImage = serverPath;
+        return;
+      }
+
+      const { type, key } = enlargedImageContext;
+
+      if (type === 'signal') {
+        // 更新訊號圖片（只更新 image，保持 originalImage 不變）
+        const index = formData.entry_signals.findIndex(s =>
+          typeof s === 'string' ? s === key : s.name === key
+        );
+
+        if (index >= 0) {
+          const currentSignal = formData.entry_signals[index];
+          const signal =
+            typeof currentSignal === 'string'
+              ? { name: key, image: serverPath, originalImage: serverPath }
+              : { ...currentSignal, image: serverPath };
+          formData.entry_signals[index] = signal;
+          formData = formData;
+        }
+      } else if (type === 'trend') {
+        // 更新趨勢圖片（只更新 image，保持 originalImage 不變）
+        if (formData.trend_analysis[key]) {
+          formData.trend_analysis[key] = {
+            ...formData.trend_analysis[key],
+            image: serverPath,
+          };
+          formData = formData;
+        }
+      } else if (type === 'strategy') {
+        // 更新策略圖片
+        formData.entry_strategy_image = serverPath;
+        formData = formData;
+      } else if (type === 'legend_htf') {
+        // 更新傳奇大時區圖片
+        formData.legend_htf_image = serverPath;
+        formData = formData;
+      } else if (type === 'legend_king') {
+        // 更新傳奇王者圖片
+        formData.legend_king_image = serverPath;
+        formData = formData;
+      } else if (type === 'pattern') {
+        const index = formData.entry_pattern.findIndex(p => p.name === key);
+        if (index >= 0) {
+          formData.entry_pattern[index].image = serverPath;
+          // 同步到緩存
+          patternImagesCache[key] = {
+            ...patternImagesCache[key],
+            image: serverPath,
+          };
+          formData = formData;
+        }
+      }
+
+      // 更新目前顯示的圖片路徑
+      enlargedImage = serverPath;
+      showAnnotator = false; // 保存後切換回查看模式
+    } catch (error) {
+      console.error('保存標註圖片失敗:', error);
+      alert('無法儲存標註後的圖片，請稍後再試');
     }
-
-    const { type, key } = enlargedImageContext;
-
-    if (type === 'signal') {
-      // 更新訊號圖片（只更新 image，保持 originalImage 不變）
-      const index = formData.entry_signals.findIndex(s =>
-        typeof s === 'string' ? s === key : s.name === key
-      );
-
-      if (index >= 0) {
-        const currentSignal = formData.entry_signals[index];
-        const signal =
-          typeof currentSignal === 'string'
-            ? { name: key, image: annotatedImageSrc, originalImage: annotatedImageSrc }
-            : { ...currentSignal, image: annotatedImageSrc };
-        formData.entry_signals[index] = signal;
-        formData = formData;
-      }
-    } else if (type === 'trend') {
-      // 更新趨勢圖片（只更新 image，保持 originalImage 不變）
-      if (formData.trend_analysis[key]) {
-        formData.trend_analysis[key] = {
-          ...formData.trend_analysis[key],
-          image: annotatedImageSrc,
-        };
-        formData = formData;
-      }
-    } else if (type === 'strategy') {
-      // 更新策略圖片
-      formData.entry_strategy_image = annotatedImageSrc;
-      formData = formData;
-    } else if (type === 'legend_htf') {
-      // 更新傳奇大時區圖片
-      formData.legend_htf_image = annotatedImageSrc;
-      formData = formData;
-    } else if (type === 'legend_king') {
-      // 更新傳奇王者圖片
-      formData.legend_king_image = annotatedImageSrc;
-      formData = formData;
-    } else if (type === 'pattern') {
-      const index = formData.entry_pattern.findIndex(p => p.name === key);
-      if (index >= 0) {
-        formData.entry_pattern[index].image = annotatedImageSrc;
-        // 同步到緩存
-        patternImagesCache[key] = {
-          ...patternImagesCache[key],
-          image: annotatedImageSrc,
-        };
-        formData = formData;
-      }
-    }
-
-    // 更新顯示的圖片
-    enlargedImage = annotatedImageSrc;
-    showAnnotator = false; // 保存後隱藏標註工具
   }
 
   // 關閉放大圖片
@@ -1611,8 +1628,8 @@
 
         {#if showAnnotator}
           <ImageAnnotator
-            imageSrc={enlargedImage}
-            originalImageSrc={enlargedOriginalImage}
+            imageSrc={getImageUrl(enlargedImage)}
+            originalImageSrc={getImageUrl(enlargedOriginalImage)}
             onSave={handleAnnotatedImage}
           />
         {:else}

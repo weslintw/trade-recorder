@@ -51,9 +51,16 @@
   function loadImage() {
     if (!imageSrc || !ctx || !canvas) return;
 
+    console.log('ImageAnnotator: 開始載入圖片', imageSrc.substring(0, 50) + '...');
     image = new Image();
-    image.crossOrigin = 'anonymous';
+    
+    // 只有非 Base64 圖片才需要跨域設定
+    if (!imageSrc.startsWith('data:')) {
+      image.crossOrigin = 'anonymous';
+    }
+    
     image.onload = () => {
+      console.log('ImageAnnotator: 圖片載入成功', image.width, 'x', image.height);
       // 設定 canvas 實際尺寸（用於繪圖，保持原始圖片尺寸）
       canvas.width = image.width;
       canvas.height = image.height;
@@ -62,11 +69,17 @@
       ctx.drawImage(image, 0, 0);
       
       // 保存原始圖片數據（不含標註）
-      originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      try {
+        originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch (e) {
+        console.warn('ImageAnnotator: 無法獲取圖片數據 (可能是跨域限制)', e);
+        // 如果失敗，則依賴 image 對象本身來重繪
+      }
     };
-    image.onerror = () => {
-      console.error('圖片載入失敗:', imageSrc);
+    image.onerror = (err) => {
+      console.error('ImageAnnotator: 圖片載入失敗:', imageSrc);
+      console.error('Error detail:', err);
     };
     image.src = imageSrc;
   }
@@ -237,11 +250,21 @@
   }
 
   function clearCanvas() {
-    if (!ctx || !canvas || !originalImageData) return;
-    // 恢復到原始圖片（清除所有標註）
-    ctx.putImageData(originalImageData, 0, 0);
+    if (!ctx || !canvas) return;
+    if (originalImageData) {
+      // 恢復到原始圖片（清除所有標註）
+      ctx.putImageData(originalImageData, 0, 0);
+    } else if (image) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0);
+    }
+    
     // 更新保存的圖片數據
-    savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    try {
+      savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } catch (e) {
+      savedImageData = null;
+    }
   }
 
   function resetToOriginal() {
@@ -250,6 +273,9 @@
     // 如果有提供 originalImageSrc，則加載它
     if (originalImageSrc && originalImageSrc !== imageSrc) {
       const originalImage = new Image();
+      if (!originalImageSrc.startsWith('data:')) {
+        originalImage.crossOrigin = 'anonymous';
+      }
       originalImage.onload = () => {
         // 設置 canvas 尺寸為原始圖片尺寸
         canvas.width = originalImage.width;
@@ -260,14 +286,28 @@
         ctx.drawImage(originalImage, 0, 0);
         
         // 更新保存的圖片數據
-        originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        try {
+          originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        } catch (e) {
+          originalImageData = null;
+          savedImageData = null;
+        }
       };
       originalImage.src = originalImageSrc;
     } else if (originalImageData) {
       // 如果沒有 originalImageSrc，使用保存的 originalImageData
       ctx.putImageData(originalImageData, 0, 0);
       savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } else if (image) {
+      // 最後的備案：重新繪製當前 image
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0);
+      try {
+        savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      } catch (e) {
+        savedImageData = null;
+      }
     }
   }
 
