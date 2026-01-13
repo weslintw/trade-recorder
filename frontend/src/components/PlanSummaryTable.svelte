@@ -123,10 +123,10 @@
 
 <style>
   .plan-summary-container {
-    --primary-font: 'Inter', system-ui, -apple-system, sans-serif;
-    --bg-long: hsla(354, 100%, 97%, 1);
-    --bg-short: hsla(142, 70%, 97%, 1);
-    --bg-both: hsla(255, 100%, 98%, 1);
+    --primary-font: 'Outfit', 'Inter', 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    --bg-long: hsla(354, 100%, 98%, 1);
+    --bg-short: hsla(142, 70%, 98%, 1);
+    --bg-both: hsla(255, 100%, 98.5%, 1);
     --text-long: #e11d48;
     --text-short: #16a34a;
     --text-both: #6366f1;
@@ -135,7 +135,7 @@
     width: 100%;
     background: #ffffff;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
     border: 1px solid #e2e8f0;
     overflow: hidden;
   }
@@ -179,12 +179,12 @@
   }
 
   .trend-cell-container {
-    vertical-align: middle;
-    padding: 8px;
-    min-height: 48px;
+    vertical-align: top;
+    padding: 10px;
+    min-height: 80px;
     border-radius: 8px;
     background: #f8fafc;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid transparent;
   }
   
@@ -230,12 +230,16 @@
   }
 
   .direction-badge {
-    display: inline-block;
-    padding: 2px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 0;
+    width: 100%;
     border-radius: 4px;
-    font-weight: 900;
-    font-size: 0.85rem;
-    margin-bottom: 4px;
+    font-weight: 800;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
   }
 
   .long .direction-badge { color: var(--text-long); }
@@ -269,19 +273,20 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    font-size: 0.55rem;
-    font-weight: 900;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 800;
     color: white;
     flex-shrink: 0;
     margin-top: 1px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
   }
 
-  .tag.established { background: #475569; }
-  .tag.expected { background: #8b5cf6; }
-  .tag.wave-tag { background: #0ea5e9; }
+  .tag.established { background: #64748b; }
+  .tag.expected { background: #a855f7; }
+  .tag.wave-tag { background: #38bdf8; }
 
   .info-row.wave {
     color: #1e293b;
@@ -309,11 +314,15 @@
   }
 
   .side-panel::before {
-    font-size: 0.55rem;
-    font-weight: 900;
+    font-size: 0.75rem;
+    font-weight: 800;
     text-transform: uppercase;
     display: block;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
+    text-align: center;
+    padding: 2px 0;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 3px;
   }
   .side-panel.long::before { content: '多'; color: var(--text-long); }
   .side-panel.short::before { content: '空'; color: var(--text-short); }
