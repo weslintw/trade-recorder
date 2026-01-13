@@ -814,85 +814,63 @@
           </select>
         </div>
 
-        <!-- 市場時段 (分頁切換) -->
-        <div class="form-group">
-          <label>市場時段 (分頁)</label>
-          <div class="market-session-tabs">
-            <button
-              type="button"
-              class="session-tab"
-              class:active={activeSession === 'asian'}
-              on:click={() => (activeSession = 'asian')}
-            >
-              <span class="session-tab-inner">
-                {MARKET_SESSIONS.find(s => s.value === 'asian')?.icon}
-                {MARKET_SESSIONS.find(s => s.value === 'asian')?.label}
-                {#if sessionStatus.asian}
-                  <span class="data-indicator"></span>
-                {/if}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="session-tab"
-              class:active={activeSession === 'european'}
-              on:click={() => (activeSession = 'european')}
-            >
-              <span class="session-tab-inner">
-                {MARKET_SESSIONS.find(s => s.value === 'european')?.icon}
-                {MARKET_SESSIONS.find(s => s.value === 'european')?.label}
-                {#if sessionStatus.european}
-                  <span class="data-indicator"></span>
-                {/if}
-              </span>
-            </button>
-            <button
-              type="button"
-              class="session-tab"
-              class:active={activeSession === 'us'}
-              on:click={() => (activeSession = 'us')}
-            >
-              <span class="session-tab-inner">
-                {MARKET_SESSIONS.find(s => s.value === 'us')?.icon}
-                {MARKET_SESSIONS.find(s => s.value === 'us')?.label}
-                {#if sessionStatus.us}
-                  <span class="data-indicator"></span>
-                {/if}
-              </span>
-            </button>
-          </div>
-        </div>
+        <!-- 市場時段 (分頁切換已移至下方趨勢區塊) -->
 
-        <!-- 備註 -->
-        <div class="form-group">
-          <label for="notes">備註</label>
-          <textarea
-            id="notes"
-            class="form-control"
-            bind:value={currentSessionData.notes}
-            rows="3"
-            placeholder="今日盤面重點、注意事項..."
-          ></textarea>
-          
-          <div class="quick-overview-section">
-            <div class="section-title">
-              <span>📊 快速總覽 (全時段)</span>
-              <div class="summary-legend-inline">
-                <div class="legend-item"><span class="tag-mini established">達</span> 成立</div>
-                <div class="legend-item"><span class="tag-mini expected">預</span> 預期</div>
-                <div class="legend-item"><span class="tag-mini wave-tag">波</span> 波浪</div>
-              </div>
+        <!-- 快速總覽 (全時段) -->
+        <div class="quick-overview-section">
+          <div class="section-title">
+            <span>📊 快速總覽 (全時段)</span>
+            <div class="summary-legend-inline">
+              <div class="legend-item"><span class="tag-mini established">達</span> 成立</div>
+              <div class="legend-item"><span class="tag-mini expected">預</span> 預期</div>
+              <div class="legend-item"><span class="tag-mini wave-tag">波</span> 波浪</div>
             </div>
-            <PlanSummaryTable trendData={formData.sessions} detailed={true} />
           </div>
+          <PlanSummaryTable trendData={formData.sessions} detailed={true} />
         </div>
       </div>
 
-      <!-- 當前各時區趨勢 -->
-      <div class="form-group trend-analysis-section">
-        <label class="trend-label">📊 當前各時區趨勢</label>
-        <div class="trend-grid">
-          {#each TIMEFRAMES as timeframe}
+      <!-- 當前各時區趨勢與時段選擇 (整合式表格佈局) -->
+      <div class="session-trend-layout">
+        <!-- 左側垂直時段選擇 -->
+        <div class="session-sidebar-vertical">
+          {#each MARKET_SESSIONS as session}
+            <button
+              type="button"
+              class="session-tab-vertical {session.value}"
+              class:active={activeSession === session.value}
+              on:click={() => (activeSession = session.value)}
+            >
+              <div class="tab-content">
+                <span class="tab-icon">{session.icon}</span>
+                <span class="tab-label">{session.label[0]}</span>
+                {#if sessionStatus[session.value]}
+                  <span class="data-indicator-v"></span>
+                {/if}
+              </div>
+            </button>
+          {/each}
+        </div>
+
+        <!-- 右側趨勢內容 -->
+        <div class="trend-content-main">
+          <!-- 該時段備註 -->
+          <div class="form-group session-notes-area">
+            <label for="notes" class="trend-label">📝 備註 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
+            <textarea
+              id="notes"
+              class="form-control"
+              bind:value={currentSessionData.notes}
+              rows="3"
+              placeholder="今日時段盤面重點、注意事項..."
+            ></textarea>
+          </div>
+
+          <!-- 各時區趨勢 -->
+          <div class="form-group trend-analysis-section">
+            <label class="trend-label">📊 當前各時區趨勢 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
+            <div class="trend-grid">
+              {#each TIMEFRAMES as timeframe}
             <div
               class="trend-item"
               tabindex="0"
@@ -1184,6 +1162,8 @@
             </div>
           {/each}
         </div>
+          </div>
+        </div>
       </div>
 
       <!-- 操作按鈕 -->
@@ -1286,51 +1266,94 @@
       border-radius: 12px;
     }
 
-    /* 市場時段分頁 */
-    .market-session-tabs {
+    /* 市場時段垂直側邊欄 */
+    .session-trend-layout {
       display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+      min-height: 400px;
+    }
+
+    .session-sidebar-vertical {
+      display: flex;
+      flex-direction: column;
       gap: 0.5rem;
-      background: var(--nav-group-bg);
-      padding: 0.4rem;
-      border-radius: 12px;
+      padding-top: 2.8rem; /* 對齊趨勢標籤的高度 */
+      position: sticky;
+      top: 1rem;
+      height: fit-content;
     }
 
-    .session-tab {
-      flex: 1;
-      padding: 0.75rem;
-      border: none;
-      background: transparent;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      color: #4a5568;
-      transition: all 0.2s;
-    }
-
-    .session-tab.active {
+    .session-tab-vertical {
+      width: 50px;
+      height: 120px;
+      border: 1px solid var(--border-color);
       background: var(--card-bg);
-      color: var(--primary);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    }
-
-    .session-tab:hover:not(.active) {
-      background: #f7fafc;
-    }
-
-    .session-tab-inner {
-      display: inline-flex;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
+      padding: 0;
       position: relative;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
 
-    .data-indicator {
+    .session-tab-vertical .tab-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .session-tab-vertical .tab-icon {
+      font-size: 1.2rem;
+    }
+
+    .session-tab-vertical .tab-label {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      font-weight: 800;
+      font-size: 1rem;
+      letter-spacing: 0.2rem;
+      color: var(--text-muted);
+    }
+
+    .session-tab-vertical.active {
+      transform: translateX(-5px);
+      box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.08);
+      z-index: 2;
+    }
+
+    .session-tab-vertical.active .tab-label {
+      color: var(--text-main);
+    }
+
+    /* 不同時段的活動狀態顏色 */
+    .session-tab-vertical.asian.active { border-left: 5px solid #3b82f6; border-color: rgba(59, 130, 246, 0.3); }
+    .session-tab-vertical.european.active { border-left: 5px solid #ea580c; border-color: rgba(234, 88, 12, 0.3); }
+    .session-tab-vertical.us.active { border-left: 5px solid #dc2626; border-color: rgba(220, 38, 38, 0.3); }
+
+    .session-tab-vertical:hover:not(.active) {
+      background: #f8fafc;
+      border-color: #cbd5e0;
+    }
+
+    .session-notes-area {
+      margin-bottom: 2rem;
+      background: var(--card-bg);
+      padding: 1rem;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .data-indicator-v {
       position: absolute;
-      top: -2px;
-      right: -10px;
-      width: 8px;
-      height: 8px;
+      top: 8px;
+      right: 8px;
+      width: 10px;
+      height: 10px;
       background-color: #10b981;
       border-radius: 50%;
       box-shadow: 0 0 0 2px white;
@@ -1349,7 +1372,7 @@
       }
     }
 
-    .dark-mode .data-indicator {
+    .dark-mode .data-indicator-v {
       box-shadow: 0 0 0 2px #2d3748;
     }
 
