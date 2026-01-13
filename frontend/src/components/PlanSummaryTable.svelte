@@ -173,9 +173,9 @@
   }
 
   .trend-cell-container {
-    vertical-align: middle;
+    vertical-align: top;
     padding: 10px;
-    height: 80px;
+    min-height: 80px;
     border-radius: 8px;
     background: #f8fafc;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);

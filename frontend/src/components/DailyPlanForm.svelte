@@ -830,41 +830,23 @@
         </div>
       </div>
 
+      <!-- 當前時段備註 (獨立於側邊欄之外，避免遮擋) -->
+      <div class="form-group session-notes-area">
+        <label for="notes" class="trend-label">📝 備註 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
+        <textarea
+          id="notes"
+          class="form-control"
+          bind:value={currentSessionData.notes}
+          rows="3"
+          placeholder="今日時段盤面重點、注意事項..."
+        ></textarea>
+      </div>
+
       <!-- 當前各時區趨勢與時段選擇 (整合式表格佈局) -->
       <div class="session-trend-layout">
         <!-- 左側垂直時段選擇 -->
         <div class="session-sidebar-vertical">
           {#each MARKET_SESSIONS as session}
-            <button
-              type="button"
-              class="session-tab-vertical {session.value}"
-              class:active={activeSession === session.value}
-              on:click={() => (activeSession = session.value)}
-            >
-              <div class="tab-content">
-                <span class="tab-icon">{session.icon}</span>
-                <span class="tab-label">{session.label[0]}</span>
-                {#if sessionStatus[session.value]}
-                  <span class="data-indicator-v"></span>
-                {/if}
-              </div>
-            </button>
-          {/each}
-        </div>
-
-        <!-- 右側趨勢內容 -->
-        <div class="trend-content-main">
-          <!-- 該時段備註 -->
-          <div class="form-group session-notes-area">
-            <label for="notes" class="trend-label">📝 備註 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
-            <textarea
-              id="notes"
-              class="form-control"
-              bind:value={currentSessionData.notes}
-              rows="3"
-              placeholder="今日時段盤面重點、注意事項..."
-            ></textarea>
-          </div>
 
           <!-- 各時區趨勢 -->
           <div class="form-group trend-analysis-section">
@@ -1278,7 +1260,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      padding-top: 2.8rem; /* 對齊趨勢標籤的高度 */
+      padding-top: 2.8rem; /* 對齊下方趨勢標籤的高度 */
       position: sticky;
       top: 1rem;
       height: fit-content;
