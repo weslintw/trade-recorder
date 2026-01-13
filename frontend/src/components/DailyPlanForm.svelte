@@ -13,7 +13,7 @@
 
   export let id = null;
 
-  let activeSession = determineMarketSession(new Date()); // ?身?箇???湔?畾?
+  let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
   let loading = false;
 
   // 銴ˊ閬??賊????
@@ -87,8 +87,8 @@
   });
 
   // ?犖閮??賊?
-  const expertSignalsLong = ['????', '韏瑟撞?控', '?', '?予', '?餃?瘙?'];
-  const expertSignalsShort = ['韏瑁??控', '???', '??', '????', '?琿?'];
+  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
+  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
 
   // ?券閮?皜
   const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
@@ -373,10 +373,10 @@
 
       if (id) {
         await dailyPlansAPI.update(id, submitData);
-        alert('閬?撌脫??);
+        alert('規劃已更新');
       } else {
         const response = await dailyPlansAPI.create(submitData);
-        alert('閬?撌脣遣蝡?);
+        alert('規劃已建立');
         // 憒? API ???單撱箇???ID嚗歲頧蝺刻摩?隞亦匱蝥楊頛?
         if (response.data && response.data.id) {
           navigate(`/plans/edit/${response.data.id}`, { replace: true });
@@ -742,10 +742,10 @@
 {:else}
   <div class="card">
     <div class="card-header-actions">
-      <h2>{id ? '蝺刻摩瘥?日閬?' : '?啣?瘥?日閬?'}</h2>
+      <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
       <div class="header-btns">
         <button type="button" class="btn btn-primary" on:click={handleSubmit}>
-          {id ? '? ?湔閬?' : '??撱箇?閬?'}
+          {id ? '💾 更新規劃' : '✅ 建立規劃'}
         </button>
 
         {#if id}
@@ -1169,7 +1169,7 @@
       <!-- ???? -->
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
-          {id ? '? ?湔閬?' : '??撱箇?閬?'}
+          {id ? '💾 更新規劃' : '✅ 建立規劃'}
         </button>
         <button type="button" class="btn btn-secondary" on:click={() => navigate('/')}>
           <span class="icon">
