@@ -139,6 +139,11 @@
     </div>
   </div>
 
+  {#if plan.notes && plan.notes !== 'Session-based unified plan'}
+    <div class="section-box">
+      <h3>📝 總體規劃備註</h3>
+      <div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div>
+    </div>
   {/if}
 
   <div class="summary-overview-box section-box">
