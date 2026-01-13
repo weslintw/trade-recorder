@@ -139,22 +139,28 @@
 
   function formatWaveSummary(trend) {
     if (!trend) return '';
+    
+    const formatDir = (dirData) => {
+      if (!dirData?.wave_numbers?.length) return '';
+      const nums = dirData.wave_numbers;
+      const highlight = dirData.wave_highlight;
+      // 假如是重點在4 5不是重點 => (4)5 
+      return nums.map(n => n.toString() === highlight?.toString() ? `(${n})` : n).join('');
+    };
+
     let waves = [];
-    if (trend.long?.wave_numbers?.length > 0) {
-      let w = trend.long.wave_numbers.join('');
-      if (trend.long.wave_highlight) w += `(${trend.long.wave_highlight})`;
-      waves.push(w);
+    if (trend.long) {
+      const w = formatDir(trend.long);
+      if (w) waves.push(w);
     }
-    if (trend.short?.wave_numbers?.length > 0) {
-      let w = trend.short.wave_numbers.join('');
-      if (trend.short.wave_highlight) w += `(${trend.short.wave_highlight})`;
-      waves.push(w);
+    if (trend.short) {
+      const w = formatDir(trend.short);
+      if (w) waves.push(w);
     }
     
     // 舊格式
-    if (trend.wave_numbers?.length > 0 && waves.length === 0) {
-      let w = trend.wave_numbers.join('');
-      if (trend.wave_highlight) w += `(${trend.wave_highlight})`;
+    if (waves.length === 0 && trend.wave_numbers?.length > 0) {
+      const w = trend.wave_numbers.map(n => n.toString() === trend.wave_highlight?.toString() ? `(${n})` : n).join('');
       waves.push(w);
     }
 
@@ -1352,21 +1358,23 @@
                                   {#each MARKET_SESSIONS as session, i}
                                     {@const trend = trendData[session.value]?.trends?.[tf]}
                                     <span class="mini-step {trend?.direction || 'na'}">
-                                      {session.label}
-                                      {trend?.direction === 'long'
-                                        ? '多'
-                                        : trend?.direction === 'short'
-                                          ? '空'
-                                          : 'NA'}
+                                      <span class="step-label">
+                                        {session.label}
+                                        {trend?.direction === 'long'
+                                          ? '多'
+                                          : trend?.direction === 'short'
+                                            ? '空'
+                                            : 'NA'}
+                                      </span>
                                       
                                       {#if trend}
                                         {@const signals = formatSignalsSummary(trend)}
                                         {@const waves = formatWaveSummary(trend)}
                                         {#if signals || waves}
-                                          <span class="step-details">
+                                          <div class="step-details">
                                             {#if signals}<span class="s-text">{signals}</span>{/if}
                                             {#if waves}<span class="w-text">{waves}</span>{/if}
-                                          </span>
+                                          </div>
                                         {/if}
                                       {/if}
                                     </span>
@@ -2334,14 +2342,19 @@
 
   .tf-steps {
     display: flex;
-    gap: 3px;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
   .mini-step {
-    padding: 2px 6px;
+    padding: 3px 6px;
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
   }
 
   .mini-step.long {
@@ -2353,12 +2366,15 @@
     color: #166534;
   }
 
+  .step-label {
+    white-space: nowrap;
+  }
+
   .step-details {
-    display: inline-flex;
+    display: flex;
+    flex-wrap: wrap;
     gap: 3px;
-    margin-left: 4px;
     font-size: 0.6rem;
-    vertical-align: middle;
     align-items: center;
   }
   .s-text {
@@ -2368,6 +2384,7 @@
     border-radius: 3px;
     border: 1px solid rgba(99, 102, 241, 0.2);
     font-weight: 700;
+    line-height: 1.2;
   }
   .w-text {
     background: rgba(245, 158, 11, 0.1);
@@ -2376,6 +2393,7 @@
     border-radius: 3px;
     border: 1px solid rgba(245, 158, 11, 0.2);
     font-weight: 700;
+    line-height: 1.2;
   }
 
   .mini-notes {
