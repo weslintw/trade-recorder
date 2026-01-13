@@ -627,8 +627,8 @@
         if (copiedData.trends && !copiedData.asian) {
           formData.sessions[targetSession] = copiedData;
         } else {
-          // 蝯?銴?嚗瘜移蝣箄????內雿輻??
-          alert('閰脰??撘????⊥?蝎曄Ⅱ銴ˊ?啣銝?挾??);
+          // 結構複雜，無法精確轉換，提示使用者
+          alert('該規劃格式過舊，無法精確複製到單一時段。');
           return;
         }
       } else {
@@ -637,8 +637,8 @@
         if (copiedData.trends) {
           formData.sessions[targetSession] = copiedData;
         } else {
-          console.error('銴ˊ靘?蝯??啣虜', copiedData);
-          alert('銴ˊ靘?鞈?蝯??啣虜??);
+          console.error('複製來源結構異常', copiedData);
+          alert('複製來源資料結構異常。');
           return;
         }
       }
