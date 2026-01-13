@@ -147,7 +147,14 @@
   {/if}
 
   <div class="summary-overview-box section-box">
-    <h3>📊 全時段規劃總覽</h3>
+    <div class="summary-header">
+      <h3>📊 全時段規劃總覽</h3>
+      <div class="summary-legend-inline">
+        <div class="legend-item"><span class="tag-mini established">達</span> 成立</div>
+        <div class="legend-item"><span class="tag-mini expected">預</span> 預期</div>
+        <div class="legend-item"><span class="tag-mini wave-tag">波</span> 波浪分析</div>
+      </div>
+    </div>
     <PlanSummaryTable trendData={trendAnalysis} detailed={true} />
   </div>
 
@@ -710,4 +717,47 @@
     background: #1e293b;
     border-color: #475569;
   }
+
+  .summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .summary-header h3 {
+    margin-bottom: 0;
+  }
+
+  .summary-legend-inline {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+  }
+
+  .tag-mini {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 900;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .tag-mini.established { background: #475569; }
+  .tag-mini.expected { background: #8b5cf6; }
+  .tag-mini.wave-tag { background: #0ea5e9; }
 </style>

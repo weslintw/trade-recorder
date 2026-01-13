@@ -44,14 +44,14 @@
                         <div class="dual-content">
                           <div class="side-panel long">
                             {#if trend.long?.has_signals && trend.long.signals?.length > 0}
-                              <div class="info-row"><span class="icon">🎯</span>{trend.long.signals.join(', ')}</div>
+                              <div class="info-row"><span class="tag established">達</span>{trend.long.signals.join(', ')}</div>
                             {/if}
                             {#if trend.long?.has_expected_signals && trend.long.expected_signals?.length > 0}
-                              <div class="info-row"><span class="icon">✨</span>{trend.long.expected_signals.map(s => s.name).join(', ')}</div>
+                              <div class="info-row"><span class="tag expected">預</span>{trend.long.expected_signals.map(s => s.name).join(', ')}</div>
                             {/if}
                             {#if trend.long?.has_wave && trend.long.wave_numbers?.length > 0}
                               <div class="info-row wave">
-                                <span class="icon">🌊</span>
+                                <span class="tag wave-tag">波</span>
                                 {trend.long.wave_numbers.map((n, i) => {
                                   const isHighlight = n.toString() === trend.long.wave_highlight?.toString();
                                   if (isHighlight) {
@@ -64,14 +64,14 @@
                           </div>
                           <div class="side-panel short">
                             {#if trend.short?.has_signals && trend.short.signals?.length > 0}
-                              <div class="info-row"><span class="icon">🎯</span>{trend.short.signals.join(', ')}</div>
+                              <div class="info-row"><span class="tag established">達</span>{trend.short.signals.join(', ')}</div>
                             {/if}
                             {#if trend.short?.has_expected_signals && trend.short.expected_signals?.length > 0}
-                              <div class="info-row"><span class="icon">✨</span>{trend.short.expected_signals.map(s => s.name).join(', ')}</div>
+                              <div class="info-row"><span class="tag expected">預</span>{trend.short.expected_signals.map(s => s.name).join(', ')}</div>
                             {/if}
                             {#if trend.short?.has_wave && trend.short.wave_numbers?.length > 0}
                               <div class="info-row wave">
-                                <span class="icon">🌊</span>
+                                <span class="tag wave-tag">波</span>
                                 {trend.short.wave_numbers.map((n, i) => {
                                   const isHighlight = n.toString() === trend.short.wave_highlight?.toString();
                                   if (isHighlight) {
@@ -109,6 +109,8 @@
                       {/if}
                     </div>
                   {/if}
+                {:else}
+                  <div class="na-placeholder">NA</div>
                 {/if}
               </td>
             {/each}
@@ -146,7 +148,7 @@
   .modern-summary-table {
     width: 100%;
     border-collapse: separate;
-    border-spacing: 0;
+    border-spacing: 4px;
     table-layout: fixed;
     font-family: var(--primary-font);
   }
@@ -156,45 +158,52 @@
     position: sticky;
     left: 0;
     z-index: 10;
-    background: #f8fafc;
-    border-right: 1px solid #e2e8f0;
-    width: 40px;
-    min-width: 40px;
+    background: #ffffff;
+    width: 32px;
+    min-width: 32px;
+  }
+
+  :global(body.dark-mode) .sticky-col {
+    background: #0f172a;
   }
 
   .modern-summary-table th {
-    background: #f8fafc;
-    color: #64748b;
-    font-size: 0.8rem;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.7rem;
     font-weight: 700;
-    padding: 10px 8px;
+    padding: 8px 4px;
     text-transform: uppercase;
-    letter-spacing: 0.025em;
-    border-bottom: 1px solid #e2e8f0;
-    border-right: 1px solid #f1f5f9;
-  }
-
-  .modern-summary-table th:last-child {
-    border-right: none;
+    letter-spacing: 0.05em;
+    border: none;
   }
 
   .trend-cell-container {
-    border-bottom: 1px solid #f1f5f9;
-    border-right: 1px solid #f1f5f9;
-    vertical-align: top;
+    vertical-align: middle;
     padding: 8px;
-    min-height: 40px;
+    min-height: 48px;
+    border-radius: 8px;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
   }
-
-  .trend-cell-container:last-child {
-    border-right: none;
+  
+  :global(body.dark-mode) .trend-cell-container {
+    background: rgba(255, 255, 255, 0.02);
   }
 
   /* Direction Styling */
-  .trend-cell-container.long { background-color: var(--bg-long); }
-  .trend-cell-container.short { background-color: var(--bg-short); }
-  .trend-cell-container.both { background-color: var(--bg-both); }
-  .trend-cell-container.na { background-color: transparent; opacity: 0.1; }
+  .trend-cell-container.long { background-color: var(--bg-long); border-color: rgba(225, 29, 72, 0.1); }
+  .trend-cell-container.short { background-color: var(--bg-short); border-color: rgba(22, 163, 74, 0.1); }
+  .trend-cell-container.both { background-color: var(--bg-both); border-color: rgba(99, 102, 241, 0.1); }
+  .trend-cell-container.na { 
+    background-color: #f8fafc;
+    opacity: 0.6;
+  }
+
+  :global(body.dark-mode) .trend-cell-container.na {
+    background-color: rgba(255, 255, 255, 0.03);
+  }
 
   .session-label {
     text-align: center;
@@ -202,14 +211,23 @@
   }
 
   .session-text {
-    font-weight: 800;
-    font-size: 0.9rem;
+    font-weight: 900;
+    font-size: 0.85rem;
     writing-mode: horizontal-tb;
+    opacity: 0.8;
   }
 
   .session-label.asian .session-text { color: #3b82f6; }
   .session-label.european .session-text { color: #ea580c; }
   .session-label.us .session-text { color: #dc2626; }
+
+  .na-placeholder {
+    color: #94a3b8;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 1px;
+  }
 
   .direction-badge {
     display: inline-block;

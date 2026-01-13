@@ -875,7 +875,14 @@
           ></textarea>
           
           <div class="quick-overview-section">
-            <div class="section-title">📊 快速總覽 (全時段)</div>
+            <div class="section-title">
+              <span>📊 快速總覽 (全時段)</span>
+              <div class="summary-legend-inline">
+                <div class="legend-item"><span class="tag-mini established">達</span> 成立</div>
+                <div class="legend-item"><span class="tag-mini expected">預</span> 預期</div>
+                <div class="legend-item"><span class="tag-mini wave-tag">波</span> 波浪</div>
+              </div>
+            </div>
             <PlanSummaryTable trendData={formData.sessions} detailed={true} />
           </div>
         </div>
@@ -1809,14 +1816,42 @@
       gap: 0.5rem;
     }
 
-    :global(body.dark-mode) .quick-overview-section {
-      background: #1e293b;
-      border-color: #475569;
-    }
-
-    :global(body.dark-mode) .quick-overview-section .section-title {
+    .quick-overview-section .section-title {
       color: #94a3b8;
     }
+
+    .summary-legend-inline {
+      display: flex;
+      gap: 10px;
+      margin-left: auto;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .tag-mini {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 3px;
+      font-size: 0.5rem;
+      font-weight: 900;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .tag-mini.established { background: #475569; }
+    .tag-mini.expected { background: #8b5cf6; }
+    .tag-mini.wave-tag { background: #0ea5e9; }
 
     .trend-image-placeholderSmall {
       border: 1.5px dashed #cbd5e0;
