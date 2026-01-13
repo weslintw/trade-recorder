@@ -851,6 +851,83 @@
     font-style: italic;
   }
 
+  /* Legend Specific Styles */
+  .legend-specifics {
+    margin-bottom: 2rem;
+  }
+  .legend-section-title {
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: #475569;
+    margin-bottom: 1rem;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .legend-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+  .legend-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .legend-header {
+    padding: 0.75rem 1rem;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+  .htf-tag {
+    background: #6366f1;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+  }
+  .legend-img-container {
+    cursor: pointer;
+    overflow: hidden;
+    height: 200px;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .legend-img-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+  .legend-img-container:hover img {
+    transform: scale(1.05);
+  }
+
+  /* Ensure images in rich text don't overflow */
+  .notes-content :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+
+  /* Handle very wide images by allowing them to be viewed properly */
+  .ql-editor :global(img) {
+    max-width: 100%;
+    height: auto;
+  }
+
   @media (max-width: 768px) {
     .info-row-group {
       grid-template-columns: 1fr 1fr;

@@ -462,6 +462,14 @@
     color: #334155;
   }
 
+  /* Ensure images in rich text don't overflow */
+  .notes-content :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+
   /* Market Session Tabs */
   .market-session-tabs-container {
     margin-bottom: 2rem;

@@ -353,8 +353,7 @@
       });
       formData = formData;
     } catch (error) {
-      console.error('頛閬?憭望?:', error);
-      alert('頛閬?鞈?憭望?');
+      alert('載入規劃資料失敗');
     } finally {
       loading = false;
     }
@@ -385,8 +384,7 @@
         }
       }
     } catch (error) {
-      console.error('靽?憭望?:', error);
-      const errorMessage = error.response?.data?.error || '靽?閬?憭望?';
+      const errorMessage = error.response?.data?.error || '保存規劃失敗';
       alert(errorMessage);
     }
   }
@@ -450,8 +448,7 @@
           formData = formData;
           waveButtonKey++;
         } catch (error) {
-          console.error('??鞎潔?銝憭望?:', error);
-          alert('????憭望?嚗??岫');
+          alert('圖片處理失敗，請重試');
         }
         break;
       }
@@ -580,8 +577,7 @@
       enlargedImage = serverPath;
       showAnnotator = false; // 靽?敺????亦?璅∪?
     } catch (error) {
-      console.error('靽?璅酉??憭望?:', error);
-      alert('?⊥??脣?璅酉敺???嚗?蝔??岫');
+      alert('無法儲存標註後的圖片，請稍後再試');
     }
   }
   // 銴ˊ銝?甈∠?閬? (???詨)
@@ -600,11 +596,11 @@
         plansToSelect = response.data.data;
         showPlanSelectionModal = true;
       } else {
-        alert('?曆??啗府撣唾???蝔桅??餌?閬?蝝??);
+        alert('找不到該帳號與品種過去的規劃紀錄。');
       }
     } catch (error) {
       console.error('銴ˊ閬?憭望?:', error);
-      alert('?⊥???銝?蝑?????);
+      alert('無法取得上一筆規劃資料');
     }
   }
 
@@ -666,10 +662,10 @@
       activeSession = targetSession;
 
       alert(
-        `撌脫??? ${new Date(lastPlan.plan_date).toLocaleDateString()} ?摰寡?鋆賢 ${targetSession} ?挾嚗
+        `已成功將 ${new Date(lastPlan.plan_date).toLocaleDateString()} 的內容複製到 ${targetSession} 時段！`
       );
     } else {
-      alert('閰脩?閬?瘝?閰喟敦?批捆?航?鋆賬?);
+      alert('該筆規劃沒有詳細內容可複製。');
     }
   }
 
