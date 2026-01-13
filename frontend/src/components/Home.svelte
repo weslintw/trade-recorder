@@ -1,11 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { navigate, Link } from 'svelte-routing';
-  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI } from '../lib/api';
+  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
-  import { accountsAPI } from '../lib/api';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
   import BatchShareModal from './BatchShareModal.svelte';
@@ -121,6 +120,47 @@
   }
 
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
+
+  function formatSignalsSummary(trend) {
+    if (!trend) return '';
+    let signals = [];
+    // 檢查是否有方向性的訊號
+    if (trend.long?.signals?.length > 0) signals.push(...trend.long.signals);
+    if (trend.long?.expected_signals?.length > 0) signals.push(...trend.long.expected_signals.map(s => s.name));
+    if (trend.short?.signals?.length > 0) signals.push(...trend.short.signals);
+    if (trend.short?.expected_signals?.length > 0) signals.push(...trend.short.expected_signals.map(s => s.name));
+    
+    // 如果是舊格式，訊號可能在頂層
+    if (trend.signals?.length > 0) signals.push(...trend.signals);
+
+    if (signals.length === 0) return '';
+    return [...new Set(signals)].join(',');
+  }
+
+  function formatWaveSummary(trend) {
+    if (!trend) return '';
+    let waves = [];
+    if (trend.long?.wave_numbers?.length > 0) {
+      let w = trend.long.wave_numbers.join('');
+      if (trend.long.wave_highlight) w += `(${trend.long.wave_highlight})`;
+      waves.push(w);
+    }
+    if (trend.short?.wave_numbers?.length > 0) {
+      let w = trend.short.wave_numbers.join('');
+      if (trend.short.wave_highlight) w += `(${trend.short.wave_highlight})`;
+      waves.push(w);
+    }
+    
+    // 舊格式
+    if (trend.wave_numbers?.length > 0 && waves.length === 0) {
+      let w = trend.wave_numbers.join('');
+      if (trend.wave_highlight) w += `(${trend.wave_highlight})`;
+      waves.push(w);
+    }
+
+    if (waves.length === 0) return '';
+    return [...new Set(waves)].join('|');
+  }
 
   function applyFilters(data, type, sub) {
     if (!data) return [];
@@ -1309,20 +1349,31 @@
                             <div class="tf-row">
                               <span class="tf-name">{tf}:</span>
                               <div class="tf-steps">
-                                {#each MARKET_SESSIONS as session, i}
-                                  {@const trend = trendData[session.value]?.trends?.[tf]}
-                                  <span class="mini-step {trend?.direction || 'na'}">
-                                    {session.label}
-                                    {trend?.direction === 'long'
-                                      ? '多'
-                                      : trend?.direction === 'short'
-                                        ? '空'
-                                        : 'NA'}
-                                  </span>
-                                  {#if i < MARKET_SESSIONS.length - 1}
-                                    <span class="step-arrow">=></span>
-                                  {/if}
-                                {/each}
+                                  {#each MARKET_SESSIONS as session, i}
+                                    {@const trend = trendData[session.value]?.trends?.[tf]}
+                                    <span class="mini-step {trend?.direction || 'na'}">
+                                      {session.label}
+                                      {trend?.direction === 'long'
+                                        ? '多'
+                                        : trend?.direction === 'short'
+                                          ? '空'
+                                          : 'NA'}
+                                      
+                                      {#if trend}
+                                        {@const signals = formatSignalsSummary(trend)}
+                                        {@const waves = formatWaveSummary(trend)}
+                                        {#if signals || waves}
+                                          <span class="step-details">
+                                            {#if signals}<span class="s-text">{signals}</span>{/if}
+                                            {#if waves}<span class="w-text">{waves}</span>{/if}
+                                          </span>
+                                        {/if}
+                                      {/if}
+                                    </span>
+                                    {#if i < MARKET_SESSIONS.length - 1}
+                                      <span class="step-arrow">=></span>
+                                    {/if}
+                                  {/each}
                               </div>
                             </div>
                           {/if}
@@ -2300,6 +2351,31 @@
   .mini-step.short {
     background: #f0fdf4;
     color: #166534;
+  }
+
+  .step-details {
+    display: inline-flex;
+    gap: 3px;
+    margin-left: 4px;
+    font-size: 0.6rem;
+    vertical-align: middle;
+    align-items: center;
+  }
+  .s-text {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    font-weight: 700;
+  }
+  .w-text {
+    background: rgba(245, 158, 11, 0.1);
+    color: #f59e0b;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    font-weight: 700;
   }
 
   .mini-notes {

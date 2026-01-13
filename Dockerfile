@@ -15,8 +15,8 @@ WORKDIR /app/backend
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.go
 
 # Stage 3: Final Production Image
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates sqlite-libs bash curl wget
+FROM alpine:3.20
+RUN apk update && apk --no-cache add ca-certificates sqlite-libs bash curl wget
 
 # 下載 MinIO
 RUN wget https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio && \

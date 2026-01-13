@@ -399,9 +399,7 @@
           formDataToUpload.append('symbol', formData.symbol || 'plan');
 
           // 上傳並取得 URL
-          const response = await import('../lib/api').then(m =>
-            m.imagesAPI.upload(formDataToUpload)
-          );
+          const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path; // 後端回傳的路徑
 
           const trends = currentTrends[timeframe];

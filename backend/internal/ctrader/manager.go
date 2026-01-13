@@ -524,11 +524,21 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 		var initialSL sql.NullFloat64
 		var entryTime sql.NullTime
 		var existingSeries sql.NullString
+		var tradeID int64
+		var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, notes sql.NullString
+		var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
 
-		// Try to preserve original entry time and SL from the open position record
-		// MUST use Null types to avoid scan errors if fields are NULL
-		err := m.db.QueryRow("SELECT initial_sl, entry_time, pnl_series FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)",
-			accountID, posTicket, legacyTicket).Scan(&initialSL, &entryTime, &existingSeries)
+		// Try to preserve original entry time, SL and ALL strategy/analysis fields
+		err := m.db.QueryRow(`SELECT id, initial_sl, entry_time, pnl_series, journal, entry_reason, entry_strategy, 
+			entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, 
+			trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
+			legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf
+			FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`,
+			accountID, posTicket, legacyTicket).Scan(
+			&tradeID, &initialSL, &entryTime, &existingSeries, &journal, &entryReason, &entryStrategy,
+			&entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern,
+			&trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &notes,
+			&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF)
 
 		// Priority: 1. API OpenTimestamp, 2. DB preserved time, 3. ExecTime (last resort)
 		finalEntryTime := execTime
@@ -552,12 +562,30 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 		m.db.QueryRow("SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND ticket = ?)", accountID, ticket).Scan(&exists)
 		if !exists {
 			seriesVal := existingSeries.String
-			_, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", "cTrader Push: Closed Position", ticket, initialSL.Float64, deal.ExecutionPrice, seriesVal)
+			// Use preserved notes if available, otherwise use default
+			finalNotes := notes.String
+			if finalNotes == "" || finalNotes == "cTrader Push: Initial Sync" {
+				finalNotes = "cTrader Push: Closed Position"
+			}
+
+			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", finalNotes, ticket, initialSL, deal.ExecutionPrice, seriesVal, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF)
+
 			if err != nil {
 				log.Printf("[cTrader Manager] Failed to insert Push Closed trade: %v", err)
 			} else {
+				newID, _ := res.LastInsertId()
+				if tradeID > 0 && newID > 0 {
+					log.Printf("[cTrader Manager] Migrating associations from %d to %d", tradeID, newID)
+					// Copy images
+					m.db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, tradeID)
+					// Copy tags
+					m.db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, tradeID)
+				}
+
+				m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
+
 				log.Printf("[cTrader Manager] Successfully inserted Push Closed trade: %s", ticket)
 				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 
