@@ -50,7 +50,16 @@
                               <div class="info-row"><span class="icon">✨</span>{trend.long.expected_signals.map(s => s.name).join(', ')}</div>
                             {/if}
                             {#if trend.long?.has_wave && trend.long.wave_numbers?.length > 0}
-                              <div class="info-row wave"><span class="icon">🌊</span>{trend.long.wave_numbers.map(n => n.toString() === trend.long.wave_highlight?.toString() ? `[${n}]` : n).join('')}</div>
+                              <div class="info-row wave">
+                                <span class="icon">🌊</span>
+                                {trend.long.wave_numbers.map((n, i) => {
+                                  const isHighlight = n.toString() === trend.long.wave_highlight?.toString();
+                                  if (isHighlight) {
+                                    return (i > 0 ? ' => ' : '') + `[${n}]`;
+                                  }
+                                  return n;
+                                }).join('')}
+                              </div>
                             {/if}
                           </div>
                           <div class="side-panel short">
@@ -61,7 +70,16 @@
                               <div class="info-row"><span class="icon">✨</span>{trend.short.expected_signals.map(s => s.name).join(', ')}</div>
                             {/if}
                             {#if trend.short?.has_wave && trend.short.wave_numbers?.length > 0}
-                              <div class="info-row wave"><span class="icon">🌊</span>{trend.short.wave_numbers.map(n => n.toString() === trend.short.wave_highlight?.toString() ? `[${n}]` : n).join('')}</div>
+                              <div class="info-row wave">
+                                <span class="icon">🌊</span>
+                                {trend.short.wave_numbers.map((n, i) => {
+                                  const isHighlight = n.toString() === trend.short.wave_highlight?.toString();
+                                  if (isHighlight) {
+                                    return (i > 0 ? ' => ' : '') + `[${n}]`;
+                                  }
+                                  return n;
+                                }).join('')}
+                              </div>
                             {/if}
                           </div>
                         </div>
@@ -76,7 +94,16 @@
                             <div class="info-row"><span class="tag expected">預</span>{analysis.expected_signals.map(s => s.name).join(', ')}</div>
                           {/if}
                           {#if analysis.has_wave && analysis.wave_numbers?.length > 0}
-                            <div class="info-row wave"><span class="tag wave-tag">波</span>{analysis.wave_numbers.map(n => n.toString() === analysis.wave_highlight?.toString() ? `[${n}]` : n).join('')}</div>
+                            <div class="info-row wave">
+                              <span class="tag wave-tag">波</span>
+                              {analysis.wave_numbers.map((n, i) => {
+                                const isHighlight = n.toString() === analysis.wave_highlight?.toString();
+                                if (isHighlight) {
+                                  return (i > 0 ? ' => ' : '') + `[${n}]`;
+                                }
+                                return n;
+                              }).join('')}
+                            </div>
                           {/if}
                         </div>
                       {/if}

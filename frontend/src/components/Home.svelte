@@ -157,8 +157,13 @@
       if (!dirData?.wave_numbers?.length) return '';
       const nums = dirData.wave_numbers;
       const highlight = dirData.wave_highlight;
-      // 假如是重點在4 5不是重點 => (4)5 
-      return nums.map(n => n.toString() === highlight?.toString() ? `(${n})` : n).join('');
+      return nums.map((n, i) => {
+        const isHighlight = n.toString() === highlight?.toString();
+        if (isHighlight) {
+          return (i > 0 ? ' => ' : '') + `[${n}]`;
+        }
+        return n;
+      }).join('');
     };
 
     let waves = [];
@@ -173,7 +178,13 @@
     
     // 舊格式
     if (waves.length === 0 && trend.wave_numbers?.length > 0) {
-      const w = trend.wave_numbers.map(n => n.toString() === trend.wave_highlight?.toString() ? `(${n})` : n).join('');
+      const w = trend.wave_numbers.map((n, i) => {
+        const isHighlight = n.toString() === trend.wave_highlight?.toString();
+        if (isHighlight) {
+          return (i > 0 ? ' => ' : '') + `[${n}]`;
+        }
+        return n;
+      }).join('');
       waves.push(w);
     }
 
