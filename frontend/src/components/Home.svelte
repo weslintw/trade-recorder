@@ -123,6 +123,7 @@
 
   function formatSignalsSummary(trend) {
     if (!trend) return '';
+    let signals = [];
     // 檢查是否有方向性的訊號 (優先看是否有勾選 has_signals/has_expected_signals)
     if (trend.long) {
       if (trend.long.has_signals && trend.long.signals?.length > 0) {
