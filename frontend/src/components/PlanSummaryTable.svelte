@@ -107,19 +107,21 @@
     border: 1px solid var(--border-color, #e2e8f0);
     padding: 4px;
     text-align: center;
-    vertical-align: top;
+    vertical-align: middle; /* Changed from top to middle */
   }
 
   .plan-summary-table th {
     background: #f8fafc;
     color: #64748b;
     font-weight: 800;
+    font-size: 0.85rem; /* Increased from default */
   }
 
   .session-header {
     font-weight: 800;
     width: 24px;
     background: #f8fafc;
+    font-size: 0.85rem; /* Increased */
   }
   .session-header.asian { color: #3b82f6; }
   .session-header.european { color: #d97706; }
