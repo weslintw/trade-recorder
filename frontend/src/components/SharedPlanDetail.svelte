@@ -1,6 +1,7 @@
 <script>
   export let plan;
   export let openModal = () => {};
+  import PlanSummaryTable from './PlanSummaryTable.svelte';
 
   function parseJSON(str, defaultValue = null) {
     if (!str) return defaultValue;
@@ -138,12 +139,12 @@
     </div>
   </div>
 
-  {#if plan.notes && plan.notes !== 'Session-based unified plan'}
-    <div class="section-box">
-      <h3>📝 總體規劃備註</h3>
-      <div class="notes-content ql-editor">{@html lazyLoadHTML(plan.notes)}</div>
-    </div>
   {/if}
+
+  <div class="summary-overview-box section-box">
+    <h3>📊 全時段規劃總覽</h3>
+    <PlanSummaryTable {trendAnalysis} detailed={true} />
+  </div>
 
   <!-- 市場時段分頁 (貼合編輯頁樣式) -->
   <div class="market-session-tabs-container">
@@ -691,5 +692,17 @@
     .market-session-tabs {
       flex-direction: column;
     }
+  }
+  .summary-overview-box {
+    margin-bottom: 2rem;
+    padding: 1.25rem;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px dashed #cbd5e1;
+  }
+
+  :global(body.dark-mode) .summary-overview-box {
+    background: #1e293b;
+    border-color: #475569;
   }
 </style>

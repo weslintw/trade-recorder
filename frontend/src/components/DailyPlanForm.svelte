@@ -7,6 +7,7 @@
   import ImageAnnotator from './ImageAnnotator.svelte';
   import PlanSelectionModal from './PlanSelectionModal.svelte';
   import ShareModal from './ShareModal.svelte';
+  import PlanSummaryTable from './PlanSummaryTable.svelte';
 
   import { determineMarketSession } from '../lib/utils';
 
@@ -872,6 +873,11 @@
             rows="3"
             placeholder="今日盤面重點、注意事項..."
           ></textarea>
+          
+          <div class="quick-overview-section">
+            <div class="section-title">📊 快速總覽 (全時段)</div>
+            <PlanSummaryTable trendData={formData.sessions} detailed={true} />
+          </div>
         </div>
       </div>
 
@@ -1783,6 +1789,33 @@
     textarea.form-control {
       resize: vertical;
       font-family: inherit;
+    }
+
+    .quick-overview-section {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px dashed #cbd5e1;
+    }
+
+    .quick-overview-section .section-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #475569;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    :global(body.dark-mode) .quick-overview-section {
+      background: #1e293b;
+      border-color: #475569;
+    }
+
+    :global(body.dark-mode) .quick-overview-section .section-title {
+      color: #94a3b8;
     }
 
     .trend-image-placeholderSmall {
