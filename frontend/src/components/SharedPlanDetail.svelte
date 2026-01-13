@@ -148,7 +148,7 @@
 
   <div class="summary-overview-box section-box">
     <h3>📊 全時段規劃總覽</h3>
-    <PlanSummaryTable {trendAnalysis} detailed={true} />
+    <PlanSummaryTable trendData={trendAnalysis} detailed={true} />
   </div>
 
   <!-- 市場時段分頁 (貼合編輯頁樣式) -->

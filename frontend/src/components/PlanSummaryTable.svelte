@@ -117,11 +117,15 @@
     font-size: 0.85rem; /* Increased from default */
   }
 
+  .plan-summary-table th:first-child {
+    width: 32px;
+  }
+
   .session-header {
     font-weight: 800;
-    width: 24px;
+    width: 32px;
     background: #f8fafc;
-    font-size: 0.85rem; /* Increased */
+    font-size: 0.85rem;
   }
   .session-header.asian { color: #3b82f6; }
   .session-header.european { color: #d97706; }
