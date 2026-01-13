@@ -550,8 +550,6 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 			log.Printf("[cTrader Manager] Warning: Could not find original entry time for closing position %d (err: %v), using exit time", deal.PositionID, err)
 		}
 
-		m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
-
 		side := "long"
 		if deal.TradeSide == 1 { // Closing Buy(1) means original was Short
 			side = "short"
@@ -584,33 +582,17 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 					m.db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, tradeID)
 				}
 
+				// Move DELETE here to ensure associations are migrated first
 				m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
 
 				log.Printf("[cTrader Manager] Successfully inserted Push Closed trade: %s", ticket)
 				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 
-				// TRIGGER IMMEDIATE SPARKLINE SYNC FOR CLOSED TRADE
-				go func(tStr string, accID int64, ent float64, startMilli, endMilli int64, sid int64, sStr string, v int64) {
-					time.Sleep(3 * time.Second) // Wait for server to finalize candle data
-					m.mu.RLock()
-					ac, ok := m.connections[accID]
-					m.mu.RUnlock()
-					if ok && ac != nil {
-						sInt := 1
-						if sStr == "short" {
-							sInt = 2
-						}
-						digits := 2
-						if d, ok := m.symbolDigitsMap.Load(sid); ok {
-							digits = d.(int)
-						}
-
-						newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, startMilli, endMilli, ent, v, sInt, digits)
-						if newSeriesStr != "" {
-							m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
-						}
-					}
-				}(ticket, accountID, deal.ClosePositionDetail.EntryPrice, finalEntryTime.UnixMilli(), deal.ExecutionTimestamp, deal.SymbolID, side, deal.Volume)
+				// TRIGGER FULL MANUAL SYNC AFTER SEVERAL SECONDS (as requested by user)
+				go func(tStr string, accID int64) {
+					time.Sleep(5 * time.Second)
+					m.ManualSyncTrade(accID, tStr)
+				}(ticket, accountID)
 			}
 		}
 	} else {

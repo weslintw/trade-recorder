@@ -647,13 +647,31 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			}
 			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
 
-			_, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
+			// Check for existing open position record to migrate images/tags
+			posTicket := fmt.Sprintf("ctrader-pos-%d", d.PositionID)
+			legacyTicket := fmt.Sprintf("ctrader-%d", d.PositionID)
+			var oldTradeID int64
+			db.QueryRow("SELECT id FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket).Scan(&oldTradeID)
+
+			res, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries)
+
 			if err != nil {
 				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
 			} else {
 				insertedCount++
+				newID, _ := res.LastInsertId()
+
+				if oldTradeID > 0 && newID > 0 {
+					log.Printf("[cTrader Sync] Migrating associations from %d to %d (Position %d)", oldTradeID, newID, d.PositionID)
+					// Copy images
+					db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, oldTradeID)
+					// Copy tags
+					db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, oldTradeID)
+					// Delete old record
+					db.Exec("DELETE FROM trades WHERE id = ?", oldTradeID)
+				}
 			}
 		}
 	}
