@@ -793,7 +793,7 @@
               type="button"
               class="btn btn-outline-info"
               on:click={copyLastPlan}
-              title="銴ˊ銝?蝑????批捆嚗??嚗?
+              title="複製上一筆規劃紀錄"
             >
               ?? 銴ˊ銝活閬?
             </button>
@@ -960,7 +960,7 @@
                         >
                           <img
                             src={getImageUrl(currentTrends[timeframe][dir].signals_image)}
-                            alt="{timeframe} 撌脫?蝡?鈭箄???
+                            alt="{timeframe} 已建立訊號圖"
                             style="pointer-events: none;"
                           />
                           <button
@@ -1111,7 +1111,7 @@
                           on:click|stopPropagation={() =>
                             enlargeImage(
                               currentTrends[timeframe][dir].wave_image,
-                              `${timeframe} ${dir === 'long' ? '憭' : '蝛粹'} 瘜Ｘ答?,
+                              `${timeframe} ${dir === 'long' ? '多' : '空'} 波浪圖`,
                               {
                                 type: 'wave',
                                 key: timeframe,
