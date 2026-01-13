@@ -56,9 +56,9 @@
       )
         return true;
       return (
-        (t.signals && t.signals.length > 0) ||
-        (t.expected_signals && t.expected_signals.length > 0) ||
-        (t.wave_numbers && t.wave_numbers.length > 0)
+        (t.has_signals && t.signals && t.signals.length > 0) ||
+        (t.has_expected_signals && t.expected_signals && t.expected_signals.length > 0) ||
+        (t.has_wave && t.wave_numbers && t.wave_numbers.length > 0)
       );
     });
   }
@@ -215,8 +215,8 @@
               >
                 <div class="dir-header">{dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}</div>
 
-                <!-- 已成立達人訊號 -->
-                {#if analysis.has_signals}
+                <!-- 已成立達人訊號 (優先 respect has_signals) -->
+                {#if analysis.has_signals || (analysis.has_signals === undefined && analysis.signals?.length > 0)}
                   <div class="analysis-section">
                     <div class="section-title">✔️ 已成立的達人訊號</div>
                     <div class="signal-chips">
@@ -243,8 +243,8 @@
                   </div>
                 {/if}
 
-                <!-- 預期產生達人訊號 -->
-                {#if analysis.has_expected_signals || (analysis.expected_signals && analysis.expected_signals.length > 0)}
+                <!-- 預期產生達人訊號 (優先 respect has_expected_signals) -->
+                {#if analysis.has_expected_signals || (analysis.has_expected_signals === undefined && analysis.expected_signals?.length > 0)}
                   <div class="analysis-section expected">
                     <div class="section-title">✨ 預期產生的達人訊號</div>
                     <div class="signal-chips">
@@ -275,8 +275,8 @@
                   </div>
                 {/if}
 
-                <!-- 波浪浪數 -->
-                {#if analysis.has_wave}
+                <!-- 波浪浪數 (優先 respect has_wave) -->
+                {#if analysis.has_wave || (analysis.has_wave === undefined && analysis.wave_numbers?.length > 0)}
                   <div class="analysis-section">
                     <div class="section-title">✔️ 波浪浪數</div>
                     <div class="wave-numbers">

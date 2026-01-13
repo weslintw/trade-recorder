@@ -328,13 +328,25 @@
               // 若 directions 為空，我們可能需要一個『通用』顯示區塊，或者引導使用者選方向。
             }
 
-            // 更新標籤
-            if (t.long.signals?.length > 0 || t.long.signals_image) t.long.has_signals = true;
-            if (t.long.expected_signals?.length > 0) t.long.has_expected_signals = true;
-            if (t.long.wave_numbers?.length > 0 || t.long.wave_image) t.long.has_wave = true;
-            if (t.short.signals?.length > 0 || t.short.signals_image) t.short.has_signals = true;
-            if (t.short.expected_signals?.length > 0) t.short.has_expected_signals = true;
-            if (t.short.wave_numbers?.length > 0 || t.short.wave_image) t.short.has_wave = true;
+            // 更新標籤 (優先尊重資料庫中的 boolean 值，若為 undefined 才依據資料內容推斷)
+            if (t.long.has_signals === undefined || t.long.has_signals === null) {
+              t.long.has_signals = t.long.signals?.length > 0 || !!t.long.signals_image;
+            }
+            if (t.long.has_expected_signals === undefined || t.long.has_expected_signals === null) {
+              t.long.has_expected_signals = t.long.expected_signals?.length > 0;
+            }
+            if (t.long.has_wave === undefined || t.long.has_wave === null) {
+              t.long.has_wave = t.long.wave_numbers?.length > 0 || !!t.long.wave_image;
+            }
+            if (t.short.has_signals === undefined || t.short.has_signals === null) {
+              t.short.has_signals = t.short.signals?.length > 0 || !!t.short.signals_image;
+            }
+            if (t.short.has_expected_signals === undefined || t.short.has_expected_signals === null) {
+              t.short.has_expected_signals = t.short.expected_signals?.length > 0;
+            }
+            if (t.short.has_wave === undefined || t.short.has_wave === null) {
+              t.short.has_wave = t.short.wave_numbers?.length > 0 || !!t.short.wave_image;
+            }
           });
         }
       });

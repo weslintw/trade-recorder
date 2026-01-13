@@ -123,12 +123,23 @@
 
   function formatSignalsSummary(trend) {
     if (!trend) return '';
-    let signals = [];
-    // 檢查是否有方向性的訊號
-    if (trend.long?.signals?.length > 0) signals.push(...trend.long.signals);
-    if (trend.long?.expected_signals?.length > 0) signals.push(...trend.long.expected_signals.map(s => s.name));
-    if (trend.short?.signals?.length > 0) signals.push(...trend.short.signals);
-    if (trend.short?.expected_signals?.length > 0) signals.push(...trend.short.expected_signals.map(s => s.name));
+    // 檢查是否有方向性的訊號 (優先看是否有勾選 has_signals/has_expected_signals)
+    if (trend.long) {
+      if (trend.long.has_signals && trend.long.signals?.length > 0) {
+        signals.push(...trend.long.signals);
+      }
+      if (trend.long.has_expected_signals && trend.long.expected_signals?.length > 0) {
+        signals.push(...trend.long.expected_signals.map(s => s.name));
+      }
+    }
+    if (trend.short) {
+      if (trend.short.has_signals && trend.short.signals?.length > 0) {
+        signals.push(...trend.short.signals);
+      }
+      if (trend.short.has_expected_signals && trend.short.expected_signals?.length > 0) {
+        signals.push(...trend.short.expected_signals.map(s => s.name));
+      }
+    }
     
     // 如果是舊格式，訊號可能在頂層
     if (trend.signals?.length > 0) signals.push(...trend.signals);
@@ -149,13 +160,13 @@
     };
 
     let waves = [];
-    if (trend.long) {
+    if (trend.long && trend.long.has_wave) {
       const w = formatDir(trend.long);
-      if (w) waves.push(w);
+      if (w) waves.push(trend.short?.has_wave ? `多:${w}` : w);
     }
-    if (trend.short) {
+    if (trend.short && trend.short.has_wave) {
       const w = formatDir(trend.short);
-      if (w) waves.push(w);
+      if (w) waves.push(trend.long?.has_wave ? `空:${w}` : w);
     }
     
     // 舊格式
@@ -165,7 +176,7 @@
     }
 
     if (waves.length === 0) return '';
-    return [...new Set(waves)].join('|');
+    return [...new Set(waves)].join(' | ');
   }
 
   function applyFilters(data, type, sub) {
@@ -194,15 +205,15 @@
                 if (!dData) continue;
 
                 if (type === 'expert' || type === 'all') {
-                  const signals = dData.signals || [];
-                  const expected = dData.expected_signals || [];
+                  const signals = dData.has_signals ? (dData.signals || []) : [];
+                  const expected = dData.has_expected_signals ? (dData.expected_signals || []) : [];
 
                   if (!sub) {
                     // 如果沒選子項目，只要是達人有訊號就顯示
                     if (signals.length > 0 || expected.length > 0) return true;
                   } else {
-                    if (signals.includes(sub)) return true;
-                    if (expected.some(s => s.name === sub)) return true;
+                    if (dData.has_signals && signals.includes(sub)) return true;
+                    if (dData.has_expected_signals && expected.some(s => s.name === sub)) return true;
                   }
                 }
               }
@@ -1364,7 +1375,9 @@
                                           ? '多'
                                           : trend?.direction === 'short'
                                             ? '空'
-                                            : 'NA'}
+                                            : trend?.direction === 'both'
+                                              ? '整'
+                                              : 'NA'}
                                       </span>
                                       
                                       {#if trend}
