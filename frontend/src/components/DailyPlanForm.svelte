@@ -1,4 +1,4 @@
-﻿<script>
+<script>
   import { onMount } from 'svelte';
   import { navigate } from 'svelte-routing';
   import { dailyPlansAPI, imagesAPI } from '../lib/api';
@@ -16,12 +16,12 @@
   let activeSession = determineMarketSession(new Date()); // 預設為當前市場時段
   let loading = false;
 
-  // 銴ˊ閬??賊????
+  // 複製規劃相關狀態
   let showPlanSelectionModal = false;
   let plansToSelect = [];
   let showShareModal = false;
 
-  // 雿輻敺?constants 撘????
+  // 使用從 constants 引入的時限
   const timeframes = TIMEFRAMES;
 
   function createDirectionData() {
@@ -40,17 +40,17 @@
     };
   }
 
-  // ?????畾萇?蝯?
+  // 初始化單個時段的結構
   function createInitialSessionData() {
     const trends = {};
     timeframes.forEach(tf => {
       trends[tf] = {
-        directions: [], // ?舀?憭??
+        directions: [], // 支持多個方向
         long: createDirectionData(),
         short: createDirectionData(),
         image: '',
         originalImage: '',
-        // ?箔????澆捆嚗???甈??迂雿蜓閬蝙?其?餈啁?瑽?
+        // 為了向後兼容，保留舊欄位名稱但主要使用上述結構
       };
     });
     return {
@@ -72,7 +72,7 @@
     },
   };
 
-  // 敹急?脣??嗅???鞈?
+  // 快捷獲取當前分頁資料
   $: currentSessionData = formData.sessions[activeSession];
   $: currentTrends = currentSessionData.trends;
   onMount(() => {
@@ -86,36 +86,36 @@
     if (symbolParam) formData.symbol = symbolParam;
   });
 
-  // ?犖閮??賊?
+  // 達人訊號選項
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
 
-  // ?券閮?皜
+  // 全部訊號清單
   const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
 
-  // 瘜Ｘ答?詨??賊?
+  // 波浪數字選項
   const waveNumbers = ['1', '2', '3', '4', '5'];
 
-  // ?????????
+  // 切換時區的訊號選擇
   function toggleTimeframeSignal(timeframe, direction, signalName) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const signals = target.signals || [];
     const index = signals.indexOf(signalName);
 
     if (index >= 0) {
-      // ???豢?
+      // 取消選擇
       target.signals = signals.filter((_, i) => i !== index);
     } else {
-      // ?啣??豢?
+      // 新增選擇
       target.signals = [...signals, signalName];
     }
 
-    // 撘瑕閫貊 Svelte ?踵?撘??
+    // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
-  // ????閮?
+  // 切換預期訊號
   function toggleExpectedSignal(timeframe, direction, signalName) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     if (!target.expected_signals) target.expected_signals = [];
@@ -123,52 +123,52 @@
     const index = target.expected_signals.findIndex(s => s.name === signalName);
 
     if (index >= 0) {
-      // ???豢?
+      // 取消選擇
       target.expected_signals = target.expected_signals.filter((_, i) => i !== index);
     } else {
-      // ?啣??豢?
+      // 新增選擇
       target.expected_signals = [
         ...target.expected_signals,
         { name: signalName, image: '', originalImage: '' },
       ];
     }
 
-    // 撘瑕閫貊 Svelte ?踵?撘??
+    // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
-  // 瑼Ｘ??閮??臬鋡恍銝?
+  // 檢查預期訊號是否被選中
   function isExpectedSignalSelected(timeframe, direction, signalName) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const signals = target.expected_signals || [];
     return signals.some(s => s.name === signalName);
   }
 
-  // 瑼Ｘ??閮??臬鋡恍銝?
+  // 檢查時區訊號是否被選中
   function isTimeframeSignalSelected(timeframe, direction, signalName) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const signals = target.signals || [];
     return signals.includes(signalName);
   }
 
-  // 暺?瘜Ｘ答?詨?
+  // 點擊波浪數字
   function clickWaveNumber(timeframe, direction, number) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const selectedNumbers = target.wave_numbers || [];
     const currentHighlight = target.wave_highlight || '';
 
-    // 憒??摮歇蝬◤?訾葉
+    // 如果這個數字已經被選中
     if (selectedNumbers.includes(number)) {
-      // 憒??舐??莎??芷?鈭殷?嚗????莎?擃漁嚗?
+      // 如果是綠色（未高亮），變成紅色（高亮）
       if (currentHighlight !== number) {
         target.wave_highlight = number;
       } else {
-        // 憒?撌脩??舐??莎?霈?蝬
+        // 如果已經是紅色，變回綠色
         target.wave_highlight = '';
       }
     } else {
-      // ?詨??芾◤?訾葉嚗?閰阡銝?
+      // 數字未被選中，嘗試選中
       if (selectedNumbers.length === 0) {
         target.wave_numbers = [number];
         target.wave_highlight = '';
@@ -186,16 +186,16 @@
       }
     }
 
-    // 撘瑕閫貊 Svelte ?踵?撘??
+    // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
-  // ??頞典?孵? (憭?蝛??渡? 銝銝)嚗?甈⊿??詨??
+  // 切換趨勢方向 (多/空/整理 三選一)，再次點選可取消
   function toggleTrendDirection(timeframe, selection) {
     const directions = currentTrends[timeframe].directions || [];
 
-    // ?斗?桀????
+    // 判斷目前狀態
     const isLong = directions.length === 1 && directions[0] === 'long';
     const isShort = directions.length === 1 && directions[0] === 'short';
     const isNeutral =
@@ -206,19 +206,19 @@
     let newDirections = [];
 
     if (selection === 'long') {
-      // 憒??桀?撠望蝝??哨???瘨??血?閮剔蝝???
+      // 如果目前就是純多頭，則取消；否則設為純多頭
       newDirections = isLong ? [] : ['long'];
     } else if (selection === 'short') {
-      // 憒??桀?撠望蝝征?哨???瘨??血?閮剔蝝征??
+      // 如果目前就是純空頭，則取消；否則設為純空頭
       newDirections = isShort ? [] : ['short'];
     } else if (selection === 'neutral') {
-      // 憒??桀?撠望?渡?(??)嚗???嚗?身?箸????)
+      // 如果目前就是整理(雙向)，則取消；否則設為整理(雙向)
       newDirections = isNeutral ? [] : ['long', 'short'];
     }
 
     currentTrends[timeframe].directions = newDirections;
 
-    // ???澆捆嚗???????銋?啗???direction 甈?
+    // 向後兼容：如果只有一個方向，也更新舊的 direction 欄位
     if (newDirections.length === 1) {
       currentTrends[timeframe].direction = newDirections[0];
     } else if (newDirections.length === 0) {
@@ -227,12 +227,12 @@
       currentTrends[timeframe].direction = 'both';
     }
 
-    // 撘瑕閫貊 Svelte ?踵?撘??
+    // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
-  // 瑼Ｘ瘜Ｘ答?詨??臬鋡恍銝哨?蝬嚗?
+  // 檢查波浪數字是否被選中（綠色）
   function isWaveNumberSelected(timeframe, direction, number) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const selectedNumbers = target?.wave_numbers || [];
@@ -241,24 +241,24 @@
     );
   }
 
-  // 瑼Ｘ瘜Ｘ答?詨??臬鋡恍?鈭殷?蝝嚗?
+  // 檢查波浪數字是否被高亮（紅色）
   function isWaveNumberHighlighted(timeframe, direction, number) {
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const highlight = target?.wave_highlight;
     return highlight === number.toString() || highlight === parseInt(number);
   }
 
-  // ???曉之?賊?
+  // 圖片放大相關
   let enlargedImage = null;
   let enlargedImageTitle = '';
   let enlargedImageContext = null;
   let enlargedOriginalImage = null;
   let showAnnotator = false;
 
-  // ?冽撘瑕?皜脫?瘜Ｘ答?????霈?
+  // 用於強制重新渲染波浪按鈕的響應式變量
   let waveButtonKey = 0;
 
-  // 頛閬?嚗??蝺刻摩璅∪?嚗?
+  // 載入規劃（如果是編輯模式）
   if (id) {
     loadPlan();
   }
@@ -274,10 +274,10 @@
       formData.symbol = data.symbol || SYMBOLS[0];
 
       if (trendAnalysis && trendAnalysis.asian) {
-        // ?唳撘????畾?
+        // 新格式：包含各時段
         formData.sessions = trendAnalysis;
       } else if (trendAnalysis) {
-        // ?撘??瑞宏?喟??market_session
+        // 舊格式：遷移至當前 market_session
         const session = data.market_session || 'asian';
         formData.sessions[session] = {
           notes: data.notes || '',
@@ -285,7 +285,7 @@
         };
       }
 
-      // 瑼Ｘ銝西?頞唾???瑽?(?冽?詨捆?????唳撘?
+      // 檢查並補足資料結構 (用於相容舊資料與新格式)
       Object.keys(formData.sessions).forEach(s => {
         const sess = formData.sessions[s];
         if (sess && sess.trends) {
@@ -293,7 +293,7 @@
             const t = sess.trends[tf];
             if (!t) return;
 
-            // ???甈?
+            // 初始化新欄位
             if (!t.directions) {
               t.directions = t.direction
                 ? t.direction === 'both'
@@ -304,12 +304,12 @@
             if (!t.long) t.long = createDirectionData();
             if (!t.short) t.short = createDirectionData();
 
-            // ?瑞宏??? long ??short 銝?(憒????? direction)
+            // 遷移舊資料到 long 或 short 下 (如果舊資料有 direction)
             if (t.direction && t.direction !== 'both') {
-              const dir = t.direction; // 'long' ??'short'
+              const dir = t.direction; // 'long' 或 'short'
               const target = t[dir];
 
-              // 憒? target ?桀??舐征???蝘駁?靘?
+              // 如果 target 目前是空的，則遷移過來
               if (target.signals.length === 0 && !target.signals_image) {
                 target.signals = t.signals || [];
                 target.has_signals = t.has_signals || false;
@@ -324,12 +324,12 @@
                 target.wave_originalImage = t.wave_originalImage || '';
               }
             } else if (!t.direction && (t.signals?.length > 0 || t.wave_numbers?.length > 0)) {
-              // 憒?瘝??孵?雿?鞈?嚗銝??long ????惜嚗?
-              // ?箔??澆捆?改?UI ? directions ?潭?憿舐內撠??憛?
-              // ??directions ?箇征嚗???賡?閬???＊蝷箏?憛???撠蝙?刻?孵???
+              // 如果沒有方向但有資料，暫且放到 long 或者保持在頂層？
+              // 為了兼容性，UI 會在 directions 有值時顯示對應區塊。
+              // 若 directions 為空，我們可能需要一個『通用』顯示區塊，或者引導使用者選方向。
             }
 
-            // ?湔璅惜 (?芸?撠?鞈?摨思葉??boolean ?潘??亦 undefined ?????摰寞??
+            // 更新標籤 (優先尊重資料庫中的 boolean 值，若為 undefined 才依據資料內容推斷)
             if (t.long.has_signals === undefined || t.long.has_signals === null) {
               t.long.has_signals = t.long.signals?.length > 0 || !!t.long.signals_image;
             }
@@ -353,6 +353,7 @@
       });
       formData = formData;
     } catch (error) {
+      console.error('載入規劃失敗:', error);
       alert('載入規劃資料失敗');
     } finally {
       loading = false;
@@ -365,7 +366,7 @@
         account_id: $selectedAccountId,
         plan_date: new Date(formData.plan_date).toISOString(),
         symbol: formData.symbol,
-        market_session: 'all', // 璅??箸?撘?
+        market_session: 'all', // 標記為整合格式
         notes: 'Session-based unified plan',
         trend_analysis: JSON.stringify(formData.sessions),
       };
@@ -376,7 +377,7 @@
       } else {
         const response = await dailyPlansAPI.create(submitData);
         alert('規劃已建立');
-        // 憒? API ???單撱箇???ID嚗歲頧蝺刻摩?隞亦匱蝥楊頛?
+        // 如果 API 有回傳新建立的 ID，跳轉到編輯頁面以繼續編輯
         if (response.data && response.data.id) {
           navigate(`/plans/edit/${response.data.id}`, { replace: true });
         } else {
@@ -384,12 +385,13 @@
         }
       }
     } catch (error) {
+      console.error('保存失敗:', error);
       const errorMessage = error.response?.data?.error || '保存規劃失敗';
       alert(errorMessage);
     }
   }
 
-  // ??頞典??鞎潔? (?芸????寧?湔銝隡箸??剁?銝?摮?Base64)
+  // 處理趨勢圖片貼上 (優化版：改為直接上傳伺服器，不再存 Base64)
   async function handleTrendImagePaste(
     event,
     timeframe,
@@ -409,14 +411,14 @@
           formDataToUpload.append('image', file);
           formDataToUpload.append('symbol', formData.symbol || 'plan');
 
-          // 銝銝血?敺?URL
+          // 上傳並取得 URL
           const response = await imagesAPI.upload(formDataToUpload);
-          const imageUrl = response.data.path; // 敺垢??楝敺?
+          const imageUrl = response.data.path; // 後端回傳的路徑
 
           const trends = currentTrends[timeframe];
           const target = direction ? trends[direction] : trends;
 
-          // ?寞? imageType 閮剔蔭銝?????雿?
+          // 根據 imageType 設置不同的圖片欄位
           if (imageType === 'signals') {
             target.signals_image = imageUrl;
             if (!target.signals_originalImage) {
@@ -444,10 +446,11 @@
             }
           }
 
-          // 撘瑕閫貊 Svelte ?踵?撘??
+          // 強制觸發 Svelte 響應式更新
           formData = formData;
           waveButtonKey++;
         } catch (error) {
+          console.error('圖片貼上上傳失敗:', error);
           alert('圖片處理失敗，請重試');
         }
         break;
@@ -455,7 +458,7 @@
     }
   }
 
-  // 蝘駁頞典??
+  // 移除趨勢圖片
   function removeTrendImage(timeframe, imageType = 'trend', direction = null, signalName = null) {
     const trends = currentTrends[timeframe];
     const target = direction ? trends[direction] : trends;
@@ -479,12 +482,12 @@
       trends.originalImage = '';
     }
 
-    // 撘瑕閫貊 Svelte ?踵?撘??
+    // 強制觸發 Svelte 響應式更新
     formData = formData;
     waveButtonKey++;
   }
 
-  // ?曉之??
+  // 放大圖片
   function enlargeImage(imageSrc, title, context = null) {
     if (!imageSrc) return;
     enlargedImage = imageSrc;
@@ -492,7 +495,7 @@
     enlargedImageContext = context;
     showAnnotator = false;
 
-    // ?脣?????
+    // 獲取原始圖片
     if (context) {
       const trends = currentTrends[context.key];
       const target = context.direction ? trends[context.direction] : trends;
@@ -514,7 +517,7 @@
     }
   }
 
-  // ???曉之??
+  // 關閉放大圖片
   function closeEnlargedImage() {
     enlargedImage = null;
     enlargedImageTitle = '';
@@ -522,16 +525,16 @@
     showAnnotator = false;
   }
 
-  // ??璅酉撌亙憿舐內
+  // 切換標註工具顯示
   function toggleAnnotator() {
     showAnnotator = !showAnnotator;
   }
 
-  // ??璅酉敺???
+  // 處理標註後的圖片
   async function handleAnnotatedImage(annotatedImageSrc) {
     try {
-      // 璅酉敺?????base64嚗????喳隡箸???(?萄儐 MinIO 閬?)
-      // 撠?base64 頧???Blob
+      // 標註後的圖片是 base64，必須上傳到伺服器 (遵循 MinIO 規則)
+      // 將 base64 轉換為 Blob
       const res = await fetch(annotatedImageSrc);
       const blob = await res.blob();
       const file = new File([blob], 'annotated_plan.png', { type: 'image/png' });
@@ -569,26 +572,27 @@
         }
       }
 
-      // 撘瑕閫貊 Svelte ?踵?撘??
+      // 強制觸發 Svelte 響應式更新
       formData = formData;
       waveButtonKey++;
 
-      // ?湔?桀?憿舐內???楝敺?
+      // 更新目前顯示的圖片路徑
       enlargedImage = serverPath;
-      showAnnotator = false; // 靽?敺????亦?璅∪?
+      showAnnotator = false; // 保存後切換回查看模式
     } catch (error) {
+      console.error('保存標註圖片失敗:', error);
       alert('無法儲存標註後的圖片，請稍後再試');
     }
   }
-  // 銴ˊ銝?甈∠?閬? (???詨)
+  // 複製上一次的規劃 (開啟選單)
   async function copyLastPlan() {
     try {
       const response = await dailyPlansAPI.getAll({
         page: 1,
-        page_size: 3, // ??餈? 3 蝑?雿輻?
-        account_id: formData.account_id, // 敹???撣唾?
-        symbol: formData.symbol, // 敹????車
-        sort: 'plan_date', // ?身敺垢?身撠望靘??摨?
+        page_size: 3, // 取最近的 3 筆讓使用者選
+        account_id: formData.account_id, // 必須指定帳號
+        symbol: formData.symbol, // 必須指定品種
+        sort: 'plan_date', // 假設後端預設就是依日期排序
         desc: true,
       });
 
@@ -599,31 +603,31 @@
         alert('找不到該帳號與品種過去的規劃紀錄。');
       }
     } catch (error) {
-      console.error('銴ˊ閬?憭望?:', error);
+      console.error('複製規劃失敗:', error);
       alert('無法取得上一筆規劃資料');
     }
   }
 
-  // ???詨蝣箄?敺???
+  // 處理選單確認後的動作
   function handlePlanSelection({ plan, sourceContent, targetSession, sourceSessionKey }) {
     if (plan && sourceContent && targetSession) {
       executeCopyPlan(plan, sourceContent, targetSession, sourceSessionKey);
     }
   }
 
-  // ?瑁?銴ˊ?摩
+  // 執行複製邏輯
   function executeCopyPlan(lastPlan, sourceContent, targetSession, sourceSessionKey) {
     if (sourceContent) {
-      // 瘛望鞎誑蝣箔???摮葡?航?鋆賜?嚗?撘
+      // 深拷貝以確保圖片字串是複製的，非引用
       const copiedData = JSON.parse(JSON.stringify(sourceContent));
 
-      // ?ㄐ??copiedData ?府?臬銝??Session ????瑽?{ notes:..., trends:... }
-      // ????撘?(sourceSessionKey === 'all')嚗?賣? trends ?之?拐辣
+      // 這裡的 copiedData 應該是單一個 Session 的資料結構 { notes:..., trends:... }
+      // 或者如果是舊格式 (sourceSessionKey === 'all')，可能是包含 trends 的大物件
 
       if (sourceSessionKey === 'all') {
-        // ?撘????岫???鞈?憛脩璅?session
-        // 憒?????瑽? { asian:..., european:... } ?瘜?亙?
-        // 雿???渲???{ notes:..., trends: { H1:..., H4:... } } ?隞?
+        // 舊格式處理：嘗試把整包舊資料塞進目標 session
+        // 如果舊資料結構像 { asian:..., european:... } 則無法直接塞
+        // 但如果是更舊的 { notes:..., trends: { H1:..., H4:... } } 則可以
         if (copiedData.trends && !copiedData.asian) {
           formData.sessions[targetSession] = copiedData;
         } else {
@@ -632,8 +636,8 @@
           return;
         }
       } else {
-        // ?唳撘??湔閬??格? session
-        // 靽韏瑁?嚗炎?乩?銝?瑽?
+        // 新格式：直接覆蓋目標 session
+        // 保險起見，檢查一下結構
         if (copiedData.trends) {
           formData.sessions[targetSession] = copiedData;
         } else {
@@ -643,22 +647,22 @@
         }
       }
 
-      // ?閮? has_signals / has_wave 璅?嚗Ⅱ靽?UI 甇?Ⅱ憿舐內
+      // 重新計算 has_signals / has_wave 標記，確保 UI 正確顯示
       const sess = formData.sessions[targetSession];
       if (sess && sess.trends) {
         Object.keys(sess.trends).forEach(tf => {
           const t = sess.trends[tf];
-          // ???航??null ??瘜?
+          // 處理可能有 null 的情況
           if (!t) return;
           if (t.signals?.length > 0 || t.signals_image) t.has_signals = true;
           if (t.wave_numbers?.length > 0 || t.wave_image) t.has_wave = true;
         });
       }
 
-      formData = formData; // 閫貊?湔
-      waveButtonKey++; // 撘瑕?瑟 UI ?辣
+      formData = formData; // 觸發更新
+      waveButtonKey++; // 強制刷新 UI 元件
 
-      // ???啁璅???霈蝙?刻??餌??啁???
+      // 切換到目標分頁，讓使用者立刻看到結果
       activeSession = targetSession;
 
       alert(
@@ -675,7 +679,7 @@
     }
   }
 
-  // ???? URL ??Helper (?詨捆 Base64 ??隡箸??刻楝敺?
+  // 取得圖片 URL 的 Helper (相容 Base64 與 伺服器路徑)
   function getImageUrl(src) {
     if (!src) return '';
     if (src.startsWith('data:') || src.startsWith('http')) {
@@ -684,27 +688,27 @@
     return imagesAPI.getUrl(src);
   }
 
-  // 瑼Ｘ?挾?臬?遙雿???
+  // 檢查時段是否有任何資料
   function hasSessionData(sessionKey, currentData) {
     const session = currentData.sessions[sessionKey];
     if (!session) return false;
 
-    // 瑼Ｘ?臬??閮?
+    // 檢查是否有備註
     if (session.notes && session.notes.trim()) return true;
 
-    // 瑼Ｘ????臬????
+    // 檢查各時區是否有資料
     if (session.trends) {
       for (const tf of TIMEFRAMES) {
         const trend = session.trends[tf];
         if (!trend) continue;
 
-        // 瑼Ｘ?孵?
+        // 檢查方向
         if (trend.directions && trend.directions.length > 0) return true;
 
-        // 瑼Ｘ?? (?惜)
+        // 檢查圖片 (頂層)
         if (trend.image) return true;
 
-        // 瑼Ｘ憭?蝛箏擃摰?
+        // 檢查多/空具體內容
         for (const dir of ['long', 'short']) {
           const dData = trend[dir];
           if (!dData) continue;
@@ -720,7 +724,7 @@
     return false;
   }
 
-  // ?踵?撘蕭頩文??挾???
+  // 響應式追蹤各時段狀態
   $: sessionStatus = {
     asian: hasSessionData('asian', formData),
     european: hasSessionData('european', formData),
@@ -733,7 +737,7 @@
 {#if loading}
   <div class="loading-overlay">
     <div class="loader"></div>
-    <div class="loading-text">甇?霈??????..</div>
+    <div class="loading-text">正在讀取規劃資料...</div>
   </div>
 {:else}
   <div class="card">
@@ -750,7 +754,7 @@
             class="btn btn-outline-share"
             on:click={() => (showShareModal = true)}
           >
-            ? ?澈
+            📤 分享
           </button>
         {/if}
 
@@ -768,19 +772,19 @@
               stroke-linejoin="round"
               ><path d="M9 14 4 9l5-5" /><path d="M4 9h12a4 4 0 0 1 4 4v2" /></svg
             >
-          </span> 餈?
+          </span> 返回
         </button>
       </div>
     </div>
 
     <form on:submit|preventDefault={handleSubmit}>
-      <!-- ?箸鞈? -->
+      <!-- 基本資料 -->
       <div class="form-section">
-        <h3>?? ?箸鞈?</h3>
+        <h3>📅 基本資料</h3>
 
-        <!-- 閬??交? -->
+        <!-- 規劃日期 -->
         <div class="form-group">
-          <label for="plan_date">閬??交?</label>
+          <label for="plan_date">規劃日期</label>
           <div class="date-input-group">
             <input
               type="date"
@@ -793,16 +797,16 @@
               type="button"
               class="btn btn-outline-info"
               on:click={copyLastPlan}
-              title="複製上一筆規劃紀錄"
+              title="複製上一筆規劃的內容（含圖片）"
             >
-              ?? 銴ˊ銝活閬?
+              📋 複製上次規劃
             </button>
           </div>
         </div>
 
-        <!-- 鈭斗??車 -->
+        <!-- 交易品種 -->
         <div class="form-group">
-          <label for="symbol">鈭斗??車</label>
+          <label for="symbol">交易品種</label>
           <select id="symbol" class="form-control" bind:value={formData.symbol}>
             {#each symbols as sym}
               <option value={sym}>{sym}</option>
@@ -810,35 +814,23 @@
           </select>
         </div>
 
-        <!-- 撣?挾 (????撌脩宏?喃??寡隅?Ｗ?憛? -->
+        <!-- 市場時段 (分頁切換已移至下方趨勢區塊) -->
 
-        <!-- 敹恍蜇閬?(?冽?畾? -->
+        <!-- 快速總覽 (全時段) -->
         <div class="quick-overview-section">
           <div class="section-title">
-            <span>?? 敹恍蜇閬?(?冽?畾?</span>
+            <span>📊 快速總覽 (全時段)</span>
             <div class="summary-legend-inline">
-              <div class="legend-item"><span class="tag-mini established">??/span> ??</div>
-              <div class="legend-item"><span class="tag-mini expected">??/span> ??</div>
-              <div class="legend-item"><span class="tag-mini wave-tag">瘜?/span> 瘜Ｘ答</div>
+              <div class="legend-item"><span class="tag-mini established">達</span> 成立</div>
+              <div class="legend-item"><span class="tag-mini expected">預</span> 預期</div>
+              <div class="legend-item"><span class="tag-mini wave-tag">波</span> 波浪</div>
             </div>
           </div>
           <PlanSummaryTable trendData={formData.sessions} detailed={true} />
         </div>
       </div>
 
-      <!-- ?嗅??挾?酉 (?函??澆??銋?嚗??? -->
-      <div class="form-group session-notes-area">
-        <label for="notes" class="trend-label">?? ?酉 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
-        <textarea
-          id="notes"
-          class="form-control"
-          bind:value={currentSessionData.notes}
-          rows="3"
-          placeholder="隞?挾?日???釣????.."
-        ></textarea>
-      </div>
-
-      <!-- ?嗅????頞典??畾菟??(?游?撘”?潔?撅) -->
+      <!-- 當前各時區趨勢與時段選擇 (整合式表格佈局) -->
       <div class="session-trend-layout">
         <!-- 左側垂直時段選擇 -->
         <div class="session-sidebar-vertical">
@@ -862,9 +854,21 @@
 
         <!-- 右側趨勢內容 -->
         <div class="trend-content-main">
-          <!-- ???頞典 -->
+          <!-- 該時段備註 -->
+          <div class="form-group session-notes-area">
+            <label for="notes" class="trend-label">📝 備註 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
+            <textarea
+              id="notes"
+              class="form-control"
+              bind:value={currentSessionData.notes}
+              rows="3"
+              placeholder="今日時段盤面重點、注意事項..."
+            ></textarea>
+          </div>
+
+          <!-- 各時區趨勢 -->
           <div class="form-group trend-analysis-section">
-            <label class="trend-label">?? ?嗅????頞典 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
+            <label class="trend-label">📊 當前各時區趨勢 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
             <div class="trend-grid">
               {#each TIMEFRAMES as timeframe}
             <div
@@ -879,7 +883,7 @@
             >
               <label class="timeframe-label">{timeframe}</label>
 
-              <!-- 憭征?豢? -->
+              <!-- 多空選擇 -->
               <div class="trend-options">
                 <button
                   type="button"
@@ -888,7 +892,7 @@
                     currentTrends[timeframe]?.directions?.includes('long')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'long')}
                 >
-                  <span class="trend-name">憭?/span>
+                  <span class="trend-name">多</span>
                 </button>
                 <button
                   type="button"
@@ -898,7 +902,7 @@
                     currentTrends[timeframe]?.directions?.includes('short')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'neutral')}
                 >
-                  <span class="trend-name">??/span>
+                  <span class="trend-name">整</span>
                 </button>
                 <button
                   type="button"
@@ -907,11 +911,11 @@
                     currentTrends[timeframe]?.directions?.includes('short')}
                   on:click|stopPropagation={() => toggleTrendDirection(timeframe, 'short')}
                 >
-                  <span class="trend-name">蝛?/span>
+                  <span class="trend-name">空</span>
                 </button>
               </div>
 
-              <!-- ???憛??寞??豢???＊蝷?-->
+              <!-- 分析區塊：根據選擇的方向顯示 -->
               {#each currentTrends[timeframe]?.directions || [] as dir}
                 <div
                   class="direction-analysis-box"
@@ -919,17 +923,17 @@
                   class:short={dir === 'short'}
                 >
                   <div class="direction-badge">
-                    {dir === 'long' ? '?? 憭??' : '?? 蝛粹??'}
+                    {dir === 'long' ? '📈 多頭分析' : '📉 空頭分析'}
                   </div>
 
-                  <!-- 撌脫?蝡??犖閮??豢? -->
+                  <!-- 已成立的達人訊號選擇 -->
                   <div class="timeframe-signals">
                     <label class="section-label inline-check">
                       <input
                         type="checkbox"
                         bind:checked={currentTrends[timeframe][dir].has_signals}
                       />
-                      撌脫?蝡??犖閮?
+                      已成立的達人訊號
                     </label>
 
                     {#if currentTrends[timeframe][dir].has_signals}
@@ -947,20 +951,20 @@
                         {/each}
                       </div>
 
-                      <!-- ?犖閮??? -->
+                      <!-- 達人訊號圖片 -->
                       {#if currentTrends[timeframe][dir].signals_image}
                         <div
                           class="trend-image-preview"
                           on:click|stopPropagation={() =>
                             enlargeImage(
                               currentTrends[timeframe][dir].signals_image,
-                              `${timeframe} ${dir === 'long' ? '憭' : '蝛粹'} 撌脫?蝡?鈭箄???`,
+                              `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 已成立達人訊號圖`,
                               { type: 'signals', key: timeframe, direction: dir }
                             )}
                         >
                           <img
                             src={getImageUrl(currentTrends[timeframe][dir].signals_image)}
-                            alt="{timeframe} 已建立訊號圖"
+                            alt="{timeframe} 已成立達人訊號"
                             style="pointer-events: none;"
                           />
                           <button
@@ -968,9 +972,9 @@
                             class="remove-image-btn"
                             on:click|stopPropagation={() =>
                               removeTrendImage(timeframe, 'signals', dir)}
-                            title="蝘駁??"
+                            title="移除圖片"
                           >
-                            ?
+                            ×
                           </button>
                         </div>
                       {:else}
@@ -982,20 +986,20 @@
                           on:click|stopPropagation={e => e.target.focus()}
                           role="textbox"
                         >
-                          ?? 鞎潔?撌脫?蝡???
+                          📋 貼上已成立訊號圖
                         </div>
                       {/if}
                     {/if}
                   </div>
 
-                  <!-- ???Ｙ???鈭箄????-->
+                  <!-- 預期產生的達人訊號選擇 -->
                   <div class="timeframe-signals expected">
                     <label class="section-label inline-check">
                       <input
                         type="checkbox"
                         bind:checked={currentTrends[timeframe][dir].has_expected_signals}
                       />
-                      ???Ｙ???鈭箄???
+                      預期產生的達人訊號
                     </label>
 
                     {#if currentTrends[timeframe][dir].has_expected_signals}
@@ -1013,7 +1017,7 @@
                         {/each}
                       </div>
 
-                      <!-- ??閮????? -->
+                      <!-- 預期訊號個別圖片區 -->
                       {#if currentTrends[timeframe][dir].expected_signals && currentTrends[timeframe][dir].expected_signals.length > 0}
                         <div class="expected-signals-images">
                           {#each currentTrends[timeframe][dir].expected_signals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-img-' + signal.name)}
@@ -1025,7 +1029,7 @@
                                   on:click|stopPropagation={() =>
                                     enlargeImage(
                                       signal.image,
-                                      `${timeframe} ${dir === 'long' ? '憭' : '蝛粹'} ??閮?: ${signal.name}`,
+                                      `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${signal.name}`,
                                       {
                                         type: 'expected_signals',
                                         key: timeframe,
@@ -1036,7 +1040,7 @@
                                 >
                                   <img
                                     src={getImageUrl(signal.image)}
-                                    alt="{timeframe} ??閮?: {signal.name}"
+                                    alt="{timeframe} 預期訊號: {signal.name}"
                                     style="pointer-events: none;"
                                   />
                                   <button
@@ -1049,9 +1053,9 @@
                                         dir,
                                         signal.name
                                       )}
-                                    title="蝘駁??"
+                                    title="移除圖片"
                                   >
-                                    ?
+                                    ×
                                   </button>
                                 </div>
                               {:else}
@@ -1069,7 +1073,7 @@
                                   on:click|stopPropagation={e => e.target.focus()}
                                   role="textbox"
                                 >
-                                  ?? 鞎潔? {signal.name} 蝷箸???
+                                  📋 貼上 {signal.name} 示意圖
                                 </div>
                               {/if}
                             </div>
@@ -1079,14 +1083,14 @@
                     {/if}
                   </div>
 
-                  <!-- 瘜Ｘ答瘚芣?豢? -->
+                  <!-- 波浪浪數選擇 -->
                   <div class="timeframe-wave">
                     <label class="section-label inline-check">
                       <input
                         type="checkbox"
                         bind:checked={currentTrends[timeframe][dir].has_wave}
                       />
-                      瘜Ｘ答瘚芣
+                      波浪浪數
                     </label>
 
                     {#if currentTrends[timeframe][dir].has_wave}
@@ -1104,14 +1108,14 @@
                         {/each}
                       </div>
 
-                      <!-- 瘜Ｘ答?? -->
+                      <!-- 波浪圖片 -->
                       {#if currentTrends[timeframe][dir].wave_image}
                         <div
                           class="trend-image-preview"
                           on:click|stopPropagation={() =>
                             enlargeImage(
                               currentTrends[timeframe][dir].wave_image,
-                              `${timeframe} ${dir === 'long' ? '多' : '空'} 波浪圖`,
+                              `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 波浪圖`,
                               {
                                 type: 'wave',
                                 key: timeframe,
@@ -1121,7 +1125,7 @@
                         >
                           <img
                             src={getImageUrl(currentTrends[timeframe][dir].wave_image)}
-                            alt="{timeframe} 瘜Ｘ答"
+                            alt="{timeframe} 波浪"
                             style="pointer-events: none;"
                           />
                           <button
@@ -1129,9 +1133,9 @@
                             class="remove-image-btn"
                             on:click|stopPropagation={() =>
                               removeTrendImage(timeframe, 'wave', dir)}
-                            title="蝘駁??"
+                            title="移除圖片"
                           >
-                            ?
+                            ×
                           </button>
                         </div>
                       {:else}
@@ -1143,7 +1147,7 @@
                           on:click|stopPropagation={e => e.target.focus()}
                           role="textbox"
                         >
-                          ?? 鞎潔?瘜Ｘ答??
+                          📋 貼上波浪圖
                         </div>
                       {/if}
                     {/if}
@@ -1151,18 +1155,18 @@
                 </div>
               {/each}
 
-              <!-- 憒?瘝??豢??憿舐內?內 -->
+              <!-- 如果沒有選方向，顯示提示 -->
               {#if (currentTrends[timeframe]?.directions || []).length === 0}
-                <div class="no-direction-hint">隢?????征?誑????</div>
+                <div class="no-direction-hint">請選擇「多」或「空」以開始分析</div>
               {/if}
             </div>
-              {/each}
-            </div>
+          {/each}
+        </div>
           </div>
         </div>
       </div>
 
-      <!-- ???? -->
+      <!-- 操作按鈕 -->
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">
           {id ? '💾 更新規劃' : '✅ 建立規劃'}
@@ -1181,13 +1185,13 @@
               stroke-linejoin="round"
               ><path d="M9 14 4 9l5-5" /><path d="M4 9h12a4 4 0 0 1 4 4v2" /></svg
             >
-          </span> 餈?
+          </span> 返回
         </button>
       </div>
     </form>
   </div>
 
-  <!-- ???曉之璅⊥?獢?-->
+  <!-- 圖片放大模態框 -->
   {#if enlargedImage}
     <div class="image-modal" on:click={closeEnlargedImage}>
       <div class="image-modal-content" on:click|stopPropagation>
@@ -1195,9 +1199,9 @@
           <h3>{enlargedImageTitle}</h3>
           <div class="image-modal-actions">
             <button class="modal-action-btn" on:click={toggleAnnotator}>
-              {showAnnotator ? '??儭??亦?' : '?? 璅酉'}
+              {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
             </button>
-            <button class="image-modal-close" on:click={closeEnlargedImage}>?</button>
+            <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
           </div>
         </div>
 
@@ -1214,7 +1218,7 @@
     </div>
   {/if}
 
-  <!-- 閬??豢?璅⊥?獢?-->
+  <!-- 規劃選擇模態框 -->
   <PlanSelectionModal
     show={showPlanSelectionModal}
     plans={plansToSelect}
@@ -1262,7 +1266,7 @@
       border-radius: 12px;
     }
 
-    /* 撣?挾??湧?甈?*/
+    /* 市場時段垂直側邊欄 */
     .session-trend-layout {
       display: flex;
       gap: 1rem;
@@ -1274,7 +1278,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      padding-top: 2.8rem; /* 撠?銝頞典璅惜??摨?*/
+      padding-top: 2.8rem; /* 對齊趨勢標籤的高度 */
       position: sticky;
       top: 1rem;
       height: fit-content;
@@ -1326,7 +1330,7 @@
       color: var(--text-main);
     }
 
-    /* 銝??挾?暑??????*/
+    /* 不同時段的活動狀態顏色 */
     .session-tab-vertical.asian.active { border-left: 5px solid #3b82f6; border-color: rgba(59, 130, 246, 0.3); }
     .session-tab-vertical.european.active { border-left: 5px solid #ea580c; border-color: rgba(234, 88, 12, 0.3); }
     .session-tab-vertical.us.active { border-left: 5px solid #dc2626; border-color: rgba(220, 38, 38, 0.3); }
@@ -1372,7 +1376,7 @@
       box-shadow: 0 0 0 2px #2d3748;
     }
 
-    /* 頞典?? */
+    /* 趨勢分析 */
     .trend-analysis-section {
       margin-top: 2rem;
     }
@@ -1511,7 +1515,7 @@
       color: white;
     }
 
-    /* ??閮??豢? */
+    /* 時區訊號選擇 */
     .timeframe-signals {
       margin-top: 0.75rem;
     }
@@ -1570,7 +1574,7 @@
       color: white;
     }
 
-    /* 瘜Ｘ答瘚芣?豢? */
+    /* 波浪浪數選擇 */
     .timeframe-wave {
       margin-top: 0.75rem;
     }
@@ -1684,7 +1688,7 @@
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
-    /* ???? */
+    /* 操作按鈕 */
     .form-actions {
       display: flex;
       justify-content: flex-end;
@@ -1720,7 +1724,7 @@
       gap: 0.75rem;
     }
 
-    /* ???曉之璅⊥?獢?*/
+    /* 圖片放大模態框 */
     .image-modal {
       position: fixed;
       top: 0;
@@ -1931,7 +1935,7 @@
       background: #f8fafc;
     }
 
-    /* ???Ｙ???鈭箄???*/
+    /* 預期產生的達人訊號 */
     .timeframe-signals.expected {
       margin-top: 1.5rem;
       padding-top: 1rem;
