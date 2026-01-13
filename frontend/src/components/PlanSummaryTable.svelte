@@ -54,10 +54,8 @@
                                 <span class="tag wave-tag">波</span>
                                 {trend.long.wave_numbers.map((n, i) => {
                                   const isHighlight = n.toString() === trend.long.wave_highlight?.toString();
-                                  if (isHighlight) {
-                                    return (i > 0 ? ' => ' : '') + `[${n}]`;
-                                  }
-                                  return n;
+                                  const val = isHighlight ? `[${n}]` : n;
+                                  return (i > 0 ? ' => ' : '') + val;
                                 }).join('')}
                               </div>
                             {/if}
@@ -74,10 +72,8 @@
                                 <span class="tag wave-tag">波</span>
                                 {trend.short.wave_numbers.map((n, i) => {
                                   const isHighlight = n.toString() === trend.short.wave_highlight?.toString();
-                                  if (isHighlight) {
-                                    return (i > 0 ? ' => ' : '') + `[${n}]`;
-                                  }
-                                  return n;
+                                  const val = isHighlight ? `[${n}]` : n;
+                                  return (i > 0 ? ' => ' : '') + val;
                                 }).join('')}
                               </div>
                             {/if}
@@ -98,10 +94,8 @@
                               <span class="tag wave-tag">波</span>
                               {analysis.wave_numbers.map((n, i) => {
                                 const isHighlight = n.toString() === analysis.wave_highlight?.toString();
-                                if (isHighlight) {
-                                  return (i > 0 ? ' => ' : '') + `[${n}]`;
-                                }
-                                return n;
+                                const val = isHighlight ? `[${n}]` : n;
+                                return (i > 0 ? ' => ' : '') + val;
                               }).join('')}
                             </div>
                           {/if}
@@ -179,9 +173,9 @@
   }
 
   .trend-cell-container {
-    vertical-align: top;
+    vertical-align: middle;
     padding: 10px;
-    min-height: 80px;
+    height: 80px;
     border-radius: 8px;
     background: #f8fafc;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -215,6 +209,7 @@
     font-size: 0.85rem;
     writing-mode: horizontal-tb;
     opacity: 0.8;
+    line-height: 1;
   }
 
   .session-label.asian .session-text { color: #3b82f6; }
@@ -227,6 +222,7 @@
     font-weight: 700;
     text-align: center;
     letter-spacing: 1px;
+    line-height: 1;
   }
 
   .direction-badge {
@@ -238,8 +234,13 @@
     border-radius: 4px;
     font-weight: 800;
     font-size: 0.9rem;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     letter-spacing: 0.05em;
+    line-height: 1;
+  }
+
+  .is-detailed .direction-badge {
+    margin-bottom: 8px;
   }
 
   .long .direction-badge { color: var(--text-long); }

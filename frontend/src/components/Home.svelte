@@ -159,10 +159,8 @@
       const highlight = dirData.wave_highlight;
       return nums.map((n, i) => {
         const isHighlight = n.toString() === highlight?.toString();
-        if (isHighlight) {
-          return (i > 0 ? ' => ' : '') + `[${n}]`;
-        }
-        return n;
+        const val = isHighlight ? `[${n}]` : n;
+        return (i > 0 ? ' => ' : '') + val;
       }).join('');
     };
 
@@ -180,10 +178,8 @@
     if (waves.length === 0 && trend.wave_numbers?.length > 0) {
       const w = trend.wave_numbers.map((n, i) => {
         const isHighlight = n.toString() === trend.wave_highlight?.toString();
-        if (isHighlight) {
-          return (i > 0 ? ' => ' : '') + `[${n}]`;
-        }
-        return n;
+        const val = isHighlight ? `[${n}]` : n;
+        return (i > 0 ? ' => ' : '') + val;
       }).join('');
       waves.push(w);
     }
