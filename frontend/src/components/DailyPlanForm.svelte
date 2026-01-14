@@ -1391,7 +1391,7 @@
 
     .trend-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(5, 1fr); /* 固定 5 列，對應 M5, M15, H1, H4, D1 */
       gap: 1rem;
     }
 
