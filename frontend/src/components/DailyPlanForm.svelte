@@ -1278,7 +1278,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      padding-top: 2.8rem; /* 對齊趨勢標籤的高度 */
+      padding-top: 0; /* 移除對齊，讓時段分頁不影響備註區塊 */
       position: sticky;
       top: 1rem;
       height: fit-content;
@@ -1336,8 +1336,8 @@
     .session-tab-vertical.us.active { border-left: 5px solid #dc2626; border-color: rgba(220, 38, 38, 0.3); }
 
     .session-tab-vertical:hover:not(.active) {
-      background: #f8fafc;
-      border-color: #cbd5e0;
+      background: var(--bg-main);
+      border-color: var(--border-color);
     }
 
     .session-notes-area {
@@ -1391,7 +1391,7 @@
 
     .trend-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 1rem;
     }
 
@@ -1405,7 +1405,7 @@
     }
 
     .trend-item:hover {
-      border-color: #cbd5e0;
+      border-color: var(--border-color);
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
 
@@ -1447,7 +1447,7 @@
 
     .trend-option:hover {
       border-color: #667eea;
-      background: #f7fafc;
+      background: var(--bg-main);
     }
 
     .trend-option.active.long {
@@ -1480,7 +1480,7 @@
     }
 
     .btn-outline-info {
-      background: white;
+      background: var(--card-bg);
       border: 1px solid #0bc5ea;
       color: #0bc5ea;
       padding: 0.625rem 1rem;
@@ -1488,7 +1488,7 @@
     }
 
     .btn-outline-info:hover {
-      background: #e6fffa;
+      background: var(--bg-main);
     }
 
     .trend-option.active.long {
@@ -1553,9 +1553,10 @@
       align-items: center;
       justify-content: center;
       padding: 0.3rem 0.6rem;
-      border: 1.5px solid #cbd5e0;
+      border: 1.5px solid var(--border-color);
       border-radius: 6px;
-      background: white;
+      background: var(--card-bg);
+      color: var(--text-main);
       cursor: pointer;
       transition: all 0.2s ease;
       font-size: 0.75rem;
@@ -1565,7 +1566,7 @@
 
     .signal-chip:hover {
       border-color: #667eea;
-      background: #f7fafc;
+      background: var(--bg-main);
     }
 
     .signal-chip.active {
@@ -1590,21 +1591,21 @@
       align-items: center;
       justify-content: center;
       padding: 0.4rem;
-      border: 1.5px solid #cbd5e0;
+      border: 1.5px solid var(--border-color);
       border-radius: 6px;
-      background: white;
+      background: var(--card-bg);
       cursor: pointer;
       transition: all 0.2s ease;
       font-size: 0.8rem;
       font-weight: 600;
       user-select: none;
-      color: #2d3748;
+      color: var(--text-main);
       line-height: 1;
     }
 
     .wave-number-btn:hover {
       border-color: #48bb78;
-      background: #f7fafc;
+      background: var(--bg-main);
     }
 
     .wave-number-btn.selected {
@@ -1665,10 +1666,10 @@
     .trend-image-placeholder {
       margin-top: 0.5rem;
       padding: 1.5rem;
-      border: 2px dashed #cbd5e0;
+      border: 2px dashed var(--border-color);
       border-radius: 8px;
       text-align: center;
-      color: #a0aec0;
+      color: var(--text-muted);
       font-size: 0.85rem;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -1677,13 +1678,13 @@
 
     .trend-image-placeholder:hover {
       border-color: #667eea;
-      background: #f7fafc;
+      background: var(--bg-main);
       color: #667eea;
     }
 
     .trend-image-placeholder:focus {
       border-color: #667eea;
-      background: #edf2f7;
+      background: var(--bg-main);
       color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
@@ -1824,15 +1825,15 @@
     .quick-overview-section {
       margin-top: 1.5rem;
       padding: 1rem;
-      background: #f8fafc;
+      background: var(--bg-main);
       border-radius: 12px;
-      border: 1px dashed #cbd5e1;
+      border: 1px dashed var(--border-color);
     }
 
     .quick-overview-section .section-title {
       font-size: 0.9rem;
       font-weight: 700;
-      color: #475569;
+      color: var(--text-main);
       margin-bottom: 0.75rem;
       display: flex;
       align-items: center;
@@ -1840,7 +1841,7 @@
     }
 
     .quick-overview-section .section-title {
-      color: #94a3b8;
+      color: var(--text-muted);
     }
 
     .summary-legend-inline {
@@ -1856,7 +1857,7 @@
       gap: 4px;
       font-size: 0.7rem;
       font-weight: 600;
-      color: #64748b;
+      color: var(--text-muted);
     }
 
     .tag-mini {
@@ -1877,14 +1878,14 @@
     .tag-mini.wave-tag { background: #0ea5e9; }
 
     .trend-image-placeholderSmall {
-      border: 1.5px dashed #cbd5e0;
+      border: 1.5px dashed var(--border-color);
       border-radius: 8px;
       height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 0.75rem;
-      color: #718096;
+      color: var(--text-muted);
       margin-top: 0.5rem;
       cursor: pointer;
       transition: all 0.2s;
@@ -1892,7 +1893,7 @@
 
     .trend-image-placeholderSmall:hover,
     .trend-image-placeholderSmall:focus {
-      background: #edf2f7;
+      background: var(--bg-main);
       border-color: #667eea;
       color: #667eea;
     }
@@ -1901,8 +1902,8 @@
       margin-top: 1rem;
       padding: 1rem;
       border-radius: 10px;
-      border: 1px solid #e2e8f0;
-      background: #fcfcfc;
+      border: 1px solid var(--border-color);
+      background: var(--bg-main);
     }
 
     .direction-analysis-box.long {
@@ -1920,26 +1921,26 @@
       display: inline-block;
       padding: 2px 8px;
       border-radius: 4px;
-      background: #f1f5f9;
-      color: #475569;
+      background: var(--bg-main);
+      color: var(--text-main);
     }
 
     .no-direction-hint {
       margin-top: 1rem;
       padding: 1.5rem;
-      border: 1px dashed #cbd5e0;
+      border: 1px dashed var(--border-color);
       border-radius: 10px;
       text-align: center;
-      color: #94a3b8;
+      color: var(--text-muted);
       font-size: 0.85rem;
-      background: #f8fafc;
+      background: var(--bg-main);
     }
 
     /* 預期產生的達人訊號 */
     .timeframe-signals.expected {
       margin-top: 1.5rem;
       padding-top: 1rem;
-      border-top: 1px dashed #e2e8f0;
+      border-top: 1px dashed var(--border-color);
     }
 
     .signal-chip.expected {
@@ -1962,36 +1963,36 @@
     }
 
     .expected-signal-item {
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border-color);
       padding: 0.75rem;
       border-radius: 8px;
-      background: #ffffff;
+      background: var(--card-bg);
     }
 
     .signal-name-label {
       display: block;
       font-size: 0.75rem;
       font-weight: 700;
-      color: #475569;
+      color: var(--text-main);
       margin-bottom: 0.5rem;
     }
 
     .trend-image-placeholderExtraSmall {
-      border: 1.5px dashed #cbd5e0;
+      border: 1.5px dashed var(--border-color);
       border-radius: 6px;
       height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 0.7rem;
-      color: #94a3b8;
+      color: var(--text-muted);
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .trend-image-placeholderExtraSmall:hover,
     .trend-image-placeholderExtraSmall:focus {
-      background: #f1f5f9;
+      background: var(--bg-main);
       border-color: #3b82f6;
       color: #3b82f6;
     }
