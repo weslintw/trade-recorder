@@ -819,7 +819,7 @@
 
   function calculateDailyStats(dayGroup) {
     if (!dayGroup || !dayGroup.groupedTrades) {
-      return { winRate: 0, totalPnl: 0, floatingPnl: 0, wins: 0, total: 0, hasFloating: false };
+      return { winRate: 0, realizedPnl: 0, floatingPnl: 0, totalPnl: 0, wins: 0, total: 0, hasFloating: false };
     }
 
     const allTrades = dayGroup.groupedTrades.flatMap(group => group.trades);
@@ -827,17 +827,18 @@
     // 只計算已平倉的交易用於勝率和已實現盈虧
     const closedTrades = allTrades.filter(trade => trade.exit_time && trade.pnl !== null && trade.pnl !== undefined);
     
-    // 計算未平倉的交易（浮動盈虧）
+    // 計算未平倉的交易（浮動部分）
     const openTrades = allTrades.filter(trade => !trade.exit_time && trade.pnl !== null && trade.pnl !== undefined);
 
     const total = closedTrades.length;
     const wins = closedTrades.filter(trade => trade.pnl > 0).length;
-    const totalPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+    const realizedPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
     const floatingPnl = openTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+    const totalPnl = realizedPnl + floatingPnl;
     const winRate = total > 0 ? (wins / total) * 100 : 0;
     const hasFloating = openTrades.length > 0;
 
-    return { winRate, totalPnl, floatingPnl, wins, total, hasFloating };
+    return { winRate, realizedPnl, floatingPnl, totalPnl, wins, total, hasFloating };
   }
 
   function getMarketSessionLabel(trade) {
@@ -1364,15 +1365,15 @@
                   </span>
                   <span class="stat-divider">|</span>
                 {/if}
-                <span class="stat-item pnl" class:profit={dailyStats.totalPnl > 0} class:loss={dailyStats.totalPnl < 0}>
-                  <span class="stat-label">盈虧</span>
-                  <span class="stat-value">{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span>
+                <span class="stat-item pnl" class:profit={dailyStats.realizedPnl > 0} class:loss={dailyStats.realizedPnl < 0}>
+                  <span class="stat-label">已實現</span>
+                  <span class="stat-value">{dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(2)}</span>
                 </span>
                 {#if dailyStats.hasFloating}
                   <span class="stat-divider">|</span>
-                  <span class="stat-item pnl floating" class:profit={dailyStats.floatingPnl > 0} class:loss={dailyStats.floatingPnl < 0}>
-                    <span class="stat-label">浮收</span>
-                    <span class="stat-value">{dailyStats.floatingPnl >= 0 ? '+' : ''}{dailyStats.floatingPnl.toFixed(2)}</span>
+                  <span class="stat-item pnl floating" class:profit={dailyStats.totalPnl > 0} class:loss={dailyStats.totalPnl < 0}>
+                    <span class="stat-label">浮動盈虧</span>
+                    <span class="stat-value">{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span>
                   </span>
                 {/if}
               </div>
@@ -2172,6 +2173,13 @@
     border-color: #334155;
   }
 
+  /* 強制將 day-wrapper 增加 padding 以騰出空間給 absolute 標籤 */
+  .day-wrapper {
+    position: relative;
+    margin-bottom: 3.5rem;
+    padding-top: 1.5rem;
+  }
+
   .stat-item {
     display: inline-flex;
     align-items: center;
@@ -2253,7 +2261,7 @@
     border-radius: 20px;
     border: 1px solid var(--border-color);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
-    margin-top: 1.25rem; /* 新增 margin-top 防止與上方日期/統計重疊 */
+    margin-top: 0.5rem; /* 配合 padding-top 調整，不再需要這麼大的 margin */
   }
 
   .plan-column,
