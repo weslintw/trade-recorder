@@ -659,6 +659,7 @@
         ticket: response.data.ticket || '',
         pnl_series: response.data.pnl_series || '',
         journal: response.data.journal || '',
+        legend_images: parseJSONSafe(response.data.legend_images, []),
       };
 
       // Manually populate caches to ensuring binding works correctly
@@ -907,6 +908,7 @@
         entry_strategy_image_original: formData.entry_strategy_image_original,
         entry_timeframe: formData.entry_timeframe,
         trend_analysis: JSON.stringify(formData.trend_analysis),
+        legend_images: formData.legend_images ? JSON.stringify(formData.legend_images.filter(img => img !== null)) : '[]',
         trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
         exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
