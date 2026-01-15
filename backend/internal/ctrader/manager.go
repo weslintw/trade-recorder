@@ -526,19 +526,19 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 		var existingSeries sql.NullString
 		var tradeID int64
 		var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, notes sql.NullString
-		var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
+		var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages sql.NullString
 
 		// Try to preserve original entry time, SL and ALL strategy/analysis fields
 		err := m.db.QueryRow(`SELECT id, initial_sl, entry_time, pnl_series, journal, entry_reason, entry_strategy, 
 			entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, 
 			trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
-			legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf
+			legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images
 			FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`,
 			accountID, posTicket, legacyTicket).Scan(
 			&tradeID, &initialSL, &entryTime, &existingSeries, &journal, &entryReason, &entryStrategy,
 			&entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern,
 			&trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &notes,
-			&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF)
+			&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages)
 
 		// Priority: 1. API OpenTimestamp, 2. DB preserved time, 3. ExecTime (last resort)
 		finalEntryTime := execTime
@@ -566,9 +566,9 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				finalNotes = "cTrader Push: Closed Position"
 			}
 
-			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", finalNotes, ticket, initialSL, deal.ExecutionPrice, seriesVal, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF)
+			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", finalNotes, ticket, initialSL, deal.ExecutionPrice, seriesVal, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
 
 			if err != nil {
 				log.Printf("[cTrader Manager] Failed to insert Push Closed trade: %v", err)

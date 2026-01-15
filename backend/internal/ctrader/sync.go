@@ -647,15 +647,38 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			}
 			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
 
-			// Check for existing open position record to migrate images/tags
+			// Check for existing open position record to migrate context/images/tags
 			posTicket := fmt.Sprintf("ctrader-pos-%d", d.PositionID)
 			legacyTicket := fmt.Sprintf("ctrader-%d", d.PositionID)
-			var oldTradeID int64
-			db.QueryRow("SELECT id FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket).Scan(&oldTradeID)
 
-			res, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", "cTrader Sync", ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries)
+			var oldTradeID int64
+			var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, oldNotes, legImages sql.NullString
+			var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
+			var oldInitialSL sql.NullFloat64
+
+			db.QueryRow(`SELECT id, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
+				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, initial_sl
+				FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`, accountID, posTicket, legacyTicket).Scan(
+				&oldTradeID, &journal, &entryReason, &entryStrategy, &entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern, &trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &oldNotes,
+				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL)
+
+			finalNotes := "cTrader Sync"
+			if oldNotes.Valid && oldNotes.String != "" && !strings.Contains(oldNotes.String, "cTrader Push") && oldNotes.String != "cTrader Sync" {
+				finalNotes = oldNotes.String
+			}
+
+			// If we found a manual initial SL in the old record, and our sync didn't find one, use the old one
+			if initialSL == 0 && oldInitialSL.Valid && oldInitialSL.Float64 > 0 {
+				initialSL = oldInitialSL.Float64
+			}
+
+			res, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
+				journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag,
+				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries,
+				journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag,
+				legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
 
 			if err != nil {
 				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
@@ -665,7 +688,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 				if oldTradeID > 0 && newID > 0 {
 					log.Printf("[cTrader Sync] Migrating associations from %d to %d (Position %d)", oldTradeID, newID, d.PositionID)
-					// Copy images
+					// Copy images (from trade_images table)
 					db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, oldTradeID)
 					// Copy tags
 					db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, oldTradeID)
