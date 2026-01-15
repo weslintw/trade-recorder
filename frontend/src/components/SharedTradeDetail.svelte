@@ -99,6 +99,7 @@
   $: signals = parseJSON(trade.entry_signals, []);
   $: checklist = parseJSON(trade.entry_checklist, {});
   $: patterns = parseJSON(trade.entry_pattern, []);
+  $: legendImages = parseJSON(trade.legend_images, []);
 
   const colorTagMeanings = {
     green: '有照標準進單',
@@ -311,8 +312,8 @@
             {/if}
 
             <!-- Support both new legend_images array and old entry_strategy_image -->
-            {#if trade.legend_images && Array.isArray(trade.legend_images) && trade.legend_images.length > 0}
-              {#each trade.legend_images as legendImg, idx}
+            {#if legendImages && legendImages.length > 0}
+              {#each legendImages as legendImg, idx}
                 {#if legendImg?.image}
                   <div class="legend-card">
                     <div class="legend-header">
