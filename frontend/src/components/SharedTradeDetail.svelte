@@ -310,7 +310,27 @@
               </div>
             {/if}
 
-            {#if trade.entry_strategy_image}
+            <!-- Support both new legend_images array and old entry_strategy_image -->
+            {#if trade.legend_images && Array.isArray(trade.legend_images) && trade.legend_images.length > 0}
+              {#each trade.legend_images as legendImg, idx}
+                {#if legendImg?.image}
+                  <div class="legend-card">
+                    <div class="legend-header">
+                      <span>傳奇觀察圖 {idx + 1}</span>
+                    </div>
+                    <!-- svelte-ignore a11y-click-events-have-key-events -->
+                    <div
+                      class="legend-img-container"
+                      on:click={() =>
+                        openModal(getImageUrl(legendImg.image), `傳奇觀察圖 ${idx + 1}`)}
+                    >
+                      <img src={getImageUrl(legendImg.image)} alt={`傳奇觀察圖 ${idx + 1}`} loading="lazy" />
+                    </div>
+                  </div>
+                {/if}
+              {/each}
+            {:else if trade.entry_strategy_image}
+              <!-- Fallback to old single image format -->
               <div class="legend-card">
                 <div class="legend-header">
                   <span>傳奇全局圖</span>

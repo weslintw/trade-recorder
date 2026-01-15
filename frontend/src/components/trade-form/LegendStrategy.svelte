@@ -103,8 +103,13 @@
     formData = formData;
   }
 
-  // Handle Strategy Image (General Legend Image)
-  async function handleStrategyImagePaste(e) {
+  // Handle Strategy Images (Multiple Legend Images)
+  // Initialize legend_images array if not exists
+  $: if (!formData.legend_images || !Array.isArray(formData.legend_images)) {
+    formData.legend_images = [];
+  }
+
+  async function handleStrategyImagePaste(e, index) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
       if (item.type.indexOf('image') !== -1) {
@@ -119,8 +124,19 @@
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
 
-          formData.entry_strategy_image = imageUrl;
-          formData.entry_strategy_image_original = imageUrl;
+          // Update the specific index
+          if (!formData.legend_images) {
+            formData.legend_images = [];
+          }
+          
+          // Create a copy of the array
+          const newImages = [...formData.legend_images];
+          newImages[index] = {
+            image: imageUrl,
+            originalImage: imageUrl
+          };
+          
+          formData.legend_images = newImages;
           formData = formData;
         } catch (error) {
           console.error('傳奇策略圖上傳失敗:', error);
@@ -131,11 +147,18 @@
     }
   }
 
-  function removeStrategyImage() {
-    formData.entry_strategy_image = '';
-    formData.entry_strategy_image_original = '';
-    formData = formData;
+  function removeStrategyImage(index) {
+    if (formData.legend_images && formData.legend_images[index]) {
+      const newImages = formData.legend_images.filter((_, i) => i !== index);
+      formData.legend_images = newImages;
+      formData = formData;
+    }
   }
+
+  // Calculate how many image slots to show (always show at least one empty slot)
+  $: imageSlots = formData.legend_images && formData.legend_images.length > 0 
+    ? [...formData.legend_images, null] // Add one empty slot at the end
+    : [null]; // Show one empty slot if no images
 </script>
 
 <div class="checklist-section">
@@ -298,46 +321,50 @@
   </div>
 {/if}
 
-<!-- General Legend Image Section -->
+<!-- General Legend Images Section (Multiple Images) -->
 <div class="signals-section">
   <label class="signals-label">傳奇觀察圖 (Ctrl+V 貼上)：</label>
-  <div
-    class="signal-card legend-image-card"
-    tabindex="0"
-    role="button"
-    on:paste={handleStrategyImagePaste}
-    on:click={() => {
-      if (formData.entry_strategy_image) {
-        enlargeImage(formData.entry_strategy_image, '傳奇觀察圖', { type: 'strategy' });
-      }
-    }}
-    on:keydown={e => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        if (formData.entry_strategy_image) {
-          enlargeImage(formData.entry_strategy_image, '傳奇觀察圖', { type: 'strategy' });
-        }
-      }
-    }}
-  >
-    {#if formData.entry_strategy_image}
-      <div class="signal-image-preview">
-        <img src={getImageUrl(formData.entry_strategy_image)} alt="傳奇觀察圖" />
-        <button
-          type="button"
-          class="remove-signal-image"
-          on:click={e => {
-            e.stopPropagation();
-            removeStrategyImage();
-          }}
-        >
-          ×
-        </button>
+  <div class="legend-images-grid">
+    {#each imageSlots as imageData, index}
+      <div
+        class="signal-card legend-image-card"
+        tabindex="0"
+        role="button"
+        on:paste={e => handleStrategyImagePaste(e, index)}
+        on:click={() => {
+          if (imageData?.image) {
+            enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_strategy', index });
+          }
+        }}
+        on:keydown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (imageData?.image) {
+              enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_strategy', index });
+            }
+          }
+        }}
+      >
+        {#if imageData?.image}
+          <div class="signal-image-preview">
+            <img src={getImageUrl(imageData.image)} alt={`傳奇觀察圖 ${index + 1}`} />
+            <button
+              type="button"
+              class="remove-signal-image"
+              on:click={e => {
+                e.stopPropagation();
+                removeStrategyImage(index);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        {:else}
+          <div class="signal-image-placeholder">
+            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上傳奇觀察圖</span>
+          </div>
+        {/if}
       </div>
-    {:else}
-      <div class="signal-image-placeholder">
-        <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上傳奇觀察圖</span>
-      </div>
-    {/if}
+    {/each}
   </div>
 </div>
 
@@ -438,6 +465,12 @@
   }
 
   /* Image Cards */
+  .legend-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
   .signal-card {
     border: 2px solid #e2e8f0;
     border-radius: 12px;

@@ -817,6 +817,28 @@
     return `${date.getFullYear()}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')} (週${weekdays[date.getDay()]})`;
   }
 
+  function calculateDailyStats(dayGroup) {
+    if (!dayGroup || !dayGroup.groupedTrades) {
+      return { winRate: 0, totalPnl: 0, wins: 0, total: 0 };
+    }
+
+    // 只計算已平倉的交易
+    const closedTrades = dayGroup.groupedTrades
+      .flatMap(group => group.trades)
+      .filter(trade => trade.exit_time && trade.pnl !== null && trade.pnl !== undefined);
+
+    const total = closedTrades.length;
+    if (total === 0) {
+      return { winRate: 0, totalPnl: 0, wins: 0, total: 0 };
+    }
+
+    const wins = closedTrades.filter(trade => trade.pnl > 0).length;
+    const totalPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+    const winRate = total > 0 ? (wins / total) * 100 : 0;
+
+    return { winRate, totalPnl, wins, total };
+  }
+
   function getMarketSessionLabel(trade) {
     let session = trade.market_session;
     // 如果資料庫中沒有時段資料，根據時間即時計算
@@ -1330,6 +1352,21 @@
               />
             {/if}
             <div class="date-tag">{formatDay(group.date)}</div>
+            {@const dailyStats = calculateDailyStats(group)}
+            {#if dailyStats.total > 0}
+              <div class="daily-stats">
+                <span class="stat-item win-rate" class:high-win={dailyStats.winRate >= 60} class:low-win={dailyStats.winRate < 50}>
+                  <span class="stat-label">勝率</span>
+                  <span class="stat-value">{dailyStats.winRate.toFixed(1)}%</span>
+                  <span class="stat-detail">({dailyStats.wins}/{dailyStats.total})</span>
+                </span>
+                <span class="stat-divider">|</span>
+                <span class="stat-item pnl" class:profit={dailyStats.totalPnl > 0} class:loss={dailyStats.totalPnl < 0}>
+                  <span class="stat-label">盈虧</span>
+                  <span class="stat-value">{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span>
+                </span>
+              </div>
+            {/if}
           </div>
 
           <div class="day-card-container">
@@ -2106,6 +2143,83 @@
     white-space: nowrap;
     box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
     line-height: 1;
+  }
+
+  .daily-stats {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: 0.75rem;
+    padding: 0.4rem 1rem;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  :global(body.dark-mode) .daily-stats {
+    background: rgba(30, 41, 59, 0.95);
+    border-color: #334155;
+  }
+
+  .stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .stat-label {
+    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  :global(body.dark-mode) .stat-label {
+    color: #94a3b8;
+  }
+
+  .stat-value {
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+
+  .stat-detail {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  .stat-divider {
+    color: #cbd5e1;
+    font-weight: 300;
+  }
+
+  :global(body.dark-mode) .stat-divider {
+    color: #475569;
+  }
+
+  /* 勝率顏色 */
+  .stat-item.win-rate.high-win .stat-value {
+    color: #22c55e;
+  }
+
+  .stat-item.win-rate.low-win .stat-value {
+    color: #ef4444;
+  }
+
+  .stat-item.win-rate:not(.high-win):not(.low-win) .stat-value {
+    color: #f59e0b;
+  }
+
+  /* 盈虧顏色 */
+  .stat-item.pnl.profit .stat-value {
+    color: #22c55e;
+  }
+
+  .stat-item.pnl.loss .stat-value {
+    color: #ef4444;
   }
 
   .day-card-container {

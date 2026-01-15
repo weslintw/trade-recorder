@@ -362,6 +362,7 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE trades ADD COLUMN journal TEXT;")
 	db.Exec("ALTER TABLE trades ADD COLUMN sl_history TEXT;")
 	db.Exec("ALTER TABLE trades ADD COLUMN pnl_series TEXT;")
+	db.Exec("ALTER TABLE trades ADD COLUMN legend_images TEXT;") // 傳奇觀察圖 (JSON array)
 
 	// 進階分享：添加 resource_ids 欄位
 	db.Exec("ALTER TABLE shares ADD COLUMN resource_ids TEXT;")
