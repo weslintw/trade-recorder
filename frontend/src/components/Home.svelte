@@ -1338,6 +1338,7 @@
   {:else}
     <div class="timeline">
       {#each filteredGroupedData as group}
+        {@const dailyStats = calculateDailyStats(group)}
         <div class="day-wrapper">
           <div class="day-marker">
             {#if selectionMode}
@@ -1352,7 +1353,6 @@
               />
             {/if}
             <div class="date-tag">{formatDay(group.date)}</div>
-            {@const dailyStats = calculateDailyStats(group)}
             {#if dailyStats.total > 0}
               <div class="daily-stats">
                 <span class="stat-item win-rate" class:high-win={dailyStats.winRate >= 60} class:low-win={dailyStats.winRate < 50}>
