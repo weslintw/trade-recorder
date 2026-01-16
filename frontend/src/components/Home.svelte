@@ -1456,6 +1456,7 @@
                   {#each group.groupedTrades as timeGroup}
                     {#if timeGroup.trades.length > 1}
                       <!-- 組合單 (多筆部分的平倉) -->
+                      <div
                         class="trade-time-group is-multi {timeGroup.trades[0].color_tag
                           ? `tag-${timeGroup.trades[0].color_tag}`
                           : ''} {selectionMode &&
@@ -1638,6 +1639,7 @@
                     {:else}
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
+                      <div
                         class="trade-item-card {trade.color_tag
                           ? `tag-${trade.color_tag}`
                           : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''} {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}"
