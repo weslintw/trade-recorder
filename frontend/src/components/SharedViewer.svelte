@@ -371,7 +371,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                     {#if group.trades.length > 0}
                       <div class="trades-stack">
                         {#each group.trades as trade}
-                          <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''} {!trade.exit_time ? 'is-ongoing' : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
+                          <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''} {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
                             <div class="item-header">
                               <div class="trade-meta">
                                 <span class="symbol-inline-tag">{trade.symbol}</span>
@@ -387,7 +387,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                                 </div>
                                 {#if trade.pnl_series}
                                   <div class="header-sparkline">
-                                    <Sparkline data={trade.pnl_series} width={100} height={32} isOpen={!trade.exit_time} />
+                                    <Sparkline data={trade.pnl_series} isOpen={trade.trade_type === 'actual' && !trade.exit_time} width={120} height={40} />
                                   </div>
                                 {/if}
                                 <span class="pnl-tag {trade.pnl >= 0 ? 'profit' : 'loss'}">
@@ -424,9 +424,9 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                                         <strong>{trade.lot_size}</strong>
                                     </div>
                                 </div>
-                                <div class="trade-time-shared">
-                                    {formatTime(trade.entry_time)} - {trade.exit_time ? formatTime(trade.exit_time) : '進行中'}
-                                    {#if trade.exit_time}
+                                 <div class="trade-time-shared">
+                                     {formatTime(trade.entry_time)} - {trade.exit_time ? formatTime(trade.exit_time) : (trade.trade_type === 'actual' ? '進行中' : '')}
+                                     {#if trade.exit_time}
                                         <span class="duration-text">({calculateDuration(trade.entry_time, trade.exit_time)})</span>
                                     {/if}
                                 </div>

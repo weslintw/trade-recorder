@@ -1456,13 +1456,12 @@
                   {#each group.groupedTrades as timeGroup}
                     {#if timeGroup.trades.length > 1}
                       <!-- 組合單 (多筆部分的平倉) -->
-                      <div
                         class="trade-time-group is-multi {timeGroup.trades[0].color_tag
                           ? `tag-${timeGroup.trades[0].color_tag}`
                           : ''} {selectionMode &&
                         timeGroup.trades.every(t => selectedTrades.has(t.id))
                           ? 'selected'
-                          : ''} {timeGroup.trades.some(t => !t.exit_time) ? 'is-ongoing' : ''}"
+                          : ''} {timeGroup.trades.some(t => t.trade_type === 'actual' && !t.exit_time) ? 'is-ongoing' : ''}"
                         on:click={() =>
                           selectionMode
                             ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id))
@@ -1535,7 +1534,7 @@
                                   data={timeGroup.trades[0].pnl_series}
                                   width={80}
                                   height={28}
-                                  isOpen={timeGroup.trades.some(t => !t.exit_time)}
+                                  isOpen={timeGroup.trades.some(t => t.trade_type === 'actual' && !t.exit_time)}
                                 />
                               </div>
                             {/if}
@@ -1625,7 +1624,7 @@
                                       data={trade.pnl_series}
                                       width={60}
                                       height={20}
-                                      isOpen={!trade.exit_time}
+                                      isOpen={trade.trade_type === 'actual' && !trade.exit_time}
                                     />
                                   </div>
                                 {/if}
@@ -1639,10 +1638,9 @@
                     {:else}
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
-                      <div
                         class="trade-item-card {trade.color_tag
                           ? `tag-${trade.color_tag}`
-                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''} {!trade.exit_time ? 'is-ongoing' : ''}"
+                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''} {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}"
                         on:click={() =>
                           selectionMode
                             ? toggleTradeSelection(trade.id)
@@ -1703,7 +1701,7 @@
                                   data={trade.pnl_series}
                                   width={100}
                                   height={32}
-                                  isOpen={!trade.exit_time}
+                                  isOpen={trade.trade_type === 'actual' && !trade.exit_time}
                                 />
                               </div>
                             {/if}
@@ -1797,7 +1795,9 @@
                           <div class="trade-time">
                             {formatDate(trade.entry_time).split(' ')[1]} - {trade.exit_time
                               ? formatDate(trade.exit_time).split(' ')[1]
-                              : '進行中'}
+                              : trade.trade_type === 'actual'
+                                ? '進行中'
+                                : ''}
                           </div>
                         </div>
 

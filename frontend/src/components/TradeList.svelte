@@ -300,7 +300,7 @@
       {#each trades as trade (trade.id)}
         {@const matchedPlan = getMatchedPlan(trade)}
         <div
-          class="trade-card {!trade.exit_time ? 'is-ongoing' : ''}"
+          class="trade-card {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}"
           role="button"
           tabindex="0"
           on:click={() => navigate(`/edit/${trade.id}`)}
