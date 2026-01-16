@@ -128,15 +128,24 @@
       <h1>交易紀錄詳情</h1>
     </div>
     <div class="pnl-section">
-      {#if trade.pnl !== undefined && trade.pnl !== null}
-        <div class="pnl-value {trade.pnl >= 0 ? 'profit' : 'loss'}">
-          {trade.pnl >= 0 ? '+' : ''}{Number(trade.pnl).toFixed(2)}
-        </div>
-      {/if}
-      {#if trade.pnl_series}
-        <div class="sparkline-container-shared">
-          <Sparkline data={trade.pnl_series} isOpen={trade.trade_type === 'actual' && !trade.exit_time} width={120} height={40} />
-        </div>
+      {#if trade.trade_type === 'actual'}
+        {#if trade.pnl !== undefined && trade.pnl !== null}
+          <div class="pnl-value {trade.pnl >= 0 ? 'profit' : 'loss'}">
+            {trade.pnl >= 0 ? '+' : ''}{Number(trade.pnl).toFixed(2)}
+          </div>
+        {/if}
+        {#if trade.pnl_series}
+          <div class="sparkline-container-shared">
+            <Sparkline
+              data={trade.pnl_series}
+              isOpen={trade.trade_type === 'actual' && !trade.exit_time}
+              width={120}
+              height={40}
+            />
+          </div>
+        {/if}
+      {:else if trade.trade_type === 'observation'}
+        <span class="journal-detail-badge">📓 紀錄 / 記事</span>
       {/if}
     </div>
   </div>
@@ -161,45 +170,47 @@
       </div>
     </div>
 
-    <div class="info-row-divider"></div>
+    {#if trade.trade_type === 'actual'}
+      <div class="info-row-divider"></div>
 
-    <div class="info-row-group">
-      <div class="info-item">
-        <label>進場價格</label><span class="value-highlight">{trade.entry_price || '0.00'}</span>
+      <div class="info-row-group">
+        <div class="info-item">
+          <label>進場價格</label><span class="value-highlight">{trade.entry_price || '0.00'}</span>
+        </div>
+        <div class="info-item"><label>初始 S L</label><span>{trade.initial_sl || 'NA'}</span></div>
+        <div class="info-item">
+          <label>平倉價格</label><span class="value-highlight">{trade.exit_price || 'NA'}</span>
+        </div>
+        <div class="info-item"><label>平倉 S L</label><span>{trade.exit_sl || 'NA'}</span></div>
       </div>
-      <div class="info-item"><label>初始 S L</label><span>{trade.initial_sl || 'NA'}</span></div>
-      <div class="info-item">
-        <label>平倉價格</label><span class="value-highlight">{trade.exit_price || 'NA'}</span>
-      </div>
-      <div class="info-item"><label>平倉 S L</label><span>{trade.exit_sl || 'NA'}</span></div>
-    </div>
 
-    <div class="info-row-divider"></div>
+      <div class="info-row-divider"></div>
 
-    <div class="info-row-group">
-      <div class="info-item">
-        <label>盈虧金額</label><span class="rr-value {trade.pnl >= 0 ? 'profit' : 'loss'}"
-          >{trade.pnl !== undefined && trade.pnl !== null ? trade.pnl.toFixed(2) : '--'}</span
-        >
+      <div class="info-row-group">
+        <div class="info-item">
+          <label>盈虧金額</label><span class="rr-value {trade.pnl >= 0 ? 'profit' : 'loss'}"
+            >{trade.pnl !== undefined && trade.pnl !== null ? trade.pnl.toFixed(2) : '--'}</span
+          >
+        </div>
+        <div class="info-item">
+          <label>盈虧點數</label><span
+            >{trade.pnl_points != null ? trade.pnl_points.toFixed(1) : 'NA'}</span
+          >
+        </div>
+        <div class="info-item">
+          <label>子彈大小 (BULLET)</label><span
+            >{trade.bullet_size != null ? trade.bullet_size : '自動計算'}</span
+          >
+        </div>
+        <div class="info-item">
+          <label>風報比 (R:R)</label><span class="rr-value-pills"
+            >{trade.rr_ratio != null ? trade.rr_ratio.toFixed(2) : '自動計算'}</span
+          >
+        </div>
       </div>
-      <div class="info-item">
-        <label>盈虧點數</label><span
-          >{trade.pnl_points != null ? trade.pnl_points.toFixed(1) : 'NA'}</span
-        >
-      </div>
-      <div class="info-item">
-        <label>子彈大小 (BULLET)</label><span
-          >{trade.bullet_size != null ? trade.bullet_size : '自動計算'}</span
-        >
-      </div>
-      <div class="info-item">
-        <label>風報比 (R:R)</label><span class="rr-value-pills"
-          >{trade.rr_ratio != null ? trade.rr_ratio.toFixed(2) : '自動計算'}</span
-        >
-      </div>
-    </div>
 
-    <div class="info-row-divider"></div>
+      <div class="info-row-divider"></div>
+    {/if}
 
     <div class="info-row-group">
       <div class="info-item">
@@ -281,7 +292,8 @@
               <div class="legend-card">
                 <div class="legend-header">
                   <span>王者 (King)</span>
-                  {#if trade.legend_king_htf}<span class="htf-tag">{trade.legend_king_htf}</span>{/if}
+                  {#if trade.legend_king_htf}<span class="htf-tag">{trade.legend_king_htf}</span
+                    >{/if}
                 </div>
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <div
@@ -289,7 +301,11 @@
                   on:click={() =>
                     openModal(getImageUrl(trade.legend_king_image), '王者 (King) 圖面')}
                 >
-                  <img src={getImageUrl(trade.legend_king_image)} alt="Legend King" loading="lazy" />
+                  <img
+                    src={getImageUrl(trade.legend_king_image)}
+                    alt="Legend King"
+                    loading="lazy"
+                  />
                 </div>
               </div>
             {/if}
@@ -303,8 +319,7 @@
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <div
                   class="legend-img-container"
-                  on:click={() =>
-                    openModal(getImageUrl(trade.legend_htf_image), '傳奇觀察圖面')}
+                  on:click={() => openModal(getImageUrl(trade.legend_htf_image), '傳奇觀察圖面')}
                 >
                   <img src={getImageUrl(trade.legend_htf_image)} alt="Legend HTF" loading="lazy" />
                 </div>
@@ -325,7 +340,11 @@
                       on:click={() =>
                         openModal(getImageUrl(legendImg.image), `傳奇觀察圖 ${idx + 1}`)}
                     >
-                      <img src={getImageUrl(legendImg.image)} alt={`傳奇觀察圖 ${idx + 1}`} loading="lazy" />
+                      <img
+                        src={getImageUrl(legendImg.image)}
+                        alt={`傳奇觀察圖 ${idx + 1}`}
+                        loading="lazy"
+                      />
                     </div>
                   </div>
                 {/if}
@@ -339,10 +358,13 @@
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <div
                   class="legend-img-container"
-                  on:click={() =>
-                    openModal(getImageUrl(trade.entry_strategy_image), '傳奇全局圖')}
+                  on:click={() => openModal(getImageUrl(trade.entry_strategy_image), '傳奇全局圖')}
                 >
-                  <img src={getImageUrl(trade.entry_strategy_image)} alt="Legend General" loading="lazy" />
+                  <img
+                    src={getImageUrl(trade.entry_strategy_image)}
+                    alt="Legend General"
+                    loading="lazy"
+                  />
                 </div>
               </div>
             {/if}
@@ -636,6 +658,15 @@
   }
   .color-dot.red {
     background: #ef4444;
+  }
+
+  .journal-detail-badge {
+    background: #f3f4f6;
+    color: #374151;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-weight: 700;
+    border: 1px solid #d1d5db;
   }
 
   .section-box {

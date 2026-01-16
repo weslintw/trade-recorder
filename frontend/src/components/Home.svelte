@@ -79,7 +79,7 @@
       activeDateRange = range;
       const now = new Date();
       const todayStr = now.toISOString().split('T')[0];
-      
+
       if (range === '1D') {
         customStartDate = todayStr;
         customEndDate = todayStr;
@@ -142,7 +142,7 @@
         signals.push(...trend.short.expected_signals.map(s => s.name));
       }
     }
-    
+
     // 如果是舊格式，訊號可能在頂層
     if (trend.signals?.length > 0) signals.push(...trend.signals);
 
@@ -152,16 +152,18 @@
 
   function formatWaveSummary(trend) {
     if (!trend) return '';
-    
-    const formatDir = (dirData) => {
+
+    const formatDir = dirData => {
       if (!dirData?.wave_numbers?.length) return '';
       const nums = dirData.wave_numbers;
       const highlight = dirData.wave_highlight;
-      return nums.map((n, i) => {
-        const isHighlight = n.toString() === highlight?.toString();
-        const val = isHighlight ? `[${n}]` : n;
-        return (i > 0 ? ' => ' : '') + val;
-      }).join('');
+      return nums
+        .map((n, i) => {
+          const isHighlight = n.toString() === highlight?.toString();
+          const val = isHighlight ? `[${n}]` : n;
+          return (i > 0 ? ' => ' : '') + val;
+        })
+        .join('');
     };
 
     let waves = [];
@@ -173,14 +175,16 @@
       const w = formatDir(trend.short);
       if (w) waves.push(trend.long?.has_wave ? `空:${w}` : w);
     }
-    
+
     // 舊格式
     if (waves.length === 0 && trend.wave_numbers?.length > 0) {
-      const w = trend.wave_numbers.map((n, i) => {
-        const isHighlight = n.toString() === trend.wave_highlight?.toString();
-        const val = isHighlight ? `[${n}]` : n;
-        return (i > 0 ? ' => ' : '') + val;
-      }).join('');
+      const w = trend.wave_numbers
+        .map((n, i) => {
+          const isHighlight = n.toString() === trend.wave_highlight?.toString();
+          const val = isHighlight ? `[${n}]` : n;
+          return (i > 0 ? ' => ' : '') + val;
+        })
+        .join('');
       waves.push(w);
     }
 
@@ -214,15 +218,16 @@
                 if (!dData) continue;
 
                 if (type === 'expert' || type === 'all') {
-                  const signals = dData.has_signals ? (dData.signals || []) : [];
-                  const expected = dData.has_expected_signals ? (dData.expected_signals || []) : [];
+                  const signals = dData.has_signals ? dData.signals || [] : [];
+                  const expected = dData.has_expected_signals ? dData.expected_signals || [] : [];
 
                   if (!sub) {
                     // 如果沒選子項目，只要是達人有訊號就顯示
                     if (signals.length > 0 || expected.length > 0) return true;
                   } else {
                     if (dData.has_signals && signals.includes(sub)) return true;
-                    if (dData.has_expected_signals && expected.some(s => s.name === sub)) return true;
+                    if (dData.has_expected_signals && expected.some(s => s.name === sub))
+                      return true;
                   }
                 }
               }
@@ -294,7 +299,7 @@
       console.log(
         `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
       );
-      // Initialize date range based on default or stored logic? 
+      // Initialize date range based on default or stored logic?
       // For now, we just reload, using current activeDateRange/custom dates.
       // If we want to reset date on symbol change, do it here.
       // setDateRange('1W'); // Optional: reset to 1W on symbol change
@@ -390,36 +395,50 @@
       console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       try {
         console.log(`⏱️ [#${callId}] Parallel Fetching Plans & Trades...`);
-        
+
         const [plansRes, tradesRes] = await Promise.all([
-          dailyPlansAPI.getAll(
-            { 
-              account_id: $selectedAccountId, 
-              symbol, 
-              page_size: activeDateRange === 'all' ? 20 : 1000, 
-              start_date: activeDateRange === 'all' ? undefined : customStartDate, 
-              end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined)
-            },
-            signal
-          ).catch(e => {
-            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-            console.error('Plans fetch error:', e);
-            return { data: [] };
-          }),
-          tradesAPI.getAll(
-            { 
-              account_id: $selectedAccountId, 
-              symbol, 
-              page_size: activeDateRange === 'all' ? 50 : 1000,
-              start_date: activeDateRange === 'all' ? undefined : customStartDate, 
-              end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined)
-            },
-            signal
-          ).catch(e => {
-            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-            console.error('Trades fetch error:', e);
-            return { data: [] };
-          })
+          dailyPlansAPI
+            .getAll(
+              {
+                account_id: $selectedAccountId,
+                symbol,
+                page_size: activeDateRange === 'all' ? 20 : 1000,
+                start_date: activeDateRange === 'all' ? undefined : customStartDate,
+                end_date:
+                  activeDateRange === 'all'
+                    ? undefined
+                    : customEndDate
+                      ? customEndDate + ' 23:59:59'
+                      : undefined,
+              },
+              signal
+            )
+            .catch(e => {
+              if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+              console.error('Plans fetch error:', e);
+              return { data: [] };
+            }),
+          tradesAPI
+            .getAll(
+              {
+                account_id: $selectedAccountId,
+                symbol,
+                page_size: activeDateRange === 'all' ? 50 : 1000,
+                start_date: activeDateRange === 'all' ? undefined : customStartDate,
+                end_date:
+                  activeDateRange === 'all'
+                    ? undefined
+                    : customEndDate
+                      ? customEndDate + ' 23:59:59'
+                      : undefined,
+              },
+              signal
+            )
+            .catch(e => {
+              if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+              console.error('Trades fetch error:', e);
+              return { data: [] };
+            }),
         ]);
 
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
@@ -445,16 +464,18 @@
       const seenTickets = new Set();
       const uniqueTrades = [];
       trades.forEach(trade => {
-         // If trade has ticket, use it for checking uniqueness
-         if (trade.ticket && trade.ticket.startsWith('ctrader-')) {
-            if (seenTickets.has(trade.ticket)) {
-                console.warn(`[Client Dedup] Duplicate ticket found and skipped: ${trade.ticket} (ID: ${trade.id})`);
-                return;
-            }
-            seenTickets.add(trade.ticket);
-         }
-         // Also check by ID if possible (though API returns unique IDs usually, but just in case of merge)
-         uniqueTrades.push(trade);
+        // If trade has ticket, use it for checking uniqueness
+        if (trade.ticket && trade.ticket.startsWith('ctrader-')) {
+          if (seenTickets.has(trade.ticket)) {
+            console.warn(
+              `[Client Dedup] Duplicate ticket found and skipped: ${trade.ticket} (ID: ${trade.id})`
+            );
+            return;
+          }
+          seenTickets.add(trade.ticket);
+        }
+        // Also check by ID if possible (though API returns unique IDs usually, but just in case of merge)
+        uniqueTrades.push(trade);
       });
       trades = uniqueTrades;
 
@@ -577,7 +598,7 @@
       console.log('🟢 [refreshAccounts] Already refreshing, skipping.');
       return;
     }
-    
+
     // Abort previous refresh if any
     if (refreshAccountsController) refreshAccountsController.abort();
     refreshAccountsController = new AbortController();
@@ -819,16 +840,28 @@
 
   function calculateDailyStats(dayGroup) {
     if (!dayGroup || !dayGroup.groupedTrades) {
-      return { winRate: 0, realizedPnl: 0, floatingPnl: 0, totalPnl: 0, wins: 0, total: 0, hasFloating: false };
+      return {
+        winRate: 0,
+        realizedPnl: 0,
+        floatingPnl: 0,
+        totalPnl: 0,
+        wins: 0,
+        total: 0,
+        hasFloating: false,
+      };
     }
 
     const allTrades = dayGroup.groupedTrades.flatMap(group => group.trades);
-    
+
     // 只計算已平倉的交易用於勝率和已實現盈虧
-    const closedTrades = allTrades.filter(trade => trade.exit_time && trade.pnl !== null && trade.pnl !== undefined);
-    
+    const closedTrades = allTrades.filter(
+      trade => trade.exit_time && trade.pnl !== null && trade.pnl !== undefined
+    );
+
     // 計算未平倉的交易（浮動部分）
-    const openTrades = allTrades.filter(trade => !trade.exit_time && trade.pnl !== null && trade.pnl !== undefined);
+    const openTrades = allTrades.filter(
+      trade => !trade.exit_time && trade.pnl !== null && trade.pnl !== undefined
+    );
 
     const total = closedTrades.length;
     const wins = closedTrades.filter(trade => trade.pnl > 0).length;
@@ -1189,61 +1222,61 @@
       <!-- 日期篩選區 (新增) -->
       <div class="filter-date-row">
         <div class="date-presets">
-          <button 
-            class="filter-type-btn {activeDateRange === '1D' ? 'active' : ''}" 
+          <button
+            class="filter-type-btn {activeDateRange === '1D' ? 'active' : ''}"
             on:click={() => setDateRange('1D')}
           >
             1日
           </button>
-          <button 
-            class="filter-type-btn {activeDateRange === '1W' ? 'active' : ''}" 
+          <button
+            class="filter-type-btn {activeDateRange === '1W' ? 'active' : ''}"
             on:click={() => setDateRange('1W')}
           >
             1週
           </button>
-          <button 
-            class="filter-type-btn {activeDateRange === '1M' ? 'active' : ''}" 
+          <button
+            class="filter-type-btn {activeDateRange === '1M' ? 'active' : ''}"
             on:click={() => setDateRange('1M')}
           >
             1月
           </button>
-          <button 
-            class="filter-type-btn {activeDateRange === 'custom' ? 'active' : ''}" 
+          <button
+            class="filter-type-btn {activeDateRange === 'custom' ? 'active' : ''}"
             on:click={() => {
               if (activeDateRange === 'custom') {
-                 activeDateRange = 'all'; // Toggle off
-                 customStartDate = '';
-                 customEndDate = '';
-                 loadData();
+                activeDateRange = 'all'; // Toggle off
+                customStartDate = '';
+                customEndDate = '';
+                loadData();
               } else {
-                 activeDateRange = 'custom';
-                 // Set default custom range if empty
-                 if (!customStartDate) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - 7);
-                    customStartDate = d.toISOString().split('T')[0];
-                    customEndDate = new Date().toISOString().split('T')[0];
-                 }
-                 // Don't auto-load, let user pick dates
+                activeDateRange = 'custom';
+                // Set default custom range if empty
+                if (!customStartDate) {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 7);
+                  customStartDate = d.toISOString().split('T')[0];
+                  customEndDate = new Date().toISOString().split('T')[0];
+                }
+                // Don't auto-load, let user pick dates
               }
             }}
           >
             <span class="btn-icon">📅</span> 自訂
           </button>
         </div>
-        
+
         {#if activeDateRange === 'custom'}
           <div class="custom-date-inputs">
-            <input 
-              type="date" 
-              class="date-input" 
-              bind:value={customStartDate} 
+            <input
+              type="date"
+              class="date-input"
+              bind:value={customStartDate}
               on:change={() => loadData()}
             />
             <span class="date-sep">~</span>
-            <input 
-              type="date" 
-              class="date-input" 
+            <input
+              type="date"
+              class="date-input"
               bind:value={customEndDate}
               on:change={() => loadData()}
             />
@@ -1358,22 +1391,40 @@
             {#if dailyStats.total > 0 || dailyStats.hasFloating}
               <div class="daily-stats">
                 {#if dailyStats.total > 0}
-                  <span class="stat-item win-rate" class:high-win={dailyStats.winRate >= 60} class:low-win={dailyStats.winRate < 50}>
+                  <span
+                    class="stat-item win-rate"
+                    class:high-win={dailyStats.winRate >= 60}
+                    class:low-win={dailyStats.winRate < 50}
+                  >
                     <span class="stat-label">勝率</span>
                     <span class="stat-value">{dailyStats.winRate.toFixed(1)}%</span>
                     <span class="stat-detail">({dailyStats.wins}/{dailyStats.total})</span>
                   </span>
                   <span class="stat-divider">|</span>
                 {/if}
-                <span class="stat-item pnl" class:profit={dailyStats.realizedPnl > 0} class:loss={dailyStats.realizedPnl < 0}>
+                <span
+                  class="stat-item pnl"
+                  class:profit={dailyStats.realizedPnl > 0}
+                  class:loss={dailyStats.realizedPnl < 0}
+                >
                   <span class="stat-label">已實現</span>
-                  <span class="stat-value">{dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(2)}</span>
+                  <span class="stat-value"
+                    >{dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(
+                      2
+                    )}</span
+                  >
                 </span>
                 {#if dailyStats.hasFloating}
                   <span class="stat-divider">|</span>
-                  <span class="stat-item pnl floating" class:profit={dailyStats.totalPnl > 0} class:loss={dailyStats.totalPnl < 0}>
+                  <span
+                    class="stat-item pnl floating"
+                    class:profit={dailyStats.totalPnl > 0}
+                    class:loss={dailyStats.totalPnl < 0}
+                  >
                     <span class="stat-label">浮動盈虧</span>
-                    <span class="stat-value">{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span>
+                    <span class="stat-value"
+                      >{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span
+                    >
                   </span>
                 {/if}
               </div>
@@ -1462,7 +1513,11 @@
                           : ''} {selectionMode &&
                         timeGroup.trades.every(t => selectedTrades.has(t.id))
                           ? 'selected'
-                          : ''} {timeGroup.trades.some(t => t.trade_type === 'actual' && !t.exit_time) ? 'is-ongoing' : ''}"
+                          : ''} {timeGroup.trades.some(
+                          t => t.trade_type === 'actual' && !t.exit_time
+                        )
+                          ? 'is-ongoing'
+                          : ''}"
                         on:click={() =>
                           selectionMode
                             ? timeGroup.trades.forEach(t => toggleTradeSelection(t.id))
@@ -1507,27 +1562,27 @@
                           </div>
                           <div class="group-pnl">
                             <div class="color-tags" on:click|stopPropagation>
-                                <button
-                                  class="color-btn green {timeGroup.trades[0].color_tag === 'green'
-                                    ? 'active'
-                                    : ''}"
-                                  on:click={() => toggleColorTagForGroup(timeGroup, 'green')}
-                                  title={colorTagMeanings.green}
-                                ></button>
-                                <button
-                                  class="color-btn yellow {timeGroup.trades[0].color_tag === 'yellow'
-                                    ? 'active'
-                                    : ''}"
-                                  on:click={() => toggleColorTagForGroup(timeGroup, 'yellow')}
-                                  title={colorTagMeanings.yellow}
-                                ></button>
-                                <button
-                                  class="color-btn red {timeGroup.trades[0].color_tag === 'red'
-                                    ? 'active'
-                                    : ''}"
-                                  on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
-                                  title={colorTagMeanings.red}
-                                ></button>
+                              <button
+                                class="color-btn green {timeGroup.trades[0].color_tag === 'green'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'green')}
+                                title={colorTagMeanings.green}
+                              ></button>
+                              <button
+                                class="color-btn yellow {timeGroup.trades[0].color_tag === 'yellow'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'yellow')}
+                                title={colorTagMeanings.yellow}
+                              ></button>
+                              <button
+                                class="color-btn red {timeGroup.trades[0].color_tag === 'red'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTagForGroup(timeGroup, 'red')}
+                                title={colorTagMeanings.red}
+                              ></button>
                             </div>
                             {#if timeGroup.trades[0]?.pnl_series}
                               <div class="header-sparkline">
@@ -1535,7 +1590,9 @@
                                   data={timeGroup.trades[0].pnl_series}
                                   width={80}
                                   height={28}
-                                  isOpen={timeGroup.trades.some(t => t.trade_type === 'actual' && !t.exit_time)}
+                                  isOpen={timeGroup.trades.some(
+                                    t => t.trade_type === 'actual' && !t.exit_time
+                                  )}
                                 />
                               </div>
                             {/if}
@@ -1642,7 +1699,11 @@
                       <div
                         class="trade-item-card {trade.color_tag
                           ? `tag-${trade.color_tag}`
-                          : ''} {selectionMode && selectedTrades.has(trade.id) ? 'selected' : ''} {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}"
+                          : ''} {selectionMode && selectedTrades.has(trade.id)
+                          ? 'selected'
+                          : ''} {trade.trade_type === 'actual' && !trade.exit_time
+                          ? 'is-ongoing'
+                          : ''}"
                         on:click={() =>
                           selectionMode
                             ? toggleTradeSelection(trade.id)
@@ -1672,30 +1733,33 @@
                               <span class="side-tag {trade.side}"
                                 >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
                               >
+                              {#if trade.trade_type === 'observation'}
+                                <span class="journal-tag">📓 記事</span>
+                              {/if}
                             </div>
                             {#if trade.ticket}<div class="ticket-tag">#{trade.ticket}</div>{/if}
                           </div>
                           <div class="trade-right">
                             <div class="color-tags" on:click|stopPropagation>
-                                <button
-                                  class="color-btn green {trade.color_tag === 'green'
-                                    ? 'active'
-                                    : ''}"
-                                  on:click={() => toggleColorTag(trade, 'green')}
-                                  title={colorTagMeanings.green}
-                                ></button>
-                                <button
-                                  class="color-btn yellow {trade.color_tag === 'yellow'
-                                    ? 'active'
-                                    : ''}"
-                                  on:click={() => toggleColorTag(trade, 'yellow')}
-                                  title={colorTagMeanings.yellow}
-                                ></button>
-                                <button
-                                  class="color-btn red {trade.color_tag === 'red' ? 'active' : ''}"
-                                  on:click={() => toggleColorTag(trade, 'red')}
-                                  title={colorTagMeanings.red}
-                                ></button>
+                              <button
+                                class="color-btn green {trade.color_tag === 'green'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTag(trade, 'green')}
+                                title={colorTagMeanings.green}
+                              ></button>
+                              <button
+                                class="color-btn yellow {trade.color_tag === 'yellow'
+                                  ? 'active'
+                                  : ''}"
+                                on:click={() => toggleColorTag(trade, 'yellow')}
+                                title={colorTagMeanings.yellow}
+                              ></button>
+                              <button
+                                class="color-btn red {trade.color_tag === 'red' ? 'active' : ''}"
+                                on:click={() => toggleColorTag(trade, 'red')}
+                                title={colorTagMeanings.red}
+                              ></button>
                             </div>
                             {#if trade.pnl_series}
                               <div class="header-sparkline">
@@ -1707,20 +1771,22 @@
                                 />
                               </div>
                             {/if}
-                            <span
-                              class="pnl-tag {trade.pnl >= 0
-                                ? trade.pnl === null
-                                  ? ''
-                                  : 'profit'
-                                : 'loss'}"
-                            >
-                              {trade.pnl === null || trade.pnl === undefined
-                                ? 'NA'
-                                : (trade.pnl >= 0 ? '+' : '') +
-                                  (typeof trade.pnl === 'number'
-                                    ? trade.pnl.toFixed(2)
-                                    : trade.pnl)}
-                            </span>
+                            {#if trade.trade_type === 'actual'}
+                              <span
+                                class="pnl-tag {trade.pnl >= 0
+                                  ? trade.pnl === null
+                                    ? ''
+                                    : 'profit'
+                                  : 'loss'}"
+                              >
+                                {trade.pnl === null || trade.pnl === undefined
+                                  ? 'NA'
+                                  : (trade.pnl >= 0 ? '+' : '') +
+                                    (typeof trade.pnl === 'number'
+                                      ? trade.pnl.toFixed(2)
+                                      : trade.pnl)}
+                              </span>
+                            {/if}
                             <button
                               class="sync-btn-card"
                               on:click|stopPropagation={() => syncSingleTrade(trade.id)}
@@ -1751,49 +1817,51 @@
                         </div>
 
                         <div class="trade-details">
-                          <div class="detail-row">
-                            <!-- 第一組：價格資訊 -->
-                            <div class="info-group">
-                              <span class="label">進場</span>
-                              <strong>{trade.entry_price}</strong>
-                              <span class="arrow">→</span>
-                              <span class="label">平倉</span>
-                              <strong>{trade.exit_price || '-'}</strong>
-                            </div>
+                          {#if trade.trade_type === 'actual'}
+                            <div class="detail-row">
+                              <!-- 第一組：價格資訊 -->
+                              <div class="info-group">
+                                <span class="label">進場</span>
+                                <strong>{trade.entry_price}</strong>
+                                <span class="arrow">→</span>
+                                <span class="label">平倉</span>
+                                <strong>{trade.exit_price || '-'}</strong>
+                              </div>
 
-                            <div class="info-group">
-                              <span class="label">初始ＳＬ</span>
-                              <strong>{trade.initial_sl || '-'}</strong>
-                              {#if trade.exit_sl}
-                                <span class="label">平倉ＳＬ</span>
-                                <strong>{trade.exit_sl}</strong>
-                              {/if}
-                            </div>
+                              <div class="info-group">
+                                <span class="label">初始ＳＬ</span>
+                                <strong>{trade.initial_sl || '-'}</strong>
+                                {#if trade.exit_sl}
+                                  <span class="label">平倉ＳＬ</span>
+                                  <strong>{trade.exit_sl}</strong>
+                                {/if}
+                              </div>
 
-                            <!-- 第二組：績效資訊 -->
-                            <div class="info-group">
-                              <span class="label">子彈</span>
-                              <strong class="bullet">
-                                {trade.bullet_size && trade.bullet_size > 0
-                                  ? trade.bullet_size.toFixed(1)
-                                  : 'NA'}
-                              </strong>
-                              {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
-                                <span class="label">風報比</span>
-                                <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
-                                  >{trade.rr_ratio.toFixed(2)}</strong
-                                >
-                              {/if}
-                              <span class="label">手數</span>
-                              <strong>{trade.lot_size}</strong>
-                              {#if trade.exit_time}
-                                <span class="label">持單時間</span>
-                                <strong class="duration-text"
-                                  >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
-                                >
-                              {/if}
+                              <!-- 第二組：績效資訊 -->
+                              <div class="info-group">
+                                <span class="label">子彈</span>
+                                <strong class="bullet">
+                                  {trade.bullet_size && trade.bullet_size > 0
+                                    ? trade.bullet_size.toFixed(1)
+                                    : 'NA'}
+                                </strong>
+                                {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
+                                  <span class="label">風報比</span>
+                                  <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
+                                    >{trade.rr_ratio.toFixed(2)}</strong
+                                  >
+                                {/if}
+                                <span class="label">手數</span>
+                                <strong>{trade.lot_size}</strong>
+                                {#if trade.exit_time}
+                                  <span class="label">持單時間</span>
+                                  <strong class="duration-text"
+                                    >{calculateDuration(trade.entry_time, trade.exit_time)}</strong
+                                  >
+                                {/if}
+                              </div>
                             </div>
-                          </div>
+                          {/if}
                           <div class="trade-time">
                             {formatDate(trade.entry_time).split(' ')[1]} - {trade.exit_time
                               ? formatDate(trade.exit_time).split(' ')[1]
@@ -2295,15 +2363,27 @@
 
   /* Ongoing Trade Animation */
   @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
-    100% { transform: translateY(0px); }
+    0% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+    100% {
+      transform: translateY(0px);
+    }
   }
 
   @keyframes pulse-bg {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+    0% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.6;
+    }
   }
 
   .trade-item-card.is-ongoing,
@@ -2636,6 +2716,26 @@
   .side-tag.short {
     background: #dcfce7;
     color: #166534;
+  }
+
+  .journal-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    line-height: 1;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    white-space: nowrap;
+  }
+  :global(body.dark-mode) .journal-tag {
+    background: #374151;
+    color: #f3f4f6;
+    border-color: #4b5563;
   }
 
   .symbol-inline-tag {
@@ -3646,7 +3746,7 @@
     border-color: rgba(255, 255, 255, 0.1);
     color: #cbd5e1;
   }
-  
+
   :global(body.dark-mode) .date-input:focus {
     background: #1e293b;
     border-color: #818cf8;
@@ -3669,7 +3769,13 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style>

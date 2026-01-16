@@ -312,7 +312,20 @@
             on:click|stopPropagation={() => syncTrade(trade.id)}
             title="重新從交易所同步此筆資料"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path
+                d="M21 3v5h-5"
+              /></svg
+            >
           </button>
 
           <!-- 單一行：品種 + 方向 + 所有資訊 + 盈虧 -->
@@ -327,46 +340,58 @@
                   {getStrategyLabel(trade.entry_strategy)}
                 </span>
               {/if}
-              <span class="compact-item">
-                <span class="compact-label">進場:</span>
-                <span class="compact-value">{trade.entry_price}</span>
-              </span>
-              {#if trade.exit_price}
-                <span class="compact-item">
-                  <span class="compact-label">平倉:</span>
-                  <span class="compact-value">{trade.exit_price}</span>
-                </span>
+              {#if trade.trade_type === 'observation'}
+                <span class="badge journal-badge">📓 記事</span>
               {/if}
-              {#if trade.initial_sl}
+              {#if trade.trade_type === 'actual'}
                 <span class="compact-item">
-                  <span class="compact-label">停損:</span>
-                  <span class="compact-value">{trade.initial_sl}</span>
+                  <span class="compact-label">進場:</span>
+                  <span class="compact-value">{trade.entry_price}</span>
                 </span>
-                {#if trade.bullet_size}
+                {#if trade.exit_price}
                   <span class="compact-item">
-                    <span class="compact-label">子彈:</span>
-                    <span class="compact-value">{trade.bullet_size.toFixed(1)}</span>
+                    <span class="compact-label">平倉:</span>
+                    <span class="compact-value">{trade.exit_price}</span>
                   </span>
                 {/if}
-                {#if trade.rr_ratio}
+                {#if trade.initial_sl}
                   <span class="compact-item">
-                    <span class="compact-label">風報:</span>
-                    <span class="compact-value">{trade.rr_ratio.toFixed(2)}</span>
+                    <span class="compact-label">停損:</span>
+                    <span class="compact-value">{trade.initial_sl}</span>
                   </span>
+                  {#if trade.bullet_size}
+                    <span class="compact-item">
+                      <span class="compact-label">子彈:</span>
+                      <span class="compact-value">{trade.bullet_size.toFixed(1)}</span>
+                    </span>
+                  {/if}
+                  {#if trade.rr_ratio}
+                    <span class="compact-item">
+                      <span class="compact-label">風報:</span>
+                      <span class="compact-value">{trade.rr_ratio.toFixed(2)}</span>
+                    </span>
+                  {/if}
                 {/if}
+                <span class="compact-item">
+                  <span class="compact-label">手數:</span>
+                  <span class="compact-value">{trade.lot_size}</span>
+                </span>
               {/if}
-              <span class="compact-item">
-                <span class="compact-label">手數:</span>
-                <span class="compact-value">{trade.lot_size}</span>
-              </span>
               <span class="compact-item">
                 <span class="compact-label">時間:</span>
                 <span class="compact-value">{formatDate(trade.entry_time)}</span>
               </span>
             </div>
-            <span class="pnl {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}" style="margin-right: 1.5rem;">
-              {trade.pnl === null || trade.pnl === undefined ? 'NA' : (trade.pnl >= 0 ? '+' : '') + trade.pnl.toFixed(2)}
-            </span>
+            {#if trade.trade_type === 'actual'}
+              <span
+                class="pnl {trade.pnl >= 0 ? (trade.pnl === null ? '' : 'profit') : 'loss'}"
+                style="margin-right: 1.5rem;"
+              >
+                {trade.pnl === null || trade.pnl === undefined
+                  ? 'NA'
+                  : (trade.pnl >= 0 ? '+' : '') + trade.pnl.toFixed(2)}
+              </span>
+            {/if}
           </div>
 
           <!-- 盤面規劃整合區 -->
@@ -705,19 +730,35 @@
 
   /* Ongoing Trade Animation */
   @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-6px); }
-    100% { transform: translateY(0px); }
+    0% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+    100% {
+      transform: translateY(0px);
+    }
   }
 
   @keyframes pulse-bg {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+    0% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0.6;
+    }
   }
 
   .trade-card.is-ongoing {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.08) 100%) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.08) 0%,
+      rgba(168, 85, 247, 0.08) 100%
+    ) !important;
     border-color: rgba(99, 102, 241, 0.4) !important;
     animation: float 4s ease-in-out infinite;
     box-shadow: 0 15px 35px rgba(99, 102, 241, 0.12);
@@ -737,7 +778,11 @@
   }
 
   :global(body.dark-mode) .trade-card.is-ongoing {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%) !important;
+    background: linear-gradient(
+      135deg,
+      rgba(99, 102, 241, 0.15) 0%,
+      rgba(168, 85, 247, 0.15) 100%
+    ) !important;
     border-color: rgba(99, 102, 241, 0.5) !important;
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
   }
@@ -972,6 +1017,17 @@
     background: #78350f;
     color: white;
     border: none;
+  }
+
+  .journal-badge {
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+    border: 1px solid #d1d5db !important;
+  }
+  :global(body.dark-mode) .journal-badge {
+    background: #374151 !important;
+    color: #f3f4f6 !important;
+    border-color: #4b5563 !important;
   }
 
   .plan-summary-group {
