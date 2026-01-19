@@ -1050,7 +1050,9 @@
         alert('交易紀錄建立成功！');
       }
 
-      navigate('/');
+      if (!id) {
+        navigate('/');
+      }
     } catch (error) {
       console.error('儲存失敗:', error);
       alert('儲存失敗：' + (error.response?.data?.error || error.message));
