@@ -164,6 +164,23 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	symbolMap := make(map[int64]string)
 	symbolLotSizeMap := make(map[int64]int64)
 
+	// 1a. Pre-fetch currently open positions to avoid deleting them during migration
+	openPositionsMap := make(map[int64]bool)
+	pRespPre, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID})
+	if err == nil {
+		var pr struct {
+			Position []struct {
+				PositionID int64 `json:"positionId"`
+			} `json:"position"`
+		}
+		if err := json.Unmarshal(pRespPre.Payload, &pr); err == nil {
+			for _, pos := range pr.Position {
+				openPositionsMap[pos.PositionID] = true
+			}
+			log.Printf("[cTrader Sync] Pre-sync: Found %d open positions", len(openPositionsMap))
+		}
+	}
+
 	// Populate symbol names
 	time.Sleep(500 * time.Millisecond)
 	sListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": cTID})
@@ -692,8 +709,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, oldTradeID)
 					// Copy tags
 					db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, oldTradeID)
-					// Delete old record
-					db.Exec("DELETE FROM trades WHERE id = ?", oldTradeID)
+
+					// Delete old record ONLY if it's NOT still open (to prevent "blanking" ongoing trades)
+					if !openPositionsMap[d.PositionID] {
+						db.Exec("DELETE FROM trades WHERE id = ?", oldTradeID)
+					} else {
+						log.Printf("[cTrader Sync] Position %d is still open, preserving POS record", d.PositionID)
+					}
 				}
 			}
 		}
@@ -842,11 +864,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					WHERE ticket LIKE 'ctrader-pos-%'`,
 					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.OpenTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
 
+				// Identify which tickets are still open (even if upsert failed, we don't want to delete them)
+				currentOpenTickets[ticket] = true
+
 				if err != nil {
 					log.Printf("[cTrader Sync] Upsert open position failed (PositionID: %d): %v", pos.PositionID, err)
 				} else {
-					// Identify which tickets are still open
-					currentOpenTickets[ticket] = true
 					if rows, err := res.RowsAffected(); err == nil && rows > 0 {
 						insertedCount++
 					}
