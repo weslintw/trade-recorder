@@ -188,59 +188,6 @@
   </div>
 </div>
 
-<div class="patterns-section" style="margin-top: 2rem;">
-  <label class="patterns-label">菁英觀察圖 (Ctrl+V 貼上)：</label>
-  <div class="strategy-images-grid">
-    {#each eliteImageSlots as imageData, index}
-      <div
-        class="signal-card elite-image-card"
-        tabindex="0"
-        role="button"
-        on:paste={e => handleEliteImagePaste(e, index)}
-        on:click={() => {
-          if (imageData?.image) {
-            dispatch('enlarge', { 
-              image: imageData.image, 
-              title: `菁英觀察圖 ${index + 1}`, 
-              context: { type: 'elite_strategy', index }
-            });
-          }
-        }}
-        on:keydown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            if (imageData?.image) {
-              dispatch('enlarge', { 
-                image: imageData.image, 
-                title: `菁英觀察圖 ${index + 1}`, 
-                context: { type: 'elite_strategy', index }
-              });
-            }
-          }
-        }}
-      >
-        {#if imageData?.image}
-          <div class="signal-image-preview">
-            <img src={getImageUrl(imageData.image)} alt={`菁英觀察圖 ${index + 1}`} />
-            <button
-              type="button"
-              class="remove-signal-image"
-              on:click={e => {
-                e.stopPropagation();
-                removeEliteImage(index);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        {:else}
-          <div class="signal-image-placeholder">
-            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上菁英觀察圖</span>
-          </div>
-        {/if}
-      </div>
-    {/each}
-  </div>
-</div>
 
 <div class="entry-pattern-section">
   <span class="entry-pattern-label">進場樣態：</span>
@@ -304,6 +251,61 @@
       {/each}
     </div>
   {/if}
+</div>
+
+<!-- 菁英觀察圖 (多圖連貼，原 entry_strategy_image 位置) -->
+<div class="observation-section">
+  <label class="section-label">菁英觀察圖 (Ctrl+V 貼上)：</label>
+  <div class="strategy-images-grid">
+    {#each eliteImageSlots as imageData, index}
+      <div
+        class="signal-card elite-image-card"
+        tabindex="0"
+        role="button"
+        on:paste={e => handleEliteImagePaste(e, index)}
+        on:click={() => {
+          if (imageData?.image) {
+            dispatch('enlarge', { 
+              image: imageData.image, 
+              title: `菁英觀察圖 ${index + 1}`, 
+              context: { type: 'elite_strategy', index }
+            });
+          }
+        }}
+        on:keydown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (imageData?.image) {
+              dispatch('enlarge', { 
+                image: imageData.image, 
+                title: `菁英觀察圖 ${index + 1}`, 
+                context: { type: 'elite_strategy', index }
+              });
+            }
+          }
+        }}
+      >
+        {#if imageData?.image}
+          <div class="signal-image-preview">
+            <img src={getImageUrl(imageData.image)} alt={`菁英觀察圖 ${index + 1}`} />
+            <button
+              type="button"
+              class="remove-signal-image"
+              on:click={e => {
+                e.stopPropagation();
+                removeEliteImage(index);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        {:else}
+          <div class="signal-image-placeholder">
+            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上菁英觀察圖</span>
+          </div>
+        {/if}
+      </div>
+    {/each}
+  </div>
 </div>
 
 <style>
@@ -503,28 +505,27 @@
     pointer-events: none;
   }
 
-  /* Strategy Images Grid (matching Legend) */
-  .patterns-section {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: white;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-  }
-
-  .patterns-label {
-    display: block;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 0.75rem;
-  }
-
   .strategy-images-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
     margin-top: 0.5rem;
+  }
+
+  .observation-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #fdfdfd;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .section-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
   }
 
   .signal-card {

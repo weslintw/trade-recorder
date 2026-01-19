@@ -74,8 +74,9 @@
   <SignalGrid bind:entry_signals={formData.entry_signals} bind:formData bind:signalImagesCache on:enlarge />
 </div>
 
-<div class="signals-section">
-  <label class="signals-label">達人觀察圖 (Ctrl+V 貼上)：</label>
+<!-- 達人觀察圖 (多圖連貼，原 entry_strategy_image 位置) -->
+<div class="observation-section">
+  <label class="section-label">達人觀察圖 (Ctrl+V 貼上)：</label>
   <div class="strategy-images-grid">
     {#each imageSlots as imageData, index}
       <div
@@ -134,6 +135,23 @@
     font-weight: 600;
     margin-bottom: 1rem;
     color: #4a5568;
+    font-size: 0.95rem;
+  }
+
+  .observation-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: #fdfdfd;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .section-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
   }
 
   /* Image Cards and Grid */
