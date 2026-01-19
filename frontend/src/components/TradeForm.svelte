@@ -926,17 +926,25 @@
       addImage(formData.legend_htf_image, 'legend_htf', formData.legend_htf_image_size);
       addImage(formData.legend_king_image, 'legend_king', formData.legend_king_image_size);
 
-      // 2. 訊號圖片
+      // 2. 訊號圖片 (支援多圖)
       formData.entry_signals.forEach(sig => {
-        if (typeof sig === 'object' && sig.image) {
-          addImage(sig.image, 'signal', sig.size);
+        if (typeof sig === 'object') {
+          if (sig.image) addImage(sig.image, 'signal', sig.size);
+          if (sig.images && Array.isArray(sig.images)) {
+            sig.images.forEach(img => {
+              if (img && img.image) addImage(img.image, 'signal', img.size);
+            });
+          }
         }
       });
 
-      // 3. 樣態圖片
+      // 3. 樣態圖片 (支援多圖)
       formData.entry_pattern.forEach(pat => {
-        if (pat.image) {
-          addImage(pat.image, 'pattern', pat.size);
+        if (pat.image) addImage(pat.image, 'pattern', pat.size);
+        if (pat.images && Array.isArray(pat.images)) {
+          pat.images.forEach(img => {
+            if (img && img.image) addImage(img.image, 'pattern', img.size);
+          });
         }
       });
 
@@ -949,20 +957,10 @@
         });
       }
 
-      // 5. 連貼觀察圖 (傳奇/達人/菁英)
+      // 5. 連貼觀察圖 (傳奇)
       if (formData.legend_images) {
         formData.legend_images.forEach(img => {
           if (img && img.image) addImage(img.image, 'legend_obs', img.size);
-        });
-      }
-      if (formData.expert_images) {
-        formData.expert_images.forEach(img => {
-          if (img && img.image) addImage(img.image, 'expert_obs', img.size);
-        });
-      }
-      if (formData.elite_images) {
-        formData.elite_images.forEach(img => {
-          if (img && img.image) addImage(img.image, 'elite_obs', img.size);
         });
       }
 

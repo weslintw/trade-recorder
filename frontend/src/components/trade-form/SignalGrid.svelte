@@ -138,33 +138,28 @@
             let newSignals = [...entry_signals];
             const newSignal =
               typeof newSignals[index] === 'string'
-                ? { name: signalName, image: imageUrl, originalImage: imageUrl, size: imageSize }
+                ? { name: signalName, images: [{ image: imageUrl, originalImage: imageUrl, size: imageSize }] }
                 : {
                     ...newSignals[index],
-                    image: imageUrl,
-                    originalImage: newSignals[index].originalImage || imageUrl,
-                    size: imageSize
+                    images: [
+                      ...(newSignals[index].images || (newSignals[index].image ? [{ image: newSignals[index].image, originalImage: newSignals[index].originalImage || newSignals[index].image, size: newSignals[index].size }] : [])),
+                      { image: imageUrl, originalImage: imageUrl, size: imageSize }
+                    ].filter((img, i, self) => img.image && self.findIndex(t => t.image === img.image) === i)
                   };
             newSignals[index] = newSignal;
             entry_signals = newSignals;
 
             signalImagesCache[signalName] = {
-              image: newSignal.image,
-              originalImage: newSignal.originalImage,
-              size: imageSize
+              images: newSignal.images,
             };
           } else {
             const newSignal = {
               name: signalName,
-              image: imageUrl,
-              originalImage: imageUrl,
-              size: imageSize
+              images: [{ image: imageUrl, originalImage: imageUrl, size: imageSize }]
             };
             entry_signals = [...entry_signals, newSignal];
             signalImagesCache[signalName] = {
-              image: newSignal.image,
-              originalImage: newSignal.originalImage,
-              size: imageSize
+              images: newSignal.images,
             };
           }
         } catch (error) {
@@ -210,41 +205,66 @@
       </label>
 
       {#if isSelected}
-        {#if signalData.image}
-          <div class="signal-image-preview">
-            <img
-              src={getImageUrl(signalData.image)}
-              alt={signal}
-              on:click={e => {
-                e.stopPropagation();
-                dispatch('enlarge', {
-                  image: signalData.image,
-                  title: signal,
-                  context: {
-                    type: 'signal',
-                    name: signalData.name,
-                    originalImage: signalData.originalImage,
-                  },
-                });
-              }}
-              on:keydown={() => {}}
-            />
-            <button
-              type="button"
-              class="remove-signal-image"
-              on:click={e => {
-                e.stopPropagation();
-                removeSignalImage(signalData);
-              }}
+        <div class="signal-card-header">
+          <span class="signal-card-title">達人觀察圖</span>
+        </div>
+        
+        {@const images = signalData.images || (signalData.image ? [{image: signalData.image, originalImage: signalData.originalImage, size: signalData.size}] : [])}
+        {@const slots = [...images, null]}
+
+        <div class="strategy-images-grid">
+          {#each slots as imageData, imgIndex}
+            <div 
+              class="image-slot"
+              class:empty={!imageData}
+              on:paste|stopPropagation={e => handleSignalImagePaste(e, signal)}
             >
-              ×
-            </button>
-          </div>
-        {:else}
-          <div class="signal-image-placeholder">
-            <span class="placeholder-text">按 Ctrl+V 貼上圖片</span>
-          </div>
-        {/if}
+              {#if imageData?.image}
+                <div class="signal-image-preview">
+                  <img
+                    src={getImageUrl(imageData.image)}
+                    alt={signal}
+                    on:click={e => {
+                      e.stopPropagation();
+                      dispatch('enlarge', {
+                        image: imageData.image,
+                        title: `達人觀察圖 (${signal})`,
+                        context: {
+                          type: 'signal',
+                          name: signalData.name,
+                          index: imgIndex,
+                          originalImage: imageData.originalImage,
+                        },
+                      });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    class="remove-signal-image"
+                    on:click={e => {
+                      e.stopPropagation();
+                      // Remove specific image
+                      let newSignals = [...entry_signals];
+                      const sIdx = newSignals.findIndex(s => s.name === signal);
+                      if (sIdx >= 0) {
+                        const currentImages = newSignals[sIdx].images || (newSignals[sIdx].image ? [{image: newSignals[sIdx].image, originalImage: newSignals[sIdx].originalImage, size: newSignals[sIdx].size}] : []);
+                        newSignals[sIdx].images = currentImages.filter((_, i) => i !== imgIndex);
+                        newSignals[sIdx].image = ''; // Clear legacy field
+                        entry_signals = newSignals;
+                      }
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              {:else}
+                <div class="signal-image-placeholder compact">
+                  <span class="placeholder-text">Ctrl+V</span>
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
       {/if}
     </div>
   {/each}
@@ -261,9 +281,11 @@
     border: 2px solid #e2e8f0;
     border-radius: 12px;
     padding: 0.75rem;
-    cursor: pointer;
+    cursor: auto !important;
     transition: all 0.2s ease;
     background: white;
+    display: flex;
+    flex-direction: column;
   }
 
   .signal-card:hover {
@@ -301,20 +323,57 @@
     color: #667eea;
   }
 
-  .signal-image-preview {
-    position: relative;
+  .signal-card-header {
     margin-top: 0.5rem;
-    border-radius: 8px;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e2e8f0;
+    margin-bottom: 0.5rem;
+  }
+
+  .signal-card-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .strategy-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .image-slot {
+    aspect-ratio: 1;
+    border-radius: 6px;
     overflow: hidden;
     border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    position: relative;
+    cursor: pointer;
+  }
+
+  .image-slot.empty {
+    border: 1px dashed #cbd5e0;
+  }
+
+  .image-slot:hover {
+    border-color: #667eea;
+  }
+
+  .signal-image-preview {
+    position: relative;
+    width: 100%;
+    height: 100%;
   }
 
   .signal-image-preview img {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
-    max-height: 200px;
-    object-fit: contain;
+    object-fit: cover;
     background: white;
     cursor: zoom-in;
   }
@@ -345,23 +404,21 @@
   }
 
   .signal-image-placeholder {
-    margin-top: 0.5rem;
-    padding: 2rem 1rem;
-    border: 2px dashed #cbd5e0;
-    border-radius: 8px;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    background: #f7fafc;
-    transition: all 0.2s ease;
   }
 
-  .signal-card:hover .signal-image-placeholder {
-    border-color: #667eea;
-    background: #edf2f7;
+  .signal-image-placeholder.compact {
+    padding: 0.5rem;
   }
 
   .placeholder-text {
-    font-size: 0.85rem;
-    color: #718096;
-    display: block;
+    font-size: 0.75rem;
+    color: #a0aec0;
+    pointer-events: none;
   }
 </style>

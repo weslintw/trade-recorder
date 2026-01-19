@@ -74,52 +74,6 @@
   <SignalGrid bind:entry_signals={formData.entry_signals} bind:formData bind:signalImagesCache on:enlarge />
 </div>
 
-<!-- 達人觀察圖 (多圖連貼，原 entry_strategy_image 位置) -->
-<div class="observation-section">
-  <label class="section-label">達人觀察圖 (Ctrl+V 貼上)：</label>
-  <div class="strategy-images-grid">
-    {#each imageSlots as imageData, index}
-      <div
-        class="signal-card expert-image-card"
-        tabindex="0"
-        role="button"
-        on:paste={e => handleExpertImagePaste(e, index)}
-        on:click={() => {
-          if (imageData?.image) {
-            enlargeImage(imageData.image, `達人觀察圖 ${index + 1}`, { type: 'expert_strategy', index });
-          }
-        }}
-        on:keydown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            if (imageData?.image) {
-              enlargeImage(imageData.image, `達人觀察圖 ${index + 1}`, { type: 'expert_strategy', index });
-            }
-          }
-        }}
-      >
-        {#if imageData?.image}
-          <div class="signal-image-preview">
-            <img src={getImageUrl(imageData.image)} alt={`達人觀察圖 ${index + 1}`} />
-            <button
-              type="button"
-              class="remove-signal-image"
-              on:click={e => {
-                e.stopPropagation();
-                removeExpertImage(index);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        {:else}
-          <div class="signal-image-placeholder">
-            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上達人觀察圖</span>
-          </div>
-        {/if}
-      </div>
-    {/each}
-  </div>
-</div>
 
 <style>
   .signals-section {

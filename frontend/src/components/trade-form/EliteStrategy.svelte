@@ -50,12 +50,11 @@
           ...formData.entry_pattern,
           {
             name: patternName,
-            image: cached.image,
-            originalImage: cached.originalImage,
+            images: cached.images || (cached.image ? [{image: cached.image, originalImage: cached.originalImage, size: cached.size}] : []),
           },
         ];
       } else {
-        formData.entry_pattern = [...formData.entry_pattern, { name: patternName, image: '' }];
+        formData.entry_pattern = [...formData.entry_pattern, { name: patternName, images: [] }];
       }
     }
   }
@@ -87,14 +86,15 @@
           const imageUrl = response.data.path;
           const imageSize = response.data.size;
 
-          pattern.image = imageUrl;
-          pattern.originalImage = imageUrl;
-          pattern.size = imageSize;
+          pattern.images = [
+            ...(pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])),
+            { image: imageUrl, originalImage: imageUrl, size: imageSize }
+          ];
+          pattern.image = ''; // Clear legacy field
+          
           // Sync to cache
           patternImagesCache[pattern.name] = {
-            image: imageUrl,
-            originalImage: imageUrl,
-            size: imageSize
+            images: pattern.images,
           };
           formData.entry_pattern = formData.entry_pattern; // Trigger reactivity
           formData = formData;
@@ -115,56 +115,6 @@
     delete patternImagesCache[pattern.name];
     formData.entry_pattern = formData.entry_pattern;
   }
-  async function handleEliteImagePaste(e, index) {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = item.getAsFile();
-
-        try {
-          const formDataToUpload = new FormData();
-          formDataToUpload.append('image', file);
-          formDataToUpload.append('symbol', formData.symbol || 'trade');
-
-          const response = await imagesAPI.upload(formDataToUpload);
-          const imageUrl = response.data.path;
-          const imageSize = response.data.size;
-
-          if (!formData.elite_images) {
-            formData.elite_images = [];
-          }
-          
-          const newImages = [...formData.elite_images];
-          newImages[index] = {
-            image: imageUrl,
-            originalImage: imageUrl,
-            size: imageSize
-          };
-          
-          formData.elite_images = newImages;
-          formData = formData;
-        } catch (error) {
-          console.error('菁英觀察圖上傳失敗:', error);
-          alert('圖片處理失敗');
-        }
-        break;
-      }
-    }
-  }
-
-  function removeEliteImage(index) {
-    if (formData.elite_images && formData.elite_images[index]) {
-      const newImages = formData.elite_images.filter((_, i) => i !== index);
-      formData.elite_images = newImages;
-      formData = formData;
-    }
-  }
-
-  // Calculate how many image slots to show (always show at least one empty slot)
-  $: eliteImageSlots = formData.elite_images && formData.elite_images.length > 0 
-    ? [...formData.elite_images, null] 
-    : [null];
 </script>
 
 <div class="checklist-section">
@@ -210,42 +160,53 @@
   {#if formData.entry_pattern.length > 0}
     <div class="pattern-cards-grid">
       {#each formData.entry_pattern as pattern}
-        <div class="pattern-image-card" on:paste={e => handlePatternImagePaste(e, pattern)}>
+        <div class="pattern-image-card">
           <div class="pattern-card-header">
-            <span class="pattern-card-title">{pattern.name}</span>
+            <span class="pattern-card-title">菁英觀察圖</span>
           </div>
           <div class="pattern-card-body">
-            {#if pattern.image}
-              <div
-                class="pattern-image-preview"
-                role="button"
-                tabindex="0"
-                on:click={() =>
-                  enlargeImage(pattern.image, pattern.name + ' 樣態圖', {
-                    type: 'pattern',
-                    key: pattern.name,
-                  })}
-                on:keydown={e =>
-                  (e.key === 'Enter' || e.key === ' ') &&
-                  enlargeImage(pattern.image, pattern.name + ' 樣態圖', {
-                    type: 'pattern',
-                    key: pattern.name,
-                  })}
-              >
-                <img src={getImageUrl(pattern.image)} alt={pattern.name} />
-                <button
-                  type="button"
-                  class="remove-pattern-image"
-                  on:click|stopPropagation={() => removePatternImage(pattern)}
+            {@const images = pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])}
+            {@const slots = [...images, null]}
+
+            <div class="strategy-images-grid mini">
+              {#each slots as imageData, imgIndex}
+                <div 
+                  class="image-slot"
+                  class:empty={!imageData}
+                  on:paste|stopPropagation={e => handlePatternImagePaste(e, pattern)}
                 >
-                  ×
-                </button>
-              </div>
-            {:else}
-              <div class="signal-image-placeholder">
-                <span class="placeholder-text">點擊此處或按 Ctrl+V 貼上圖片</span>
-              </div>
-            {/if}
+                  {#if imageData?.image}
+                    <div class="pattern-image-preview">
+                      <img
+                        src={getImageUrl(imageData.image)}
+                        alt={pattern.name}
+                        on:click={() =>
+                          enlargeImage(imageData.image, `菁英觀察圖 (${pattern.name})`, {
+                            type: 'pattern',
+                            key: pattern.name,
+                            index: imgIndex,
+                          })}
+                      />
+                      <button
+                        type="button"
+                        class="remove-pattern-image"
+                        on:click|stopPropagation={() => {
+                          pattern.images = images.filter((_, i) => i !== imgIndex);
+                          pattern.image = '';
+                          formData.entry_pattern = formData.entry_pattern;
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="signal-image-placeholder compact">
+                      <span class="placeholder-text">Ctrl+V</span>
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
           </div>
         </div>
       {/each}
@@ -253,60 +214,6 @@
   {/if}
 </div>
 
-<!-- 菁英觀察圖 (多圖連貼，原 entry_strategy_image 位置) -->
-<div class="observation-section">
-  <label class="section-label">菁英觀察圖 (Ctrl+V 貼上)：</label>
-  <div class="strategy-images-grid">
-    {#each eliteImageSlots as imageData, index}
-      <div
-        class="signal-card elite-image-card"
-        tabindex="0"
-        role="button"
-        on:paste={e => handleEliteImagePaste(e, index)}
-        on:click={() => {
-          if (imageData?.image) {
-            dispatch('enlarge', { 
-              image: imageData.image, 
-              title: `菁英觀察圖 ${index + 1}`, 
-              context: { type: 'elite_strategy', index }
-            });
-          }
-        }}
-        on:keydown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            if (imageData?.image) {
-              dispatch('enlarge', { 
-                image: imageData.image, 
-                title: `菁英觀察圖 ${index + 1}`, 
-                context: { type: 'elite_strategy', index }
-              });
-            }
-          }
-        }}
-      >
-        {#if imageData?.image}
-          <div class="signal-image-preview">
-            <img src={getImageUrl(imageData.image)} alt={`菁英觀察圖 ${index + 1}`} />
-            <button
-              type="button"
-              class="remove-signal-image"
-              on:click={e => {
-                e.stopPropagation();
-                removeEliteImage(index);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        {:else}
-          <div class="signal-image-placeholder">
-            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上菁英觀察圖</span>
-          </div>
-        {/if}
-      </div>
-    {/each}
-  </div>
-</div>
 
 <style>
   .checklist-section {
@@ -447,21 +354,18 @@
     flex-direction: column;
     min-height: 120px;
     position: relative;
-    justify-content: center;
-    align-items: center;
   }
 
   .pattern-image-preview {
     width: 100%;
+    height: 100%;
     cursor: zoom-in;
-    border-radius: 6px;
-    overflow: hidden;
     position: relative;
   }
 
   .pattern-image-preview img {
     width: 100%;
-    height: 120px;
+    height: 100%;
     object-fit: cover;
     display: block;
   }
@@ -499,9 +403,13 @@
     text-align: center;
   }
 
+  .signal-image-placeholder.compact {
+    padding: 0.5rem;
+  }
+
   .placeholder-text {
-    font-size: 0.75rem;
-    color: #718096;
+    font-size: 0.7rem;
+    color: #a0aec0;
     pointer-events: none;
   }
 
@@ -512,85 +420,66 @@
     margin-top: 0.5rem;
   }
 
-  .observation-section {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background: #fdfdfd;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-  }
-
-  .section-label {
-    display: block;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 0.75rem;
-  }
-
-  .signal-card {
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    background: white;
-  }
-
-  .signal-card:hover {
-    border-color: #cbd5e0;
-  }
-
-  .elite-image-card {
-    min-height: 150px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .signal-image-preview {
+  .strategy-images-grid.mini {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 0.5rem;
     width: 100%;
-    position: relative;
-    border-radius: 8px;
+  }
+
+  .image-slot {
+    aspect-ratio: 1;
+    border-radius: 6px;
     overflow: hidden;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    position: relative;
+    cursor: pointer;
   }
 
-  .signal-image-preview img {
+  .image-slot.empty {
+    border: 1px dashed #cbd5e0;
+  }
+
+  .image-slot:hover {
+    border-color: #667eea;
+  }
+
+  .pattern-image-preview {
+    position: relative;
     width: 100%;
-    height: auto;
-    max-height: 300px;
-    display: block;
-    object-fit: contain;
+    height: 100%;
   }
 
-  .remove-signal-image {
+  .pattern-image-preview img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    background: white;
+    cursor: zoom-in;
+  }
+
+  .remove-pattern-image {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    width: 24px;
-    height: 24px;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
     background: rgba(0, 0, 0, 0.7);
     color: white;
     border: none;
     border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.2rem;
-    line-height: 1;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    line-height: 1;
+    padding: 0;
   }
 
-  .remove-signal-image:hover {
-    background: #ef4444;
-  }
-
-  .signal-image-placeholder {
-    padding: 2rem;
-    text-align: center;
-    color: #718096;
-    border: 2px dashed #e2e8f0;
-    border-radius: 8px;
-    width: 100%;
+  .remove-pattern-image:hover {
+    background: rgba(239, 68, 68, 0.9);
   }
 </style>

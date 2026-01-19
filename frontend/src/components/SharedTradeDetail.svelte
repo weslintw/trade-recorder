@@ -437,17 +437,24 @@
             <div class="tags-container">
               {#each signals as sig}
                 {@const sigName = typeof sig === 'string' ? sig : sig.name}
-                {@const sigImg = typeof sig === 'object' ? sig.image || sig.originalImage : null}
-                <span
-                  class="analysis-tag {sigImg ? 'has-img' : ''}"
-                  on:click={() =>
-                    sigImg && openModal(getImageUrl(sigImg), expertSignals[sigName] || sigName)}
-                >
-                  {#if sigImg}
-                    <img src={getImageUrl(sigImg)} alt={sigName} class="tag-icon" />
-                  {/if}
-                  {expertSignals[sigName] || sigName}
-                </span>
+                {@const primaryImg = typeof sig === 'object' ? sig.image || sig.originalImage : null}
+                {@const allImages = (sig.images && Array.isArray(sig.images)) ? sig.images : (primaryImg ? [{image: primaryImg}] : [])}
+                
+                {#if allImages.length > 0}
+                  {#each allImages as img, imgIdx}
+                    <span
+                      class="analysis-tag has-img"
+                      on:click={() => openModal(getImageUrl(img.image), `${expertSignals[sigName] || sigName} - 圖 ${imgIdx + 1}`)}
+                    >
+                      <img src={getImageUrl(img.image)} alt={sigName} class="tag-icon" />
+                      {expertSignals[sigName] || sigName} {#if allImages.length > 1}({imgIdx + 1}){/if}
+                    </span>
+                  {/each}
+                {:else}
+                  <span class="analysis-tag">
+                    {expertSignals[sigName] || sigName}
+                  </span>
+                {/if}
               {/each}
             </div>
           </div>
@@ -464,16 +471,24 @@
             <div class="tags-container">
               {#each patterns as pat}
                 {@const patName = typeof pat === 'string' ? pat : pat.name}
-                {@const patImg = typeof pat === 'object' ? pat.image || pat.originalImage : null}
-                <span
-                  class="analysis-tag pattern {patImg ? 'has-img' : ''}"
-                  on:click={() => patImg && openModal(getImageUrl(patImg), patName)}
-                >
-                  {#if patImg}
-                    <img src={getImageUrl(patImg)} alt={patName} class="tag-icon" />
-                  {/if}
-                  {patName}
-                </span>
+                {@const primaryImg = typeof pat === 'object' ? pat.image || pat.originalImage : null}
+                {@const allImages = (pat.images && Array.isArray(pat.images)) ? pat.images : (primaryImg ? [{image: primaryImg}] : [])}
+                
+                {#if allImages.length > 0}
+                  {#each allImages as img, imgIdx}
+                    <span
+                      class="analysis-tag pattern has-img"
+                      on:click={() => openModal(getImageUrl(img.image), `${patName} - 圖 ${imgIdx + 1}`)}
+                    >
+                      <img src={getImageUrl(img.image)} alt={patName} class="tag-icon" />
+                      {patName} {#if allImages.length > 1}({imgIdx + 1}){/if}
+                    </span>
+                  {/each}
+                {:else}
+                  <span class="analysis-tag pattern">
+                    {patName}
+                  </span>
+                {/if}
               {/each}
             </div>
           </div>

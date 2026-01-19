@@ -613,9 +613,10 @@
                 {/if}
               {/if}
 
-              <!-- 顯示達人觀察圖 -->
-              {#if trade.expert_images}
-                {#each parseJSONSafe(trade.expert_images, []) as img, idx}
+              <!-- 顯示訊號圖片(支援多圖) -->
+              {#each parseJSONSafe(trade.entry_signals, []) as sig}
+                {@const sigImages = sig.images || (sig.image ? [{image: sig.image}] : [])}
+                {#each sigImages as img, idx}
                   {#if img.image}
                     <button
                       class="image-thumb"
@@ -623,18 +624,19 @@
                         e.stopPropagation();
                         openImageModal(img.image);
                       }}
-                      title="點擊查看達人觀察圖 {idx + 1}"
+                      title="點擊查看訊號圖片 ({sig.name || sig})"
                     >
-                      <img src={imagesAPI.getUrl(img.image)} alt="達人觀察圖" />
-                      <span class="image-label">⚡ 達人圖 {idx + 1}</span>
+                      <img src={imagesAPI.getUrl(img.image)} alt="訊號圖" />
+                      <span class="image-label">⚡ {sig.name || sig} {#if sigImages.length > 1}({idx + 1}){/if}</span>
                     </button>
                   {/if}
                 {/each}
-              {/if}
+              {/each}
 
-              <!-- 顯示菁英觀察圖 -->
-              {#if trade.elite_images}
-                {#each parseJSONSafe(trade.elite_images, []) as img, idx}
+              <!-- 顯示樣態圖片(支援多圖) -->
+              {#each parseJSONSafe(trade.entry_pattern, []) as pat}
+                {@const patImages = pat.images || (pat.image ? [{image: pat.image}] : [])}
+                {#each patImages as img, idx}
                   {#if img.image}
                     <button
                       class="image-thumb"
@@ -642,14 +644,14 @@
                         e.stopPropagation();
                         openImageModal(img.image);
                       }}
-                      title="點擊查看菁英觀察圖 {idx + 1}"
+                      title="點擊查看進場樣態圖 ({pat.name || pat})"
                     >
-                      <img src={imagesAPI.getUrl(img.image)} alt="菁英觀察圖" />
-                      <span class="image-label">💎 菁英圖 {idx + 1}</span>
+                      <img src={imagesAPI.getUrl(img.image)} alt="樣態圖" />
+                      <span class="image-label">🧩 {pat.name || pat} {#if patImages.length > 1}({idx + 1}){/if}</span>
                     </button>
                   {/if}
                 {/each}
-              {/if}
+              {/each}
 
               <!-- 顯示傳奇觀察圖 -->
               {#if trade.legend_images}
