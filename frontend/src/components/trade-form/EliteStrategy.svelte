@@ -160,14 +160,13 @@
   {#if formData.entry_pattern.length > 0}
     <div class="pattern-cards-grid">
       {#each formData.entry_pattern as pattern}
+        {@const images = pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])}
+        {@const slots = [...images, null]}
         <div class="pattern-image-card">
           <div class="pattern-card-header">
             <span class="pattern-card-title">菁英觀察圖</span>
           </div>
           <div class="pattern-card-body">
-            {@const images = pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])}
-            {@const slots = [...images, null]}
-
             <div class="strategy-images-grid mini">
               {#each slots as imageData, imgIndex}
                 <div 

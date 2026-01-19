@@ -205,12 +205,12 @@
       </label>
 
       {#if isSelected}
+        {@const images = signalData.images || (signalData.image ? [{image: signalData.image, originalImage: signalData.originalImage, size: signalData.size}] : [])}
+        {@const slots = [...images, null]}
+
         <div class="signal-card-header">
           <span class="signal-card-title">達人觀察圖</span>
         </div>
-        
-        {@const images = signalData.images || (signalData.image ? [{image: signalData.image, originalImage: signalData.originalImage, size: signalData.size}] : [])}
-        {@const slots = [...images, null]}
 
         <div class="strategy-images-grid">
           {#each slots as imageData, imgIndex}
