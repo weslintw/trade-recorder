@@ -127,6 +127,7 @@
 
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
+          const imageSize = response.data.size;
 
           if (!entry_signals) entry_signals = [];
           const index = entry_signals.findIndex(s =>
@@ -137,11 +138,12 @@
             let newSignals = [...entry_signals];
             const newSignal =
               typeof newSignals[index] === 'string'
-                ? { name: signalName, image: imageUrl, originalImage: imageUrl }
+                ? { name: signalName, image: imageUrl, originalImage: imageUrl, size: imageSize }
                 : {
                     ...newSignals[index],
                     image: imageUrl,
                     originalImage: newSignals[index].originalImage || imageUrl,
+                    size: imageSize
                   };
             newSignals[index] = newSignal;
             entry_signals = newSignals;
@@ -149,17 +151,20 @@
             signalImagesCache[signalName] = {
               image: newSignal.image,
               originalImage: newSignal.originalImage,
+              size: imageSize
             };
           } else {
             const newSignal = {
               name: signalName,
               image: imageUrl,
               originalImage: imageUrl,
+              size: imageSize
             };
             entry_signals = [...entry_signals, newSignal];
             signalImagesCache[signalName] = {
               image: newSignal.image,
               originalImage: newSignal.originalImage,
+              size: imageSize
             };
           }
         } catch (error) {

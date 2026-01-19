@@ -85,13 +85,16 @@
 
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
+          const imageSize = response.data.size;
 
           pattern.image = imageUrl;
           pattern.originalImage = imageUrl;
+          pattern.size = imageSize;
           // Sync to cache
           patternImagesCache[pattern.name] = {
             image: imageUrl,
             originalImage: imageUrl,
+            size: imageSize
           };
           formData.entry_pattern = formData.entry_pattern; // Trigger reactivity
           formData = formData;
@@ -112,6 +115,56 @@
     delete patternImagesCache[pattern.name];
     formData.entry_pattern = formData.entry_pattern;
   }
+  async function handleEliteImagePaste(e, index) {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (let item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const file = item.getAsFile();
+
+        try {
+          const formDataToUpload = new FormData();
+          formDataToUpload.append('image', file);
+          formDataToUpload.append('symbol', formData.symbol || 'trade');
+
+          const response = await imagesAPI.upload(formDataToUpload);
+          const imageUrl = response.data.path;
+          const imageSize = response.data.size;
+
+          if (!formData.elite_images) {
+            formData.elite_images = [];
+          }
+          
+          const newImages = [...formData.elite_images];
+          newImages[index] = {
+            image: imageUrl,
+            originalImage: imageUrl,
+            size: imageSize
+          };
+          
+          formData.elite_images = newImages;
+          formData = formData;
+        } catch (error) {
+          console.error('菁英觀察圖上傳失敗:', error);
+          alert('圖片處理失敗');
+        }
+        break;
+      }
+    }
+  }
+
+  function removeEliteImage(index) {
+    if (formData.elite_images && formData.elite_images[index]) {
+      const newImages = formData.elite_images.filter((_, i) => i !== index);
+      formData.elite_images = newImages;
+      formData = formData;
+    }
+  }
+
+  // Calculate how many image slots to show (always show at least one empty slot)
+  $: eliteImageSlots = formData.elite_images && formData.elite_images.length > 0 
+    ? [...formData.elite_images, null] 
+    : [null];
 </script>
 
 <div class="checklist-section">
@@ -131,6 +184,60 @@
         />
         <span class="checkbox-label">{item.label}</span>
       </label>
+    {/each}
+  </div>
+</div>
+
+<div class="patterns-section" style="margin-top: 2rem;">
+  <label class="patterns-label">菁英觀察圖 (Ctrl+V 貼上)：</label>
+  <div class="strategy-images-grid">
+    {#each eliteImageSlots as imageData, index}
+      <div
+        class="signal-card elite-image-card"
+        tabindex="0"
+        role="button"
+        on:paste={e => handleEliteImagePaste(e, index)}
+        on:click={() => {
+          if (imageData?.image) {
+            dispatch('enlarge', { 
+              image: imageData.image, 
+              title: `菁英觀察圖 ${index + 1}`, 
+              context: { type: 'elite_strategy', index }
+            });
+          }
+        }}
+        on:keydown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (imageData?.image) {
+              dispatch('enlarge', { 
+                image: imageData.image, 
+                title: `菁英觀察圖 ${index + 1}`, 
+                context: { type: 'elite_strategy', index }
+              });
+            }
+          }
+        }}
+      >
+        {#if imageData?.image}
+          <div class="signal-image-preview">
+            <img src={getImageUrl(imageData.image)} alt={`菁英觀察圖 ${index + 1}`} />
+            <button
+              type="button"
+              class="remove-signal-image"
+              on:click={e => {
+                e.stopPropagation();
+                removeEliteImage(index);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        {:else}
+          <div class="signal-image-placeholder">
+            <span class="placeholder-text">點擊此處並按 Ctrl+V 貼上菁英觀察圖</span>
+          </div>
+        {/if}
+      </div>
     {/each}
   </div>
 </div>
@@ -394,5 +501,95 @@
     font-size: 0.75rem;
     color: #718096;
     pointer-events: none;
+  }
+
+  /* Strategy Images Grid (matching Legend) */
+  .patterns-section {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .patterns-label {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.75rem;
+  }
+
+  .strategy-images-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  .signal-card {
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: white;
+  }
+
+  .signal-card:hover {
+    border-color: #cbd5e0;
+  }
+
+  .elite-image-card {
+    min-height: 150px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .signal-image-preview {
+    width: 100%;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .signal-image-preview img {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    display: block;
+    object-fit: contain;
+  }
+
+  .remove-signal-image {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .remove-signal-image:hover {
+    background: #ef4444;
+  }
+
+  .signal-image-placeholder {
+    padding: 2rem;
+    text-align: center;
+    color: #718096;
+    border: 2px dashed #e2e8f0;
+    border-radius: 8px;
+    width: 100%;
   }
 </style>

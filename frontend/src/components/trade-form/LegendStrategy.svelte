@@ -50,9 +50,11 @@
 
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
+          const imageSize = response.data.size;
 
           formData.legend_king_image = imageUrl;
           formData.legend_king_image_original = imageUrl;
+          formData.legend_king_image_size = imageSize;
           formData = formData;
         } catch (error) {
           console.error('王后圖上傳失敗:', error);
@@ -84,9 +86,11 @@
 
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
+          const imageSize = response.data.size;
 
           formData.legend_htf_image = imageUrl;
           formData.legend_htf_image_original = imageUrl;
+          formData.legend_htf_image_size = imageSize;
           formData = formData;
         } catch (error) {
           console.error('大時區圖上傳失敗:', error);
@@ -123,6 +127,7 @@
 
           const response = await imagesAPI.upload(formDataToUpload);
           const imageUrl = response.data.path;
+          const imageSize = response.data.size;
 
           // Update the specific index
           if (!formData.legend_images) {
@@ -133,7 +138,8 @@
           const newImages = [...formData.legend_images];
           newImages[index] = {
             image: imageUrl,
-            originalImage: imageUrl
+            originalImage: imageUrl,
+            size: imageSize
           };
           
           formData.legend_images = newImages;

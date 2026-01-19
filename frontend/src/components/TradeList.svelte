@@ -612,6 +612,63 @@
                   </button>
                 {/if}
               {/if}
+
+              <!-- 顯示達人觀察圖 -->
+              {#if trade.expert_images}
+                {#each parseJSONSafe(trade.expert_images, []) as img, idx}
+                  {#if img.image}
+                    <button
+                      class="image-thumb"
+                      on:click={e => {
+                        e.stopPropagation();
+                        openImageModal(img.image);
+                      }}
+                      title="點擊查看達人觀察圖 {idx + 1}"
+                    >
+                      <img src={imagesAPI.getUrl(img.image)} alt="達人觀察圖" />
+                      <span class="image-label">⚡ 達人圖 {idx + 1}</span>
+                    </button>
+                  {/if}
+                {/each}
+              {/if}
+
+              <!-- 顯示菁英觀察圖 -->
+              {#if trade.elite_images}
+                {#each parseJSONSafe(trade.elite_images, []) as img, idx}
+                  {#if img.image}
+                    <button
+                      class="image-thumb"
+                      on:click={e => {
+                        e.stopPropagation();
+                        openImageModal(img.image);
+                      }}
+                      title="點擊查看菁英觀察圖 {idx + 1}"
+                    >
+                      <img src={imagesAPI.getUrl(img.image)} alt="菁英觀察圖" />
+                      <span class="image-label">💎 菁英圖 {idx + 1}</span>
+                    </button>
+                  {/if}
+                {/each}
+              {/if}
+
+              <!-- 顯示傳奇觀察圖 -->
+              {#if trade.legend_images}
+                {#each parseJSONSafe(trade.legend_images, []) as img, idx}
+                  {#if img.image}
+                    <button
+                      class="image-thumb"
+                      on:click={e => {
+                        e.stopPropagation();
+                        openImageModal(img.image);
+                      }}
+                      title="點擊查看傳奇觀察圖 {idx + 1}"
+                    >
+                      <img src={imagesAPI.getUrl(img.image)} alt="傳奇觀察圖" />
+                      <span class="image-label">👑 傳奇圖 {idx + 1}</span>
+                    </button>
+                  {/if}
+                {/each}
+              {/if}
             </div>
           {/if}
         </div>

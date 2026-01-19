@@ -106,6 +106,12 @@
       const range = quill.getSelection(true);
       quill.insertEmbed(range.index, 'image', imageUrl);
       quill.setSelection(range.index + 1);
+
+      // 通知父組件圖片上傳資訊 (用於儲存空間統計)
+      dispatch('imageUpload', {
+        path: response.data.path,
+        size: response.data.size
+      });
     } catch (error) {
       console.error('圖片上傳失敗:', error);
       alert('圖片上傳失敗：' + (error.response?.data?.error || error.message));

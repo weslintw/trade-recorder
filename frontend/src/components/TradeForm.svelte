@@ -67,7 +67,12 @@
     ticket: '', // 平台成交編號
     pnl_series: '', // PnL 序列
     journal: '', // 紀事
+    legend_images: [], // 傳奇觀察圖
+    expert_images: [], // 達人觀察圖
+    elite_images: [], // 菁英觀察圖
   };
+
+  let editorImages = []; // 用於追蹤編輯器中上傳的圖片 {path, size}
 
   $: isActualTrade = formData.trade_type === 'actual';
 
@@ -660,6 +665,8 @@
         pnl_series: response.data.pnl_series || '',
         journal: response.data.journal || '',
         legend_images: parseJSONSafe(response.data.legend_images, []),
+        expert_images: parseJSONSafe(response.data.expert_images, []),
+        elite_images: parseJSONSafe(response.data.elite_images, []),
       };
 
       // Manually populate caches to ensuring binding works correctly
@@ -809,6 +816,7 @@
 
       const uploadRes = await imagesAPI.upload(uploadData);
       const serverPath = uploadRes.data.path;
+      const serverSize = uploadRes.data.size;
 
       if (!enlargedImageContext) {
         // 如果沒有上下文，只更新顯示的圖片
@@ -828,8 +836,8 @@
           const currentSignal = formData.entry_signals[index];
           const signal =
             typeof currentSignal === 'string'
-              ? { name: key, image: serverPath, originalImage: serverPath }
-              : { ...currentSignal, image: serverPath };
+              ? { name: key, image: serverPath, originalImage: serverPath, size: serverSize }
+              : { ...currentSignal, image: serverPath, size: serverSize };
           formData.entry_signals[index] = signal;
           formData = formData;
         }
@@ -845,23 +853,28 @@
       } else if (type === 'strategy') {
         // 更新策略圖片
         formData.entry_strategy_image = serverPath;
+        formData.entry_strategy_image_size = serverSize;
         formData = formData;
       } else if (type === 'legend_htf') {
         // 更新傳奇大時區圖片
         formData.legend_htf_image = serverPath;
+        formData.legend_htf_image_size = serverSize;
         formData = formData;
       } else if (type === 'legend_king') {
         // 更新傳奇王者圖片
         formData.legend_king_image = serverPath;
+        formData.legend_king_image_size = serverSize;
         formData = formData;
       } else if (type === 'pattern') {
         const index = formData.entry_pattern.findIndex(p => p.name === key);
         if (index >= 0) {
           formData.entry_pattern[index].image = serverPath;
+          formData.entry_pattern[index].size = serverSize;
           // 同步到緩存
           patternImagesCache[key] = {
             ...patternImagesCache[key],
             image: serverPath,
+            size: serverSize,
           };
           formData = formData;
         }
@@ -893,10 +906,71 @@
         typeof s === 'string' ? { name: s, image: '' } : s
       );
 
+      // 集結所有具備 MinIO 路徑的圖片，以便後端紀錄在 trade_images 表中進行空間統計
+      const allImages = [];
+      const addImage = (path, type, size = 0) => {
+        if (path && !path.startsWith('data:')) {
+          allImages.push({
+            image_type: type,
+            image_path: path,
+            file_size: size || 0
+          });
+        }
+      };
+
+      // 0. 追蹤編輯器中的圖片
+      editorImages.forEach(img => addImage(img.path, 'editor', img.size));
+
+      // 1. 基礎策略圖片
+      addImage(formData.entry_strategy_image, 'strategy', formData.entry_strategy_image_size);
+      addImage(formData.legend_htf_image, 'legend_htf', formData.legend_htf_image_size);
+      addImage(formData.legend_king_image, 'legend_king', formData.legend_king_image_size);
+
+      // 2. 訊號圖片
+      formData.entry_signals.forEach(sig => {
+        if (typeof sig === 'object' && sig.image) {
+          addImage(sig.image, 'signal', sig.size);
+        }
+      });
+
+      // 3. 樣態圖片
+      formData.entry_pattern.forEach(pat => {
+        if (pat.image) {
+          addImage(pat.image, 'pattern', pat.size);
+        }
+      });
+
+      // 4. 趨勢分析圖片
+      if (formData.trend_analysis) {
+        Object.values(formData.trend_analysis).forEach(trend => {
+          if (trend && trend.image) {
+            addImage(trend.image, 'trend', trend.size);
+          }
+        });
+      }
+
+      // 5. 連貼觀察圖 (傳奇/達人/菁英)
+      if (formData.legend_images) {
+        formData.legend_images.forEach(img => {
+          if (img && img.image) addImage(img.image, 'legend_obs', img.size);
+        });
+      }
+      if (formData.expert_images) {
+        formData.expert_images.forEach(img => {
+          if (img && img.image) addImage(img.image, 'expert_obs', img.size);
+        });
+      }
+      if (formData.elite_images) {
+        formData.elite_images.forEach(img => {
+          if (img && img.image) addImage(img.image, 'elite_obs', img.size);
+        });
+      }
+
       // 從富文本編輯器取得內容
       const submitData = {
         ...formData,
         account_id: $selectedAccountId,
+        images: allImages, // 送入 Images 陣列供後端儲存至 trade_images
         entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
         exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
         notes: notesEditor ? notesEditor.getContent() : formData.notes,
@@ -909,6 +983,8 @@
         entry_timeframe: formData.entry_timeframe,
         trend_analysis: JSON.stringify(formData.trend_analysis),
         legend_images: formData.legend_images ? JSON.stringify(formData.legend_images.filter(img => img !== null)) : '[]',
+        expert_images: formData.expert_images ? JSON.stringify(formData.expert_images.filter(img => img !== null)) : '[]',
+        elite_images: formData.elite_images ? JSON.stringify(formData.elite_images.filter(img => img !== null)) : '[]',
         trend_type: formData.trend_type,
         entry_time: new Date(formData.entry_time).toISOString(),
         exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
@@ -1567,6 +1643,7 @@
           bind:value={formData.journal}
           placeholder="記錄這筆交易的相關細節、觀察或心情..."
           height="180px"
+          on:imageUpload={e => editorImages = [...editorImages, e.detail]}
         />
       </div>
 
@@ -1581,6 +1658,7 @@
             bind:value={formData.exit_reason}
             placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
             height="180px"
+            on:imageUpload={e => editorImages = [...editorImages, e.detail]}
           />
         </div>
 
@@ -1594,6 +1672,7 @@
             bind:value={formData.notes}
             placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
             height="200px"
+            on:imageUpload={e => editorImages = [...editorImages, e.detail]}
           />
         </div>
       {/if}

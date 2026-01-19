@@ -100,6 +100,8 @@
   $: checklist = parseJSON(trade.entry_checklist, {});
   $: patterns = parseJSON(trade.entry_pattern, []);
   $: legendImages = parseJSON(trade.legend_images, []);
+  $: expertImages = parseJSON(trade.expert_images, []);
+  $: eliteImages = parseJSON(trade.elite_images, []);
 
   const colorTagMeanings = {
     green: '有照標準進單',
@@ -368,6 +370,62 @@
                 </div>
               </div>
             {/if}
+          </div>
+        </div>
+      {/if}
+
+      {#if trade.entry_strategy === 'expert' && expertImages && expertImages.length > 0}
+        <div class="legend-specifics">
+          <label class="legend-section-title">⚡ 達人觀察圖面</label>
+          <div class="legend-images-grid">
+            {#each expertImages as expertImg, idx}
+              {#if expertImg?.image}
+                <div class="legend-card">
+                  <div class="legend-header">
+                    <span>達人觀察圖 {idx + 1}</span>
+                  </div>
+                  <!-- svelte-ignore a11y-click-events-have-key-events -->
+                  <div
+                    class="legend-img-container"
+                    on:click={() => openModal(getImageUrl(expertImg.image), `達人觀察圖 ${idx + 1}`)}
+                  >
+                    <img
+                      src={getImageUrl(expertImg.image)}
+                      alt={`達人觀察圖 ${idx + 1}`}
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if trade.entry_strategy === 'elite' && eliteImages && eliteImages.length > 0}
+        <div class="legend-specifics">
+          <label class="legend-section-title">💎 菁英觀察圖面</label>
+          <div class="legend-images-grid">
+            {#each eliteImages as eliteImg, idx}
+              {#if eliteImg?.image}
+                <div class="legend-card">
+                  <div class="legend-header">
+                    <span>菁英觀察圖 {idx + 1}</span>
+                  </div>
+                  <!-- svelte-ignore a11y-click-events-have-key-events -->
+                  <div
+                    class="legend-img-container"
+                    on:click={() => openModal(getImageUrl(eliteImg.image), `菁英觀察圖 ${idx + 1}`)}
+                  >
+                    <img
+                      src={getImageUrl(eliteImg.image)}
+                      alt={`菁英觀察圖 ${idx + 1}`}
+                      loading="lazy"
+                    />
+                  </div>
+                </div>
+              {/if}
+            {/each}
           </div>
         </div>
       {/if}
