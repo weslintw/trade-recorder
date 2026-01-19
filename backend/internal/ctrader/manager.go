@@ -582,8 +582,15 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 					m.db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, tradeID)
 				}
 
-				// Move DELETE here to ensure associations are migrated first
-				m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
+				// Only delete the POS record if the volume is now 0 (full close)
+				if event.Position.TradeData.Volume == 0 {
+					m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
+					log.Printf("[cTrader Manager] Full close of position %d", deal.PositionID)
+				} else {
+					log.Printf("[cTrader Manager] Partial close of position %d, remaining volume: %d", deal.PositionID, event.Position.TradeData.Volume)
+					remVol := float64(event.Position.TradeData.Volume) / float64(lotSize)
+					m.db.Exec("UPDATE trades SET lot_size = ? WHERE account_id = ? AND (ticket = ? OR ticket = ?)", remVol, accountID, posTicket, legacyTicket)
+				}
 
 				log.Printf("[cTrader Manager] Successfully inserted Push Closed trade: %s", ticket)
 				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
@@ -1019,9 +1026,11 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 			}
 			json.Unmarshal(pResp.Payload, &p)
 
+			found := false
 			for _, pos := range p.Position {
 				if pos.PositionID == idFromTicket {
-					log.Printf("[cTrader Manager] Position %d Found! Updating...", pos.PositionID)
+					found = true
+					log.Printf("[cTrader Manager] Position %d Found as Open! Updating...", pos.PositionID)
 
 					newEntryPrice := pos.Price
 					if newEntryPrice == 0 {
@@ -1047,6 +1056,115 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 						WHERE ticket = ? AND account_id = ?`,
 						newEntryPrice, newEntryTime, ticket, accID)
 					break
+				}
+			}
+
+			if !found {
+				log.Printf("[cTrader Manager] Position %d NOT found in Open Positions. Checking Deal history...", idFromTicket)
+
+				// Search DealList window
+				from := entryTime.Add(-24 * time.Hour).UnixMilli()
+				to := time.Now().UnixMilli()
+
+				dResp, derr := ac.SendRequest(CTraderMessage{
+					ClientMsgID: fmt.Sprintf("sync-pos-closed-%d", idFromTicket),
+					PayloadType: PayloadDealListReq,
+					Payload: func() json.RawMessage {
+						b, _ := json.Marshal(map[string]interface{}{"ctidTraderAccountId": ctid, "fromTimestamp": from, "toTimestamp": to})
+						return b
+					}(),
+				})
+
+				if derr == nil {
+					var dl struct {
+						Deal []struct {
+							DealID              int64   `json:"dealId"`
+							PositionID          int64   `json:"positionId"`
+							SymbolID            int64   `json:"symbolId"`
+							Volume              int64   `json:"volume"`
+							ExecutionPrice      float64 `json:"executionPrice"`
+							ExecutionTimestamp  int64   `json:"executionTimestamp"`
+							TradeSide           int     `json:"tradeSide"`
+							ClosePositionDetail struct {
+								EntryPrice  float64 `json:"entryPrice"`
+								GrossProfit int64   `json:"grossProfit"`
+								Commission  int64   `json:"commission"`
+								Swap        int64   `json:"swap"`
+							} `json:"closePositionDetail"`
+						} `json:"deal"`
+					}
+					json.Unmarshal(dResp.Payload, &dl)
+
+					migratedCount := 0
+					for _, d := range dl.Deal {
+						if d.PositionID == idFromTicket && d.ClosePositionDetail.EntryPrice > 0 {
+							log.Printf("[cTrader Manager] Found closing Deal %d for Position %d. Performing recovery migration.", d.DealID, d.PositionID)
+
+							dealTicket := fmt.Sprintf("ctrader-deal-%d", d.DealID)
+
+							// Get multiplier
+							if symbolID == -1 {
+								symbolID = d.SymbolID
+							}
+							ac.Mu.RLock()
+							mFull := ac.SymbolLotSizeMap[symbolID]
+							ac.Mu.RUnlock()
+							if mFull == 0 {
+								mFull = 100000
+							}
+							dealVol := float64(d.Volume) / float64(mFull)
+							dealPnl := float64(d.ClosePositionDetail.GrossProfit+d.ClosePositionDetail.Commission+d.ClosePositionDetail.Swap) / 100.0
+
+							// Migrate fields (journal, strategies, images, tags)
+							var tradeID int64
+							var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, notes sql.NullString
+							var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages sql.NullString
+							var preservedSL sql.NullFloat64
+							var preservedSeries sql.NullString
+
+							m.db.QueryRow(`SELECT id, journal, entry_reason, entry_strategy, 
+								entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, 
+								trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
+								legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images,
+								initial_sl, pnl_series
+								FROM trades WHERE ticket = ? AND account_id = ?`, ticket, accID).Scan(
+								&tradeID, &journal, &entryReason, &entryStrategy,
+								&entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern,
+								&trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &notes,
+								&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages,
+								&preservedSL, &preservedSeries)
+
+							finalNotes := notes.String
+							if finalNotes == "" || finalNotes == "cTrader Push: Initial Sync" {
+								finalNotes = "cTrader Sync: Recovered Closed Position"
+							}
+
+							// Check if deal already exists
+							var exists int
+							m.db.QueryRow("SELECT 1 FROM trades WHERE ticket = ? AND account_id = ?", dealTicket, accID).Scan(&exists)
+							if exists == 0 {
+								res, ierr := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+									accID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, dealVol, dealPnl, entryTime, time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, dealTicket, preservedSL, d.ExecutionPrice, preservedSeries.String, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
+
+								if ierr == nil {
+									newID, _ := res.LastInsertId()
+									if tradeID > 0 && newID > 0 {
+										m.db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, tradeID)
+										m.db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, tradeID)
+									}
+								}
+							}
+							migratedCount++
+						}
+					}
+
+					if migratedCount > 0 {
+						m.db.Exec("DELETE FROM trades WHERE ticket = ? AND account_id = ?", ticket, accID)
+						log.Printf("[cTrader Manager] Stuck position record %s removed, successfully migrated %d deals", ticket, migratedCount)
+						ws.GlobalHub.BroadcastUpdate(accID, "TRADE_UPDATE")
+						return
+					}
 				}
 			}
 		}
