@@ -1,6 +1,12 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { imagesAPI } from '../../lib/api';
   import SignalGrid from './SignalGrid.svelte';
+  const dispatch = createEventDispatcher();
+
+  export let formData = {};
+  export let signalImagesCache = {};
+
   async function handleExpertImagePaste(e, index) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     for (let item of items) {
