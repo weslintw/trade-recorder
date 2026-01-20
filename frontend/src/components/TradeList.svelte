@@ -4,7 +4,12 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
+  import ImageAnnotator from './ImageAnnotator.svelte';
+
+  let showAnnotator = false;
+  let enlargedOriginalImage = null;
+  let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
   import { selectedSymbol, selectedAccountId } from '../lib/stores';
 
   export let isCompact = false;
@@ -202,14 +207,100 @@
     }
   }
 
-  function openImageModal(imagePath, title = '查看圖片') {
+  function openImageModal(imagePath, title = '查看圖片', context = null, originalPath = null) {
     if (!imagePath) return;
     modalTitle = title;
-    if (imagePath.startsWith('data:image/') || imagePath.startsWith('blob:')) {
-      selectedImage = imagePath;
-    } else {
-      selectedImage = imagesAPI.getUrl(imagePath);
+    enlargedImageContext = context;
+    enlargedOriginalImage = originalPath || imagePath;
+    selectedImage = imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('blob:') 
+      ? imagePath 
+      : imagesAPI.getUrl(imagePath);
+    showAnnotator = false;
+  }
+
+  function toggleAnnotator() {
+    showAnnotator = !showAnnotator;
+  }
+
+  async function handleAnnotatedImage(annotatedImageSrc) {
+    if (!enlargedImageContext) return;
+    try {
+      const res = await fetch(annotatedImageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], 'annotated_list.png', { type: 'image/png' });
+
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+      uploadData.append('symbol', 'annotated'); 
+
+      const uploadRes = await imagesAPI.upload(uploadData);
+      const serverPath = uploadRes.data.path;
+
+      const { tradeId, type, index } = enlargedImageContext;
+      const fullTradeRes = await tradesAPI.getOne(tradeId);
+      const fullTrade = fullTradeRes.data;
+      
+      const payload = sanitizeTradePayload(fullTrade);
+      
+      if (type === 'general') {
+        payload.images[index].image_path = serverPath;
+      }
+      
+      await tradesAPI.update(tradeId, payload);
+      
+      selectedImage = imagesAPI.getUrl(serverPath);
+      showAnnotator = false;
+      loadTrades(); 
+    } catch (e) {
+      console.error('Failed to save annotated image', e);
+      alert('儲存標註圖片失敗');
     }
+  }
+
+  function sanitizeTradePayload(fullTrade, newColor) {
+    const payload = {
+      ...fullTrade,
+      color_tag: newColor !== undefined ? newColor || '' : fullTrade.color_tag || '',
+      account_id: fullTrade.account_id,
+      trade_type: fullTrade.trade_type || 'actual',
+      symbol: fullTrade.symbol,
+      side: fullTrade.side,
+      entry_time: fullTrade.entry_time,
+      entry_reason: fullTrade.entry_reason || '',
+      exit_reason: fullTrade.exit_reason || '',
+      entry_strategy: fullTrade.entry_strategy || '',
+      entry_signals: fullTrade.entry_signals || '',
+      entry_checklist: fullTrade.entry_checklist || '',
+      entry_pattern: fullTrade.entry_pattern || '',
+      trend_analysis: fullTrade.trend_analysis || '',
+      entry_timeframe: fullTrade.entry_timeframe || '',
+      trend_type: fullTrade.trend_type || '',
+      market_session: fullTrade.market_session || '',
+      legend_king_htf: fullTrade.legend_king_htf || '',
+      legend_king_image: fullTrade.legend_king_image || '',
+      legend_king_image_original: fullTrade.legend_king_image_original || '',
+      legend_htf: fullTrade.legend_htf || '',
+      legend_htf_image: fullTrade.legend_htf_image || '',
+      legend_htf_image_original: fullTrade.legend_htf_image_original || '',
+      legend_de_htf: fullTrade.legend_de_htf || '',
+      entry_strategy_image: fullTrade.entry_strategy_image || '',
+      entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
+      notes: fullTrade.notes || '',
+      journal: fullTrade.journal || '',
+      timezone_offset:
+        fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
+          ? fullTrade.timezone_offset
+          : 0,
+    };
+
+    if (fullTrade.images) {
+      payload.images = fullTrade.images.map(img => ({
+        image_type: img.image_type,
+        image_path: img.image_path,
+      }));
+    }
+
+    return payload;
   }
 
   function closeImageModal() {
@@ -503,12 +594,16 @@
 
           {#if trade.images && trade.images.length > 0}
             <div class="trade-images">
-              {#each trade.images as image}
+              {#each trade.images as image, index}
                 <button
                   class="image-thumb"
                   on:click={e => {
                     e.stopPropagation();
-                    openImageModal(image.image_path, `${image.image_type === 'entry' ? '進場' : image.image_type === 'exit' ? '平倉' : '圖片'}截圖`);
+                    openImageModal(
+                      image.image_path,
+                      `${image.image_type === 'entry' ? '進場' : image.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                      { tradeId: trade.id, type: 'general', index }
+                    );
                   }}
                   title="點擊查看圖片"
                 >
@@ -709,11 +804,29 @@
       <div class="image-modal-header">
         <h3 class="image-modal-title">{modalTitle}</h3>
         <div class="image-modal-actions">
+          {#if enlargedImageContext}
+            <button
+              class="annotator-toggle-btn"
+              class:active={showAnnotator}
+              on:click={toggleAnnotator}
+              title="標註工具"
+            >
+              {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
+            </button>
+          {/if}
           <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
         </div>
       </div>
       <div class="image-modal-body">
-        <img src={selectedImage} alt={modalTitle} class="image-modal-img" />
+        {#if showAnnotator}
+          <ImageAnnotator
+            imageSrc={selectedImage}
+            originalImageSrc={imagesAPI.getUrl(enlargedOriginalImage)}
+            onSave={handleAnnotatedImage}
+          />
+        {:else}
+          <img src={selectedImage} alt={modalTitle} class="image-modal-img" />
+        {#/if}
       </div>
     </div>
   </div>
@@ -1259,6 +1372,34 @@
     padding: 1.25rem 1.5rem;
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
+  }
+
+  .image-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .annotator-toggle-btn {
+    padding: 0.5rem 1rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .annotator-toggle-btn:hover {
+    background: #e2e8f0;
+  }
+
+  .annotator-toggle-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
   }
 
   .image-modal-title {

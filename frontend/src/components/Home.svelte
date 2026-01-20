@@ -11,6 +11,11 @@
   import BatchShareModal from './BatchShareModal.svelte';
   import SyncOptionsModal from './SyncOptionsModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
+  import ImageAnnotator from './ImageAnnotator.svelte';
+
+  let showAnnotator = false;
+  let enlargedOriginalImage = null;
+  let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
 
   let groupedData = [];
   let loading = true;
@@ -885,12 +890,54 @@
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
 
-  function openImageModal(imagePath, title = '查看圖片') {
+  function openImageModal(imagePath, title = '查看圖片', context = null, originalPath = null) {
     if (!imagePath) return;
     modalTitle = title;
+    enlargedImageContext = context;
+    enlargedOriginalImage = originalPath || imagePath;
     selectedImage = imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('blob:') 
       ? imagePath 
       : imagesAPI.getUrl(imagePath);
+    showAnnotator = false;
+  }
+
+  function toggleAnnotator() {
+    showAnnotator = !showAnnotator;
+  }
+
+  async function handleAnnotatedImage(annotatedImageSrc) {
+    if (!enlargedImageContext) return;
+    try {
+      const res = await fetch(annotatedImageSrc);
+      const blob = await res.blob();
+      const file = new File([blob], 'annotated_home.png', { type: 'image/png' });
+
+      const uploadData = new FormData();
+      uploadData.append('image', file);
+      uploadData.append('symbol', 'annotated'); 
+
+      const uploadRes = await imagesAPI.upload(uploadData);
+      const serverPath = uploadRes.data.path;
+
+      const { tradeId, type, index } = enlargedImageContext;
+      const fullTradeRes = await tradesAPI.getOne(tradeId);
+      const fullTrade = fullTradeRes.data;
+      
+      const payload = sanitizeTradePayload(fullTrade);
+      
+      if (type === 'general') {
+        payload.images[index].image_path = serverPath;
+      }
+      
+      await tradesAPI.update(tradeId, payload);
+      
+      selectedImage = imagesAPI.getUrl(serverPath);
+      showAnnotator = false;
+      loadData(false); 
+    } catch (e) {
+      console.error('Failed to save annotated image', e);
+      alert('儲存標註圖片失敗');
+    }
   }
 
   function closeImageModal() {
@@ -1542,6 +1589,11 @@
                           <div class="group-meta">
                             <span class="multi-indicator">📦 組合單</span>
                             <span class="symbol-inline-tag">{timeGroup.summary.symbol}</span>
+                            {#if timeGroup.trades[0].entry_strategy}
+                              <span class="strategy-tag {timeGroup.trades[0].entry_strategy}"
+                                >{getStrategyLabel(timeGroup.trades[0].entry_strategy)}</span
+                              >
+                            {/if}
                             <span class="side-tag {timeGroup.summary.side}"
                               >{timeGroup.summary.side === 'long' ? '📈 做多' : '📉 做空'}</span
                             >
@@ -1697,7 +1749,28 @@
                             </div>
                           {/each}
                         </div>
-                      </div>
+                         {#if timeGroup.trades.some(t => t.images && t.images.length > 0)}
+                           {@const allImages = timeGroup.trades.reduce((acc, t) => [...acc, ...(t.images || [])], [])}
+                           <div class="mini-gallery">
+                             {#each allImages.slice(0, 3) as img, idx}
+                               <div
+                                 class="mini-img"
+                                 on:click|stopPropagation={() =>
+                                   openImageModal(
+                                     img.image_path,
+                                     `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                     { tradeId: timeGroup.trades.find(t => (t.images || []).includes(img))?.id || timeGroup.trades[0].id, type: 'general', index: (timeGroup.trades.find(t => (t.images || []).includes(img))?.images || []).indexOf(img) }
+                                   )}
+                               >
+                                 <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                               </div>
+                             {/each}
+                             {#if allImages.length > 3}
+                               <div class="more-imgs">+{allImages.length - 3}</div>
+                             {/if}
+                           </div>
+                         {/if}
+                       </div>
                     {:else}
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
@@ -1878,10 +1951,15 @@
 
                         {#if trade.images && trade.images.length > 0}
                           <div class="mini-gallery">
-                            {#each trade.images.slice(0, 3) as img}
+                            {#each trade.images.slice(0, 3) as img, idx}
                               <div
                                 class="mini-img"
-                                on:click|stopPropagation={() => openImageModal(img.image_path, `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`)}
+                                on:click|stopPropagation={() =>
+                                  openImageModal(
+                                    img.image_path,
+                                    `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    { tradeId: trade.id, type: 'general', index: idx }
+                                  )}
                               >
                                 <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
                               </div>
@@ -1941,10 +2019,30 @@
     <div class="image-modal-content" on:click|stopPropagation>
       <div class="image-modal-header">
         <h3 class="image-modal-title">{modalTitle}</h3>
-        <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
+        <div class="image-modal-actions">
+          {#if enlargedImageContext}
+            <button
+              class="annotator-toggle-btn"
+              class:active={showAnnotator}
+              on:click={toggleAnnotator}
+              title="標註工具"
+            >
+              {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
+            </button>
+          {/if}
+          <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
+        </div>
       </div>
       <div class="image-modal-body">
-        <img src={selectedImage} alt="全螢幕圖片" class="image-modal-img" />
+        {#if showAnnotator}
+          <ImageAnnotator
+            imageSrc={selectedImage}
+            originalImageSrc={imagesAPI.getUrl(enlargedOriginalImage)}
+            onSave={handleAnnotatedImage}
+          />
+        {:else}
+          <img src={selectedImage} alt="全螢幕圖片" class="image-modal-img" />
+        {/if}
       </div>
     </div>
   </div>
@@ -3825,6 +3923,34 @@
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     background: var(--card-bg);
+  }
+
+  .image-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .annotator-toggle-btn {
+    padding: 0.5rem 1rem;
+    background: var(--nav-group-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .annotator-toggle-btn:hover {
+    background: var(--bg-main);
+  }
+
+  .annotator-toggle-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
   }
 
   .image-modal-title {
