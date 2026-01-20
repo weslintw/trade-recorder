@@ -1,10 +1,5 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
-  import { imagesAPI } from '../../lib/api';
-  const dispatch = createEventDispatcher();
-
   export let formData = {};
-  export let patternImagesCache = {};
 
   const eliteChecklist = [
     { id: 'trend_line', label: '破趨勢線了嗎?' },
@@ -16,104 +11,13 @@
 
   const entryPatterns = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
 
-  // Initialize cache if needed (similar to signals)
-  $: if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
-    if (Object.keys(patternImagesCache).length === 0) {
-      formData.entry_pattern.forEach(pattern => {
-        if (pattern.name && pattern.image) {
-          patternImagesCache[pattern.name] = {
-            image: pattern.image,
-            originalImage: pattern.originalImage || pattern.image,
-          };
-        }
-      });
-    }
-  }
-
   function togglePattern(patternName) {
     const index = formData.entry_pattern.findIndex(p => p.name === patternName);
     if (index >= 0) {
-      // Remove
-      const pattern = formData.entry_pattern[index];
-      if (pattern.image) {
-        patternImagesCache[patternName] = {
-          image: pattern.image,
-          originalImage: pattern.originalImage || pattern.image,
-        };
-      }
       formData.entry_pattern = formData.entry_pattern.filter(p => p.name !== patternName);
     } else {
-      // Add
-      const cached = patternImagesCache[patternName];
-      if (cached) {
-        formData.entry_pattern = [
-          ...formData.entry_pattern,
-          {
-            name: patternName,
-            images: cached.images || (cached.image ? [{image: cached.image, originalImage: cached.originalImage, size: cached.size}] : []),
-          },
-        ];
-      } else {
-        formData.entry_pattern = [...formData.entry_pattern, { name: patternName, images: [] }];
-      }
+      formData.entry_pattern = [...formData.entry_pattern, { name: patternName, images: [] }];
     }
-  }
-
-  function enlargeImage(image, title, context) {
-    dispatch('enlarge', { image, title, context });
-  }
-
-  // 處理圖片顯示 Helper
-  function getImageUrl(src) {
-    if (!src) return '';
-    if (src.startsWith('data:') || src.startsWith('http')) return src;
-    return imagesAPI.getUrl(src);
-  }
-
-  async function handlePatternImagePaste(e, pattern) {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let item of items) {
-      if (item.type.indexOf('image') !== -1) {
-        e.preventDefault();
-        const file = item.getAsFile();
-
-        try {
-          const formDataToUpload = new FormData();
-          formDataToUpload.append('image', file);
-          formDataToUpload.append('symbol', formData.symbol || 'trade');
-
-          const response = await imagesAPI.upload(formDataToUpload);
-          const imageUrl = response.data.path;
-          const imageSize = response.data.size;
-
-          pattern.images = [
-            ...(pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])),
-            { image: imageUrl, originalImage: imageUrl, size: imageSize }
-          ];
-          pattern.image = ''; // Clear legacy field
-          
-          // Sync to cache
-          patternImagesCache[pattern.name] = {
-            images: pattern.images,
-          };
-          formData.entry_pattern = formData.entry_pattern; // Trigger reactivity
-          formData = formData;
-        } catch (error) {
-          console.error('圖片貼上失敗:', error);
-          alert('圖片處理失敗');
-        }
-        break;
-      }
-    }
-  }
-
-  function removePatternImage(pattern) {
-    pattern.image = '';
-    pattern.originalImage = '';
-    // Clear from cache too? The original code did remove from cache when manually removing image?
-    // Yes: lines around 2640 in original code
-    delete patternImagesCache[pattern.name];
-    formData.entry_pattern = formData.entry_pattern;
   }
 </script>
 
@@ -138,7 +42,6 @@
   </div>
 </div>
 
-
 <div class="entry-pattern-section">
   <span class="entry-pattern-label">進場樣態：</span>
   <div class="entry-pattern-options">
@@ -156,64 +59,7 @@
       </div>
     {/each}
   </div>
-
-  {#if formData.entry_pattern.length > 0}
-    <div class="pattern-cards-grid">
-      {#each formData.entry_pattern as pattern}
-        {@const images = pattern.images || (pattern.image ? [{image: pattern.image, originalImage: pattern.originalImage, size: pattern.size}] : [])}
-        {@const slots = [...images, null]}
-        <div class="pattern-image-card">
-          <div class="pattern-card-header">
-            <span class="pattern-card-title">菁英觀察圖</span>
-          </div>
-          <div class="pattern-card-body">
-            <div class="strategy-images-grid mini">
-              {#each slots as imageData, imgIndex}
-                <div 
-                  class="image-slot"
-                  class:empty={!imageData}
-                  on:paste|stopPropagation={e => handlePatternImagePaste(e, pattern)}
-                >
-                  {#if imageData?.image}
-                    <div class="pattern-image-preview">
-                      <img
-                        src={getImageUrl(imageData.image)}
-                        alt={pattern.name}
-                        on:click={() =>
-                          enlargeImage(imageData.image, `菁英觀察圖 (${pattern.name})`, {
-                            type: 'pattern',
-                            key: pattern.name,
-                            index: imgIndex,
-                            originalImage: imageData.originalImage || imageData.image,
-                          })}
-                      />
-                      <button
-                        type="button"
-                        class="remove-pattern-image"
-                        on:click|stopPropagation={() => {
-                          pattern.images = images.filter((_, i) => i !== imgIndex);
-                          pattern.image = '';
-                          formData.entry_pattern = formData.entry_pattern;
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  {:else}
-                    <div class="signal-image-placeholder compact">
-                      <span class="placeholder-text">Ctrl+V</span>
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
 </div>
-
 
 <style>
   .checklist-section {
@@ -258,7 +104,6 @@
     user-select: none;
   }
 
-  /* 進場樣態 */
   .entry-pattern-section {
     margin-top: 1.5rem;
     padding: 1rem;
@@ -311,175 +156,5 @@
 
   .pattern-option.active .pattern-name {
     color: white;
-  }
-
-  .pattern-cards-grid {
-    margin-top: 1.5rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1rem;
-  }
-
-  .pattern-image-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: all 0.2s ease;
-  }
-
-  .pattern-image-card:hover {
-    border-color: #667eea;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  }
-
-  .pattern-card-header {
-    padding: 0.5rem 0.75rem;
-    background: #edf2f7;
-    border-bottom: 1px solid #e2e8f0;
-  }
-
-  .pattern-card-title {
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: #4a5568;
-  }
-
-  .pattern-card-body {
-    padding: 0.75rem;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 120px;
-    position: relative;
-  }
-
-  .pattern-image-preview {
-    width: 100%;
-    height: 100%;
-    cursor: zoom-in;
-    position: relative;
-  }
-
-  .pattern-image-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .remove-pattern-image {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s;
-    line-height: 1;
-    padding-bottom: 2px;
-  }
-
-  .remove-pattern-image:hover {
-    background: rgba(220, 38, 38, 0.9);
-  }
-
-  .signal-image-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-  }
-
-  .signal-image-placeholder.compact {
-    padding: 0.5rem;
-  }
-
-  .placeholder-text {
-    font-size: 0.7rem;
-    color: #a0aec0;
-    pointer-events: none;
-  }
-
-  .strategy-images-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1rem;
-    margin-top: 0.5rem;
-  }
-
-  .strategy-images-grid.mini {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 0.5rem;
-    width: 100%;
-  }
-
-  .image-slot {
-    aspect-ratio: 1;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    background: #f8fafc;
-    position: relative;
-    cursor: pointer;
-  }
-
-  .image-slot.empty {
-    border: 1px dashed #cbd5e0;
-  }
-
-  .image-slot:hover {
-    border-color: #667eea;
-  }
-
-  .pattern-image-preview {
-    position: relative;
-    width: 100%;
-    height: 100%;
-  }
-
-  .pattern-image-preview img {
-    width: 100%;
-    height: 100%;
-    display: block;
-    object-fit: cover;
-    background: white;
-    cursor: zoom-in;
-  }
-
-  .remove-pattern-image {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 20px;
-    height: 20px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background 0.2s;
-    line-height: 1;
-    padding: 0;
-  }
-
-  .remove-pattern-image:hover {
-    background: rgba(239, 68, 68, 0.9);
   }
 </style>

@@ -267,9 +267,6 @@
     formData.symbol = $selectedSymbol;
   }
 
-  // 訊號圖片緩存（保留所有訊號的圖片，即使取消勾選）
-  let signalImagesCache = {}; // { signalName: { image: '...', originalImage: '...' } }
-  let patternImagesCache = {}; // { patternName: { image: '...', originalImage: '...' } }
 
   // 時區選項 (UTC-12 到 UTC+14)
 
@@ -602,38 +599,21 @@
         entry_strategy: response.data.entry_strategy || '',
         entry_signals: (() => {
           let val = response.data.entry_signals;
-          console.log('[DEBUG] Raw entry_signals:', val, typeof val);
-
           if (typeof val === 'string') {
             try {
               let parsed = JSON.parse(val);
-              // Handle potential double-encoding
-              if (typeof parsed === 'string') {
-                console.log('[DEBUG] entry_signals was double-encoded, parsing again');
-                parsed = JSON.parse(parsed);
-              }
+              if (typeof parsed === 'string') parsed = JSON.parse(parsed);
               val = parsed;
-            } catch (e) {
-              console.error('[DEBUG] Entry signals parse error', e);
-              // If it's a non-empty string that failed parsing, maybe it's just a single string item? (Unlikely for signals)
-              val = [];
-            }
+            } catch (e) { val = []; }
           }
-
-          console.log('[DEBUG] Parsed entry_signals:', val);
           if (!Array.isArray(val)) return [];
-          // Normalize strings to objects
           return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
         })(),
         entry_checklist: parseJSONSafe(response.data.entry_checklist, {}),
         entry_pattern: (() => {
           let val = response.data.entry_pattern;
           if (typeof val === 'string') {
-            try {
-              val = JSON.parse(val);
-            } catch (e) {
-              val = [];
-            }
+            try { val = JSON.parse(val); } catch (e) { val = []; }
           }
           if (!Array.isArray(val)) return [];
           return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
@@ -642,10 +622,7 @@
         entry_timeframe: response.data.entry_timeframe || '',
         trend_type: response.data.trend_type || '',
         market_session: response.data.market_session || '',
-        timezone_offset:
-          response.data.timezone_offset !== null
-            ? response.data.timezone_offset
-            : new Date().getTimezoneOffset() / -60,
+        timezone_offset: response.data.timezone_offset !== null ? response.data.timezone_offset : new Date().getTimezoneOffset() / -60,
         entry_time: formatToLocalISO(response.data.entry_time),
         exit_time: response.data.exit_time ? formatToLocalISO(response.data.exit_time) : '',
         entry_strategy_image: response.data.entry_strategy_image || '',
@@ -665,33 +642,54 @@
         legend_images: parseJSONSafe(response.data.legend_images, []),
         expert_images: parseJSONSafe(response.data.expert_images, []),
         elite_images: parseJSONSafe(response.data.elite_images, []),
-        images: response.data.images || [], // 確保 images 始終為陣列，避免 spread 或 iteration 錯誤
+        images: response.data.images || [],
       };
 
-      // Manually populate caches to ensuring binding works correctly
-      signalImagesCache = {};
-      if (formData.entry_signals && Array.isArray(formData.entry_signals)) {
+      // --- 圖片相容性遷移邏輯 (Legacy Migration) ---
+      // 將舊有的分散圖片欄位統一加入到 formData.images 中顯示
+      const migratedImages = [...formData.images];
+      const existingPaths = new Set(migratedImages.map(img => img.image_path));
+
+      const addMigrationImage = (path, type) => {
+        if (path && !path.startsWith('data:') && !existingPaths.has(path)) {
+          migratedImages.push({
+            image_path: path,
+            image_type: type || 'general',
+            file_size: 0
+          });
+          existingPaths.add(path);
+        }
+      };
+
+      // 1. 訊號與樣態圖片
+      if (Array.isArray(formData.entry_signals)) {
         formData.entry_signals.forEach(s => {
-          if (s.name && (s.image || s.originalImage)) {
-            signalImagesCache[s.name] = {
-              image: s.image || '',
-              originalImage: s.originalImage || '',
-            };
+          if (typeof s === 'object') {
+            if (s.image) addMigrationImage(s.image, 'signal');
+            if (s.images) s.images.forEach(img => addMigrationImage(img.image, 'signal'));
           }
+        });
+      }
+      if (Array.isArray(formData.entry_pattern)) {
+        formData.entry_pattern.forEach(p => {
+          if (p.image) addMigrationImage(p.image, 'pattern');
+          if (p.images) p.images.forEach(img => addMigrationImage(img.image, 'pattern'));
         });
       }
 
-      patternImagesCache = {};
-      if (formData.entry_pattern && Array.isArray(formData.entry_pattern)) {
-        formData.entry_pattern.forEach(p => {
-          if (p.name && (p.image || p.originalImage)) {
-            patternImagesCache[p.name] = {
-              image: p.image || '',
-              originalImage: p.originalImage || '',
-            };
-          }
-        });
-      }
+      // 2. 策略觀察圖
+      if (Array.isArray(formData.legend_images)) formData.legend_images.forEach(img => addMigrationImage(img?.image, 'legend_obs'));
+      if (Array.isArray(formData.expert_images)) formData.expert_images.forEach(img => addMigrationImage(img?.image, 'expert_obs'));
+      if (Array.isArray(formData.elite_images)) formData.elite_images.forEach(img => addMigrationImage(img?.image, 'elite_obs'));
+
+      // 3. 單一欄位圖片
+      addMigrationImage(formData.entry_strategy_image, 'strategy');
+      addMigrationImage(formData.legend_htf_image, 'legend_htf');
+      addMigrationImage(formData.legend_king_image, 'legend_king');
+
+      formData.images = migratedImages;
+      // ------------------------------------------
+
       // 檢查是否為組合單（相同進場時間、帳號、品種）
       const allTradesRes = await tradesAPI.getAll({
         account_id: formData.account_id,
@@ -1746,28 +1744,15 @@
 
         <!-- 達人訊號（卡片形式，可貼圖） -->
         {#if formData.entry_strategy === 'expert'}
-          <ExpertStrategy
-            bind:formData
-            bind:signalImagesCache
-            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-          />
+          <ExpertStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
         {/if}
 
         {#if formData.entry_strategy === 'elite'}
-          <EliteStrategy
-            bind:formData
-            bind:patternImagesCache
-            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-          />
+          <EliteStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
         {/if}
 
-        <!-- 傳奇 -->
         {#if formData.entry_strategy === 'legend'}
-          <LegendStrategy
-            bind:formData
-            bind:signalImagesCache
-            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
-          />
+          <LegendStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
         {/if}
 
         <!-- 一般截圖區塊 -->
