@@ -665,6 +665,7 @@
         legend_images: parseJSONSafe(response.data.legend_images, []),
         expert_images: parseJSONSafe(response.data.expert_images, []),
         elite_images: parseJSONSafe(response.data.elite_images, []),
+        images: response.data.images || [], // 確保 images 始終為陣列，避免 spread 或 iteration 錯誤
       };
 
       // Manually populate caches to ensuring binding works correctly

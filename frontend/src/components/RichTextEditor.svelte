@@ -1,5 +1,6 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+const dispatch = createEventDispatcher();
   import Quill from 'quill';
   import 'quill/dist/quill.snow.css';
   import { imagesAPI } from '../lib/api';
