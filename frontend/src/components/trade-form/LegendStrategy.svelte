@@ -218,7 +218,7 @@
           enlargeImage(
             formData.legend_king_image,
             `王者回調 (${formData.legend_king_htf || '未選擇'})`,
-            { type: 'legend_king' }
+            { type: 'legend_king', originalImage: formData.legend_king_image_original || formData.legend_king_image }
           );
         }
       }}
@@ -275,7 +275,7 @@
           enlargeImage(
             formData.legend_htf_image,
             `大時區破"測"破 (${formData.legend_htf || '未選擇'})`,
-            { type: 'legend_htf' }
+            { type: 'legend_htf', originalImage: formData.legend_htf_image_original || formData.legend_htf_image }
           );
         }
       }}
@@ -339,13 +339,21 @@
         on:paste={e => handleStrategyImagePaste(e, index)}
         on:click={() => {
           if (imageData?.image) {
-            enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_images', index });
+            enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { 
+              type: 'legend_images', 
+              index, 
+              originalImage: imageData.originalImage || imageData.image 
+            });
           }
         }}
         on:keydown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
             if (imageData?.image) {
-              enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_images', index });
+              enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { 
+              type: 'legend_images', 
+              index, 
+              originalImage: imageData.originalImage || imageData.image 
+            });
             }
           }
         }}

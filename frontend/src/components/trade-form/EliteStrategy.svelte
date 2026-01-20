@@ -184,6 +184,7 @@
                             type: 'pattern',
                             key: pattern.name,
                             index: imgIndex,
+                            originalImage: imageData.originalImage || imageData.image,
                           })}
                       />
                       <button

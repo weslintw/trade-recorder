@@ -770,24 +770,33 @@
     showAnnotator = false; // 預設不顯示標註工具
 
     // 獲取原始圖片
-    if (context) {
-      const { type, key } = context;
+    if (context?.originalImage) {
+      enlargedOriginalImage = context.originalImage;
+    } else if (context) {
+      const { type, key, name: signalName } = context;
+      const targetName = signalName || key;
+
       if (type === 'signal') {
         const signal = formData.entry_signals.find(s =>
-          typeof s === 'string' ? s === key : s.name === key
+          typeof s === 'string' ? s === targetName : s.name === targetName
         );
-        enlargedOriginalImage = signal?.originalImage || imageSrc;
+        enlargedOriginalImage = signal?.originalImage || signal?.image || imageSrc;
       } else if (type === 'trend') {
-        enlargedOriginalImage = formData.trend_analysis[key]?.originalImage || imageSrc;
+        enlargedOriginalImage = formData.trend_analysis[key]?.originalImage || formData.trend_analysis[key]?.image || imageSrc;
       } else if (type === 'pattern') {
-        const pattern = formData.entry_pattern.find(p => p.name === key);
-        enlargedOriginalImage = pattern?.originalImage || imageSrc;
+        const pattern = formData.entry_pattern.find(p => p.name === targetName);
+        enlargedOriginalImage = pattern?.originalImage || pattern?.image || imageSrc;
       } else if (type === 'strategy') {
-        enlargedOriginalImage = formData.entry_strategy_image_original || imageSrc;
+        enlargedOriginalImage = formData.entry_strategy_image_original || formData.entry_strategy_image || imageSrc;
       } else if (type === 'legend_htf') {
-        enlargedOriginalImage = formData.legend_htf_image_original || imageSrc;
+        enlargedOriginalImage = formData.legend_htf_image_original || formData.legend_htf_image || imageSrc;
       } else if (type === 'legend_king') {
-        enlargedOriginalImage = formData.legend_king_image_original || imageSrc;
+        enlargedOriginalImage = formData.legend_king_image_original || formData.legend_king_image || imageSrc;
+      } else if (type === 'legend_images' || type === 'expert_images' || type === 'elite_images') {
+        const imgArray = formData[type];
+        enlargedOriginalImage = imgArray?.[context.index]?.originalImage || imgArray?.[context.index]?.image || imageSrc;
+      } else {
+        enlargedOriginalImage = imageSrc;
       }
     } else {
       enlargedOriginalImage = imageSrc;
@@ -824,24 +833,27 @@
       const { type, key, index: imgIdx, name: signalName } = enlargedImageContext;
       const originalPath = enlargedOriginalImage;
 
-      // 1. 核心邏輯：更新指定的欄位
+      // 1. 核心邏輯：更新指定的欄位 (本地 formData)
       if (type === 'signal') {
+        const targetName = signalName || key;
         const sIdx = formData.entry_signals.findIndex(s =>
-          typeof s === 'string' ? s === signalName : s.name === signalName
+          typeof s === 'string' ? s === targetName : s.name === targetName
         );
 
         if (sIdx >= 0) {
           const currentSignal = formData.entry_signals[sIdx];
           if (typeof currentSignal !== 'string') {
-            const sigImages = currentSignal.images || (currentSignal.image ? [{image: currentSignal.image, originalImage: currentSignal.originalImage}] : []);
+            const sigImages = currentSignal.images || (currentSignal.image ? [{image: currentSignal.image, originalImage: currentSignal.originalImage || currentSignal.image}] : []);
             if (sigImages[imgIdx]) {
               sigImages[imgIdx].image = serverPath;
+            } else if (imgIdx === undefined && sigImages[0]) {
+              sigImages[0].image = serverPath;
             }
             formData.entry_signals[sIdx].images = sigImages;
+            formData.entry_signals[sIdx].image = serverPath; // Legacy sync
           } else {
-             formData.entry_signals[sIdx] = { name: signalName, image: serverPath, originalImage: serverPath, size: serverSize };
+             formData.entry_signals[sIdx] = { name: targetName, image: serverPath, originalImage: serverPath, size: serverSize };
           }
-          formData = formData;
         }
       } else if (type === 'trend') {
         if (formData.trend_analysis[key]) {
@@ -849,48 +861,45 @@
             ...formData.trend_analysis[key],
             image: serverPath,
           };
-          formData = formData;
         }
       } else if (type === 'strategy') {
         formData.entry_strategy_image = serverPath;
         formData.entry_strategy_image_size = serverSize;
-        formData = formData;
       } else if (type === 'legend_htf') {
         formData.legend_htf_image = serverPath;
         formData.legend_htf_image_size = serverSize;
-        formData = formData;
       } else if (type === 'legend_king') {
         formData.legend_king_image = serverPath;
         formData.legend_king_image_size = serverSize;
-        formData = formData;
       } else if (type === 'pattern') {
-        const pIdx = formData.entry_pattern.findIndex(p => p.name === key);
+        const targetName = signalName || key;
+        const pIdx = formData.entry_pattern.findIndex(p => p.name === targetName);
         if (pIdx >= 0) {
-          const patImages = formData.entry_pattern[pIdx].images || (formData.entry_pattern[pIdx].image ? [{image: formData.entry_pattern[pIdx].image}] : []);
-          if (patImages[imgIdx] || imgIdx === undefined) {
-             const actualIdx = imgIdx === undefined ? 0 : imgIdx;
-             if (patImages[actualIdx]) patImages[actualIdx].image = serverPath;
+          const patImages = formData.entry_pattern[pIdx].images || (formData.entry_pattern[pIdx].image ? [{image: formData.entry_pattern[pIdx].image, originalImage: formData.entry_pattern[pIdx].originalImage || formData.entry_pattern[pIdx].image}] : []);
+          const actualIdx = imgIdx === undefined ? 0 : imgIdx;
+          if (patImages[actualIdx]) {
+             patImages[actualIdx].image = serverPath;
           }
           formData.entry_pattern[pIdx].images = patImages;
           formData.entry_pattern[pIdx].image = serverPath; // Legacy update
           
-          patternImagesCache[key] = {
-            ...patternImagesCache[key],
-            image: serverPath,
-            size: serverSize,
-          };
-          formData = formData;
+          if (patternImagesCache[targetName]) {
+            patternImagesCache[targetName] = {
+              ...patternImagesCache[targetName],
+              image: serverPath,
+              size: serverSize,
+              images: patImages
+            };
+          }
         }
-      } else if (type === 'legend_images') {
-        if (formData.legend_images[imgIdx]) {
-          formData.legend_images[imgIdx].image = serverPath;
+      } else if (type === 'legend_images' || type === 'expert_images' || type === 'elite_images') {
+        if (formData[type] && formData[type][imgIdx]) {
+          formData[type][imgIdx].image = serverPath;
         }
-        formData = formData;
       } else if (type === 'general') {
         if (formData.images && formData.images[imgIdx]) {
           formData.images[imgIdx].image_path = serverPath;
         }
-        formData = formData;
       }
 
       // 2. 聰明邏輯：全域掃描。如果其他欄位也使用了同一個原始圖片路徑，一併更新為標註後的版本
@@ -929,10 +938,65 @@
         if (formData.legend_king_image === originalPath) formData.legend_king_image = serverPath;
         if (formData.legend_images) {
           formData.legend_images.forEach(img => {
-            if (img.image === originalPath) img.image = serverPath;
+            if (img && img.image === originalPath) img.image = serverPath;
           });
         }
-        formData = formData;
+        if (formData.expert_images) {
+          formData.expert_images.forEach(img => {
+            if (img && img.image === originalPath) img.image = serverPath;
+          });
+        }
+        if (formData.elite_images) {
+          formData.elite_images.forEach(img => {
+            if (img && img.image === originalPath) img.image = serverPath;
+          });
+        }
+      }
+
+      // 觸發 Svelte 更新
+      formData = formData;
+
+      // 3. 重要：如果對現有交易進行標註，立即提交更新到後端 (比照 Home.svelte 邏輯)
+      if (id) {
+         // 使用 handleSubmit 的部分邏輯來準備提交數據
+         const normalizedSignals = formData.entry_signals.map(s =>
+           typeof s === 'string' ? { name: s, image: '' } : s
+         );
+         
+         const allImages = [];
+         const addImg = (path, type, size = 0) => {
+           if (path && !path.startsWith('data:')) {
+             allImages.push({ image_type: type, image_path: path, file_size: size || 0 });
+           }
+         };
+         
+         // 收集圖片 (簡化版)
+         if (formData.images) formData.images.forEach(img => addImg(img.image_path, 'general', img.file_size));
+         if (formData.entry_strategy_image) addImg(formData.entry_strategy_image, 'strategy', formData.entry_strategy_image_size);
+         formData.entry_signals.forEach(sig => {
+           if (sig.images) sig.images.forEach(img => addImg(img.image, 'signal', img.size));
+         });
+         formData.entry_pattern.forEach(pat => {
+           if (pat.images) pat.images.forEach(img => addImg(img.image, 'pattern', img.size));
+         });
+         if (formData.legend_images) formData.legend_images.forEach(img => addImg(img.image, 'legend_obs', img.size));
+
+         const updatePayload = {
+           ...formData,
+           images: allImages,
+           entry_signals: JSON.stringify(normalizedSignals),
+           entry_pattern: JSON.stringify(formData.entry_pattern),
+           entry_checklist: JSON.stringify(formData.entry_checklist),
+           trend_analysis: JSON.stringify(formData.trend_analysis),
+           legend_images: JSON.stringify(formData.legend_images || []),
+           expert_images: JSON.stringify(formData.expert_images || []),
+           elite_images: JSON.stringify(formData.elite_images || []),
+           entry_time: new Date(formData.entry_time).toISOString(),
+           exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
+         };
+         
+         await tradesAPI.update(id, updatePayload);
+         console.log('[DEBUG] Image annotation auto-saved to DB');
       }
 
       // 更新目前顯示的圖片路徑

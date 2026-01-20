@@ -316,6 +316,27 @@
         if (payload.entry_strategy_image === originalPath) payload.entry_strategy_image = serverPath;
         if (payload.legend_htf_image === originalPath) payload.legend_htf_image = serverPath;
         if (payload.legend_king_image === originalPath) payload.legend_king_image = serverPath;
+        if (payload.legend_images && typeof payload.legend_images === 'string') {
+          const lgs = parseJSONSafe(payload.legend_images, []);
+          lgs.forEach(lg => {
+            if (lg.image === originalPath) lg.image = serverPath;
+          });
+          payload.legend_images = JSON.stringify(lgs);
+        }
+        if (payload.expert_images && typeof payload.expert_images === 'string') {
+          const exps = parseJSONSafe(payload.expert_images, []);
+          exps.forEach(exp => {
+            if (exp.image === originalPath) exp.image = serverPath;
+          });
+          payload.expert_images = JSON.stringify(exps);
+        }
+        if (payload.elite_images && typeof payload.elite_images === 'string') {
+          const elts = parseJSONSafe(payload.elite_images, []);
+          elts.forEach(elt => {
+            if (elt.image === originalPath) elt.image = serverPath;
+          });
+          payload.elite_images = JSON.stringify(elts);
+        }
       }
       
       await tradesAPI.update(tradeId, payload);
@@ -355,6 +376,9 @@
       legend_htf_image: fullTrade.legend_htf_image || '',
       legend_htf_image_original: fullTrade.legend_htf_image_original || '',
       legend_de_htf: fullTrade.legend_de_htf || '',
+      legend_images: fullTrade.legend_images || '',
+      expert_images: fullTrade.expert_images || '',
+      elite_images: fullTrade.elite_images || '',
       entry_strategy_image: fullTrade.entry_strategy_image || '',
       entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
       notes: fullTrade.notes || '',
