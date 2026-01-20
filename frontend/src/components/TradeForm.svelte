@@ -70,6 +70,7 @@
     legend_images: [], // 傳奇觀察圖
     expert_images: [], // 達人觀察圖
     elite_images: [], // 菁英觀察圖
+    images: [], // 一般交易截圖 (進場/平倉)
   };
 
   let editorImages = []; // 用於追蹤編輯器中上傳的圖片 {path, size}
@@ -817,13 +818,15 @@
 
     // 集結所有具備 MinIO 路徑的圖片，以便後端紀錄在 trade_images 表中進行空間統計
     const allImages = [];
+    const addedPaths = new Set();
     const addImage = (path, type, size = 0) => {
-      if (path && !path.startsWith('data:')) {
+      if (path && !path.startsWith('data:') && !addedPaths.has(path)) {
         allImages.push({
           image_type: type,
           image_path: path,
           file_size: size || 0
         });
+        addedPaths.add(path);
       }
     };
 
@@ -885,7 +888,7 @@
     // 一般圖片
     if (formData.images) {
       formData.images.forEach(img => {
-        if (img && img.image_path) addImage(img.image_path, 'general', img.file_size);
+        if (img && img.image_path) addImage(img.image_path, img.image_type || 'general', img.file_size);
       });
     }
 
@@ -1115,6 +1118,40 @@
     enlargedImageTitle = '';
     enlargedImageContext = null;
     showAnnotator = false;
+  }
+
+  // 處理一般圖片貼上
+  async function handleGeneralImagePaste(e) {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+      if (item.type.indexOf('image') !== -1) {
+        const blob = item.getAsFile();
+        const formDataUpload = new FormData();
+        formDataUpload.append('image', blob);
+        formDataUpload.append('symbol', formData.symbol || 'trade');
+
+        try {
+          const res = await imagesAPI.upload(formDataUpload);
+          formData.images = [
+            ...formData.images,
+            {
+              image_path: res.data.path,
+              image_type: 'general',
+              file_size: res.data.size,
+            },
+          ];
+          formData = formData;
+        } catch (error) {
+          console.error('上傳圖片失敗:', error);
+          alert('上傳圖片失敗');
+        }
+      }
+    }
+  }
+
+  function removeGeneralImage(index) {
+    formData.images = formData.images.filter((_, i) => i !== index);
+    formData = formData;
   }
 
   async function handleSubmit() {
@@ -1723,6 +1760,7 @@
           />
         {/if}
 
+        <!-- 傳奇 -->
         {#if formData.entry_strategy === 'legend'}
           <LegendStrategy
             bind:formData
@@ -1730,6 +1768,39 @@
             on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
           />
         {/if}
+
+        <!-- 一般截圖區塊 -->
+        <div class="form-group general-images-section">
+          <label>📸 進場與平倉截圖 (General Images)</label>
+          <div class="general-images-grid">
+            {#each formData.images as img, idx}
+              <div class="image-thumb-container">
+                <img
+                  src={getImageUrl(img.image_path)}
+                  alt="Trade Screenshot"
+                  class="trade-thumb"
+                  on:click={() =>
+                    enlargeImage(img.image_path, '交易截圖', { type: 'general', index: idx })}
+                />
+                <button
+                  type="button"
+                  class="remove-thumb-btn"
+                  on:click={() => removeGeneralImage(idx)}>×</button
+                >
+              </div>
+            {/each}
+            <div
+              class="image-paste-box"
+              on:paste={handleGeneralImagePaste}
+              tabindex="0"
+              title="點擊此處並按 Ctrl+V 貼上截圖"
+            >
+              <div class="paste-icon">📋</div>
+              <div class="paste-text">貼上圖片</div>
+              <div class="paste-hint">Ctrl+V</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="form-group">
@@ -2496,6 +2567,104 @@
       border: 2px dashed #6366f1;
       border-radius: 12px;
       animation: slideIn 0.3s ease-out;
+    }
+
+    /* 一般圖片網格樣式 */
+    .general-images-section {
+      margin-top: 1.5rem;
+      padding: 1.25rem;
+      background: #f1f5f9;
+      border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+    }
+
+    .general-images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    .image-thumb-container {
+      position: relative;
+      width: 140px;
+      height: 100px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      background: white;
+    }
+
+    .trade-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .trade-thumb:hover {
+      transform: scale(1.05);
+    }
+
+    .remove-thumb-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 22px;
+      height: 22px;
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .remove-thumb-btn:hover {
+      background: #ef4444;
+    }
+
+    .image-paste-box {
+      width: 140px;
+      height: 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #64748b;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .image-paste-box:focus,
+    .image-paste-box:hover {
+      border-color: #6366f1;
+      background: #eff6ff;
+      color: #3b82f6;
+    }
+
+    .paste-icon {
+      font-size: 1.2rem;
+      margin-bottom: 2px;
+    }
+
+    .paste-text {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .paste-hint {
+      font-size: 0.7rem;
+      opacity: 0.7;
     }
 
     @keyframes slideIn {
