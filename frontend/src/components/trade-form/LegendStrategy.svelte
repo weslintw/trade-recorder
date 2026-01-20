@@ -119,7 +119,7 @@
   .checklist-section {
     margin-top: 1rem;
     padding: 1rem;
-    background: #f8fafc;
+    background: white;
     border-radius: 8px;
     border: 1px solid #e2e8f0;
   }
@@ -141,13 +141,15 @@
   .checklist-btn {
     display: inline-flex;
     align-items: center;
-    padding: 0.4rem 0.9rem;
-    border: 1.5px solid #cbd5e0;
+    justify-content: center;
+    padding: 0.4rem 0.8rem;
+    border: 2px solid #cbd5e0;
     border-radius: 8px;
     background: white;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
+    min-width: 60px;
   }
 
   .checklist-btn:hover {
