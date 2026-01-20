@@ -339,13 +339,13 @@
         on:paste={e => handleStrategyImagePaste(e, index)}
         on:click={() => {
           if (imageData?.image) {
-            enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_strategy', index });
+            enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_images', index });
           }
         }}
         on:keydown={e => {
           if (e.key === 'Enter' || e.key === ' ') {
             if (imageData?.image) {
-              enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_strategy', index });
+              enlargeImage(imageData.image, `傳奇觀察圖 ${index + 1}`, { type: 'legend_images', index });
             }
           }
         }}

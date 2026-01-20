@@ -229,14 +229,93 @@
       const uploadRes = await imagesAPI.upload(uploadData);
       const serverPath = uploadRes.data.path;
 
-      const { tradeId, type, index } = enlargedImageContext;
+      const { tradeId, type, index, name } = enlargedImageContext;
       const fullTradeRes = await tradesAPI.getOne(tradeId);
       const fullTrade = fullTradeRes.data;
       
       const payload = sanitizeTradePayload(fullTrade);
-      
+      const originalPath = enlargedOriginalImage;
+
+      // 1. 核心邏輯：更新指定的欄位
       if (type === 'general') {
-        payload.images[index].image_path = serverPath;
+        if (payload.images && payload.images[index]) {
+          payload.images[index].image_path = serverPath;
+        }
+      } else if (type === 'signal') {
+        const signals = parseJSONSafe(payload.entry_signals, []);
+        const sIdx = signals.findIndex(s => s.name === name);
+        if (sIdx >= 0) {
+          const sigImages = signals[sIdx].images || (signals[sIdx].image ? [{image: signals[sIdx].image}] : []);
+          if (sigImages[index]) {
+            sigImages[index].image = serverPath;
+          }
+          signals[sIdx].images = sigImages;
+          payload.entry_signals = JSON.stringify(signals);
+        }
+      } else if (type === 'pattern') {
+        const patterns = parseJSONSafe(payload.entry_pattern, []);
+        const pIdx = patterns.findIndex(p => p.name === name);
+        if (pIdx >= 0) {
+          const patImages = patterns[pIdx].images || (patterns[pIdx].image ? [{image: patterns[pIdx].image}] : []);
+          if (patImages[index]) {
+            patImages[index].image = serverPath;
+          }
+          patterns[pIdx].images = patImages;
+          payload.entry_pattern = JSON.stringify(patterns);
+        }
+      } else if (type === 'strategy') {
+        payload.entry_strategy_image = serverPath;
+      } else if (type === 'legend_htf') {
+        payload.legend_htf_image = serverPath;
+      } else if (type === 'legend_king') {
+        payload.legend_king_image = serverPath;
+      } else if (type === 'legend_images') {
+        const lImages = parseJSONSafe(payload.legend_images, []);
+        if (lImages[index]) {
+          lImages[index].image = serverPath;
+        }
+        payload.legend_images = JSON.stringify(lImages);
+      }
+
+      // 2. 聰明邏輯：全域掃描。如果其他欄位也使用了同一個原始圖片路徑，一併更新為標註後的版本
+      // 這能解決使用者在多個地方（如訊號欄位與一般圖片欄位）貼上同一張圖，但只標註其中一個的情況
+      if (originalPath) {
+        // 更新 images 陣列
+        if (payload.images) {
+          payload.images.forEach(img => {
+            if (img.image_path === originalPath) img.image_path = serverPath;
+          });
+        }
+        // 更新 entry_signals (JSON string)
+        if (payload.entry_signals && typeof payload.entry_signals === 'string') {
+          const sigs = parseJSONSafe(payload.entry_signals, []);
+          sigs.forEach(sig => {
+            if (sig.image === originalPath) sig.image = serverPath;
+            if (sig.images) {
+              sig.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+          payload.entry_signals = JSON.stringify(sigs);
+        }
+        // 更新 entry_pattern (JSON string)
+        if (payload.entry_pattern && typeof payload.entry_pattern === 'string') {
+          const pats = parseJSONSafe(payload.entry_pattern, []);
+          pats.forEach(pat => {
+            if (pat.image === originalPath) pat.image = serverPath;
+            if (pat.images) {
+              pat.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+          payload.entry_pattern = JSON.stringify(pats);
+        }
+        // 更新單一欄位
+        if (payload.entry_strategy_image === originalPath) payload.entry_strategy_image = serverPath;
+        if (payload.legend_htf_image === originalPath) payload.legend_htf_image = serverPath;
+        if (payload.legend_king_image === originalPath) payload.legend_king_image = serverPath;
       }
       
       await tradesAPI.update(tradeId, payload);
@@ -633,7 +712,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(signal.image, `訊號圖: ${signal.name}`);
+                        openImageModal(signal.image, `訊號圖: ${signal.name}`, { tradeId: trade.id, type: 'signal_legacy', name: signal.name });
                       }}
                       title="點擊查看 {signal.name} 訊號圖"
                     >
@@ -662,7 +741,7 @@
                         class="image-thumb"
                         on:click={e => {
                           e.stopPropagation();
-                          openImageModal(pattern.image, `樣態圖: ${pattern.name}`);
+                          openImageModal(pattern.image, `樣態圖: ${pattern.name}`, { tradeId: trade.id, type: 'pattern', name: pattern.name });
                         }}
                         title="點擊查看 {pattern.name} 樣態圖"
                       >
@@ -685,7 +764,7 @@
                     class="image-thumb"
                     on:click={e => {
                       e.stopPropagation();
-                      openImageModal(trade.entry_strategy_image, `進場樣態: ${trade.entry_pattern}`);
+                      openImageModal(trade.entry_strategy_image, `進場樣態: ${trade.entry_pattern}`, { tradeId: trade.id, type: 'strategy' });
                     }}
                     title="點擊查看進場樣態圖"
                   >
@@ -712,7 +791,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image, `訊號圖: ${sig.name || sig} (${idx + 1})`);
+                        openImageModal(img.image, `訊號圖: ${sig.name || sig} (${idx + 1})`, { tradeId: trade.id, type: 'signal', name: sig.name || sig, index: idx });
                       }}
                       title="點擊查看訊號圖片 ({sig.name || sig})"
                     >
@@ -732,7 +811,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image, `樣態圖: ${pat.name || pat} (${idx + 1})`);
+                        openImageModal(img.image, `樣態圖: ${pat.name || pat} (${idx + 1})`, { tradeId: trade.id, type: 'pattern', name: pat.name || pat, index: idx });
                       }}
                       title="點擊查看進場樣態圖 ({pat.name || pat})"
                     >
@@ -751,7 +830,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image, `傳奇圖 (${idx + 1})`);
+                        openImageModal(img.image, `傳奇圖 (${idx + 1})`, { tradeId: trade.id, type: 'legend_images', index: idx });
                       }}
                       title="點擊查看傳奇觀察圖 {idx + 1}"
                     >

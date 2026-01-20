@@ -821,25 +821,29 @@
         return;
       }
 
-      const { type, key } = enlargedImageContext;
+      const { type, key, index: imgIdx, name: signalName } = enlargedImageContext;
+      const originalPath = enlargedOriginalImage;
 
+      // 1. 核心邏輯：更新指定的欄位
       if (type === 'signal') {
-        // 更新訊號圖片（只更新 image，保持 originalImage 不變）
-        const index = formData.entry_signals.findIndex(s =>
-          typeof s === 'string' ? s === key : s.name === key
+        const sIdx = formData.entry_signals.findIndex(s =>
+          typeof s === 'string' ? s === signalName : s.name === signalName
         );
 
-        if (index >= 0) {
-          const currentSignal = formData.entry_signals[index];
-          const signal =
-            typeof currentSignal === 'string'
-              ? { name: key, image: serverPath, originalImage: serverPath, size: serverSize }
-              : { ...currentSignal, image: serverPath, size: serverSize };
-          formData.entry_signals[index] = signal;
+        if (sIdx >= 0) {
+          const currentSignal = formData.entry_signals[sIdx];
+          if (typeof currentSignal !== 'string') {
+            const sigImages = currentSignal.images || (currentSignal.image ? [{image: currentSignal.image, originalImage: currentSignal.originalImage}] : []);
+            if (sigImages[imgIdx]) {
+              sigImages[imgIdx].image = serverPath;
+            }
+            formData.entry_signals[sIdx].images = sigImages;
+          } else {
+             formData.entry_signals[sIdx] = { name: signalName, image: serverPath, originalImage: serverPath, size: serverSize };
+          }
           formData = formData;
         }
       } else if (type === 'trend') {
-        // 更新趨勢圖片（只更新 image，保持 originalImage 不變）
         if (formData.trend_analysis[key]) {
           formData.trend_analysis[key] = {
             ...formData.trend_analysis[key],
@@ -848,26 +852,28 @@
           formData = formData;
         }
       } else if (type === 'strategy') {
-        // 更新策略圖片
         formData.entry_strategy_image = serverPath;
         formData.entry_strategy_image_size = serverSize;
         formData = formData;
       } else if (type === 'legend_htf') {
-        // 更新傳奇大時區圖片
         formData.legend_htf_image = serverPath;
         formData.legend_htf_image_size = serverSize;
         formData = formData;
       } else if (type === 'legend_king') {
-        // 更新傳奇王者圖片
         formData.legend_king_image = serverPath;
         formData.legend_king_image_size = serverSize;
         formData = formData;
       } else if (type === 'pattern') {
-        const index = formData.entry_pattern.findIndex(p => p.name === key);
-        if (index >= 0) {
-          formData.entry_pattern[index].image = serverPath;
-          formData.entry_pattern[index].size = serverSize;
-          // 同步到緩存
+        const pIdx = formData.entry_pattern.findIndex(p => p.name === key);
+        if (pIdx >= 0) {
+          const patImages = formData.entry_pattern[pIdx].images || (formData.entry_pattern[pIdx].image ? [{image: formData.entry_pattern[pIdx].image}] : []);
+          if (patImages[imgIdx] || imgIdx === undefined) {
+             const actualIdx = imgIdx === undefined ? 0 : imgIdx;
+             if (patImages[actualIdx]) patImages[actualIdx].image = serverPath;
+          }
+          formData.entry_pattern[pIdx].images = patImages;
+          formData.entry_pattern[pIdx].image = serverPath; // Legacy update
+          
           patternImagesCache[key] = {
             ...patternImagesCache[key],
             image: serverPath,
@@ -875,6 +881,58 @@
           };
           formData = formData;
         }
+      } else if (type === 'legend_images') {
+        if (formData.legend_images[imgIdx]) {
+          formData.legend_images[imgIdx].image = serverPath;
+        }
+        formData = formData;
+      } else if (type === 'general') {
+        if (formData.images && formData.images[imgIdx]) {
+          formData.images[imgIdx].image_path = serverPath;
+        }
+        formData = formData;
+      }
+
+      // 2. 聰明邏輯：全域掃描。如果其他欄位也使用了同一個原始圖片路徑，一併更新為標註後的版本
+      if (originalPath) {
+        // 更新 images 陣列
+        if (formData.images) {
+          formData.images.forEach(img => {
+            if (img.image_path === originalPath) img.image_path = serverPath;
+          });
+        }
+        // 更新 entry_signals
+        if (formData.entry_signals) {
+          formData.entry_signals.forEach(sig => {
+            if (sig.image === originalPath) sig.image = serverPath;
+            if (sig.images) {
+              sig.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+        }
+        // 更新 entry_pattern
+        if (formData.entry_pattern) {
+          formData.entry_pattern.forEach(pat => {
+            if (pat.image === originalPath) pat.image = serverPath;
+            if (pat.images) {
+              pat.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+        }
+        // 更新單一欄位
+        if (formData.entry_strategy_image === originalPath) formData.entry_strategy_image = serverPath;
+        if (formData.legend_htf_image === originalPath) formData.legend_htf_image = serverPath;
+        if (formData.legend_king_image === originalPath) formData.legend_king_image = serverPath;
+        if (formData.legend_images) {
+          formData.legend_images.forEach(img => {
+            if (img.image === originalPath) img.image = serverPath;
+          });
+        }
+        formData = formData;
       }
 
       // 更新目前顯示的圖片路徑

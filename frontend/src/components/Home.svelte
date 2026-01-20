@@ -919,14 +919,95 @@
       const uploadRes = await imagesAPI.upload(uploadData);
       const serverPath = uploadRes.data.path;
 
-      const { tradeId, type, index } = enlargedImageContext;
+      const { tradeId, type, index, name } = enlargedImageContext;
       const fullTradeRes = await tradesAPI.getOne(tradeId);
       const fullTrade = fullTradeRes.data;
       
       const payload = sanitizeTradePayload(fullTrade);
-      
+      const originalPath = enlargedOriginalImage;
+
+      // 1. 核心邏輯：更新指定的欄位
       if (type === 'general') {
-        payload.images[index].image_path = serverPath;
+        if (payload.images && payload.images[index]) {
+          payload.images[index].image_path = serverPath;
+        }
+      } else if (type === 'signal') {
+        const signals = parseJSONSafe(payload.entry_signals, []);
+        const sIdx = signals.findIndex(s => s.name === name);
+        if (sIdx >= 0) {
+          const sigImages = signals[sIdx].images || (signals[sIdx].image ? [{image: signals[sIdx].image}] : []);
+          if (sigImages[index]) {
+            sigImages[index].image = serverPath;
+          }
+          signals[sIdx].images = sigImages;
+          payload.entry_signals = JSON.stringify(signals);
+        }
+      } else if (type === 'pattern') {
+        const patterns = parseJSONSafe(payload.entry_pattern, []);
+        const pIdx = patterns.findIndex(p => p.name === name);
+        if (pIdx >= 0) {
+          const patImages = patterns[pIdx].images || (patterns[pIdx].image ? [{image: patterns[pIdx].image}] : []);
+          if (patImages[index]) {
+            patImages[index].image = serverPath;
+          }
+          patterns[pIdx].images = patImages;
+          payload.entry_pattern = JSON.stringify(patterns);
+        }
+      } else if (type === 'strategy') {
+        payload.entry_strategy_image = serverPath;
+      } else if (type === 'legend_htf') {
+        payload.legend_htf_image = serverPath;
+      } else if (type === 'legend_king') {
+        payload.legend_king_image = serverPath;
+      } else if (type === 'legend_images') {
+        const lImages = parseJSONSafe(payload.legend_images, []);
+        if (lImages[index]) {
+          lImages[index].image = serverPath;
+        }
+        payload.legend_images = JSON.stringify(lImages);
+      }
+
+      // 2. 聰明邏輯：全域掃描。如果其他欄位也使用了同一個原始圖片路徑，一併更新為標註後的版本
+      if (originalPath) {
+        if (payload.images) {
+          payload.images.forEach(img => {
+            if (img.image_path === originalPath) img.image_path = serverPath;
+          });
+        }
+        if (payload.entry_signals && typeof payload.entry_signals === 'string') {
+          const sigs = parseJSONSafe(payload.entry_signals, []);
+          sigs.forEach(sig => {
+            if (sig.image === originalPath) sig.image = serverPath;
+            if (sig.images) {
+              sig.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+          payload.entry_signals = JSON.stringify(sigs);
+        }
+        if (payload.entry_pattern && typeof payload.entry_pattern === 'string') {
+          const pats = parseJSONSafe(payload.entry_pattern, []);
+          pats.forEach(pat => {
+            if (pat.image === originalPath) pat.image = serverPath;
+            if (pat.images) {
+              pat.images.forEach(img => {
+                if (img.image === originalPath) img.image = serverPath;
+              });
+            }
+          });
+          payload.entry_pattern = JSON.stringify(pats);
+        }
+        if (payload.entry_strategy_image === originalPath) payload.entry_strategy_image = serverPath;
+        if (payload.legend_htf_image === originalPath) payload.legend_htf_image = serverPath;
+        if (payload.legend_king_image === originalPath) payload.legend_king_image = serverPath;
+        if (payload.legend_images && typeof payload.legend_images === 'string') {
+          const lgs = parseJSONSafe(payload.legend_images, []);
+          lgs.forEach(lg => {
+            if (lg.image === originalPath) lg.image = serverPath;
+          });
+          payload.legend_images = JSON.stringify(lgs);
+        }
       }
       
       await tradesAPI.update(tradeId, payload);
@@ -983,6 +1064,7 @@
       legend_htf_image: fullTrade.legend_htf_image || '',
       legend_htf_image_original: fullTrade.legend_htf_image_original || '',
       legend_de_htf: fullTrade.legend_de_htf || '',
+      legend_images: fullTrade.legend_images || '',
       entry_strategy_image: fullTrade.entry_strategy_image || '',
       entry_strategy_image_original: fullTrade.entry_strategy_image_original || '',
       notes: fullTrade.notes || '',
