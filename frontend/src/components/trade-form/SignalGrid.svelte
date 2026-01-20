@@ -36,90 +36,66 @@
   }
 </script>
 
-<div class="signals-card-grid">
+<div class="signals-items">
   {#each expertSignals as signal}
     {@const isSelected = isSignalSelected(signal)}
     <div
-      class="signal-card"
-      class:selected={isSelected}
+      class="signal-btn"
+      class:active={isSelected}
       tabindex="0"
       role="button"
-      on:click={e => {
-        if (!e.target.closest('.signal-checkbox')) {
-          toggleSignal(signal);
-        }
-      }}
+      on:click={() => toggleSignal(signal)}
       on:keydown={e => {
         if (e.key === 'Enter' || e.key === ' ') {
           toggleSignal(signal);
         }
       }}
     >
-      <label class="signal-checkbox-wrapper">
-        <input
-          type="checkbox"
-          class="signal-checkbox"
-          checked={isSelected}
-          on:change={() => toggleSignal(signal)}
-          on:click|stopPropagation
-        />
-        <span class="signal-name">{signal}</span>
-      </label>
+      <span class="btn-text">{signal}</span>
     </div>
   {/each}
 </div>
 
 <style>
-  .signals-card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 1rem;
+  .signals-items {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
-  .signal-card {
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 0.75rem;
+  .signal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.75rem;
+    border: 2px solid #cbd5e0;
+    border-radius: 8px;
+    background: white;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: 60px;
+    user-select: none;
+    width: fit-content;
   }
 
-  .signal-card:hover {
-    border-color: #cbd5e0;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  }
-
-  .signal-card.selected {
+  .signal-btn:hover {
     border-color: #667eea;
-    background: #f0f4ff;
+    background: #f7fafc;
   }
 
-  .signal-checkbox-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
+  .signal-btn.active {
+    border-color: #667eea;
+    background: #667eea;
   }
 
-  .signal-checkbox {
-    width: 18px;
-    height: 18px;
-    accent-color: #667eea;
-    cursor: pointer;
-  }
-
-  .signal-name {
+  .btn-text {
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #2d3748;
-    font-size: 0.95rem;
+    color: #4a5568;
+    transition: color 0.2s;
   }
 
-  .signal-card.selected .signal-name {
-    color: #667eea;
+  .signal-btn.active .btn-text {
+    color: white;
   }
 </style>
