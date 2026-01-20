@@ -24,19 +24,29 @@
   <label class="checklist-label">傳奇檢查清單：</label>
   <div class="checklist-items">
     {#each legendChecklist as item}
-      <label class="checkbox-item">
-        <input
-          type="checkbox"
-          checked={formData.entry_checklist[item.id] || false}
-          on:change={e => {
+      {@const isChecked = formData.entry_checklist[item.id] || false}
+      <div
+        class="checklist-btn"
+        class:active={isChecked}
+        role="button"
+        tabindex="0"
+        on:click={() => {
+          formData.entry_checklist = {
+            ...formData.entry_checklist,
+            [item.id]: !isChecked,
+          };
+        }}
+        on:keydown={e => {
+          if (e.key === 'Enter' || e.key === ' ') {
             formData.entry_checklist = {
               ...formData.entry_checklist,
-              [item.id]: e.target.checked,
+              [item.id]: !isChecked,
             };
-          }}
-        />
-        <span class="checkbox-label">{item.label}</span>
-      </label>
+          }
+        }}
+      >
+        <span class="btn-text">{item.label}</span>
+      </div>
     {/each}
   </div>
 </div>
@@ -125,27 +135,39 @@
   .checklist-items {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 0.75rem;
   }
 
-  .checkbox-item {
-    display: flex;
+  .checklist-btn {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    padding: 0.4rem 0.9rem;
+    border: 1.5px solid #cbd5e0;
+    border-radius: 8px;
+    background: white;
     cursor: pointer;
-  }
-
-  .checkbox-item input[type='checkbox'] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    accent-color: #667eea;
-  }
-
-  .checkbox-label {
-    font-size: 0.9rem;
-    color: #2d3748;
+    transition: all 0.2s ease;
     user-select: none;
+  }
+
+  .checklist-btn:hover {
+    border-color: #805ad5;
+    background: #f9f5ff;
+  }
+
+  .checklist-btn.active {
+    border-color: #805ad5;
+    background: #805ad5;
+  }
+
+  .btn-text {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #4a5568;
+  }
+
+  .checklist-btn.active .btn-text {
+    color: white;
   }
 
   .signals-section {
