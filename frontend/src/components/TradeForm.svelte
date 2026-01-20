@@ -809,6 +809,142 @@
   }
 
   // 處理標註後的圖片保存
+  function getSubmitData() {
+    // 確保 entry_signals 格式正確（轉換成物件陣列）
+    const normalizedSignals = formData.entry_signals.map(s =>
+      typeof s === 'string' ? { name: s, image: '' } : s
+    );
+
+    // 集結所有具備 MinIO 路徑的圖片，以便後端紀錄在 trade_images 表中進行空間統計
+    const allImages = [];
+    const addImage = (path, type, size = 0) => {
+      if (path && !path.startsWith('data:')) {
+        allImages.push({
+          image_type: type,
+          image_path: path,
+          file_size: size || 0
+        });
+      }
+    };
+
+    // 0. 追蹤編輯器中的圖片
+    editorImages.forEach(img => addImage(img.path, 'editor', img.size));
+
+    // 1. 基礎策略圖片
+    addImage(formData.entry_strategy_image, 'strategy', formData.entry_strategy_image_size);
+    addImage(formData.legend_htf_image, 'legend_htf', formData.legend_htf_image_size);
+    addImage(formData.legend_king_image, 'legend_king', formData.legend_king_image_size);
+
+    // 2. 訊號圖片 (支援多圖)
+    formData.entry_signals.forEach(sig => {
+      if (typeof sig === 'object') {
+        if (sig.image) addImage(sig.image, 'signal', sig.size);
+        if (sig.images && Array.isArray(sig.images)) {
+          sig.images.forEach(img => {
+            if (img && img.image) addImage(img.image, 'signal', img.size);
+          });
+        }
+      }
+    });
+
+    // 3. 樣態圖片 (支援多圖)
+    formData.entry_pattern.forEach(pat => {
+      if (pat.image) addImage(pat.image, 'pattern', pat.size);
+      if (pat.images && Array.isArray(pat.images)) {
+        pat.images.forEach(img => {
+          if (img && img.image) addImage(img.image, 'pattern', img.size);
+        });
+      }
+    });
+
+    // 4. 趨勢分析圖片
+    if (formData.trend_analysis) {
+      Object.values(formData.trend_analysis).forEach(trend => {
+        if (trend && trend.image) {
+          addImage(trend.image, 'trend', trend.size);
+        }
+      });
+    }
+
+    // 5. 連貼觀察圖 (傳奇/達人/菁英)
+    if (formData.legend_images) {
+      formData.legend_images.forEach(img => {
+        if (img && img.image) addImage(img.image, 'legend_obs', img.size);
+      });
+    }
+    if (formData.expert_images) {
+      formData.expert_images.forEach(img => {
+        if (img && img.image) addImage(img.image, 'expert_obs', img.size);
+      });
+    }
+    if (formData.elite_images) {
+      formData.elite_images.forEach(img => {
+        if (img && img.image) addImage(img.image, 'elite_obs', img.size);
+      });
+    }
+    // 一般圖片
+    if (formData.images) {
+      formData.images.forEach(img => {
+        if (img && img.image_path) addImage(img.image_path, 'general', img.file_size);
+      });
+    }
+
+    const submitData = {
+      ...formData,
+      account_id: $selectedAccountId,
+      images: allImages,
+      entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
+      exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
+      notes: notesEditor ? notesEditor.getContent() : formData.notes,
+      journal: journalEditor ? journalEditor.getContent() : formData.journal,
+      entry_signals: JSON.stringify(normalizedSignals),
+      entry_checklist: JSON.stringify(formData.entry_checklist),
+      entry_pattern: JSON.stringify(formData.entry_pattern),
+      entry_strategy_image: formData.entry_strategy_image,
+      entry_strategy_image_original: formData.entry_strategy_image_original,
+      entry_timeframe: formData.entry_timeframe,
+      trend_analysis: JSON.stringify(formData.trend_analysis),
+      legend_images: formData.legend_images ? JSON.stringify(formData.legend_images.filter(img => img !== null)) : '[]',
+      expert_images: formData.expert_images ? JSON.stringify(formData.expert_images.filter(img => img !== null)) : '[]',
+      elite_images: formData.elite_images ? JSON.stringify(formData.elite_images.filter(img => img !== null)) : '[]',
+      trend_type: formData.trend_type,
+      entry_time: new Date(formData.entry_time).toISOString(),
+      exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
+    };
+
+    delete submitData.sl_history;
+    delete submitData.pnl_series;
+
+    const parseNumber = val => {
+      if (val === null || val === undefined || val === '') return null;
+      const num = parseFloat(val);
+      return isNaN(num) ? null : num;
+    };
+
+    submitData.initial_sl = parseNumber(formData.initial_sl);
+    submitData.exit_sl = parseNumber(formData.exit_sl);
+    submitData.color_tag = formData.color_tag;
+    submitData.bullet_size = parseNumber(formData.bullet_size);
+    submitData.rr_ratio = parseNumber(formData.rr_ratio);
+
+    if (isActualTrade) {
+      submitData.entry_price = parseNumber(formData.entry_price);
+      submitData.exit_price = parseNumber(formData.exit_price);
+      submitData.lot_size = parseNumber(formData.lot_size);
+      submitData.pnl = parseNumber(formData.pnl);
+      submitData.pnl_points = parseNumber(formData.pnl_points);
+    } else {
+      submitData.entry_price = parseNumber(formData.entry_price);
+      submitData.exit_price = null;
+      submitData.lot_size = null;
+      submitData.pnl = null;
+      submitData.pnl_points = null;
+      submitData.exit_time = null;
+    }
+
+    return submitData;
+  }
+
   async function handleAnnotatedImage(annotatedImageSrc) {
     try {
       // 標註後的圖片是 base64，必須上傳到伺服器 (遵循 MinIO 規則)
@@ -958,43 +1094,8 @@
 
       // 3. 重要：如果對現有交易進行標註，立即提交更新到後端 (比照 Home.svelte 邏輯)
       if (id) {
-         // 使用 handleSubmit 的部分邏輯來準備提交數據
-         const normalizedSignals = formData.entry_signals.map(s =>
-           typeof s === 'string' ? { name: s, image: '' } : s
-         );
-         
-         const allImages = [];
-         const addImg = (path, type, size = 0) => {
-           if (path && !path.startsWith('data:')) {
-             allImages.push({ image_type: type, image_path: path, file_size: size || 0 });
-           }
-         };
-         
-         // 收集圖片 (簡化版)
-         if (formData.images) formData.images.forEach(img => addImg(img.image_path, 'general', img.file_size));
-         if (formData.entry_strategy_image) addImg(formData.entry_strategy_image, 'strategy', formData.entry_strategy_image_size);
-         formData.entry_signals.forEach(sig => {
-           if (sig.images) sig.images.forEach(img => addImg(img.image, 'signal', img.size));
-         });
-         formData.entry_pattern.forEach(pat => {
-           if (pat.images) pat.images.forEach(img => addImg(img.image, 'pattern', img.size));
-         });
-         if (formData.legend_images) formData.legend_images.forEach(img => addImg(img.image, 'legend_obs', img.size));
-
-         const updatePayload = {
-           ...formData,
-           images: allImages,
-           entry_signals: JSON.stringify(normalizedSignals),
-           entry_pattern: JSON.stringify(formData.entry_pattern),
-           entry_checklist: JSON.stringify(formData.entry_checklist),
-           trend_analysis: JSON.stringify(formData.trend_analysis),
-           legend_images: JSON.stringify(formData.legend_images || []),
-           expert_images: JSON.stringify(formData.expert_images || []),
-           elite_images: JSON.stringify(formData.elite_images || []),
-           entry_time: new Date(formData.entry_time).toISOString(),
-           exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
-         };
-         
+         // 使用新封裝的邏輯準備資料，確保數值轉換與 Quill 內容正確
+         const updatePayload = getSubmitData();
          await tradesAPI.update(id, updatePayload);
          console.log('[DEBUG] Image annotation auto-saved to DB');
       }
@@ -1019,133 +1120,12 @@
   async function handleSubmit() {
     try {
       saving = true;
-
-      // 確保 entry_signals 格式正確（轉換成物件陣列）
-      const normalizedSignals = formData.entry_signals.map(s =>
-        typeof s === 'string' ? { name: s, image: '' } : s
-      );
-
-      // 集結所有具備 MinIO 路徑的圖片，以便後端紀錄在 trade_images 表中進行空間統計
-      const allImages = [];
-      const addImage = (path, type, size = 0) => {
-        if (path && !path.startsWith('data:')) {
-          allImages.push({
-            image_type: type,
-            image_path: path,
-            file_size: size || 0
-          });
-        }
-      };
-
-      // 0. 追蹤編輯器中的圖片
-      editorImages.forEach(img => addImage(img.path, 'editor', img.size));
-
-      // 1. 基礎策略圖片
-      addImage(formData.entry_strategy_image, 'strategy', formData.entry_strategy_image_size);
-      addImage(formData.legend_htf_image, 'legend_htf', formData.legend_htf_image_size);
-      addImage(formData.legend_king_image, 'legend_king', formData.legend_king_image_size);
-
-      // 2. 訊號圖片 (支援多圖)
-      formData.entry_signals.forEach(sig => {
-        if (typeof sig === 'object') {
-          if (sig.image) addImage(sig.image, 'signal', sig.size);
-          if (sig.images && Array.isArray(sig.images)) {
-            sig.images.forEach(img => {
-              if (img && img.image) addImage(img.image, 'signal', img.size);
-            });
-          }
-        }
-      });
-
-      // 3. 樣態圖片 (支援多圖)
-      formData.entry_pattern.forEach(pat => {
-        if (pat.image) addImage(pat.image, 'pattern', pat.size);
-        if (pat.images && Array.isArray(pat.images)) {
-          pat.images.forEach(img => {
-            if (img && img.image) addImage(img.image, 'pattern', img.size);
-          });
-        }
-      });
-
-      // 4. 趨勢分析圖片
-      if (formData.trend_analysis) {
-        Object.values(formData.trend_analysis).forEach(trend => {
-          if (trend && trend.image) {
-            addImage(trend.image, 'trend', trend.size);
-          }
-        });
-      }
-
-      // 5. 連貼觀察圖 (傳奇)
-      if (formData.legend_images) {
-        formData.legend_images.forEach(img => {
-          if (img && img.image) addImage(img.image, 'legend_obs', img.size);
-        });
-      }
-
-      // 從富文本編輯器取得內容
-      const submitData = {
-        ...formData,
-        account_id: $selectedAccountId,
-        images: allImages, // 送入 Images 陣列供後端儲存至 trade_images
-        entry_reason: entryReasonEditor ? entryReasonEditor.getContent() : formData.entry_reason,
-        exit_reason: exitReasonEditor ? exitReasonEditor.getContent() : formData.exit_reason,
-        notes: notesEditor ? notesEditor.getContent() : formData.notes,
-        journal: journalEditor ? journalEditor.getContent() : formData.journal,
-        entry_signals: JSON.stringify(normalizedSignals),
-        entry_checklist: JSON.stringify(formData.entry_checklist),
-        entry_pattern: JSON.stringify(formData.entry_pattern),
-        entry_strategy_image: formData.entry_strategy_image,
-        entry_strategy_image_original: formData.entry_strategy_image_original,
-        entry_timeframe: formData.entry_timeframe,
-        trend_analysis: JSON.stringify(formData.trend_analysis),
-        legend_images: formData.legend_images ? JSON.stringify(formData.legend_images.filter(img => img !== null)) : '[]',
-        expert_images: formData.expert_images ? JSON.stringify(formData.expert_images.filter(img => img !== null)) : '[]',
-        elite_images: formData.elite_images ? JSON.stringify(formData.elite_images.filter(img => img !== null)) : '[]',
-        trend_type: formData.trend_type,
-        entry_time: new Date(formData.entry_time).toISOString(),
-        exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
-      };
-
-      // Remove heavy fields managed by sync to prevent payload issues
-      delete submitData.sl_history;
-      delete submitData.pnl_series;
-
-      // 處理數值欄位轉換
-      const parseNumber = val => {
-        if (val === null || val === undefined || val === '') return null;
-        const num = parseFloat(val);
-        return isNaN(num) ? null : num;
-      };
-
-      submitData.initial_sl = parseNumber(formData.initial_sl);
-      submitData.exit_sl = parseNumber(formData.exit_sl);
-      submitData.color_tag = formData.color_tag;
-      submitData.bullet_size = parseNumber(formData.bullet_size);
-      submitData.rr_ratio = parseNumber(formData.rr_ratio);
-
-      // 如果是實際交易，添加交易相關欄位
-      if (isActualTrade) {
-        submitData.entry_price = parseNumber(formData.entry_price);
-        submitData.exit_price = parseNumber(formData.exit_price);
-        submitData.lot_size = parseNumber(formData.lot_size);
-        submitData.pnl = parseNumber(formData.pnl);
-        submitData.pnl_points = parseNumber(formData.pnl_points);
-      } else {
-        // 純觀察記錄，這些執行相關欄位設為 null
-        submitData.entry_price = parseNumber(formData.entry_price); // 觀察單也可能有預計進場價
-        submitData.exit_price = null;
-        submitData.lot_size = null;
-        submitData.pnl = null;
-        submitData.pnl_points = null;
-        submitData.exit_time = null;
-      }
+      const submitData = getSubmitData();
 
       if (id) {
         if (isGroup) {
           // 如果是組合單，同步更新所有子交易的分析欄位
           for (const sibling of groupTrades) {
-            // 只保留執行相關欄位（exit, lot, pnl, ticket），覆蓋分析欄位
             const siblingData = {
               ...submitData,
               id: sibling.id,
@@ -1156,7 +1136,7 @@
               pnl_points: sibling.pnl_points,
               ticket: sibling.ticket,
               exit_sl: sibling.exit_sl,
-              exit_reason: sibling.exit_reason, // 部分平倉可能有不同原因，但通常也是共用的，這裡暫跟隨主單
+              exit_reason: sibling.exit_reason,
             };
             await tradesAPI.update(sibling.id, siblingData);
           }
