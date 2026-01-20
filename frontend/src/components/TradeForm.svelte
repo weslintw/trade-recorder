@@ -266,9 +266,6 @@
     formData.symbol = $selectedSymbol;
   }
 
-  // 響應式：根據交易類型判斷是否顯示交易相關欄位
-  $: isActualTrade = formData.trade_type === 'actual';
-
   // 訊號圖片緩存（保留所有訊號的圖片，即使取消勾選）
   let signalImagesCache = {}; // { signalName: { image: '...', originalImage: '...' } }
   let patternImagesCache = {}; // { patternName: { image: '...', originalImage: '...' } }

@@ -2,7 +2,6 @@
   export let data = [];
   export let width = 120;
   export let height = 36;
-  export let side = 'long'; // 'long' or 'short'
   export let isOpen = false;
 
   $: parsedData = typeof data === 'string' ? JSON.parse(data || '[]') : data;

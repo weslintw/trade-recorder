@@ -22,6 +22,7 @@
     page_size: 20,
     total: 0,
   };
+  let allTags = [];
 
   // 篩選條件
   let filters = {
@@ -809,7 +810,7 @@
           <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
         </div>
       </div>
-      <div class="image-modal-body">
+      <div class="image-modal-body" class:annotator-mode={showAnnotator}>
         {#if showAnnotator}
           <ImageAnnotator
             imageSrc={selectedImage}
@@ -1431,6 +1432,10 @@
     align-items: center;
     background: #0f172a;
     padding: 1rem;
+  }
+
+  .image-modal-body.annotator-mode {
+    align-items: flex-start;
   }
 
   .image-modal-img {
