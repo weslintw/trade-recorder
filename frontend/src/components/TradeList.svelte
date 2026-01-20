@@ -1,5 +1,6 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
@@ -26,12 +27,12 @@
     end_date: '',
   };
 
-  let allTags = [];
-  let selectedImage = null;
-
   onMount(() => {
     loadTags();
   });
+
+  let selectedImage = null;
+  let modalTitle = '查看圖片';
 
   // 當全局品種改變時，更新篩選器並重新載入
   $: if ($selectedSymbol || $selectedAccountId) {
@@ -201,8 +202,9 @@
     }
   }
 
-  function openImageModal(imagePath) {
+  function openImageModal(imagePath, title = '查看圖片') {
     if (!imagePath) return;
+    modalTitle = title;
     if (imagePath.startsWith('data:image/') || imagePath.startsWith('blob:')) {
       selectedImage = imagePath;
     } else {
@@ -506,7 +508,7 @@
                   class="image-thumb"
                   on:click={e => {
                     e.stopPropagation();
-                    openImageModal(image.image_path);
+                    openImageModal(image.image_path, `${image.image_type === 'entry' ? '進場' : image.image_type === 'exit' ? '平倉' : '圖片'}截圖`);
                   }}
                   title="點擊查看圖片"
                 >
@@ -543,7 +545,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(signal.image);
+                        openImageModal(signal.image, `訊號圖: ${signal.name}`);
                       }}
                       title="點擊查看 {signal.name} 訊號圖"
                     >
@@ -572,7 +574,7 @@
                         class="image-thumb"
                         on:click={e => {
                           e.stopPropagation();
-                          openImageModal(pattern.image);
+                          openImageModal(pattern.image, `樣態圖: ${pattern.name}`);
                         }}
                         title="點擊查看 {pattern.name} 樣態圖"
                       >
@@ -595,7 +597,7 @@
                     class="image-thumb"
                     on:click={e => {
                       e.stopPropagation();
-                      openImageModal(trade.entry_strategy_image);
+                      openImageModal(trade.entry_strategy_image, `進場樣態: ${trade.entry_pattern}`);
                     }}
                     title="點擊查看進場樣態圖"
                   >
@@ -622,7 +624,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image);
+                        openImageModal(img.image, `訊號圖: ${sig.name || sig} (${idx + 1})`);
                       }}
                       title="點擊查看訊號圖片 ({sig.name || sig})"
                     >
@@ -642,7 +644,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image);
+                        openImageModal(img.image, `樣態圖: ${pat.name || pat} (${idx + 1})`);
                       }}
                       title="點擊查看進場樣態圖 ({pat.name || pat})"
                     >
@@ -661,7 +663,7 @@
                       class="image-thumb"
                       on:click={e => {
                         e.stopPropagation();
-                        openImageModal(img.image);
+                        openImageModal(img.image, `傳奇圖 (${idx + 1})`);
                       }}
                       title="點擊查看傳奇觀察圖 {idx + 1}"
                     >
@@ -702,10 +704,17 @@
 
 <!-- 圖片模態框 -->
 {#if selectedImage}
-  <div class="modal" on:click={closeImageModal}>
-    <div class="modal-content" on:click|stopPropagation>
-      <button class="modal-close" on:click={closeImageModal}>×</button>
-      <img src={selectedImage} alt="交易圖片" />
+  <div class="image-modal active" on:click={closeImageModal} transition:fade={{ duration: 200 }} role="presentation">
+    <div class="image-modal-content" on:click={e => e.stopPropagation()} role="presentation">
+      <div class="image-modal-header">
+        <h3 class="image-modal-title">{modalTitle}</h3>
+        <div class="image-modal-actions">
+          <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
+        </div>
+      </div>
+      <div class="image-modal-body">
+        <img src={selectedImage} alt={modalTitle} class="image-modal-img" />
+      </div>
     </div>
   </div>
 {/if}
@@ -1194,42 +1203,108 @@
     color: #4a5568;
   }
 
-  .modal {
+  /* 圖片放大查看模態視窗 (同步至 TradeForm 樣式) */
+  .image-modal {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 2rem;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .image-modal-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    animation: slideScaleIn 0.3s ease-out;
+    overflow: hidden;
+  }
+
+  @keyframes slideScaleIn {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .image-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+  }
+
+  .image-modal-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+  }
+
+  .image-modal-close {
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.25rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 0;
+  }
+
+  .image-modal-close:hover {
+    background: rgba(239, 68, 68, 0.9);
+    transform: scale(1.1);
+  }
+
+  .image-modal-body {
+    flex: 1;
+    overflow: auto;
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
-    cursor: pointer;
+    background: #0f172a;
+    padding: 1rem;
   }
 
-  .modal-content {
-    position: relative;
-    max-width: 90%;
-    max-height: 90%;
-    cursor: default;
-  }
-
-  .modal-content img {
+  .image-modal-img {
     max-width: 100%;
-    max-height: 90vh;
-    border-radius: 8px;
-  }
-
-  .modal-close {
-    position: absolute;
-    top: -40px;
-    right: 0;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 3rem;
-    cursor: pointer;
-    line-height: 1;
+    max-height: calc(95vh - 4rem);
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   }
 </style>

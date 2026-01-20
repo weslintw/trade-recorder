@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { navigate, Link } from 'svelte-routing';
   import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
@@ -15,6 +16,7 @@
   let loading = true;
   let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
+  let modalTitle = '';
   let isSyncing = false;
   let showAccountModal = false;
   let showBatchShareModal = false;
@@ -883,9 +885,12 @@
     return MARKET_SESSIONS.find(s => s.value === session)?.label || session || '未設定';
   }
 
-  function openImageModal(imagePath) {
+  function openImageModal(imagePath, title = '查看圖片') {
     if (!imagePath) return;
-    selectedImage = imagePath.startsWith('http') ? imagePath : imagesAPI.getUrl(imagePath);
+    modalTitle = title;
+    selectedImage = imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('blob:') 
+      ? imagePath 
+      : imagesAPI.getUrl(imagePath);
   }
 
   function closeImageModal() {
@@ -1876,7 +1881,7 @@
                             {#each trade.images.slice(0, 3) as img}
                               <div
                                 class="mini-img"
-                                on:click|stopPropagation={() => openImageModal(img.image_path)}
+                                on:click|stopPropagation={() => openImageModal(img.image_path, `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`)}
                               >
                                 <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
                               </div>
@@ -1932,10 +1937,15 @@
 />
 
 {#if selectedImage}
-  <div class="modal" on:click={closeImageModal}>
-    <div class="modal-content" on:click|stopPropagation>
-      <button class="modal-close" on:click={closeImageModal}>×</button>
-      <img src={selectedImage} alt="全螢幕圖片" />
+  <div class="image-modal active" on:click={closeImageModal} transition:fade={{ duration: 200 }}>
+    <div class="image-modal-content" on:click|stopPropagation>
+      <div class="image-modal-header">
+        <h3 class="image-modal-title">{modalTitle}</h3>
+        <button class="image-modal-close" on:click={closeImageModal}>&times;</button>
+      </div>
+      <div class="image-modal-body">
+        <img src={selectedImage} alt="全螢幕圖片" class="image-modal-img" />
+      </div>
     </div>
   </div>
 {/if}
@@ -3777,5 +3787,89 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Image Modal Styles */
+  .image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(8px);
+    padding: 20px;
+  }
+
+  .image-modal-content {
+    background: var(--card-bg);
+    border-radius: 16px;
+    max-width: 95vw;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-color);
+  }
+
+  .image-modal-header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--card-bg);
+  }
+
+  .image-modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .image-modal-close {
+    background: var(--nav-group-bg);
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .image-modal-close:hover {
+    background: #ef4444;
+    color: white;
+    transform: rotate(90deg);
+  }
+
+  .image-modal-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #0f172a;
+    padding: 1rem;
+  }
+
+  .image-modal-img {
+    max-width: 100%;
+    max-height: calc(95vh - 4rem);
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   }
 </style>
