@@ -818,7 +818,7 @@
           />
         {:else}
           <img src={selectedImage} alt={modalTitle} class="image-modal-img" />
-        {#/if}
+        {/if}
       </div>
     </div>
   </div>
