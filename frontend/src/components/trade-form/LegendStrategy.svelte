@@ -134,22 +134,22 @@
 
   .checklist-items {
     display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .checklist-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 0.4rem 0.8rem;
+    padding: 0.35rem 0.75rem;
     border: 2px solid #cbd5e0;
     border-radius: 8px;
     background: white;
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
-    min-width: 60px;
+    width: fit-content;
   }
 
   .checklist-btn:hover {
