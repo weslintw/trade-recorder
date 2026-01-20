@@ -198,14 +198,6 @@
     });
   }
 
-  function parseJSONSafe(str, defaultValue) {
-    if (!str) return defaultValue;
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      return defaultValue;
-    }
-  }
 
   function openImageModal(imagePath, title = '查看圖片', context = null, originalPath = null) {
     if (!imagePath) return;
