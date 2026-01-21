@@ -154,14 +154,17 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	defer conn.Close()
 
 	// 1. Auth sequence
+	db.Exec("UPDATE accounts SET sync_status = 'authenticating...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
 	if err = sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": clientID, "clientSecret": clientSecret}, PayloadAppAuthRes); err != nil {
 		return err
 	}
+	db.Exec("UPDATE accounts SET sync_status = 'auth application success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
 	if err = sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": cTID, "accessToken": token}, PayloadAccountAuthRes); err != nil {
 		return err
 	}
+	db.Exec("UPDATE accounts SET sync_status = 'auth account success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 
 	symbolMap := make(map[int64]string)
 	symbolLotSizeMap := make(map[int64]int64)
@@ -180,10 +183,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				openPositionsMap[pos.PositionID] = true
 			}
 			log.Printf("[cTrader Sync] Pre-sync: Found %d open positions", len(openPositionsMap))
+			db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("found %d open positions...", len(openPositionsMap)), accountID)
 		}
 	}
 
 	// Populate symbol names
+	db.Exec("UPDATE accounts SET sync_status = 'fetching symbol list...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
 	sListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": cTID})
 	if err == nil {
@@ -262,6 +267,10 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		if from < targetFrom {
 			from = targetFrom
 		}
+
+		fromTime := time.UnixMilli(from).Format("2006/01/02")
+		db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("fetching history (%d/%d): since %s...", i+1, numChunks, fromTime), accountID)
+
 		if to <= targetFrom {
 			break
 		}
@@ -339,15 +348,22 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	insertedCount := 0
 	skippedExisting := 0
 	skippedDeleted := 0
-	updateInterval := max(len(posGroups)/10, 1) // Update status every 10% instead of every position
+	updateInterval := 5 // 每 5 個 update 一次，給使用者更細動態感
+	if len(posGroups) > 200 {
+		updateInterval = len(posGroups) / 20 // 較多時改為每 5%
+	}
 
 	for pid, deals := range posGroups {
 		count++
 
-		// Only update status every 10% or so to reduce DB load
+		// Only update status every few positions to show activity
 		if count%updateInterval == 0 || count == len(posGroups) {
+			currentSymbol := "Unknown"
+			if len(deals) > 0 {
+				currentSymbol = symbolMap[deals[0].SymbolID]
+			}
 			db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-				fmt.Sprintf("scanning SL (%d/%d)...", count, len(posGroups)), accountID)
+				fmt.Sprintf("Analyzing %s (%d/%d)...", currentSymbol, count, len(posGroups)), accountID)
 		}
 
 		// === PERFORMANCE OPTIMIZATION: Check if all deals in this position are already synced ===
@@ -747,7 +763,8 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			countOpen := 0
 			for _, pos := range p.Position {
 				countOpen++
-				db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("syncing open positions (%d/%d)...", countOpen, len(p.Position)), accountID)
+				currentSymbol := symbolMap[pos.TradeData.SymbolID]
+				db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("Checking open %s (%d/%d)...", currentSymbol, countOpen, len(p.Position)), accountID)
 
 				symbol := symbolMap[pos.TradeData.SymbolID]
 				if symbol == "" {
@@ -896,7 +913,16 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 	// 5. Final PnL Repair Pass (for ANY trade with missing PnL in this account)
 	log.Printf("[cTrader Sync] Step 5: Final PnL Repair Pass for Account %d...", accountID)
-	db.Exec("UPDATE accounts SET sync_status = 'Repairing missing charts...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
+
+	repairQuery := `
+		SELECT COUNT(*)
+		FROM trades 
+		WHERE account_id = ? AND ticket LIKE 'ctrader-deal-%' 
+		AND (pnl_series IS NULL OR pnl_series = '' OR pnl_series = '[]')
+	`
+	var repairCount int
+	db.QueryRow(repairQuery, accountID).Scan(&repairCount)
+
 	repairRows, err := db.Query(`
 		SELECT id, symbol, side, lot_size, entry_time, exit_time, entry_price, ticket 
 		FROM trades 
@@ -905,7 +931,10 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		ORDER BY entry_time DESC LIMIT 50`, accountID)
 	if err == nil {
 		defer repairRows.Close()
+		repairIdx := 0
 		for repairRows.Next() {
+			repairIdx++
+			db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", fmt.Sprintf("Repairing charts (%d/%d)...", repairIdx, min(repairCount, 50)), accountID)
 			var t struct {
 				ID         int64
 				Symbol     string

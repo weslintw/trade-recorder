@@ -1351,11 +1351,9 @@
           {#if currentAccount.type !== 'local'}
             <div class="sync-status-info">
               <span
-                class="sync-badge {currentAccount.sync_status} {currentAccount.sync_status
-                  ?.toLowerCase()
-                  .includes('syncing') ||
-                currentAccount.sync_status?.toLowerCase().includes('fetching') ||
-                currentAccount.sync_status?.toLowerCase().includes('scanning')
+                class="sync-badge {currentAccount.sync_status} {
+                  currentAccount.sync_status && 
+                  !['success', 'failed', 'idle'].includes(currentAccount.sync_status.toLowerCase())
                   ? 'syncing'
                   : ''}">{currentAccount.sync_status}</span
               >

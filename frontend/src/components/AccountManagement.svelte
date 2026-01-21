@@ -281,9 +281,7 @@
                 <p>Myfxbook Email: {acc.myfxbook_email}</p>
                 <div class="sync-info">
                   <span class="badge sync-badge {acc.sync_status} {
-                    acc.sync_status?.toLowerCase().includes('syncing') ||
-                    acc.sync_status?.toLowerCase().includes('fetching') ||
-                    acc.sync_status?.toLowerCase().includes('scanning')
+                    acc.sync_status && !['success', 'failed', 'idle'].includes(acc.sync_status.toLowerCase())
                     ? 'syncing'
                     : ''}">{acc.sync_status}</span>
                   {#if acc.last_synced_at}
