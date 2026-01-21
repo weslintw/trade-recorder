@@ -3812,5 +3812,53 @@
       height: 38px;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
     }
+
+    /* Mobile Responsive Optimizations */
+    @media (max-width: 768px) {
+      .form-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+      }
+      .form-header-metadata {
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+      }
+      .timeframe-trend-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .strategy-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .merge-action-container {
+        border-left: none;
+        padding-left: 0;
+        margin-left: 0;
+        margin-top: 0.5rem;
+      }
+      .form-actions {
+        flex-direction: column-reverse;
+      }
+      .form-actions .btn {
+        width: 100%;
+      }
+      .pattern-cards-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .pattern-cards-grid {
+        grid-template-columns: 1fr;
+      }
+      .strategy-option {
+        padding: 0.5rem 1rem;
+      }
+      .card {
+        padding: 1rem;
+      }
+    }
   </style>
 {/if}

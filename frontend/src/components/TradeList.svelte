@@ -1412,6 +1412,42 @@
     color: #4a5568;
   }
 
+  /* Mobile Responsive Optimizations */
+  @media (max-width: 768px) {
+    .trade-header-compact {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .compact-left {
+      gap: 0.5rem;
+    }
+    .daily-plan-match-section {
+      padding: 0.5rem;
+      gap: 0.5rem;
+    }
+    .matched-plan-info {
+      padding: 0;
+    }
+    .image-thumb {
+      width: 100px;
+      height: 70px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .trade-card {
+      padding: 1rem;
+    }
+    .pnl {
+      font-size: 1.1rem;
+    }
+    .pagination {
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+  }
+
   /* 圖片放大查看模態視窗 (同步至 TradeForm 樣式) */
   .image-modal {
     position: fixed;

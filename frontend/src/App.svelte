@@ -211,6 +211,28 @@
         <Login />
       {/if}
     </main>
+
+    {#if $auth.isAuthenticated && !window.location.pathname.startsWith('/shared/')}
+      <!-- Mobile Bottom Navigation -->
+      <nav class="mobile-bottom-nav">
+        <Link to="/" class={activeNav === 'home' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'home')}>
+          <span class="icon">🏠</span>
+          <span class="label">主頁</span>
+        </Link>
+        <Link to="/new" class={activeNav === 'new-trade' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'new-trade')}>
+          <span class="icon">➕</span>
+          <span class="label">記交易</span>
+        </Link>
+        <Link to="/plans/new" class={activeNav === 'new-plan' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'new-plan')}>
+          <span class="icon">📝</span>
+          <span class="label">寫規劃</span>
+        </Link>
+        <Link to="/dashboard" class={activeNav === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'dashboard')}>
+          <span class="icon">📊</span>
+          <span class="label">統計</span>
+        </Link>
+      </nav>
+    {/if}
   </div>
 </Router>
 
@@ -798,5 +820,120 @@
   @keyframes rotation {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+
+  /* Responsive Optimizations */
+  @media (max-width: 1100px) {
+    .logo-image-container {
+      width: 200px;
+    }
+    .header-tools {
+      padding-left: 1rem;
+    }
+  }
+
+  /* Tablet & Samsung Fold Unfolded */
+  @media (max-width: 950px) {
+    .navbar-content {
+      padding: 0 1rem;
+    }
+    .nav-links {
+      gap: 0.75rem;
+    }
+    .market-status {
+      display: none; /* Hide in navbar, maybe show elsewhere later if needed */
+    }
+    .header-tools {
+      padding-left: 0.5rem;
+    }
+  }
+
+  /* Mobile & Samsung Fold Folded (Cover Screen) */
+  @media (max-width: 768px) {
+    .navbar {
+      padding: 0.5rem 0;
+    }
+    .nav-links .nav-secondary-group {
+      display: none; /* Hide dashboard/account icons, moved to bottom nav */
+    }
+    .logo-image-container {
+      width: 140px;
+      height: 60px;
+    }
+    .app-version-tag {
+      display: none !important;
+    }
+    .container {
+      padding: 0 1rem;
+      margin-bottom: 5rem; /* Space for bottom nav */
+    }
+    
+    .mobile-bottom-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 4rem;
+      background: var(--nav-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-color);
+      z-index: 1000;
+      justify-content: space-around;
+      align-items: center;
+      padding-bottom: env(safe-area-inset-bottom);
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .mobile-nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: var(--text-muted);
+      gap: 0.25rem;
+      transition: all 0.2s;
+      flex: 1;
+    }
+
+    .mobile-nav-item .icon {
+      font-size: 1.2rem;
+    }
+
+    .mobile-nav-item .label {
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+
+    .mobile-nav-item.active {
+      color: var(--primary);
+      transform: translateY(-2px);
+    }
+
+    :global(body.dark-mode) .mobile-bottom-nav {
+      background: rgba(15, 23, 42, 0.9);
+      border-top-color: rgba(255, 255, 255, 0.05);
+    }
+  }
+
+  @media (max-width: 500px) {
+    .navbar-content {
+      padding: 0 0.5rem;
+    }
+    .logo-image-container {
+      width: 120px;
+    }
+    .symbol-selector {
+      padding: 0.25rem 0.5rem;
+    }
+    .symbol-selector select {
+      font-size: 0.9rem;
+    }
+  }
+
+  /* Hidden desktop nav when on mobile */
+  .mobile-bottom-nav {
+    display: none;
   }
 </style>

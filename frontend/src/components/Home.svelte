@@ -3780,7 +3780,20 @@
     font-size: 0.85rem;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 950px) {
+    .timeline-container {
+      padding: 1rem;
+    }
+    .home-hero {
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .hero-title .greeting {
+      font-size: 1rem;
+    }
+  }
+
+  @media (max-width: 720px) {
     .day-card-container {
       grid-template-columns: 1fr;
     }
@@ -3789,6 +3802,21 @@
       border-bottom: 1px dashed #e2e8f0;
       padding-right: 0;
       padding-bottom: 1.5rem;
+    }
+    .top-actions-bar {
+      display: none; /* Already in bottom nav */
+    }
+  }
+
+  @media (max-width: 500px) {
+    .filter-type-btn {
+      padding: 0.5rem 0.8rem;
+      font-size: 0.85rem;
+    }
+    .day-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
     }
   }
   .trade-item-card {

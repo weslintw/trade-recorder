@@ -1996,5 +1996,48 @@
       border-color: #3b82f6;
       color: #3b82f6;
     }
+
+    /* Mobile Responsive Optimizations */
+    @media (max-width: 950px) {
+      .trend-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .form-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+      }
+      .header-btns {
+        width: 100%;
+      }
+      .header-btns .btn {
+        flex: 1;
+      }
+      .trend-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .form-actions {
+        flex-direction: column-reverse;
+      }
+      .form-actions .btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .trend-grid {
+        grid-template-columns: 1fr;
+      }
+      .wave-numbers {
+        flex-wrap: wrap;
+      }
+      .wave-number-btn {
+        flex: none;
+        width: calc(20% - 0.4rem);
+      }
+    }
   </style>
 {/if}
