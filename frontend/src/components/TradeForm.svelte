@@ -1125,27 +1125,47 @@
     for (const item of items) {
       if (item.type.indexOf('image') !== -1) {
         const blob = item.getAsFile();
-        const formDataUpload = new FormData();
-        formDataUpload.append('image', blob);
-        formDataUpload.append('symbol', formData.symbol || 'trade');
-
-        try {
-          const res = await imagesAPI.upload(formDataUpload);
-          formData.images = [
-            ...formData.images,
-            {
-              image_path: res.data.path,
-              image_type: 'general',
-              file_size: res.data.size,
-            },
-          ];
-          formData = formData;
-        } catch (error) {
-          console.error('上傳圖片失敗:', error);
-          alert('上傳圖片失敗');
-        }
+        await uploadGeneralImage(blob);
       }
     }
+  }
+
+  async function uploadGeneralImage(file) {
+    if (!file) return;
+    const formDataUpload = new FormData();
+    formDataUpload.append('image', file);
+    formDataUpload.append('symbol', formData.symbol || 'trade');
+
+    try {
+      const res = await imagesAPI.upload(formDataUpload);
+      formData.images = [
+        ...formData.images,
+        {
+          image_path: res.data.path,
+          image_type: 'general',
+          file_size: res.data.size,
+        },
+      ];
+      formData = formData;
+    } catch (error) {
+      console.error('上傳圖片失敗:', error);
+      alert('上傳圖片失敗');
+    }
+  }
+
+  let generalFileInput;
+  function triggerGeneralUpload() {
+    if (generalFileInput) generalFileInput.click();
+  }
+
+  function handleGeneralFileSelect(e) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      for (const file of files) {
+        uploadGeneralImage(file);
+      }
+    }
+    e.target.value = ''; // Reset
   }
 
   function removeGeneralImage(index) {
@@ -1778,12 +1798,21 @@
             <div
               class="image-paste-box"
               on:paste={handleGeneralImagePaste}
+              on:click={triggerGeneralUpload}
               tabindex="0"
-              title="點擊此處並按 Ctrl+V 貼上截圖"
+              title="點擊或按 Ctrl+V 貼上截圖"
             >
-              <div class="paste-icon">📋</div>
-              <div class="paste-text">貼上圖片</div>
-              <div class="paste-hint">Ctrl+V</div>
+              <div class="paste-icon">📸</div>
+              <div class="paste-text">點擊上傳 / 貼上圖片</div>
+              <div class="paste-hint">Mobile / Ctrl+V</div>
+              <input 
+                type="file" 
+                accept="image/*" 
+                multiple
+                style="display: none;" 
+                bind:this={generalFileInput} 
+                on:change={handleGeneralFileSelect}
+              />
             </div>
           </div>
         </div>

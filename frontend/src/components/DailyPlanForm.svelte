@@ -392,7 +392,7 @@
   }
 
   // 處理趨勢圖片貼上 (優化版：改為直接上傳伺服器，不再存 Base64)
-  async function handleTrendImagePaste(
+   async function handleTrendImagePaste(
     event,
     timeframe,
     imageType = 'trend',
@@ -405,57 +405,85 @@
       if (item.type.indexOf('image') !== -1) {
         event.preventDefault();
         const file = item.getAsFile();
-
-        try {
-          const formDataToUpload = new FormData();
-          formDataToUpload.append('image', file);
-          formDataToUpload.append('symbol', formData.symbol || 'plan');
-
-          // 上傳並取得 URL
-          const response = await imagesAPI.upload(formDataToUpload);
-          const imageUrl = response.data.path; // 後端回傳的路徑
-
-          const trends = currentTrends[timeframe];
-          const target = direction ? trends[direction] : trends;
-
-          // 根據 imageType 設置不同的圖片欄位
-          if (imageType === 'signals') {
-            target.signals_image = imageUrl;
-            if (!target.signals_originalImage) {
-              target.signals_originalImage = imageUrl;
-            }
-          } else if (imageType === 'expected_signals') {
-            if (target.expected_signals) {
-              const signal = target.expected_signals.find(s => s.name === signalName);
-              if (signal) {
-                signal.image = imageUrl;
-                if (!signal.originalImage) {
-                  signal.originalImage = imageUrl;
-                }
-              }
-            }
-          } else if (imageType === 'wave') {
-            target.wave_image = imageUrl;
-            if (!target.wave_originalImage) {
-              target.wave_originalImage = imageUrl;
-            }
-          } else {
-            trends.image = imageUrl;
-            if (!trends.originalImage) {
-              trends.originalImage = imageUrl;
-            }
-          }
-
-          // 強制觸發 Svelte 響應式更新
-          formData = formData;
-          waveButtonKey++;
-        } catch (error) {
-          console.error('圖片貼上上傳失敗:', error);
-          alert('圖片處理失敗，請重試');
-        }
+        await uploadTrendImage(file, timeframe, imageType, direction, signalName);
         break;
       }
     }
+  }
+
+  async function uploadTrendImage(
+    file,
+    timeframe,
+    imageType = 'trend',
+    direction = null,
+    signalName = null
+  ) {
+    if (!file) return;
+    try {
+      const formDataToUpload = new FormData();
+      formDataToUpload.append('image', file);
+      formDataToUpload.append('symbol', formData.symbol || 'plan');
+
+      // 上傳並取得 URL
+      const response = await imagesAPI.upload(formDataToUpload);
+      const imageUrl = response.data.path; // 後端回傳的路徑
+
+      const trends = currentTrends[timeframe];
+      const target = direction ? trends[direction] : trends;
+
+      // 根據 imageType 設置不同的圖片欄位
+      if (imageType === 'signals') {
+        target.signals_image = imageUrl;
+        if (!target.signals_originalImage) {
+          target.signals_originalImage = imageUrl;
+        }
+      } else if (imageType === 'expected_signals') {
+        if (target.expected_signals) {
+          const signal = target.expected_signals.find(s => s.name === signalName);
+          if (signal) {
+            signal.image = imageUrl;
+            if (!signal.originalImage) {
+              signal.originalImage = imageUrl;
+            }
+          }
+        }
+      } else if (imageType === 'wave') {
+        target.wave_image = imageUrl;
+        if (!target.wave_originalImage) {
+          target.wave_originalImage = imageUrl;
+        }
+      } else {
+        trends.image = imageUrl;
+        if (!trends.originalImage) {
+          trends.originalImage = imageUrl;
+        }
+      }
+
+      // 強制觸發 Svelte 響應式更新
+      formData = formData;
+      waveButtonKey++;
+    } catch (error) {
+      console.error('圖片上傳失敗:', error);
+      alert('圖片處理失敗，請重試');
+    }
+  }
+
+  let trendFileInput;
+  let currentUploadContext = null;
+
+  function triggerTrendUpload(timeframe, imageType = 'trend', direction = null, signalName = null) {
+    currentUploadContext = { timeframe, imageType, direction, signalName };
+    if (trendFileInput) trendFileInput.click();
+  }
+
+  function handleTrendFileSelect(e) {
+    const file = e.target.files[0];
+    if (file && currentUploadContext) {
+      const { timeframe, imageType, direction, signalName } = currentUploadContext;
+      uploadTrendImage(file, timeframe, imageType, direction, signalName);
+    }
+    e.target.value = ''; // Reset
+    currentUploadContext = null;
   }
 
   // 移除趨勢圖片
@@ -876,8 +904,13 @@
               tabindex="0"
               on:paste={e => handleTrendImagePaste(e, timeframe)}
               on:click={e => {
-                if (!e.target.closest('.trend-options')) {
-                  e.currentTarget.focus();
+                if (e.target.closest('.trend-options')) return;
+                
+                // 如果點選的是卡片本身（非按鈕），且沒有圖片時，觸發上傳
+                if (!currentTrends[timeframe]?.image) {
+                   triggerTrendUpload(timeframe);
+                } else {
+                   e.currentTarget.focus();
                 }
               }}
             >
@@ -983,10 +1016,10 @@
                           tabindex="0"
                           on:paste|preventDefault|stopPropagation={e =>
                             handleTrendImagePaste(e, timeframe, 'signals', dir)}
-                          on:click|stopPropagation={e => e.target.focus()}
+                          on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'signals', dir)}
                           role="textbox"
                         >
-                          📋 貼上已成立訊號圖
+                          📸 點擊或貼上已成立訊號圖
                         </div>
                       {/if}
                     {/if}
@@ -1070,10 +1103,10 @@
                                       dir,
                                       signal.name
                                     )}
-                                  on:click|stopPropagation={e => e.target.focus()}
+                                  on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', dir, signal.name)}
                                   role="textbox"
                                 >
-                                  📋 貼上 {signal.name} 示意圖
+                                  📸 點擊或貼上 {signal.name} 示意圖
                                 </div>
                               {/if}
                             </div>
@@ -1144,10 +1177,10 @@
                           tabindex="0"
                           on:paste|preventDefault|stopPropagation={e =>
                             handleTrendImagePaste(e, timeframe, 'wave', dir)}
-                          on:click|stopPropagation={e => e.target.focus()}
+                          on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'wave', dir)}
                           role="textbox"
                         >
-                          📋 貼上波浪圖
+                          📸 點擊或貼上波浪圖
                         </div>
                       {/if}
                     {/if}
@@ -1233,6 +1266,14 @@
     resourceId={id}
     resourceTitle={formData.plan_date.replace(/-/g, '') + '_DailyPlan'}
     onClose={() => (showShareModal = false)}
+  />
+
+  <input 
+    type="file" 
+    accept="image/*" 
+    style="display: none;" 
+    bind:this={trendFileInput} 
+    on:change={handleTrendFileSelect}
   />
 
   <style>
