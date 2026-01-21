@@ -367,7 +367,12 @@
     activeLoadCallId = callId;
 
     // Abort previous request before starting new one
+    // 但如果當前正在進行「非靜默」加載，且新的請求是「靜默」的，則不中斷，直接略過靜默請求
     if (loadController) {
+      if (loading && silent && activeLoadCallId < callId) {
+        console.log(`[${INSTANCE_ID}] Skipping silent loadData #${callId} because a non-silent load is active.`);
+        return;
+      }
       console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests...`);
       loadController.abort();
     }
@@ -724,6 +729,13 @@
   async function poll() {
     if (pollingTimeout) clearTimeout(pollingTimeout);
 
+    // 如果當前正在轉圈圈加載中，則跳過本次輪詢，不與主連線搶資源
+    if (loading) {
+      console.log('[Home] Main loading is active, skipping background poll.');
+      pollingTimeout = setTimeout(poll, currentPollingInterval);
+      return;
+    }
+
     // 如果 WebSocket 斷線，則維持基本的輪詢
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       if ($selectedAccountId) {
@@ -739,6 +751,19 @@
     }
 
     pollingTimeout = setTimeout(poll, currentPollingInterval);
+  }
+
+  // 修改：將初始啟動延後，且增加 loading 檢查
+  function startDeferredServices() {
+    console.log('[Home] Starting deferred services...');
+    initRealtimeNotifications();
+    
+    // 如果還在加載，再延後一點啟動輪詢
+    if (loading) {
+      setTimeout(poll, 15000);
+    } else {
+      poll();
+    }
   }
 
   onMount(async () => {
@@ -766,10 +791,7 @@
     // The previous code had setDateRange('1W') here. Remove it.
 
     // Step 3: 延後啟動即時通知與備援輪詢，避免跟 Initial Data 搶瀏覽器併發連線
-    setTimeout(() => {
-      initRealtimeNotifications();
-      poll();
-    }, 5000);
+    setTimeout(startDeferredServices, 15000); // 增加到 15 秒
 
     // Restore scroll position
     const savedScrollPos = sessionStorage.getItem('home_scroll_pos');
