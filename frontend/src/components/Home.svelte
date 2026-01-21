@@ -401,15 +401,29 @@
           }
         }, 12000);
 
-        // 保險機制：如果 30 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (行動裝置網路較慢)
-        setTimeout(() => {
-          if (loading && activeLoadCallId === callId) {
-            console.warn(
-              `[${INSTANCE_ID}] Loading state safety timeout triggered (30s). Forcing spinner OFF.`
-            );
-            loading = false;
-          }
-        }, 30000);
+        // 保險機制：只有在「完全沒有活動進展」超過 30 秒時才強制關閉
+        let lastActivityCallId = callId;
+        let safetyTimer;
+
+        const resetSafetyTimer = (seconds = 30) => {
+          if (safetyTimer) clearTimeout(safetyTimer);
+          if (!loading || activeLoadCallId !== lastActivityCallId) return;
+          
+          safetyTimer = setTimeout(() => {
+            if (loading && activeLoadCallId === lastActivityCallId) {
+              console.warn(
+                `[${INSTANCE_ID}] Loading state inactivity timeout triggered (${seconds}s). Forcing spinner OFF.`
+              );
+              loading = false;
+            }
+          }, seconds * 1000);
+        };
+
+        // 初始給長一點的時間 (60s)，因為建立連線最慢
+        resetSafetyTimer(60);
+        
+        // 將 reset 函數掛載到目前作用域，方便後續更新階段時呼叫
+        this.resetLoadingTimer = resetSafetyTimer;
       }
       const symbol = $selectedSymbol;
 
@@ -445,8 +459,9 @@
         });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
         
-        // 2. 再抓交易紀錄
+        // 進度更新，重置計時器
         loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
+        if (this.resetLoadingTimer) this.resetLoadingTimer(30);
         const tradesRes = await tradesAPI.getAll(
           {
             account_id: $selectedAccountId,
@@ -472,6 +487,7 @@
         }
 
         loadingMessage = `數據接收完成 (共 ${plans.length + trades.length} 筆)，正在準備時空序列...`;
+        if (this.resetLoadingTimer) this.resetLoadingTimer(30);
       } catch (err) {
         if (err.name === 'CanceledError' || err.name === 'AbortError') {
           console.log('Request was aborted intentionally.');
@@ -506,6 +522,7 @@
         const plan = plans[idx];
         if (idx % 50 === 0) {
            loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
+           if (this.resetLoadingTimer) this.resetLoadingTimer(20);
            // 透過 yield 讓瀏覽器有機會渲染 UI
            await new Promise(resolve => setTimeout(resolve, 0));
         }
@@ -531,6 +548,7 @@
         const trade = trades[idx];
         if (idx % 50 === 0) {
            loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
+           if (this.resetLoadingTimer) this.resetLoadingTimer(20);
            await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
