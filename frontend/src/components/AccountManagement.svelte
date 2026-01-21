@@ -52,6 +52,7 @@
     try {
       await accountsAPI.clearData(id);
       alert('帳號資料已清除成功');
+      fetchAccounts();
     } catch (e) {
       console.error(e);
       alert('清除資料失敗');

@@ -24,7 +24,11 @@ func UpdateAccountStorageUsage(db *sql.DB, accountID int64) error {
 				LENGTH(COALESCE(entry_pattern, '')) +
 				LENGTH(COALESCE(legend_images, '')) +
 				LENGTH(COALESCE(expert_images, '')) +
-				LENGTH(COALESCE(elite_images, ''))
+				LENGTH(COALESCE(elite_images, '')) +
+				LENGTH(COALESCE(legend_king_image, '')) +
+				LENGTH(COALESCE(legend_htf_image, '')) +
+				LENGTH(COALESCE(sl_history, '')) +
+				LENGTH(COALESCE(pnl_series, ''))
 			), 0) FROM trades WHERE account_id = ?
 		) + (
 			SELECT COALESCE(SUM(

@@ -583,6 +583,10 @@ func ClearAccountData(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 更新儲存空間佔用 (重設為 0)
+		accountID, _ := strconv.ParseInt(id, 10, 64)
+		database.UpdateAccountStorageUsage(db, accountID)
+
 		c.JSON(http.StatusOK, gin.H{"message": "帳號資料已完成清除"})
 	}
 }
