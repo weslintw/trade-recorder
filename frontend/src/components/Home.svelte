@@ -379,6 +379,7 @@
     }
     loadController = new AbortController();
     const { signal } = loadController;
+    let currentResetTimer = null;
 
     console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent:`, silent);
 
@@ -422,9 +423,10 @@
         // 初始給長一點的時間 (60s)，因為建立連線最慢
         resetSafetyTimer(60);
         
-        // 將 reset 函數掛載到目前作用域，方便後續更新階段時呼叫
-        this.resetLoadingTimer = resetSafetyTimer;
+        // 建立一個局部變數供後續呼叫
+        currentResetTimer = resetSafetyTimer;
       }
+
       const symbol = $selectedSymbol;
 
       // 更新今天日期文字
@@ -461,7 +463,7 @@
         
         // 進度更新，重置計時器
         loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
-        if (this.resetLoadingTimer) this.resetLoadingTimer(30);
+        if (currentResetTimer) currentResetTimer(30);
         const tradesRes = await tradesAPI.getAll(
           {
             account_id: $selectedAccountId,
@@ -487,7 +489,7 @@
         }
 
         loadingMessage = `數據接收完成 (共 ${plans.length + trades.length} 筆)，正在準備時空序列...`;
-        if (this.resetLoadingTimer) this.resetLoadingTimer(30);
+        if (currentResetTimer) currentResetTimer(30);
       } catch (err) {
         if (err.name === 'CanceledError' || err.name === 'AbortError') {
           console.log('Request was aborted intentionally.');
@@ -522,7 +524,7 @@
         const plan = plans[idx];
         if (idx % 50 === 0) {
            loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
-           if (this.resetLoadingTimer) this.resetLoadingTimer(20);
+           if (currentResetTimer) currentResetTimer(20);
            // 透過 yield 讓瀏覽器有機會渲染 UI
            await new Promise(resolve => setTimeout(resolve, 0));
         }
@@ -548,7 +550,7 @@
         const trade = trades[idx];
         if (idx % 50 === 0) {
            loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
-           if (this.resetLoadingTimer) this.resetLoadingTimer(20);
+           if (currentResetTimer) currentResetTimer(20);
            await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
