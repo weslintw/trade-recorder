@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -556,6 +557,24 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 		}
 
 		pnl := float64(deal.ClosePositionDetail.GrossProfit+deal.ClosePositionDetail.Commission+deal.ClosePositionDetail.Swap) / 100.0
+		bullet, rr := 0.0, 0.0
+		mult := getMultiplier(symbol)
+		if initialSL.Valid && initialSL.Float64 > 0 && deal.ClosePositionDetail.EntryPrice > 0 {
+			riskPoints := math.Abs(deal.ClosePositionDetail.EntryPrice - initialSL.Float64)
+			bullet = math.Round(riskPoints*mult*getPointValue(symbol)*vol*100) / 100
+
+			// Signed PnL Points relative to side
+			pnlPoints := (deal.ExecutionPrice - deal.ClosePositionDetail.EntryPrice) * mult
+			if side == "short" {
+				pnlPoints = -pnlPoints
+			}
+			pnlPoints = math.Round(pnlPoints*100) / 100
+
+			if riskPoints > 0 {
+				rr = math.Round((pnlPoints/(riskPoints*mult))*100) / 100
+			}
+		}
+
 		var exists bool
 		m.db.QueryRow("SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND ticket = ?)", accountID, ticket).Scan(&exists)
 		if !exists {
@@ -566,9 +585,9 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				finalNotes = "cTrader Push: Closed Position"
 			}
 
-			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", finalNotes, ticket, initialSL, deal.ExecutionPrice, seriesVal, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
+			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				accountID, symbol, side, deal.ClosePositionDetail.EntryPrice, deal.ExecutionPrice, vol, pnl, finalEntryTime, execTime, "actual", finalNotes, ticket, initialSL, deal.ExecutionPrice, bullet, rr, seriesVal, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
 
 			if err != nil {
 				log.Printf("[cTrader Manager] Failed to insert Push Closed trade: %v", err)
@@ -1139,13 +1158,31 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 								finalNotes = "cTrader Sync: Recovered Closed Position"
 							}
 
+							bullet, rr := 0.0, 0.0
+							mult := getMultiplier(symbol)
+							if preservedSL.Valid && preservedSL.Float64 > 0 && d.ClosePositionDetail.EntryPrice > 0 {
+								riskPoints := math.Abs(d.ClosePositionDetail.EntryPrice - preservedSL.Float64)
+								bullet = math.Round(riskPoints*mult*getPointValue(symbol)*dealVol*100) / 100
+
+								// Signed PnL Points relative to side
+								pnlPoints := (d.ExecutionPrice - d.ClosePositionDetail.EntryPrice) * mult
+								if side == "short" {
+									pnlPoints = -pnlPoints
+								}
+								pnlPoints = math.Round(pnlPoints*100) / 100
+
+								if riskPoints > 0 {
+									rr = math.Round((pnlPoints/(riskPoints*mult))*100) / 100
+								}
+							}
+
 							// Check if deal already exists
 							var exists int
 							m.db.QueryRow("SELECT 1 FROM trades WHERE ticket = ? AND account_id = ?", dealTicket, accID).Scan(&exists)
 							if exists == 0 {
-								res, ierr := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
-									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-									accID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, dealVol, dealPnl, entryTime, time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, dealTicket, preservedSL, d.ExecutionPrice, preservedSeries.String, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
+								res, ierr := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+									accID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, dealVol, dealPnl, entryTime, time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, dealTicket, preservedSL, d.ExecutionPrice, bullet, rr, preservedSeries.String, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
 
 								if ierr == nil {
 									newID, _ := res.LastInsertId()

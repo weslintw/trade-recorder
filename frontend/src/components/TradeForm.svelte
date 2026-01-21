@@ -385,44 +385,64 @@
       const lots = parseFloat(lot_size);
 
       let multiplier = 1; // 預設 (金子 XAUUSD: $1 = 1點, 指數: 1.0 = 1點)
-      if (symbol.includes('JPY')) multiplier = 100;
-      else if (
+      let pointValue = 1; // 每一點所代表的價值 (1手)
+
+      if (symbol === 'XAUUSD') {
+        multiplier = 1;
+        pointValue = 100;
+      } else if (symbol.includes('JPY')) {
+        multiplier = 100;
+        pointValue = 10;
+      } else if (
         symbol.includes('EUR') ||
         symbol.includes('GBP') ||
         symbol.includes('AUD') ||
         (symbol.includes('USD') && !symbol.includes('XAU'))
       ) {
         multiplier = 10000;
+        pointValue = 10;
+      } else if (symbol === 'NAS100' || symbol === 'US30' || symbol === 'GER40') {
+        multiplier = 1;
+        pointValue = 1;
       }
 
       // 1. 盈虧點數計算
+      let currentPnlPoints = 0;
       if (!isNaN(entry) && !isNaN(exit)) {
         const diff = exit - entry;
         const result = Math.round(diff * (side === 'long' ? 1 : -1) * multiplier * 100) / 100;
         if (formData.pnl_points !== result) {
           formData.pnl_points = result;
         }
+        currentPnlPoints = result;
       }
 
       // 2. 子彈大小計算 (Bullet Size / Risk Amount)
+      let currentRiskPoints = 0;
       if (!isNaN(entry) && !isNaN(sl)) {
-        const riskPoints = Math.abs(entry - sl);
-        const result = Math.round(riskPoints * multiplier * 100) / 100;
+        const diff = Math.abs(entry - sl);
+        currentRiskPoints = diff * multiplier;
+        const result = Math.round(currentRiskPoints * pointValue * lots * 100) / 100;
         if (formData.bullet_size !== result) {
           formData.bullet_size = result;
         }
       }
 
       // 3. 風報比計算 (RR Ratio)
-      const currentPoints = parseFloat(formData.pnl_points);
-      const currentBullet = parseFloat(formData.bullet_size);
-      if (!isNaN(currentPoints) && !isNaN(currentBullet) && currentBullet > 0) {
-        const result = Math.round((currentPoints / currentBullet) * 100) / 100;
+      // 使用點數計算風報比，避免受手數和合約規格影響其比例
+      if (currentPnlPoints !== 0 && currentRiskPoints > 0) {
+        const result = Math.round((currentPnlPoints / currentRiskPoints) * 100) / 100;
         if (formData.rr_ratio !== result) {
           formData.rr_ratio = result;
         }
       } else {
-        formData.rr_ratio = '';
+        if (formData.rr_ratio !== '') formData.rr_ratio = '';
+      }
+
+      // 4. 加強：如果盈虧金額為空，也自動算一下
+      if (!formData.pnl && !isNaN(entry) && !isNaN(exit) && !isNaN(lots)) {
+        const calculatedPnl = Math.round(currentPnlPoints * pointValue * lots * 100) / 100;
+        formData.pnl = calculatedPnl;
       }
     }
   }

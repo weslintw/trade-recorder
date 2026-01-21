@@ -364,19 +364,20 @@
   let activeLoadCallId = 0; // 新增：追蹤當前最新的加載 ID，防止舊請求覆蓋新請求
 
   async function loadData(silent = false) {
-    const callId = ++loadDataCallCount; // 每次調用產生唯一 ID
-    activeLoadCallId = callId;
-
-    // Abort previous request before starting new one
-    // 但如果當前正在進行「非靜默」加載，且新的請求是「靜默」的，則不中斷，直接略過靜默請求
+    // --- 新增：防抖與衝突處理 ---
     if (loadController) {
-      if (loading && silent && activeLoadCallId < callId) {
-        console.log(`[${INSTANCE_ID}] Skipping silent loadData #${callId} because a non-silent load is active.`);
+      if (silent) {
+        // 如果已經有任何請求在進行中，新的「靜默/背景」請求直接跳過（等待目前的完成即可）
         return;
+      } else {
+        // 如果是使用者發起的「顯性」請求，則中斷之前的請求
+        console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests to prioritize user action.`);
+        loadController.abort();
       }
-      console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests...`);
-      loadController.abort();
     }
+
+    const callId = ++loadDataCallCount; // 只有確定要執行才產生新 ID
+    activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
     let currentResetTimer = null;
@@ -629,6 +630,7 @@
       // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
       if (activeLoadCallId === callId) {
         loading = false;
+        loadController = null;
       }
     }
   }
