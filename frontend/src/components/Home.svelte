@@ -420,76 +420,58 @@
         `🔵 [${INSTANCE_ID}] Fetching data for account=${$selectedAccountId}, symbol=${symbol}`
       );
 
-      // 分別獲取，避免一個失敗全部失敗
+      // 分別獲獲取，避免一個失敗全部失敗
       let plans = [];
       let trades = [];
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       try {
-        console.log(`⏱️ [#${callId}] Parallel Fetching Plans & Trades...`);
-        loadingMessage = `正在取得 ${$selectedSymbol} 的交易資料...`;
-
-        const [plansRes, tradesRes] = await Promise.all([
-          dailyPlansAPI
-            .getAll(
-              {
-                account_id: $selectedAccountId,
-                symbol,
-                page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
-                page: activeDateRange === 'all' ? pagination.page : 1,
-                start_date: activeDateRange === 'all' ? undefined : customStartDate,
-                end_date:
-                  activeDateRange === 'all'
-                    ? undefined
-                    : customEndDate
-                      ? customEndDate + ' 23:59:59'
-                      : undefined,
-              },
-              signal
-            )
-            .catch(e => {
-              if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-              console.error('Plans fetch error:', e);
-              return { data: [] };
-            }),
-          tradesAPI
-            .getAll(
-              {
-                account_id: $selectedAccountId,
-                symbol,
-                page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
-                page: activeDateRange === 'all' ? pagination.page : 1,
-                start_date: activeDateRange === 'all' ? undefined : customStartDate,
-                end_date:
-                  activeDateRange === 'all'
-                    ? undefined
-                    : customEndDate
-                      ? customEndDate + ' 23:59:59'
-                      : undefined,
-              },
-              signal
-            )
-            .catch(e => {
-              if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-              console.error('Trades fetch error:', e);
-              return { data: [] };
-            }),
-        ]);
-
+        // 1. 先抓盤面規劃
+        loadingMessage = `正在讀取盤面規劃資料...`;
+        const plansRes = await dailyPlansAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            start_date: activeDateRange === 'all' ? undefined : customStartDate,
+            end_date: activeDateRange === 'all' ? undefined : customEndDate ? customEndDate + ' 23:59:59' : undefined,
+          },
+          signal
+        ).catch(e => {
+          if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+          console.error('Plans fetch error:', e);
+          return { data: [] };
+        });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+        
+        // 2. 再抓交易紀錄
+        loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
+        const tradesRes = await tradesAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            start_date: activeDateRange === 'all' ? undefined : customStartDate,
+            end_date: activeDateRange === 'all' ? undefined : customEndDate ? customEndDate + ' 23:59:59' : undefined,
+          },
+          signal
+        ).catch(e => {
+          if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+          console.error('Trades fetch error:', e);
+          return { data: [] };
+        });
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
         
         // 更新分頁資訊
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
         } else if (Array.isArray(tradesRes.data)) {
-          // 向上相容
           pagination.total = tradesRes.data.length;
         }
 
-        console.log(
-          `⏱️ [#${callId}] Sequence finished: ${plans.length} plans, ${trades.length} trades.`
-        );
+        loadingMessage = `數據接收完成 (共 ${plans.length + trades.length} 筆)，正在準備時空序列...`;
       } catch (err) {
         if (err.name === 'CanceledError' || err.name === 'AbortError') {
           console.log('Request was aborted intentionally.');
@@ -498,42 +480,35 @@
         }
       }
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
-      console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
-      loadingMessage = '數據已收到，正在進行精密分組計算...';
-
-      console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
 
       // De-duplicate trades on client side as a safety measure
-      // Priority: Keep the one with ID if others don't have it, or keeps latest
+      loadingMessage = `正在排除重複交易 (${trades.length} 筆)...`;
       const seenTickets = new Set();
       const uniqueTrades = [];
       trades.forEach(trade => {
-        // If trade has ticket, use it for checking uniqueness
         if (trade.ticket && trade.ticket.startsWith('ctrader-')) {
-          if (seenTickets.has(trade.ticket)) {
-            console.warn(
-              `[Client Dedup] Duplicate ticket found and skipped: ${trade.ticket} (ID: ${trade.id})`
-            );
-            return;
-          }
+          if (seenTickets.has(trade.ticket)) return;
           seenTickets.add(trade.ticket);
         }
-        // Also check by ID if possible (though API returns unique IDs usually, but just in case of merge)
         uniqueTrades.push(trade);
       });
       trades = uniqueTrades;
 
-      console.log(
-        `🔵 loadData #${loadDataCallCount}: Loaded ${plans.length} plans, ${trades.length} trades`
-      );
-
       // 按日期分組 (YYYY-MM-DD)
       const dateMap = {};
+      let processedCount = 0;
+      const totalToProcess = plans.length + trades.length;
 
       // 強制推入今天的日期，確保最上面有東西
       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
-      plans.forEach(plan => {
+      for (let idx = 0; idx < plans.length; idx++) {
+        const plan = plans[idx];
+        if (idx % 50 === 0) {
+           loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
+           // 透過 yield 讓瀏覽器有機會渲染 UI
+           await new Promise(resolve => setTimeout(resolve, 0));
+        }
         try {
           // Pre-parse trend analysis to avoid template errors & const limitations
           plan.trendData = parseJSONSafe(plan.trend_analysis, {});
@@ -550,9 +525,14 @@
         } catch (e) {
           console.warn('Skipping invalid plan:', plan, e);
         }
-      });
+      }
 
-      trades.forEach(trade => {
+      for (let idx = 0; idx < trades.length; idx++) {
+        const trade = trades[idx];
+        if (idx % 50 === 0) {
+           loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
+           await new Promise(resolve => setTimeout(resolve, 0));
+        }
         try {
           if (!trade.entry_time) return; // Skip if no entry time
           const dateObj = new Date(trade.entry_time);
@@ -585,7 +565,7 @@
         } catch (e) {
           console.warn('Skipping invalid trade:', trade, e);
         }
-      });
+      }
 
       // 轉換為陣列並排序（日期降序，群組內按時間排序通常已由 API 處理）
       const newGroupedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
