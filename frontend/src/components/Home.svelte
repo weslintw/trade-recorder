@@ -385,15 +385,15 @@
       if (!silent) {
         loading = true;
         groupedData = [];
-        // 保險機制：如果 8 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (可能是網路連線排隊或 ECONNABORTED)
+        // 保險機制：如果 30 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (行動裝置網路較慢)
         setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
             console.warn(
-              `[${INSTANCE_ID}] Loading state safety timeout triggered (8s). Forcing spinner OFF.`
+              `[${INSTANCE_ID}] Loading state safety timeout triggered (30s). Forcing spinner OFF.`
             );
             loading = false;
           }
-        }, 8000);
+        }, 30000);
       }
       const symbol = $selectedSymbol;
 
