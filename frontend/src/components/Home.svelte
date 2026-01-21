@@ -24,6 +24,7 @@
     page_size: 100,
     total: 0,
   };
+  let loadingMessage = '正在啟動時光機...';
   $: totalPages = Math.ceil(pagination.total / pagination.page_size);
   let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
@@ -384,7 +385,22 @@
     try {
       if (!silent) {
         loading = true;
+        loadingMessage = '正在發起網路連線...';
         groupedData = [];
+
+        // 階段性狀態提醒
+        setTimeout(() => {
+          if (loading && activeLoadCallId === callId) {
+            loadingMessage = '正在從 cTrader 同步大數據，請稍候...';
+          }
+        }, 3000);
+
+        setTimeout(() => {
+          if (loading && activeLoadCallId === callId) {
+            loadingMessage = '您的網路連線穩定度較低，仍在努力讀取中...';
+          }
+        }, 12000);
+
         // 保險機制：如果 30 秒後還在轉圈圈且資料沒回來，強制關閉轉圈 (行動裝置網路較慢)
         setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
@@ -411,6 +427,7 @@
       console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       try {
         console.log(`⏱️ [#${callId}] Parallel Fetching Plans & Trades...`);
+        loadingMessage = `正在取得 ${$selectedSymbol} 的交易資料...`;
 
         const [plansRes, tradesRes] = await Promise.all([
           dailyPlansAPI
@@ -482,6 +499,7 @@
       }
       console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       console.log(`🔵 [${INSTANCE_ID}] API Calls finished. Starting data processing...`);
+      loadingMessage = '數據已收到，正在進行精密分組計算...';
 
       console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
 
@@ -1545,7 +1563,10 @@
   {#if loading}
     <div class="loading-overlay">
       <div class="loader"></div>
-      <p>正在載入時光機資料...</p>
+      <p class="loading-text">{loadingMessage}</p>
+      {#if loadingMessage.includes('網路連線')}
+         <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px;">建議切換至更穩定的 Wi-Fi</small>
+      {/if}
     </div>
   {:else if $accounts.length === 0}
     <div class="empty-account-state">
