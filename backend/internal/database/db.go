@@ -338,6 +338,9 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_client_id VARCHAR(100);")
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_client_secret TEXT;")
 	db.Exec("ALTER TABLE accounts ADD COLUMN ctrader_env VARCHAR(20) DEFAULT 'live';")
+	db.Exec("ALTER TABLE accounts ADD COLUMN myfxbook_email TEXT;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN myfxbook_password TEXT;")
+	db.Exec("ALTER TABLE accounts ADD COLUMN myfxbook_account_id VARCHAR(100);")
 
 	db.Exec("ALTER TABLE trades ADD COLUMN initial_sl REAL;")
 	db.Exec("ALTER TABLE trades ADD COLUMN bullet_size REAL;")

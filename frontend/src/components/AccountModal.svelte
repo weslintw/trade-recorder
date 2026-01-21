@@ -17,6 +17,9 @@
     ctrader_client_id: '',
     ctrader_client_secret: '',
     ctrader_env: 'live',
+    myfxbook_email: '',
+    myfxbook_password: '',
+    myfxbook_account_id: '',
     timezone_offset: 8,
     sync_all: false,
     from_date: '',
@@ -40,11 +43,9 @@
   let lastShow = false;
 
   // Reactively update form when account changes OR modal opens
-  $: if (show && (account?.id !== lastAccountId || show !== lastShow)) {
-    lastAccountId = account?.id;
-    lastShow = show;
-
-    if (account) {
+  $: if (show) {
+    if (account && account.id !== lastAccountId) {
+      lastAccountId = account.id;
       newAccount = {
         name: account.name || '',
         type: account.type || 'local',
@@ -55,9 +56,13 @@
         ctrader_client_id: account.ctrader_client_id || '',
         ctrader_client_secret: account.ctrader_client_secret || '',
         ctrader_env: account.ctrader_env || 'live',
+        myfxbook_email: account.myfxbook_email || '',
+        myfxbook_password: account.myfxbook_password || '',
+        myfxbook_account_id: account.myfxbook_account_id || '',
         timezone_offset: account.timezone_offset || 8,
       };
-    } else {
+    } else if (!account && lastAccountId !== null) {
+      lastAccountId = null;
       newAccount = {
         name: '',
         type: 'local',
@@ -68,11 +73,15 @@
         ctrader_client_id: '',
         ctrader_client_secret: '',
         ctrader_env: 'live',
+        myfxbook_email: '',
+        myfxbook_password: '',
+        myfxbook_account_id: '',
         timezone_offset: 8,
       };
     }
-  } else if (!show) {
-    lastShow = false;
+  }
+
+  $: if (!show) {
     lastAccountId = undefined;
   }
 
@@ -84,8 +93,8 @@
       alert('請輸入帳號名稱');
       return;
     }
-    if (!account && newAccount.type === 'ftmo' && !importFile) {
-      alert('請選擇 FTMO CSV 檔案');
+    if (!account && (newAccount.type === 'ftmo' || newAccount.type === 'myfxbook_csv') && !importFile) {
+      alert('請選擇 CSV 檔案');
       return;
     }
 
@@ -95,6 +104,7 @@
 
       const payload = { ...newAccount };
       if (payload.type === 'ftmo') payload.type = 'local';
+      if (payload.type === 'myfxbook_csv') payload.type = 'myfxbook';
 
       if (account) {
         // Update mode
@@ -106,11 +116,11 @@
         const res = await accountsAPI.create(payload);
         accountId = res.data.id;
 
-        // If FTMO, Import CSV (only on creation)
-        if (newAccount.type === 'ftmo' && importFile) {
+        // If FTMO or Myfxbook CSV, Import CSV (only on creation)
+        if ((newAccount.type === 'ftmo' || newAccount.type === 'myfxbook_csv') && importFile) {
           const formData = new FormData();
           formData.append('file', importFile);
-          formData.append('source', 'ftmo');
+          formData.append('source', newAccount.type === 'ftmo' ? 'ftmo' : 'myfxbook');
           await accountsAPI.importCSV(accountId, formData);
           alert('帳號建立並匯入完成！');
         } else {
@@ -212,21 +222,24 @@
             <label class="radio-label">
               <input type="radio" bind:group={newAccount.type} value="ftmo" /> 從 FTMO CSV 匯入
             </label>
-<!-- <label class="radio-label">
-              <input type="radio" bind:group={newAccount.type} value="metatrader" /> MetaTrader 5 (自動同步)
-            </label> -->
             <label class="radio-label">
               <input type="radio" bind:group={newAccount.type} value="ctrader" /> cTrader (自動同步)
+            </label>
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="myfxbook" /> Myfxbook (自動同步)
+            </label>
+            <label class="radio-label">
+              <input type="radio" bind:group={newAccount.type} value="myfxbook_csv" /> 從 Myfxbook CSV 匯入
             </label>
           </div>
         </div>
       {/if}
 
-      {#if newAccount.type === 'ftmo'}
+      {#if newAccount.type === 'ftmo' || newAccount.type === 'myfxbook_csv'}
         <div class="form-group import-field">
-          <label for="ftmo-csv">選擇 FTMO CSV 檔案</label>
+          <label for="import-csv">選擇 {newAccount.type === 'ftmo' ? 'FTMO' : 'Myfxbook'} CSV 檔案</label>
           <input
-            id="ftmo-csv"
+            id="import-csv"
             type="file"
             accept=".csv"
             class="form-control"
@@ -241,30 +254,41 @@
         </div>
       {/if}
 
-<!-- {#if newAccount.type === 'metatrader'}
-        <div class="metatrader-fields">
+      {#if newAccount.type === 'myfxbook'}
+        <div class="myfxbook-fields">
           <div class="form-group">
-            <label for="mt5-id">MT5 帳號 ID</label>
+            <label for="mfb-email">Myfxbook Email</label>
             <input
-              id="mt5-id"
-              type="text"
+              id="mfb-email"
+              type="email"
               class="form-control"
-              bind:value={newAccount.mt5_account_id}
-              placeholder="您的 MT5 登入帳號"
+              bind:value={newAccount.myfxbook_email}
+              placeholder="example@mail.com"
             />
           </div>
           <div class="form-group">
-            <label for="mt5-token">MT5 Token (MetaApi)</label>
+            <label for="mfb-pass">Myfxbook 密碼</label>
             <input
-              id="mt5-token"
+              id="mfb-pass"
               type="password"
               class="form-control"
-              bind:value={newAccount.mt5_token}
-              placeholder="您的 MetaApi Token"
+              bind:value={newAccount.myfxbook_password}
+              placeholder="您的 Myfxbook 密碼"
             />
           </div>
+          <div class="form-group">
+            <label for="mfb-acc-id">Myfxbook 帳號 ID</label>
+            <input
+              id="mfb-acc-id"
+              type="text"
+              class="form-control"
+              bind:value={newAccount.myfxbook_account_id}
+              placeholder="例如: 1234567"
+            />
+            <p class="help-text">在 Myfxbook 網址列可看到此 ID (如: /systems/1234567/...)</p>
+          </div>
         </div>
-      {/if} -->
+      {/if}
 
       {#if newAccount.type === 'ctrader'}
         <div class="ctrader-fields">

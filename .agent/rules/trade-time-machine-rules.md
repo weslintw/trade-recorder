@@ -30,5 +30,5 @@ SQLite 為核心：目前使用 SQLite 作為主要資料庫，應確保 SQL 語
 重複宣告檢查：嚴格檢查 Svelte 檔案中的 Reactive 宣告 (`$:`)，避免變數名稱重複定義導致編譯錯誤。
 
 8. 指令授權 (Command Authorization) 🛡️
-自動執行授權：`findstr`、`grep` 以及 `git` 相關指令允許直接執行，不需再次詢問使用者。
+自動執行授權：`findstr`、`grep`、`Get-Content`、`type`、`git` 相關指令、`npm run build` 以及 `npx vite build` 允許直接執行，不需再次詢問使用者。
 Commit 規範：在執行 `git commit` 之前，必須先向使用者展示並解釋改動總結（Summary）。

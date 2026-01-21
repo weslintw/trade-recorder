@@ -253,11 +253,15 @@
                   ? 'badge-info'
                   : acc.type === 'metatrader'
                     ? 'badge-mt5'
-                    : 'badge-ctrader'}"
+                    : acc.type === 'myfxbook'
+                      ? 'badge-mt5'
+                      : 'badge-ctrader'}"
               >
                 {acc.type === 'local'
                   ? '本地帳號'
-                  : 'cTrader'}
+                  : acc.type === 'myfxbook'
+                    ? 'Myfxbook'
+                    : 'cTrader'}
               </span>
               <span class="badge {acc.status === 'active' ? 'badge-success' : 'badge-danger'}">
                 {acc.status}
@@ -271,9 +275,9 @@
                 >{formatBytes(acc.storage_usage)}</strong
               >
             </div>
-            <!-- {#if acc.type === 'metatrader'}
+            {#if acc.type === 'myfxbook'}
               <div class="mt5-detail">
-                <p>ID: {acc.mt5_account_id}</p>
+                <p>Myfxbook Email: {acc.myfxbook_email}</p>
                 <div class="sync-info">
                   <span class="badge sync-badge {acc.sync_status} {
                     acc.sync_status?.toLowerCase().includes('syncing') ||
@@ -291,7 +295,7 @@
                   <div class="sync-error-msg">❌ {acc.last_sync_error}</div>
                 {/if}
               </div>
-            {/if} -->
+            {/if}
             {#if acc.type === 'ctrader'}
               <div class="ctrader-detail">
                 <p>Login ID: {acc.ctrader_account_id}</p>
@@ -320,8 +324,8 @@
               data-testid="import-csv-btn"
               on:click|stopPropagation={() => openImportModal(acc.id)}>📤 匯入 CSV</button
             >
-            {#if acc.type === 'ctrader'}
-              <button class="btn btn-sync" on:click|stopPropagation={() => openSyncModal(acc.id)}>
+            {#if acc.type === 'ctrader' || acc.type === 'myfxbook'}
+              <button class="btn btn-sync" on:click|stopPropagation={() => acc.type === 'ctrader' ? openSyncModal(acc.id) : syncAccount(acc.id)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
                   <path d="M21 2v6h-6"></path>
                   <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
@@ -361,6 +365,7 @@
           <label for="importSource">匯入來源</label>
           <select id="importSource" class="form-control" bind:value={importSource}>
             <option value="ftmo">FTMO</option>
+            <option value="myfxbook">Myfxbook</option>
           </select>
         </div>
 
@@ -368,6 +373,9 @@
           {#if importSource === 'ftmo'}
             <p>目前支援格式：<strong>FTMO CSV</strong></p>
             <p class="help-text">請從 FTMO 交易控制面板下載完整交易紀錄 CSV。</p>
+          {:else if importSource === 'myfxbook'}
+            <p>目前支援格式：<strong>Myfxbook CSV</strong></p>
+            <p class="help-text">請從 Myfxbook 交易歷史頁面匯出 CSV。</p>
           {/if}
         </div>
 

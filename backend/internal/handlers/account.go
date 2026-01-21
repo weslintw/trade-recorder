@@ -13,6 +13,7 @@ import (
 	"trade-journal/internal/ctrader"
 	"trade-journal/internal/models"
 	"trade-journal/internal/mt5"
+	"trade-journal/internal/myfxbook"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,6 +29,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 				COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''),
 				COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, ''),
 				COALESCE(ctrader_env, 'live'),
+				COALESCE(myfxbook_email, ''), COALESCE(myfxbook_password, ''), COALESCE(myfxbook_account_id, ''),
 				status, 
 				COALESCE(timezone_offset, 8), COALESCE(sync_status, 'idle'), last_synced_at, 
 				COALESCE(last_sync_error, ''), created_at, updated_at,
@@ -51,6 +53,7 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 				&acc.CTraderAccountID, &acc.CTraderToken,
 				&acc.CTraderClientID, &acc.CTraderClientSecret,
 				&acc.CTraderEnv,
+				&acc.MyfxbookEmail, &acc.MyfxbookPassword, &acc.MyfxbookAccountID,
 				&acc.Status,
 				&acc.TimezoneOffset, &acc.SyncStatus, &acc.LastSyncedAt, &acc.LastSyncError,
 				&acc.CreatedAt, &acc.UpdatedAt, &acc.StorageUsage,
@@ -77,8 +80,8 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 		}
 
 		userID := c.GetInt64("user_id")
-		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, ctrader_env, timezone_offset, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.TimezoneOffset, userID)
+		res, err := db.Exec("INSERT INTO accounts (name, type, mt5_account_id, mt5_token, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, ctrader_env, myfxbook_email, myfxbook_password, myfxbook_account_id, timezone_offset, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			req.Name, req.Type, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.MyfxbookEmail, req.MyfxbookPassword, req.MyfxbookAccountID, req.TimezoneOffset, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -106,6 +109,8 @@ func CreateAccount(db *sql.DB) gin.HandlerFunc {
 			}
 
 			go ctrader.SyncCTraderHistory(db, id, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, fromTimestamp)
+		} else if req.Type == "myfxbook" {
+			go myfxbook.SyncMyfxbookHistory(db, id, req.MyfxbookEmail, req.MyfxbookPassword, req.MyfxbookAccountID)
 		}
 
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "帳號建立成功"})
@@ -124,8 +129,8 @@ func UpdateAccount(db *sql.DB) gin.HandlerFunc {
 
 		userID := c.GetInt64("user_id")
 		// 這裡為了簡化先做全量更新，實際上應該檢查 nil
-		res, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), ctrader_account_id = COALESCE(?, ctrader_account_id), ctrader_token = COALESCE(?, ctrader_token), ctrader_client_id = COALESCE(?, ctrader_client_id), ctrader_client_secret = COALESCE(?, ctrader_client_secret), ctrader_env = COALESCE(?, ctrader_env), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
-			req.Name, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.TimezoneOffset, id, userID)
+		res, err := db.Exec("UPDATE accounts SET name = COALESCE(?, name), mt5_account_id = COALESCE(?, mt5_account_id), mt5_token = COALESCE(?, mt5_token), ctrader_account_id = COALESCE(?, ctrader_account_id), ctrader_token = COALESCE(?, ctrader_token), ctrader_client_id = COALESCE(?, ctrader_client_id), ctrader_client_secret = COALESCE(?, ctrader_client_secret), ctrader_env = COALESCE(?, ctrader_env), myfxbook_email = COALESCE(?, myfxbook_email), myfxbook_password = COALESCE(?, myfxbook_password), myfxbook_account_id = COALESCE(?, myfxbook_account_id), timezone_offset = COALESCE(?, timezone_offset), updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
+			req.Name, req.MT5AccountID, req.MT5Token, req.CTraderAccountID, req.CTraderToken, req.CTraderClientID, req.CTraderClientSecret, req.CTraderEnv, req.MyfxbookEmail, req.MyfxbookPassword, req.MyfxbookAccountID, req.TimezoneOffset, id, userID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -170,16 +175,16 @@ func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 		userID := c.GetInt64("user_id")
 
 		var acc models.Account
-		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''), COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, ''), COALESCE(ctrader_env, 'live') FROM accounts WHERE id = ? AND user_id = ?", id, userID).
-			Scan(&acc.ID, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.CTraderAccountID, &acc.CTraderToken, &acc.CTraderClientID, &acc.CTraderClientSecret, &acc.CTraderEnv)
+		err := db.QueryRow("SELECT id, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), COALESCE(ctrader_account_id, ''), COALESCE(ctrader_token, ''), COALESCE(ctrader_client_id, ''), COALESCE(ctrader_client_secret, ''), COALESCE(ctrader_env, 'live'), COALESCE(myfxbook_email, ''), COALESCE(myfxbook_password, ''), COALESCE(myfxbook_account_id, '') FROM accounts WHERE id = ? AND user_id = ?", id, userID).
+			Scan(&acc.ID, &acc.Type, &acc.MT5AccountID, &acc.MT5Token, &acc.CTraderAccountID, &acc.CTraderToken, &acc.CTraderClientID, &acc.CTraderClientSecret, &acc.CTraderEnv, &acc.MyfxbookEmail, &acc.MyfxbookPassword, &acc.MyfxbookAccountID)
 
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "找不到該帳號"})
 			return
 		}
 
-		if acc.Type != "metatrader" && acc.Type != "ctrader" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "只有 MetaTrader 或 cTrader 帳號可以同步"})
+		if acc.Type != "metatrader" && acc.Type != "ctrader" && acc.Type != "myfxbook" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "只有 MetaTrader, cTrader 或 Myfxbook 帳號可以同步"})
 			return
 		}
 
@@ -212,6 +217,8 @@ func SyncAccountHistory(db *sql.DB) gin.HandlerFunc {
 			go mt5.SyncMT5History(db, acc.ID, acc.MT5AccountID, acc.MT5Token)
 		} else if acc.Type == "ctrader" {
 			go ctrader.SyncCTraderHistory(db, acc.ID, acc.CTraderAccountID, acc.CTraderToken, acc.CTraderClientID, acc.CTraderClientSecret, acc.CTraderEnv, fromTimestamp)
+		} else if acc.Type == "myfxbook" {
+			go myfxbook.SyncMyfxbookHistory(db, acc.ID, acc.MyfxbookEmail, acc.MyfxbookPassword, acc.MyfxbookAccountID)
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "同步指令已發送，這可能需要一點時間。"})
@@ -306,8 +313,8 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			source = "ftmo" // 預設為 ftmo
 		}
 
-		if source != "ftmo" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "目前僅支援 FTMO 格式匯入"})
+		if source != "ftmo" && source != "myfxbook" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "目前僅支援 FTMO 與 Myfxbook 格式匯入"})
 			return
 		}
 
@@ -345,9 +352,12 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 檢查標題列 (FTMO 第一欄通常是 Ticket)
-		if records[0][0] != "Ticket" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "不支援的 CSV 格式，目前僅支援 FTMO 格式"})
+		// 檢查標題列
+		if source == "ftmo" && records[0][0] != "Ticket" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "不支援的 CSV 格式，該檔案不符合 FTMO 格式"})
+			return
+		} else if source == "myfxbook" && records[0][0] != "Symbol" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "不支援的 CSV 格式，該檔案不符合 Myfxbook 格式"})
 			return
 		}
 
@@ -360,39 +370,60 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 				continue // 跳過標頭
 			}
 
-			// 列數檢查
-			if len(row) < 14 {
-				errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
-				continue
-			}
+			var ticket, openTimeStr, closeTimeStr, symbol, sideStr, volumeStr, entryPriceStr, exitPriceStr, slPriceStr, swapStr, commissionStr, profitStr, pipsStr, comment string
 
-			// 解析欄位 (索引根據 FTMO 格式)
-			ticket := row[0]
-			openTimeStr := row[1]
-			sideStr := row[2] // buy/sell
-			volumeStr := row[3]
-			symbol := row[4]
-			entryPriceStr := row[5]
-			slPriceStr := row[6]
-			closeTimeStr := row[8]
-			exitPriceStr := row[9]
-			swapStr := row[10]
-			commissionStr := row[11]
-			profitStr := row[12]
+			if source == "ftmo" {
+				if len(row) < 14 {
+					errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
+					continue
+				}
+				ticket = row[0]
+				openTimeStr = row[1]
+				sideStr = row[2]
+				volumeStr = row[3]
+				symbol = row[4]
+				entryPriceStr = row[5]
+				slPriceStr = row[6]
+				closeTimeStr = row[8]
+				exitPriceStr = row[9]
+				swapStr = row[10]
+				commissionStr = row[11]
+				profitStr = row[12]
+				comment = "FTMO CSV 匯入: Ticket " + ticket
+			} else if source == "myfxbook" {
+				if len(row) < 13 {
+					errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
+					continue
+				}
+				// Myfxbook format: Symbol,Action,Lots,Open Time,Open Price,SL,TP,Close Time,Close Price,Pips,Profit,Interest,Commission,Comment
+				symbol = row[0]
+				sideStr = row[1]
+				volumeStr = row[2]
+				openTimeStr = row[3]
+				entryPriceStr = row[4]
+				slPriceStr = row[5]
+				// TP is row[6]
+				closeTimeStr = row[7]
+				exitPriceStr = row[8]
+				pipsStr = row[9]
+				profitStr = row[10]
+				swapStr = row[11]
+				commissionStr = row[12]
+				if len(row) > 13 {
+					comment = row[13]
+				}
+				ticket = "" // Myfxbook CSV usually doesn't have a ticket id
+			}
 
 			// 解析時間
 			openTime, err := parseTradeTime(openTimeStr)
 			if err != nil {
-				log.Printf("Parse openTime error for ticket %s: %v", ticket, err)
-				errorTickets = append(errorTickets, ticket)
+				log.Printf("Parse openTime error: %v", err)
+				errorTickets = append(errorTickets, "Row "+strconv.Itoa(i))
 				continue
 			}
 
 			closeTime, err := parseTradeTime(closeTimeStr)
-			if err != nil {
-				// 如果關倉時間解析失敗，可能尚未平倉？但在 FTMO 導出中通常都有
-				log.Printf("Parse closeTime error for ticket %s: %v", ticket, err)
-			}
 
 			// 解析數值
 			volume, _ := strconv.ParseFloat(volumeStr, 64)
@@ -402,67 +433,67 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			swap, _ := strconv.ParseFloat(swapStr, 64)
 			commission, _ := strconv.ParseFloat(commissionStr, 64)
 			profit, _ := strconv.ParseFloat(profitStr, 64)
+			pips, _ := strconv.ParseFloat(pipsStr, 64)
 
 			side := "long"
-			if sideStr == "sell" {
+			sideLower := strings.ToLower(sideStr)
+			if sideLower == "sell" || sideLower == "short" {
 				side = "short"
 			}
 
 			totalPnL := profit + swap + commission
 
-			// 計算合約乘數
-			multiplier := 100.0 // 預設 (黃金 XAUUSD: $1 = 100點, 指數: 1.0 = 100點)
-			symbolUpper := strings.ToUpper(symbol)
-			if strings.Contains(symbolUpper, "JPY") {
-				multiplier = 1000.0 // JPY 貨幣對 (0.001 = 1點)
-			} else if strings.Contains(symbolUpper, "EUR") || strings.Contains(symbolUpper, "GBP") || strings.Contains(symbolUpper, "AUD") || (strings.Contains(symbolUpper, "USD") && !strings.Contains(symbolUpper, "XAU")) {
-				multiplier = 100000.0 // 預設外匯 (0.00001 = 1點)
+			var calculatedPips float64
+			if source == "myfxbook" {
+				calculatedPips = pips
+			} else {
+				// FTMO 需要計算
+				multiplier := 100.0
+				symbolUpper := strings.ToUpper(symbol)
+				if strings.Contains(symbolUpper, "JPY") {
+					multiplier = 1000.0
+				} else if strings.Contains(symbolUpper, "EUR") || strings.Contains(symbolUpper, "GBP") || strings.Contains(symbolUpper, "AUD") || (strings.Contains(symbolUpper, "USD") && !strings.Contains(symbolUpper, "XAU")) {
+					multiplier = 100000.0
+				}
+				diff := exitPrice - entryPrice
+				if side == "short" {
+					diff = entryPrice - exitPrice
+				}
+				calculatedPips = math.Round(diff*multiplier*100) / 100
 			}
 
-			// 重新計算盈虧點數 (根據使用者定義：1點 = 最小價格單位)
-			diff := exitPrice - entryPrice
-			if side == "short" {
-				diff = entryPrice - exitPrice
-			}
-			calculatedPips := math.Round(diff*multiplier*100) / 100
-
-			// 計算子彈大小與風報比 (CSV 匯入暫時不提供初始 SL，因此不計算)
-			var bulletSize interface{} = nil
-			var rrRatio interface{} = nil
-			var initialSl interface{} = nil
-
-			// 自動判斷時段
-			marketSession := determineMarketSession(openTime)
-
-			// 去重檢查 (優先使用 Ticket)
+			// 去重檢查
 			var exists bool
 			if ticket != "" {
 				err = db.QueryRow(`
 					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND ticket = ?)
 				`, accountID, ticket).Scan(&exists)
 			} else {
-				// 如果沒有 Ticket，才使用 entry_time + lot_size
+				// 使用特徵檢查
 				err = db.QueryRow(`
 					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
 				`, accountID, symbol, openTime, volume).Scan(&exists)
 			}
 
 			if exists {
-				duplicateTickets = append(duplicateTickets, ticket)
+				duplicateTickets = append(duplicateTickets, "Row "+strconv.Itoa(i))
 				continue
 			}
 
+			// 自動判斷時段
+			marketSession := determineMarketSession(openTime)
+
 			// 寫入資料庫
 			_, err = db.Exec(`
-				INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, entry_time, exit_time, trade_type, notes, timezone_offset, market_session, initial_sl, bullet_size, rr_ratio, ticket, exit_sl)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, accountID, symbol, side, entryPrice, exitPrice, volume, totalPnL, calculatedPips, openTime, closeTime, "actual", "FTMO CSV 匯入: Ticket "+ticket, 8, marketSession, initialSl, bulletSize, rrRatio, ticket, exitSl)
+				INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, entry_time, exit_time, trade_type, notes, timezone_offset, market_session, ticket, exit_sl)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, accountID, symbol, side, entryPrice, exitPrice, volume, totalPnL, calculatedPips, openTime, closeTime, "actual", comment, 8, marketSession, ticket, exitSl)
 
 			if err != nil {
-				log.Printf("Import failed for ticket %s: %v", ticket, err)
-				errorTickets = append(errorTickets, ticket)
+				log.Printf("Import failed: %v", err)
+				errorTickets = append(errorTickets, "Row "+strconv.Itoa(i))
 			} else {
-				importedTickets = append(importedTickets, ticket)
+				importedTickets = append(importedTickets, "Row "+strconv.Itoa(i))
 			}
 		}
 
