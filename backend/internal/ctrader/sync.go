@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"trade-journal/internal/database"
 	"trade-journal/internal/ws"
 
 	"github.com/gorilla/websocket"
@@ -74,6 +75,7 @@ func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, to
 
 	log.Printf("[cTrader Sync] --- Manual Sync SUCCESS for Account %d ---", accountID)
 	db.Exec("UPDATE accounts SET sync_status = 'success', last_sync_error = '', last_synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
+	database.UpdateAccountStorageUsage(db, accountID)
 	ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 	return nil
 }

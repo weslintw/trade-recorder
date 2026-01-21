@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"time"
+	"trade-journal/internal/database"
 	"trade-journal/internal/models"
 	"trade-journal/internal/ws"
 )
@@ -25,6 +26,7 @@ func SyncMT5History(db *sql.DB, accountID int64, mt5AccountID string, token stri
 	}
 
 	db.Exec("UPDATE accounts SET sync_status = 'success', last_sync_error = '', last_synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
+	database.UpdateAccountStorageUsage(db, accountID)
 	ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 	return nil
 }

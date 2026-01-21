@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"trade-journal/internal/ctrader"
+	"trade-journal/internal/database"
 	"trade-journal/internal/models"
 	"trade-journal/internal/mt5"
 	"trade-journal/internal/myfxbook"
@@ -234,6 +235,10 @@ func parseTradeTime(timeStr string) (time.Time, error) {
 		"2006-01-02 15:04:05",
 		"02.01.2006 15:04",
 		"02.01.2006 15:04:05",
+		"01/02/2006 15:04",
+		"01/02/2006 15:04:05",
+		"01/02/2006",
+		"2006/01/02",
 		time.RFC3339,
 	}
 
@@ -356,7 +361,7 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 		if source == "ftmo" && records[0][0] != "Ticket" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "不支援的 CSV 格式，該檔案不符合 FTMO 格式"})
 			return
-		} else if source == "myfxbook" && records[0][0] != "Symbol" {
+		} else if source == "myfxbook" && records[0][0] != "Tags" && records[0][0] != "Symbol" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "不支援的 CSV 格式，該檔案不符合 Myfxbook 格式"})
 			return
 		}
@@ -391,28 +396,35 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 				profitStr = row[12]
 				comment = "FTMO CSV 匯入: Ticket " + ticket
 			} else if source == "myfxbook" {
-				if len(row) < 13 {
+				if len(row) < 15 {
 					errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
 					continue
 				}
-				// Myfxbook format: Symbol,Action,Lots,Open Time,Open Price,SL,TP,Close Time,Close Price,Pips,Profit,Interest,Commission,Comment
-				symbol = row[0]
-				sideStr = row[1]
-				volumeStr = row[2]
-				openTimeStr = row[3]
-				entryPriceStr = row[4]
-				slPriceStr = row[5]
-				// TP is row[6]
-				closeTimeStr = row[7]
-				exitPriceStr = row[8]
-				pipsStr = row[9]
-				profitStr = row[10]
-				swapStr = row[11]
-				commissionStr = row[12]
-				if len(row) > 13 {
-					comment = row[13]
+				// Myfxbook format based on screenshot:
+				// 0: Tags, 1: Ticket, 2: Open Date, 3: Close Date, 4: Symbol, 5: Action, 6: Units/Lots, 7: SL, 8: TP, 9: Open Price, 10: Close Price, 11: Commission, 12: Swap, 13: Pips, 14: Profit, 15: Gain, 16: Comment
+				ticket = row[1]
+				openTimeStr = row[2]
+				closeTimeStr = row[3]
+				symbol = row[4]
+				sideStr = row[5]
+				volumeStr = row[6]
+				slPriceStr = row[7]
+				// TP is row[8]
+				entryPriceStr = row[9]
+				exitPriceStr = row[10]
+				commissionStr = row[11]
+				swapStr = row[12]
+				pipsStr = row[13]
+				profitStr = row[14]
+				if len(row) > 16 {
+					comment = row[16]
 				}
-				ticket = "" // Myfxbook CSV usually doesn't have a ticket id
+				if comment == "" {
+					comment = "Myfxbook CSV 匯入"
+				}
+				if ticket != "" {
+					comment += " (Ticket: " + ticket + ")"
+				}
 			}
 
 			// 解析時間
@@ -508,6 +520,9 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			}
 			message += ")"
 		}
+
+		// 更新儲存空間佔用
+		database.UpdateAccountStorageUsage(db, accountID)
 
 		c.JSON(http.StatusOK, gin.H{
 			"message":           message,

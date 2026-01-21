@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"trade-journal/internal/database"
 )
 
 const BaseURL = "https://www.myfxbook.com/api"
@@ -149,6 +150,7 @@ func SyncMyfxbookHistory(db *sql.DB, accountID int64, email, password, myfxbookA
 	}
 
 	updateSyncStatus(db, accountID, "success", fmt.Sprintf("成功同步 %d 筆交易", count))
+	database.UpdateAccountStorageUsage(db, accountID)
 	log.Printf("[Myfxbook] 帳號 %d 同步完成，新增 %d 筆", accountID, count)
 }
 
@@ -203,7 +205,7 @@ func getHistory(session, accountID string) ([]Transaction, error) {
 
 func updateSyncStatus(db *sql.DB, id int64, status, errStr string) {
 	if status == "success" {
-		db.Exec("UPDATE accounts SET sync_status = 'idle', last_synced_at = CURRENT_TIMESTAMP, last_sync_error = ? WHERE id = ?", errStr, id)
+		db.Exec("UPDATE accounts SET sync_status = 'success', last_synced_at = CURRENT_TIMESTAMP, last_sync_error = ? WHERE id = ?", errStr, id)
 	} else {
 		db.Exec("UPDATE accounts SET sync_status = 'failed', last_sync_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", errStr, id)
 	}
