@@ -19,6 +19,12 @@
 
   let groupedData = [];
   let loading = true;
+  let pagination = {
+    page: 1,
+    page_size: 100,
+    total: 0,
+  };
+  $: totalPages = Math.ceil(pagination.total / pagination.page_size);
   let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
   let modalTitle = '';
@@ -306,10 +312,8 @@
       console.log(
         `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
       );
-      // Initialize date range based on default or stored logic?
-      // For now, we just reload, using current activeDateRange/custom dates.
-      // If we want to reset date on symbol change, do it here.
-      // setDateRange('1W'); // Optional: reset to 1W on symbol change
+      // 重設分頁
+      pagination.page = 1;
       loadData();
     }, 300); // 300ms 防抖
   }
@@ -409,7 +413,8 @@
               {
                 account_id: $selectedAccountId,
                 symbol,
-                page_size: activeDateRange === 'all' ? 20 : 1000,
+                page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+                page: activeDateRange === 'all' ? pagination.page : 1,
                 start_date: activeDateRange === 'all' ? undefined : customStartDate,
                 end_date:
                   activeDateRange === 'all'
@@ -430,7 +435,8 @@
               {
                 account_id: $selectedAccountId,
                 symbol,
-                page_size: activeDateRange === 'all' ? 50 : 1000,
+                page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+                page: activeDateRange === 'all' ? pagination.page : 1,
                 start_date: activeDateRange === 'all' ? undefined : customStartDate,
                 end_date:
                   activeDateRange === 'all'
@@ -450,6 +456,14 @@
 
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+        
+        // 更新分頁資訊
+        if (tradesRes.data?.pagination) {
+          pagination.total = tradesRes.data.pagination.total;
+        } else if (Array.isArray(tradesRes.data)) {
+          // 向上相容
+          pagination.total = tradesRes.data.length;
+        }
 
         console.log(
           `⏱️ [#${callId}] Sequence finished: ${plans.length} plans, ${trades.length} trades.`
@@ -789,6 +803,14 @@
   // Manual reload function for when user changes selection from UI
   export function reloadData() {
     console.log('🔄 Manual reload triggered');
+    pagination.page = 1;
+    loadData();
+  }
+
+  function changePage(newPage) {
+    if (newPage < 1 || newPage > totalPages) return;
+    pagination.page = newPage;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     loadData();
   }
 
@@ -2085,6 +2107,45 @@
         </div>
       {/each}
     </div>
+
+    {#if totalPages > 1}
+      <div class="pagination-container">
+        <div class="pagination-info">
+          顯示第 {(pagination.page - 1) * pagination.page_size + 1} 至 {Math.min(pagination.page * pagination.page_size, pagination.total)} 筆，共 {pagination.total} 筆
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="pagination-btn" 
+            disabled={pagination.page === 1}
+            on:click={() => changePage(pagination.page - 1)}
+          >
+            上一步
+          </button>
+          
+          <div class="page-numbers">
+            {#each Array(Math.min(5, totalPages)) as _, i}
+              {@const pageNum = totalPages <= 5 ? i + 1 : (pagination.page <= 3 ? i + 1 : (pagination.page >= totalPages - 2 ? totalPages - 4 + i : pagination.page - 2 + i))}
+              <button 
+                class="page-num-btn" 
+                class:active={pagination.page === pageNum}
+                on:click={() => changePage(pageNum)}
+              >
+                {pageNum}
+              </button>
+            {/each}
+          </div>
+
+          <button 
+            class="pagination-btn" 
+            disabled={pagination.page === totalPages}
+            on:click={() => changePage(pagination.page + 1)}
+          >
+            下一步
+          </button>
+        </div>
+      </div>
+    {/if}
+
   {/if}
 </div>
 
@@ -2149,6 +2210,86 @@
 <style>
   .timeline-container {
     padding-bottom: 5rem;
+  }
+
+  /* Pagination Styling */
+  .pagination-container {
+    margin-top: 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 2rem 0;
+    border-top: 1px dashed var(--border-color);
+  }
+
+  .pagination-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .pagination-btn {
+    padding: 0.5rem 1.25rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-main);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .pagination-btn:hover:not(:disabled) {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  }
+
+  .pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-numbers {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .page-num-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-main);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .page-num-btn:hover {
+    background: var(--nav-group-bg);
+  }
+
+  .page-num-btn.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
   }
 
   .empty-account-state {
