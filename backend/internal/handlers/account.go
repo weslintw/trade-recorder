@@ -244,7 +244,7 @@ func parseTradeTime(timeStr string) (time.Time, error) {
 
 	timeStr = strings.TrimSpace(timeStr)
 	for _, layout := range layouts {
-		t, err := time.ParseInLocation(layout, timeStr, time.Local)
+		t, err := time.ParseInLocation(layout, timeStr, time.UTC)
 		if err == nil {
 			return t, nil
 		}
@@ -475,19 +475,23 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 			}
 
 			// 去重檢查
-			var exists bool
-			if ticket != "" {
-				err = db.QueryRow(`
-					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND ticket = ?)
-				`, accountID, ticket).Scan(&exists)
-			} else {
-				// 使用特徵檢查
-				err = db.QueryRow(`
-					SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
-				`, accountID, symbol, openTime, volume).Scan(&exists)
-			}
+			var existingID int64
+			// 同時檢查 Ticket 與特徵 (Symbol, EntryTime, Volume)
+			// 如果 Ticket 存在，優先檢查 Ticket；但如果 API 先同步了，該紀錄可能沒有 Ticket，所以也要檢查特徵
+			checkQuery := `
+				SELECT id FROM trades 
+				WHERE account_id = ? AND (
+					(ticket != '' AND ticket = ?) OR 
+					(symbol = ? AND entry_time = ? AND lot_size = ?)
+				) LIMIT 1
+			`
+			err = db.QueryRow(checkQuery, accountID, ticket, symbol, openTime, volume).Scan(&existingID)
 
-			if exists {
+			if err == nil {
+				// 已存在相似紀錄，如果是 API 同步產生的（無 Ticket），則補上 Ticket
+				if ticket != "" {
+					db.Exec("UPDATE trades SET ticket = ? WHERE id = ? AND (ticket IS NULL OR ticket = '')", ticket, existingID)
+				}
 				duplicateTickets = append(duplicateTickets, "Row "+strconv.Itoa(i))
 				continue
 			}
