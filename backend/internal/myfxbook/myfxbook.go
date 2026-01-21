@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,25 +27,50 @@ type HistoryResponse struct {
 }
 
 type Transaction struct {
-	OpenTime   string  `json:"openTime"`
-	CloseTime  string  `json:"closeTime"`
-	Symbol     string  `json:"symbol"`
-	Action     string  `json:"action"` // "Buy", "Sell", "Buy Limit", etc.
-	Sizing     Sizing  `json:"sizing"`
-	OpenPrice  float64 `json:"openPrice"`
-	ClosePrice float64 `json:"closePrice"`
-	TP         float64 `json:"tp"`
-	SL         float64 `json:"sl"`
-	Pips       float64 `json:"pips"`
-	Profit     float64 `json:"profit"`
-	Interest   float64 `json:"interest"` // Swap
-	Commission float64 `json:"commission"`
-	Comment    string  `json:"comment"`
+	OpenTime   string      `json:"openTime"`
+	CloseTime  string      `json:"closeTime"`
+	Symbol     string      `json:"symbol"`
+	Action     string      `json:"action"` // "Buy", "Sell", "Buy Limit", etc.
+	Sizing     Sizing      `json:"sizing"`
+	OpenPrice  FlexFloat64 `json:"openPrice"`
+	ClosePrice FlexFloat64 `json:"closePrice"`
+	TP         FlexFloat64 `json:"tp"`
+	SL         FlexFloat64 `json:"sl"`
+	Pips       FlexFloat64 `json:"pips"`
+	Profit     FlexFloat64 `json:"profit"`
+	Interest   FlexFloat64 `json:"interest"` // Swap
+	Commission FlexFloat64 `json:"commission"`
+	Comment    string      `json:"comment"`
 }
 
 type Sizing struct {
-	Type  string  `json:"type"`
-	Value float64 `json:"value"` // Lot size
+	Type  string      `json:"type"`
+	Value FlexFloat64 `json:"value"` // Lot size
+}
+
+// FlexFloat64 處理 Myfxbook API 有時回傳字串、有時回傳數字的問題
+type FlexFloat64 float64
+
+func (f *FlexFloat64) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 {
+		return nil
+	}
+	// 去掉前後引號 (如果是字串)
+	s := string(b)
+	if s[0] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	if s == "" || s == "null" {
+		*f = 0
+		return nil
+	}
+	// 嘗試解析為 float
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return err
+	}
+	*f = FlexFloat64(val)
+	return nil
 }
 
 // SyncMyfxbookHistory 同步 Myfxbook 最近交易
@@ -82,7 +108,7 @@ func SyncMyfxbookHistory(db *sql.DB, accountID int64, email, password, myfxbookA
 			side = "short"
 		}
 
-		totalPnL := tx.Profit + tx.Interest + tx.Commission
+		totalPnL := float64(tx.Profit) + float64(tx.Interest) + float64(tx.Commission)
 
 		// 產生一個唯一識別碼，如果沒有官方 Ticket ID，Myfxbook 單子通常會用 openTime + closeTime + symbol 作為特徵
 		// 但如果 Myfxbook API 沒給 Ticket，我們只能用特徵比對或者看是否能從 Comment 挖
@@ -96,7 +122,7 @@ func SyncMyfxbookHistory(db *sql.DB, accountID int64, email, password, myfxbookA
 		var exists bool
 		err = db.QueryRow(`
 			SELECT EXISTS(SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND entry_time = ? AND lot_size = ?)
-		`, accountID, tx.Symbol, openTime, tx.Sizing.Value).Scan(&exists)
+		`, accountID, tx.Symbol, openTime, float64(tx.Sizing.Value)).Scan(&exists)
 
 		if exists {
 			continue
@@ -111,9 +137,9 @@ func SyncMyfxbookHistory(db *sql.DB, accountID int64, email, password, myfxbookA
 				pnl, pnl_points, entry_time, exit_time, trade_type, 
 				notes, timezone_offset, market_session, ticket, exit_sl
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, accountID, tx.Symbol, side, tx.OpenPrice, tx.ClosePrice, tx.Sizing.Value,
-			totalPnL, tx.Pips, openTime, closeTime, "actual",
-			"Myfxbook 同步: "+tx.Comment, 8, marketSession, ticket, tx.SL)
+		`, accountID, tx.Symbol, side, float64(tx.OpenPrice), float64(tx.ClosePrice), float64(tx.Sizing.Value),
+			totalPnL, float64(tx.Pips), openTime, closeTime, "actual",
+			"Myfxbook 同步: "+tx.Comment, 8, marketSession, ticket, float64(tx.SL))
 
 		if err == nil {
 			count++
