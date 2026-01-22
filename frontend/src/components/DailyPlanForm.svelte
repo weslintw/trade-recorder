@@ -1155,7 +1155,7 @@
                                     on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', dir, signal.name)}
                                     tabindex="0"
                                   >
-                                    貼上 {signal.name} 示意圖
+                                    貼上訊號圖 (Ctrl+V)
                                   </div>
                                 </div>
                               {/if}
@@ -1404,7 +1404,7 @@
                                     on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', 'neutral', signal.name)}
                                     tabindex="0"
                                   >
-                                    貼上 {signal.name} 示意圖
+                                    貼上訊號圖 (Ctrl+V)
                                   </div>
                                 </div>
                               {/if}
