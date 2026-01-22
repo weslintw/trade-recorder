@@ -944,55 +944,7 @@
                 </button>
               </div>
 
-              <!-- 趨勢圖片上傳區域（頂層，整個時區的圖） -->
-              {#if (currentTrends[timeframe]?.directions || []).length > 0}
-                <div class="trend-image-section">
-                  {#if currentTrends[timeframe]?.image}
-                    <div
-                      class="trend-image-preview"
-                      on:click|stopPropagation={() =>
-                        enlargeImage(
-                          currentTrends[timeframe].image,
-                          `${timeframe} 趨勢圖`,
-                          { type: 'trend', key: timeframe }
-                        )}
-                    >
-                      <img
-                        src={getImageUrl(currentTrends[timeframe].image)}
-                        alt="{timeframe} 趨勢"
-                        style="pointer-events: none;"
-                      />
-                      <button
-                        type="button"
-                        class="remove-image-btn"
-                        on:click|stopPropagation={() =>
-                          removeTrendImage(timeframe, 'trend')}
-                        title="移除圖片"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  {:else}
-                    <div class="split-upload-area">
-                      <button 
-                        type="button" 
-                        class="split-upload-btn" 
-                        on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'trend')}
-                        title="上傳圖片"
-                      >
-                        📸
-                      </button>
-                      <div 
-                        class="split-paste-zone"
-                        on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'trend')}
-                        tabindex="0"
-                      >
-                        貼上趨勢圖 (Ctrl+V)
-                      </div>
-                    </div>
-                  {/if}
-                </div>
-              {/if}
+
 
               <!-- 分析區塊：根據選擇的方向顯示 -->
               {#each currentTrends[timeframe]?.directions || [] as dir}
