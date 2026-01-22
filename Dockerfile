@@ -41,5 +41,26 @@ ENV GIN_MODE=release
 # 暴露端口
 EXPOSE 8080 9000 9001
 
-# 直接在 CMD 撰寫強健的啟動邏輯
-CMD ["/bin/bash", "-c", "echo '--- [INIT] Environment Check ---' && ls -la /app/data && echo '--- [1/2] Starting MinIO ---' && /usr/local/bin/minio server /app/data/minio --console-address ':9001' > /app/data/minio_startup.log 2>&1 & sleep 10 && echo '--- [2/2] Starting Trade Recorder Backend ---' && ./main 2>&1"]
+# 啟動腳本：增加詳細的環境檢查
+CMD ["/bin/bash", "-c", "\
+echo '=== [INIT] Environment Check ===' && \
+echo '[1/4] Current directory:' && pwd && \
+echo '[2/4] /app directory structure:' && ls -laR /app | head -50 && \
+echo '[3/4] Checking frontend/dist:' && \
+if [ -d /app/frontend/dist ]; then \
+  echo '  ✓ frontend/dist exists' && \
+  ls -lh /app/frontend/dist | head -10 && \
+  if [ -f /app/frontend/dist/index.html ]; then \
+    echo '  ✓ index.html found ('$(stat -c%s /app/frontend/dist/index.html)' bytes)'; \
+  else \
+    echo '  ✗ index.html NOT FOUND!'; \
+  fi; \
+else \
+  echo '  ✗ frontend/dist NOT FOUND!'; \
+fi && \
+echo '[4/4] Starting services...' && \
+echo '--- Starting MinIO ---' && \
+/usr/local/bin/minio server /app/data/minio --console-address ':9001' > /app/data/minio_startup.log 2>&1 & \
+sleep 10 && \
+echo '--- Starting Trade Recorder Backend ---' && \
+./main 2>&1"]

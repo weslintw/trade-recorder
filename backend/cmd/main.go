@@ -201,13 +201,36 @@ func main() {
 		}
 	}
 
-	// 靜態檔案服務 (SPA 優化版本：支援延遲載入)
-	staticDir = detectStaticDir()
+	// 靜態檔案服務 (SPA 優化版本:支援延遲載入)
+	cwd, _ := os.Getwd()
+	log.Printf("[Init] 當前工作目錄: %s", cwd)
+
+	// 列出工作目錄內容以供除錯
+	if entries, err := os.ReadDir(cwd); err == nil {
+		log.Printf("[Init] 工作目錄內容:")
+		for _, entry := range entries {
+			if entry.IsDir() {
+				log.Printf("  [DIR]  %s", entry.Name())
+			} else {
+				log.Printf("  [FILE] %s", entry.Name())
+			}
+		}
+	}
+
+	staticDir := detectStaticDir()
 	if staticDir != "" {
-		log.Printf("[Init] 找到靜態目錄: %s，配置 Static 路由", staticDir)
+		absPath, _ := filepath.Abs(staticDir)
+		log.Printf("[Init] ✓ 找到靜態目錄: %s (絕對路徑: %s)", staticDir, absPath)
+
+		// 驗證關鍵檔案存在
+		indexPath := filepath.Join(staticDir, "index.html")
+		if info, err := os.Stat(indexPath); err == nil {
+			log.Printf("[Init] ✓ index.html 存在 (大小: %d bytes)", info.Size())
+		}
+
 		r.Static("/assets", filepath.Join(staticDir, "assets"))
 	} else {
-		log.Printf("[Init] 啟動時未找到靜態目錄，將在請求時動態尋找")
+		log.Printf("[Init] ⚠ 啟動時未找到靜態目錄,將在請求時動態尋找")
 	}
 
 	// SPA Fallback: 處理所有非 API 的請求
@@ -219,21 +242,21 @@ func main() {
 			return
 		}
 
-		// 2. 如果啟動時沒找到靜態目錄，現在再找一次 (處理啟動競爭)
+		// 2. 如果啟動時沒找到靜態目錄,現在再找一次 (處理啟動競爭)
 		if staticDir == "" {
 			staticDir = detectStaticDir()
 			if staticDir != "" {
-				log.Printf("[Dynamic] 請求時成功補獲靜態目錄: %s", staticDir)
-				// 注意：執行中無法動態再註冊 r.Static("/assets")，所以 assets 必須也由 NoRoute 處理
+				log.Printf("[Dynamic] ✓ 請求時成功補獲靜態目錄: %s", staticDir)
 			}
 		}
 
 		if staticDir == "" {
-			return // 還是沒找到，交給 Gin 預設 404
+			log.Printf("[Error] 靜態目錄不存在,無法提供 SPA 服務: %s", path)
+			c.String(503, "Service Unavailable: Static files not found")
+			return
 		}
 
 		// 3. 檢查路徑是否對應到靜態檔案 (包含 /assets/)
-		// 去掉開頭斜槓以免 Join 出錯
 		cleanPath := strings.TrimPrefix(path, "/")
 		if cleanPath == "" {
 			cleanPath = "index.html"
@@ -246,6 +269,13 @@ func main() {
 				c.Header("Cache-Control", "public, max-age=31536000, immutable")
 			} else {
 				c.Header("Cache-Control", "public, max-age=3600")
+			}
+
+			// 安全地提供檔案
+			if _, err := os.Open(filePath); err != nil {
+				log.Printf("[Error] 無法開啟檔案 %s: %v", filePath, err)
+				c.AbortWithStatus(500)
+				return
 			}
 			c.File(filePath)
 			return
@@ -265,9 +295,16 @@ func main() {
 			}
 		}
 
-		// 5. 其餘路由導向 index.html
+		// 5. 其餘路由導向 index.html (SPA 路由)
+		indexPath := filepath.Join(staticDir, "index.html")
+		if _, err := os.Stat(indexPath); err != nil {
+			log.Printf("[Error] index.html 不存在: %s", indexPath)
+			c.String(503, "Service Unavailable: index.html not found")
+			return
+		}
+
 		c.Header("Cache-Control", "no-cache")
-		c.File(filepath.Join(staticDir, "index.html"))
+		c.File(indexPath)
 	})
 
 	// 啟動伺服器
@@ -285,13 +322,34 @@ func main() {
 // detectStaticDir 尋找並回傳靜態檔案目錄路徑
 func detectStaticDir() string {
 	staticDirs := []string{"./frontend/dist", "../frontend/dist", "./dist", "../dist"}
+	log.Printf("[detectStaticDir] 開始搜尋靜態目錄...")
+
 	for _, dir := range staticDirs {
-		// 檢查目錄是否存在且包含 index.html
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			if _, err := os.Stat(filepath.Join(dir, "index.html")); err == nil {
-				return dir
-			}
+		absDir, _ := filepath.Abs(dir)
+
+		// 檢查目錄是否存在
+		info, err := os.Stat(dir)
+		if err != nil {
+			log.Printf("[detectStaticDir]   ✗ %s 不存在", dir)
+			continue
 		}
+
+		if !info.IsDir() {
+			log.Printf("[detectStaticDir]   ✗ %s 不是目錄", dir)
+			continue
+		}
+
+		// 檢查 index.html 是否存在
+		indexPath := filepath.Join(dir, "index.html")
+		if _, err := os.Stat(indexPath); err != nil {
+			log.Printf("[detectStaticDir]   ✗ %s 存在但缺少 index.html", dir)
+			continue
+		}
+
+		log.Printf("[detectStaticDir]   ✓ 找到有效目錄: %s (絕對路徑: %s)", dir, absDir)
+		return dir
 	}
+
+	log.Printf("[detectStaticDir] ✗ 所有路徑都未找到靜態目錄")
 	return ""
 }
