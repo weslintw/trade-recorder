@@ -1722,15 +1722,29 @@
                 >
               </div>
             {/each}
-            <div
-              class="image-paste-box"
-              on:paste={handleGeneralImagePaste}
-              tabindex="0"
-              title="按 Ctrl+V 貼上截圖"
-            >
-              <div class="paste-icon" on:click={triggerGeneralUpload} role="button" tabindex="0" title="點擊上傳圖片">📸</div>
-              <div class="paste-text">點擊圖示上傳 / 貼上圖片</div>
-              <div class="paste-hint">Mobile / Ctrl+V</div>
+            <div class="general-upload-container">
+              <!-- 獨立的上傳按鈕 -->
+              <button 
+                type="button" 
+                class="upload-trigger-btn" 
+                on:click={triggerGeneralUpload}
+                title="點擊從電腦上傳圖片"
+              >
+                <span class="icon">📸</span>
+                <span class="text">上傳圖片</span>
+              </button>
+
+              <!-- 獨立的點擊貼上區域 -->
+              <div
+                class="image-paste-area"
+                on:paste={handleGeneralImagePaste}
+                tabindex="0"
+                title="點擊後按 Ctrl+V 貼上截圖"
+              >
+                <span class="icon">📋</span>
+                <span class="text">點擊此處後 Ctrl+V 貼上</span>
+              </div>
+
               <input 
                 type="file" 
                 accept="image/*" 
@@ -2223,65 +2237,72 @@
       transform: scale(1.1);
     }
 
-    .image-paste-box {
-      aspect-ratio: 1;
-      border: 2px dashed #cbd5e1;
-      border-radius: 8px;
-      background: #f8fafc;
+
+    .general-upload-container {
+      display: flex;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    .upload-trigger-btn {
+      flex: 0 0 100px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
-      transition: all 0.2s;
-      padding: 1rem;
-      outline: none;
-    }
-
-    .image-paste-box:hover {
-      border-color: #94a3b8;
-      background: #f1f5f9;
-    }
-
-    .image-paste-box:focus {
-      border-color: #667eea;
-      background: #eef2ff;
-    }
-
-    .paste-icon {
-      font-size: 2rem;
+      background: var(--card-bg);
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
       cursor: pointer;
-      transition: transform 0.2s;
-      padding: 0.5rem;
-      border-radius: 50%;
-      background: rgba(239, 68, 68, 0.1);
-      width: 60px;
-      height: 60px;
+      transition: all 0.2s;
+    }
+
+    .upload-trigger-btn:hover {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .upload-trigger-btn .icon {
+      font-size: 1.5rem;
+    }
+
+    .upload-trigger-btn .text {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    .image-paste-area {
+      flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 0.75rem;
+      background: #f8fafc;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      outline: none;
     }
 
-    .paste-icon:hover {
-      transform: scale(1.1);
-      background: rgba(239, 68, 68, 0.2);
+    .image-paste-area:hover, .image-paste-area:focus {
+      border-color: #667eea;
+      background: #f1f5f9;
     }
 
-    .paste-icon:active {
-      transform: scale(0.95);
+    .image-paste-area .icon {
+      font-size: 1.2rem;
+      opacity: 0.6;
     }
 
-    .paste-text {
+    .image-paste-area .text {
       font-size: 0.85rem;
+      font-weight: 500;
       color: #64748b;
-      font-weight: 600;
-      text-align: center;
-    }
-
-    .paste-hint {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      text-align: center;
     }
 
 

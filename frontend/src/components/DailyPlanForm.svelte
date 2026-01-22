@@ -903,16 +903,6 @@
               class="trend-item"
               tabindex="0"
               on:paste={e => handleTrendImagePaste(e, timeframe)}
-              on:click={e => {
-                if (e.target.closest('.trend-options')) return;
-                
-                // 如果點選的是卡片本身（非按鈕），且沒有圖片時，觸發上傳
-                if (!currentTrends[timeframe]?.image) {
-                   triggerTrendUpload(timeframe);
-                } else {
-                   e.currentTarget.focus();
-                }
-              }}
             >
               <label class="timeframe-label">{timeframe}</label>
 
@@ -1011,15 +1001,22 @@
                           </button>
                         </div>
                       {:else}
-                        <div
-                          class="trend-image-placeholderSmall"
-                          tabindex="0"
-                          on:paste|preventDefault|stopPropagation={e =>
-                            handleTrendImagePaste(e, timeframe, 'signals', dir)}
-                          on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'signals', dir)}
-                          role="textbox"
-                        >
-                          📸 點擊或貼上已成立訊號圖
+                        <div class="split-upload-area">
+                          <button 
+                            type="button" 
+                            class="split-upload-btn" 
+                            on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'signals', dir)}
+                            title="上傳圖片"
+                          >
+                            📸
+                          </button>
+                          <div 
+                            class="split-paste-zone"
+                            on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'signals', dir)}
+                            tabindex="0"
+                          >
+                            貼上訊號圖 (Ctrl+V)
+                          </div>
                         </div>
                       {/if}
                     {/if}
@@ -1092,21 +1089,22 @@
                                   </button>
                                 </div>
                               {:else}
-                                <div
-                                  class="trend-image-placeholderExtraSmall"
-                                  tabindex="0"
-                                  on:paste|preventDefault|stopPropagation={e =>
-                                    handleTrendImagePaste(
-                                      e,
-                                      timeframe,
-                                      'expected_signals',
-                                      dir,
-                                      signal.name
-                                    )}
-                                  on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', dir, signal.name)}
-                                  role="textbox"
-                                >
-                                  📸 點擊或貼上 {signal.name} 示意圖
+                                <div class="split-upload-area mini">
+                                  <button 
+                                    type="button" 
+                                    class="split-upload-btn" 
+                                    on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', dir, signal.name)}
+                                    title="上傳圖片"
+                                  >
+                                    📸
+                                  </button>
+                                  <div 
+                                    class="split-paste-zone"
+                                    on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', dir, signal.name)}
+                                    tabindex="0"
+                                  >
+                                    貼上 {signal.name} 示意圖
+                                  </div>
                                 </div>
                               {/if}
                             </div>
@@ -1172,15 +1170,22 @@
                           </button>
                         </div>
                       {:else}
-                        <div
-                          class="trend-image-placeholderSmall"
-                          tabindex="0"
-                          on:paste|preventDefault|stopPropagation={e =>
-                            handleTrendImagePaste(e, timeframe, 'wave', dir)}
-                          on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'wave', dir)}
-                          role="textbox"
-                        >
-                          📸 點擊或貼上波浪圖
+                        <div class="split-upload-area">
+                          <button 
+                            type="button" 
+                            class="split-upload-btn" 
+                            on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'wave', dir)}
+                            title="上傳圖片"
+                          >
+                            📸
+                          </button>
+                          <div 
+                            class="split-paste-zone"
+                            on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'wave', dir)}
+                            tabindex="0"
+                          >
+                            貼上波浪圖 (Ctrl+V)
+                          </div>
                         </div>
                       {/if}
                     {/if}
@@ -2066,6 +2071,61 @@
       .form-actions .btn {
         width: 100%;
       }
+    }
+
+
+    /* 分離式上傳區域樣式 */
+    .split-upload-area {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      height: 48px;
+    }
+
+    .split-upload-area.mini {
+      height: 40px;
+    }
+
+    .split-upload-btn {
+      flex: 0 0 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--card-bg);
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      transition: all 0.2s;
+    }
+
+    .split-upload-btn:hover {
+      border-color: #ef4444;
+      background: rgba(239, 68, 68, 0.05);
+    }
+
+    .split-paste-zone {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-main);
+      border: 2px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 0 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      outline: none;
+      text-align: center;
+    }
+
+    .split-paste-zone:hover, .split-paste-zone:focus {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.05);
+      color: var(--text-main);
     }
 
     @media (max-width: 480px) {
