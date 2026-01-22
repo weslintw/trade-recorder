@@ -802,6 +802,40 @@
   onMount(async () => {
     console.log('=== 🏠 Home onMount START ===');
 
+    // Step 0: 清理所有殘留狀態（防止上次未完成的請求干擾）
+    console.log('[onMount] Cleaning up any residual state...');
+    
+    // 中斷任何殘留的請求控制器
+    if (loadController) {
+      console.log('[onMount] Aborting residual loadController');
+      loadController.abort();
+      loadController = null;
+    }
+    if (refreshAccountsController) {
+      console.log('[onMount] Aborting residual refreshAccountsController');
+      refreshAccountsController.abort();
+      refreshAccountsController = null;
+    }
+    
+    // 清除全域時間戳記
+    window._lastLoadDataTime = 0;
+    
+    // 重置載入狀態
+    loading = false;
+    isRefreshingAccounts = false;
+    
+    // 清除任何殘留的計時器
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    if (pollingTimeout) {
+      clearTimeout(pollingTimeout);
+      pollingTimeout = null;
+    }
+    
+    console.log('[onMount] Cleanup complete, starting fresh');
+
     // Step 1: 預加載帳號列表
     await refreshAccounts();
 
