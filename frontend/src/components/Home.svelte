@@ -19,6 +19,7 @@
 
   let groupedData = [];
   let loading = true;
+  let loadError = null; // 新增：錯誤狀態
   let pagination = {
     page: 1,
     page_size: 100,
@@ -399,6 +400,7 @@
     try {
       if (!silent) {
         loading = true;
+        loadError = null; // 清除之前的錯誤
         loadingMessage = '正在發起網路連線...';
         groupedData = [];
 
@@ -638,6 +640,14 @@
         console.log(`[${INSTANCE_ID}] loadData #${callId} caught abort.`);
       } else {
         console.error(`載入首頁資料失敗 (Call #${callId}):`, error);
+        // 顯示錯誤給使用者
+        if (activeLoadCallId === callId) {
+          loadError = {
+            message: '資料載入失敗',
+            detail: error.message || '未知錯誤',
+            canRetry: true
+          };
+        }
       }
     } finally {
       // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
@@ -1614,6 +1624,20 @@
       {#if loadingMessage.includes('網路連線')}
          <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px;">建議切換至更穩定的 Wi-Fi</small>
       {/if}
+    </div>
+  {:else if loadError}
+    <div class="error-state">
+      <div class="error-icon">⚠️</div>
+      <h3>{loadError.message}</h3>
+      <p class="error-detail">{loadError.detail}</p>
+      {#if loadError.canRetry}
+        <button class="btn btn-primary" on:click={() => loadData(false)}>
+          🔄 重新載入
+        </button>
+      {/if}
+      <button class="btn btn-secondary" on:click={() => { loadError = null; groupedData = []; }}>
+        關閉
+      </button>
     </div>
   {:else if $accounts.length === 0}
     <div class="empty-account-state">
@@ -3585,10 +3609,39 @@
   }
 
   .loading-state,
-  .empty-state {
+  .empty-state,
+  .error-state {
     text-align: center;
     padding: 5rem;
     color: #64748b;
+  }
+
+  .error-state {
+    color: #dc2626;
+  }
+
+  .error-state h3 {
+    color: #dc2626;
+    margin: 1rem 0 0.5rem;
+    font-size: 1.5rem;
+  }
+
+  .error-detail {
+    color: #64748b;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+  }
+
+  .error-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: shake 0.5s;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
   }
 
   .empty-icon {
