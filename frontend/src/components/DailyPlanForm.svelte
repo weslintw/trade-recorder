@@ -87,11 +87,11 @@
   });
 
   // 達人訊號選項
-  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '夾縫', '喇叭', '倚天', '攻城池上'];
-  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '夾縫', '喇叭', '向上蘇美', '雷霆'];
+  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '夾縫', '喇叭-上', '喇叭-中', '喇叭-下', '倚天', '攻城池上'];
+  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '夾縫', '喇叭-上', '喇叭-中', '喇叭-下', '向上蘇美', '雷霆'];
 
-  // 全部訊號清單
-  const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
+  // 全部訊號清單（去除重複）
+  const allExpertSignals = Array.from(new Set([...expertSignalsLong, ...expertSignalsShort]));
 
   // 波浪數字選項
   const waveNumbers = ['1', '2', '3', '4', '5'];
@@ -937,6 +937,56 @@
                   <span class="trend-name">空</span>
                 </button>
               </div>
+
+              <!-- 趨勢圖片上傳區域（頂層，整個時區的圖） -->
+              {#if (currentTrends[timeframe]?.directions || []).length > 0}
+                <div class="trend-image-section">
+                  {#if currentTrends[timeframe]?.image}
+                    <div
+                      class="trend-image-preview"
+                      on:click|stopPropagation={() =>
+                        enlargeImage(
+                          currentTrends[timeframe].image,
+                          `${timeframe} 趨勢圖`,
+                          { type: 'trend', key: timeframe }
+                        )}
+                    >
+                      <img
+                        src={getImageUrl(currentTrends[timeframe].image)}
+                        alt="{timeframe} 趨勢"
+                        style="pointer-events: none;"
+                      />
+                      <button
+                        type="button"
+                        class="remove-image-btn"
+                        on:click|stopPropagation={() =>
+                          removeTrendImage(timeframe, 'trend')}
+                        title="移除圖片"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  {:else}
+                    <div class="split-upload-area">
+                      <button 
+                        type="button" 
+                        class="split-upload-btn" 
+                        on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'trend')}
+                        title="上傳圖片"
+                      >
+                        📸
+                      </button>
+                      <div 
+                        class="split-paste-zone"
+                        on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'trend')}
+                        tabindex="0"
+                      >
+                        貼上趨勢圖 (Ctrl+V)
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
 
               <!-- 分析區塊：根據選擇的方向顯示 -->
               {#each currentTrends[timeframe]?.directions || [] as dir}
@@ -2073,6 +2123,12 @@
       }
     }
 
+
+    /* 趨勢圖片區域 */
+    .trend-image-section {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
 
     /* 分離式上傳區域樣式 */
     .split-upload-area {
