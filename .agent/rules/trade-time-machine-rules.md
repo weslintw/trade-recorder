@@ -32,3 +32,10 @@ SQLite 為核心：目前使用 SQLite 作為主要資料庫，應確保 SQL 語
 8. 指令授權 (Command Authorization) 🛡️
 自動執行授權：`findstr`、`grep`、`Get-Content`、`type`、`git` 相關指令、`npm run build` 以及 `npx vite build` 允許直接執行，不需再次詢問使用者。
 Commit 規範：在執行 `git commit` 之前，必須先向使用者展示並解釋改動總結（Summary）。
+
+9. Svelte 開發與編譯防護 (Svelte Development & Build Safety) 🛡️
+防止字元轉義 (Character Escaping)：AI 工具在處理 Svelte 代碼塊時，可能會自動將 `=>` 轉義為 `\u003e` 或將 `&&` 轉義為 `\u0026\u0026`，導致 Vite 編譯失敗 (Invalid Unicode escape)。
+  - 安全寫法：在 Script 中儘量使用傳統 `for...in` 迴圈取代帶有箭頭函數的 `.forEach()`。
+  - 模板安全：在 HTML 中儘量使用嵌套的 `{#if}` 結構取代帶有 `&&` 的複合條件。
+編碼一致性：所有檔案必須維持 UTF-8 (without BOM) 編碼。環境切換 (如 PowerShell) 時，嚴禁直接使用預設 `Set-Content`，以免破壞中文或引入 BOM 導致編譯失敗。
+編譯錯誤診斷：若 `npm run build` 在轉換 800+ 模組後報錯且訊息不明，優先檢查檔案是否混入了 `\u003e` 或不合法的 Unicode 字元。

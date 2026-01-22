@@ -35,6 +35,8 @@
       wave_highlight: '',
       signals_image: '',
       signals_originalImage: '',
+      expected_signals_image: '',
+      expected_signals_originalImage: '',
       wave_image: '',
       wave_originalImage: '',
     };
@@ -156,47 +158,6 @@
     const target = direction ? currentTrends[timeframe][direction] : currentTrends[timeframe];
     const signals = target.expected_signals || [];
     return signals.some(s => s.name === signalName);
-  }
-
-  // 處理時段趨勢圖貼上
-  async function handleSessionTrendImagePaste(e) {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (let index in items) {
-      const item = items[index];
-      if (item.kind === 'file' && item.type.indexOf('image/') !== -1) {
-        const file = item.getAsFile();
-        const uploadedPath = await uploadImage(file);
-        if (uploadedPath) {
-          currentSessionData.trend_image = uploadedPath;
-          formData = formData;
-        }
-        break;
-      }
-    }
-  }
-
-  // 觸發時段趨勢圖上傳
-  function triggerSessionTrendUpload() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async function(e) {
-      const file = e.target.files[0];
-      if (file) {
-        const uploadedPath = await uploadImage(file);
-        if (uploadedPath) {
-          currentSessionData.trend_image = uploadedPath;
-          formData = formData;
-        }
-      }
-    };
-    input.click();
-  }
-
-  // 移除時段趨勢圖
-  function removeSessionTrendImage() {
-    currentSessionData.trend_image = '';
-    formData = formData;
   }
 
   // 檢查時區訊號是否被選中
@@ -406,7 +367,7 @@
               t.short.has_signals = t.short.signals?.length > 0 || !!t.short.signals_image;
             }
             if (t.short.has_expected_signals === undefined || t.short.has_expected_signals === null) {
-              t.short.has_expected_signals = t.short.expected_signals?.length > 0;
+              t.short.has_expected_signals = t.short.expected_signals?.length > 0 || !!t.short.expected_signals_image;
             }
             if (t.short.has_wave === undefined || t.short.has_wave === null) {
               t.short.has_wave = t.short.wave_numbers?.length > 0 || !!t.short.wave_image;
@@ -501,14 +462,9 @@
           target.signals_originalImage = imageUrl;
         }
       } else if (imageType === 'expected_signals') {
-        if (target.expected_signals) {
-          const signal = target.expected_signals.find(s => s.name === signalName);
-          if (signal) {
-            signal.image = imageUrl;
-            if (!signal.originalImage) {
-              signal.originalImage = imageUrl;
-            }
-          }
+        target.expected_signals_image = imageUrl;
+        if (!target.expected_signals_originalImage) {
+          target.expected_signals_originalImage = imageUrl;
         }
       } else if (imageType === 'wave') {
         target.wave_image = imageUrl;
@@ -558,13 +514,8 @@
       target.signals_image = '';
       target.signals_originalImage = '';
     } else if (imageType === 'expected_signals') {
-      if (target.expected_signals) {
-        const signal = target.expected_signals.find(s => s.name === signalName);
-        if (signal) {
-          signal.image = '';
-          signal.originalImage = '';
-        }
-      }
+      target.expected_signals_image = '';
+      target.expected_signals_originalImage = '';
     } else if (imageType === 'wave') {
       target.wave_image = '';
       target.wave_originalImage = '';
@@ -598,8 +549,7 @@
       } else if (context.type === 'wave') {
         enlargedOriginalImage = target?.wave_originalImage || imageSrc;
       } else if (context.type === 'expected_signals') {
-        const signal = target?.expected_signals?.find(s => s.name === context.signalName);
-        enlargedOriginalImage = signal?.originalImage || imageSrc;
+        enlargedOriginalImage = target?.expected_signals_originalImage || imageSrc;
       } else {
         enlargedOriginalImage = imageSrc;
       }
@@ -653,14 +603,7 @@
       } else if (type === 'wave') {
         target.wave_image = serverPath;
       } else if (type === 'expected_signals') {
-        if (target.expected_signals) {
-          const signal = target.expected_signals.find(
-            s => s.name === enlargedImageContext.signalName
-          );
-          if (signal) {
-            signal.image = serverPath;
-          }
-        }
+        target.expected_signals_image = serverPath;
       }
 
       // 強制觸發 Svelte 響應式更新
@@ -957,42 +900,6 @@
             ></textarea>
           </div>
 
-          <!-- 該時段大趨勢圖 (置頂) -->
-          <div class="form-group session-trend-image-area">
-            <label class="trend-label">🖼️ 時段趨勢圖 (全景/重點)</label>
-            {#if currentSessionData.trend_image}
-              <div class="trend-image-preview main-preview">
-                <img 
-                  src={getImageUrl(currentSessionData.trend_image)} 
-                  alt="時段趨勢圖" 
-                  on:click={() => enlargeImage(currentSessionData.trend_image, `${MARKET_SESSIONS.find(s => s.value === activeSession)?.label} 趨勢圖`)}
-                />
-                <button 
-                  type="button" 
-                  class="remove-image-btn"
-                  on:click={() => removeSessionTrendImage()}
-                >×</button>
-              </div>
-            {:else}
-              <div 
-                class="main-paste-zone"
-                on:paste|preventDefault|stopPropagation={handleSessionTrendImagePaste}
-                tabindex="0"
-              >
-                <div class="paste-hint">
-                  <span class="icon">📋</span>
-                  <span class="text">在此處貼上趨SES趨勢圖 (Ctrl+V)</span>
-                </div>
-                <button 
-                  type="button" 
-                  class="btn-upload-minimal"
-                  on:click={triggerSessionTrendUpload}
-                >或點擊上傳檔案</button>
-              </div>
-            {/if}
-          </div>
-
-
           <!-- 各時區趨勢 -->
           <div class="form-group trend-analysis-section">
             <label class="trend-label">📊 當前各時區趨勢 ({MARKET_SESSIONS.find(s => s.value === activeSession)?.label})</label>
@@ -1196,68 +1103,49 @@
                         {/each}
                       </div>
 
-                      <!-- 預期訊號個別圖片區 -->
-                      {#if currentTrends[timeframe][dir].expected_signals && currentTrends[timeframe][dir].expected_signals.length > 0}
-                        <div class="expected-signals-images">
-                          {#each currentTrends[timeframe][dir].expected_signals as signal (waveButtonKey + '-' + timeframe + '-' + dir + '-expected-img-' + signal.name)}
-                            <div class="expected-signal-item">
-                              <span class="signal-name-label">{signal.name}</span>
-                              {#if signal.image}
-                                <div
-                                  class="trend-image-preview"
-                                  on:click|stopPropagation={() =>
-                                    enlargeImage(
-                                      signal.image,
-                                      `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號: ${signal.name}`,
-                                      {
-                                        type: 'expected_signals',
-                                        key: timeframe,
-                                        direction: dir,
-                                        signalName: signal.name,
-                                      }
-                                    )}
-                                >
-                                  <img
-                                    src={getImageUrl(signal.image)}
-                                    alt="{timeframe} 預期訊號: {signal.name}"
-                                    style="pointer-events: none;"
-                                  />
-                                  <button
-                                    type="button"
-                                    class="remove-image-btn"
-                                    on:click|stopPropagation={() =>
-                                      removeTrendImage(
-                                        timeframe,
-                                        'expected_signals',
-                                        dir,
-                                        signal.name
-                                      )}
-                                    title="移除圖片"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              {:else}
-                                <div class="split-upload-area mini">
-                                  <button 
-                                    type="button" 
-                                    class="split-upload-btn" 
-                                    on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', dir, signal.name)}
-                                    title="上傳圖片"
-                                  >
-                                    📸
-                                  </button>
-                                  <div 
-                                    class="split-paste-zone"
-                                    on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', dir, signal.name)}
-                                    tabindex="0"
-                                  >
-                                    貼上訊號圖 (Ctrl+V)
-                                  </div>
-                                </div>
-                              {/if}
-                            </div>
-                          {/each}
+                      <!-- 預期訊號圖片 -->
+                      {#if currentTrends[timeframe][dir].expected_signals_image}
+                        <div
+                          class="trend-image-preview"
+                          on:click|stopPropagation={() =>
+                            enlargeImage(
+                              currentTrends[timeframe][dir].expected_signals_image,
+                              `${timeframe} ${dir === 'long' ? '多頭' : '空頭'} 預期訊號圖`,
+                              { type: 'expected_signals', key: timeframe, direction: dir }
+                            )}
+                        >
+                          <img
+                            src={getImageUrl(currentTrends[timeframe][dir].expected_signals_image)}
+                            alt="{timeframe} 預期訊號"
+                            style="pointer-events: none;"
+                          />
+                          <button
+                            type="button"
+                            class="remove-image-btn"
+                            on:click|stopPropagation={() =>
+                              removeTrendImage(timeframe, 'expected_signals', dir)}
+                            title="移除圖片"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      {:else}
+                        <div class="split-upload-area">
+                          <button 
+                            type="button" 
+                            class="split-upload-btn" 
+                            on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', dir)}
+                            title="上傳圖片"
+                          >
+                            📸
+                          </button>
+                          <div 
+                            class="split-paste-zone"
+                            on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', dir)}
+                            tabindex="0"
+                          >
+                            貼上預期訊號圖 (Ctrl+V)
+                          </div>
                         </div>
                       {/if}
                     {/if}
@@ -1446,68 +1334,49 @@
                             {/each}
                           </div>
 
-                          <!-- 預期中性訊號個別圖片區 -->
-                          {#if currentTrends[timeframe].neutral.expected_signals && currentTrends[timeframe].neutral.expected_signals.length > 0}
-                            <div class="expected-signals-images">
-                              {#each currentTrends[timeframe].neutral.expected_signals as signal (waveButtonKey + '-' + timeframe + '-neutral-expected-img-' + signal.name)}
-                                <div class="expected-signal-item">
-                                  <span class="signal-name-label">{signal.name}</span>
-                                  {#if signal.image}
-                                    <div
-                                      class="trend-image-preview"
-                                      on:click|stopPropagation={() =>
-                                        enlargeImage(
-                                          signal.image,
-                                          `${timeframe} 預期中性訊號: ${signal.name}`,
-                                          {
-                                            type: 'expected_signals',
-                                            key: timeframe,
-                                            direction: 'neutral',
-                                            signalName: signal.name,
-                                          }
-                                        )}
-                                    >
-                                      <img
-                                        src={getImageUrl(signal.image)}
-                                        alt="{timeframe} 預期中性訊號: {signal.name}"
-                                        style="pointer-events: none;"
-                                      />
-                                      <button
-                                        type="button"
-                                        class="remove-image-btn"
-                                        on:click|stopPropagation={() =>
-                                          removeTrendImage(
-                                            timeframe,
-                                            'expected_signals',
-                                            'neutral',
-                                            signal.name
-                                          )}
-                                        title="移除圖片"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  {:else}
-                                    <div class="split-upload-area mini">
-                                      <button
-                                        type="button"
-                                        class="split-upload-btn"
-                                        on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', 'neutral', signal.name)}
-                                        title="上傳圖片"
-                                      >
-                                        📸
-                                      </button>
-                                      <div
-                                        class="split-paste-zone"
-                                        on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', 'neutral', signal.name)}
-                                        tabindex="0"
-                                      >
-                                        貼上訊號圖 (Ctrl+V)
-                                      </div>
-                                    </div>
-                                  {/if}
-                                </div>
-                              {/each}
+                          <!-- 預期中性訊號圖片 -->
+                          {#if currentTrends[timeframe].neutral.expected_signals_image}
+                            <div
+                              class="trend-image-preview"
+                              on:click|stopPropagation={() =>
+                                enlargeImage(
+                                  currentTrends[timeframe].neutral.expected_signals_image,
+                                  `${timeframe} 中性預期訊號圖`,
+                                  { type: 'expected_signals', key: timeframe, direction: 'neutral' }
+                                )}
+                            >
+                              <img
+                                src={getImageUrl(currentTrends[timeframe].neutral.expected_signals_image)}
+                                alt="{timeframe} 中性預期訊號"
+                                style="pointer-events: none;"
+                              />
+                              <button
+                                type="button"
+                                class="remove-image-btn"
+                                on:click|stopPropagation={() =>
+                                  removeTrendImage(timeframe, 'expected_signals', 'neutral')}
+                                title="移除圖片"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          {:else}
+                            <div class="split-upload-area">
+                              <button 
+                                type="button" 
+                                class="split-upload-btn" 
+                                on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', 'neutral')}
+                                title="上傳圖片"
+                              >
+                                📸
+                              </button>
+                              <div 
+                                class="split-paste-zone"
+                                on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', 'neutral')}
+                                tabindex="0"
+                              >
+                                貼上預期訊號圖 (Ctrl+V)
+                              </div>
                             </div>
                           {/if}
                         {/if}
@@ -2315,7 +2184,7 @@
 
     .signal-chip.expected {
       border-style: dashed;
-      background: #eff6ff;
+      background: var(--card-bg);
       color: #1e40af;
     }
 
