@@ -1079,7 +1079,8 @@
   }
 
   let generalFileInput;
-  function triggerGeneralUpload() {
+  function triggerGeneralUpload(e) {
+    e?.stopPropagation();
     if (generalFileInput) generalFileInput.click();
   }
 
@@ -1160,6 +1161,7 @@
       return [];
     }
   }
+
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -1723,12 +1725,11 @@
             <div
               class="image-paste-box"
               on:paste={handleGeneralImagePaste}
-              on:click={triggerGeneralUpload}
               tabindex="0"
-              title="點擊或按 Ctrl+V 貼上截圖"
+              title="按 Ctrl+V 貼上截圖"
             >
-              <div class="paste-icon">📸</div>
-              <div class="paste-text">點擊上傳 / 貼上圖片</div>
+              <div class="paste-icon" on:click={triggerGeneralUpload} role="button" tabindex="0" title="點擊上傳圖片">📸</div>
+              <div class="paste-text">點擊圖示上傳 / 貼上圖片</div>
               <div class="paste-hint">Mobile / Ctrl+V</div>
               <input 
                 type="file" 
@@ -2158,6 +2159,131 @@
       font-size: 0.8rem;
       font-style: italic;
     }
+
+    /* 一般圖片上傳區塊 */
+    .general-images-section {
+      margin-top: 1.5rem;
+    }
+
+    .general-images-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .image-thumb-container {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #e2e8f0;
+      transition: all 0.2s;
+    }
+
+    .image-thumb-container:hover {
+      border-color: #667eea;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    .trade-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      cursor: pointer;
+    }
+
+    .remove-thumb-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(239, 68, 68, 0.9);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .image-thumb-container:hover .remove-thumb-btn {
+      opacity: 1;
+    }
+
+    .remove-thumb-btn:hover {
+      background: rgba(220, 38, 38, 1);
+      transform: scale(1.1);
+    }
+
+    .image-paste-box {
+      aspect-ratio: 1;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      padding: 1rem;
+      outline: none;
+    }
+
+    .image-paste-box:hover {
+      border-color: #94a3b8;
+      background: #f1f5f9;
+    }
+
+    .image-paste-box:focus {
+      border-color: #667eea;
+      background: #eef2ff;
+    }
+
+    .paste-icon {
+      font-size: 2rem;
+      cursor: pointer;
+      transition: transform 0.2s;
+      padding: 0.5rem;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.1);
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .paste-icon:hover {
+      transform: scale(1.1);
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    .paste-icon:active {
+      transform: scale(0.95);
+    }
+
+    .paste-text {
+      font-size: 0.85rem;
+      color: #64748b;
+      font-weight: 600;
+      text-align: center;
+    }
+
+    .paste-hint {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      text-align: center;
+    }
+
 
     /* 進場分析區塊 */
     .highlight-label {
