@@ -50,6 +50,7 @@
     '向下蘇美',
     '起漲靠山',
     '雙柱',
+    '夾縫',
     '倚天',
     '攻城池上',
     '起跌靠山',
@@ -364,19 +365,30 @@
   let activeLoadCallId = 0; // 新增：追蹤當前最新的加載 ID，防止舊請求覆蓋新請求
 
   async function loadData(silent = false) {
-    // --- 新增：防抖與衝突處理 ---
+    const callId = ++loadDataCallCount; // 每次調用產生唯一 ID
+    
+    // --- 防抖與衝突處理 (改良版) ---
     if (loadController) {
       if (silent) {
-        // 如果已經有任何請求在進行中，新的「靜默/背景」請求直接跳過（等待目前的完成即可）
-        return;
+        // 靜默請求：如果有請求在進行中，檢查是否已超過合理時間
+        const timeSinceLastCall = Date.now() - (window._lastLoadDataTime || 0);
+        if (timeSinceLastCall < 5000) {
+          // 5秒內有請求，跳過這次靜默請求
+          console.log(`[${INSTANCE_ID}] Skipping silent loadData #${callId} (recent request active)`);
+          return;
+        } else {
+          // 超過5秒，可能前一個請求卡住了，強制中斷並繼續
+          console.warn(`[${INSTANCE_ID}] Previous request seems stuck, aborting and proceeding with #${callId}`);
+          loadController.abort();
+        }
       } else {
-        // 如果是使用者發起的「顯性」請求，則中斷之前的請求
+        // 使用者手動操作：直接中斷之前的請求
         console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests to prioritize user action.`);
         loadController.abort();
       }
     }
 
-    const callId = ++loadDataCallCount; // 只有確定要執行才產生新 ID
+    window._lastLoadDataTime = Date.now();
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
@@ -403,7 +415,7 @@
           }
         }, 12000);
 
-        // 保險機制：只有在「完全沒有活動進展」超過 30 秒時才強制關閉
+        // 保險機制：30秒後強制關閉 loading
         let lastActivityCallId = callId;
         let safetyTimer;
 
@@ -417,12 +429,13 @@
                 `[${INSTANCE_ID}] Loading state inactivity timeout triggered (${seconds}s). Forcing spinner OFF.`
               );
               loading = false;
+              loadController = null;
             }
           }, seconds * 1000);
         };
 
-        // 初始給長一點的時間 (60s)，因為建立連線最慢
-        resetSafetyTimer(60);
+        // 初始給30秒超時（從60秒縮短）
+        resetSafetyTimer(30);
         
         // 建立一個局部變數供後續呼叫
         currentResetTimer = resetSafetyTimer;

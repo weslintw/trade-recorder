@@ -87,8 +87,8 @@
   });
 
   // 達人訊號選項
-  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
-  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
+  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '夾縫', '倚天', '攻城池上'];
+  const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '夾縫', '向上蘇美', '雷霆'];
 
   // 全部訊號清單
   const allExpertSignals = [...expertSignalsLong, ...expertSignalsShort];
