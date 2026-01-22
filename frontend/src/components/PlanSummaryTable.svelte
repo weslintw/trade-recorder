@@ -187,9 +187,10 @@
   }
 
   /* Direction Styling */
-  .trend-cell-container.long { background-color: var(--bg-long); border-color: rgba(225, 29, 72, 0.1); }
-  .trend-cell-container.short { background-color: var(--bg-short); border-color: rgba(22, 163, 74, 0.1); }
-  .trend-cell-container.both { background-color: var(--bg-both); border-color: rgba(99, 102, 241, 0.1); }
+  /* Direction Styling - Removed background as requested */
+  .trend-cell-container.long { border-color: rgba(225, 29, 72, 0.1); }
+  .trend-cell-container.short { border-color: rgba(22, 163, 74, 0.1); }
+  .trend-cell-container.both { border-color: rgba(99, 102, 241, 0.1); }
   .trend-cell-container.na { 
     background-color: #f8fafc;
     opacity: 0.6;
@@ -260,6 +261,7 @@
     line-height: 1.4;
     display: flex;
     align-items: flex-start;
+    justify-content: center;
     gap: 4px;
     font-weight: 500;
   }
@@ -307,6 +309,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 4px;
     padding: 4px;
     border-radius: 6px;
@@ -346,9 +349,9 @@
     border-color: #1e293b;
   }
 
-  :global(body.dark-mode) .trend-cell-container.long { background-color: rgba(225, 29, 72, 0.1); }
-  :global(body.dark-mode) .trend-cell-container.short { background-color: rgba(22, 163, 74, 0.1); }
-  :global(body.dark-mode) .trend-cell-container.both { background-color: rgba(99, 102, 241, 0.1); }
+  :global(body.dark-mode) .trend-cell-container.long { background-color: transparent; }
+  :global(body.dark-mode) .trend-cell-container.short { background-color: transparent; }
+  :global(body.dark-mode) .trend-cell-container.both { background-color: transparent; }
 
   :global(body.dark-mode) .info-row {
     color: #cbd5e1;
