@@ -4,7 +4,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize } from '../lib/utils';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   let showAnnotator = false;
@@ -548,10 +548,11 @@
                     <span class="compact-label">停損:</span>
                     <span class="compact-value">{trade.initial_sl}</span>
                   </span>
-                  {#if trade.bullet_size}
+                  {@const bulletToDisplay = calculateBulletSize(trade) || trade.bullet_size}
+                  {#if bulletToDisplay}
                     <span class="compact-item">
                       <span class="compact-label">子彈:</span>
-                      <span class="compact-value">{trade.bullet_size.toFixed(1)}</span>
+                      <span class="compact-value">{bulletToDisplay.toFixed(1)}</span>
                     </span>
                   {/if}
                   {#if trade.rr_ratio}

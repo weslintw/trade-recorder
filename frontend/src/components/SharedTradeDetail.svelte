@@ -1,5 +1,5 @@
 <script>
-  import { getStrategyLabel, determineMarketSession } from '../lib/utils';
+  import { getStrategyLabel, determineMarketSession, calculateBulletSize } from '../lib/utils';
   import Sparkline from './Sparkline.svelte';
   import { imagesAPI } from '../lib/api';
 
@@ -173,6 +173,7 @@
     </div>
 
     {#if trade.trade_type === 'actual'}
+      {@const bulletDisplay = calculateBulletSize(trade) || trade.bullet_size}
       <div class="info-row-divider"></div>
 
       <div class="info-row-group">
@@ -189,6 +190,7 @@
       <div class="info-row-divider"></div>
 
       <div class="info-row-group">
+
         <div class="info-item">
           <label>盈虧金額</label><span class="rr-value {trade.pnl >= 0 ? 'profit' : 'loss'}"
             >{trade.pnl !== undefined && trade.pnl !== null ? trade.pnl.toFixed(2) : '--'}</span
@@ -201,7 +203,7 @@
         </div>
         <div class="info-item">
           <label>子彈大小 (BULLET)</label><span
-            >{trade.bullet_size != null ? trade.bullet_size : '自動計算'}</span
+            >{bulletDisplay != null ? bulletDisplay.toFixed(2) : '自動計算'}</span
           >
         </div>
         <div class="info-item">

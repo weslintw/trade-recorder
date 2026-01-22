@@ -132,3 +132,59 @@ export function calculateDuration(start, end) {
     if (minutes > 0) return `${minutes}分`;
     return '1分鐘內';
 }
+
+/**
+ * 取得品種的點數乘數 (用於將價格差轉換為點數)
+ */
+export function getSymbolMultiplier(symbol) {
+    if (!symbol) return 1;
+    const s = symbol.toUpperCase();
+    if (s.includes('JPY')) return 100;
+    if (
+        s.includes('EUR') ||
+        s.includes('GBP') ||
+        s.includes('AUD') ||
+        (s.includes('USD') && !s.includes('XAU'))
+    ) {
+        return 10000;
+    }
+    return 1; // XAUUSD, NAS100, US30, etc.
+}
+
+/**
+ * 取得品種的每一點價值 (每一標準手)
+ */
+export function getSymbolPointValue(symbol) {
+    if (!symbol) return 1;
+    const s = symbol.toUpperCase();
+    if (s.includes('XAU') || s.includes('GOLD')) return 100;
+    if (s.includes('JPY')) return 10;
+    if (
+        s.includes('EUR') ||
+        s.includes('GBP') ||
+        s.includes('AUD') ||
+        (s.includes('USD') && !s.includes('XAU'))
+    ) {
+        return 10;
+    }
+    if (s.includes('NAS') || s.includes('US30') || s.includes('GER') || s.includes('HKG')) return 1;
+    return 1;
+}
+
+/**
+ * 計算子彈大小 (風險金額)
+ */
+export function calculateBulletSize(trade) {
+    if (!trade || !trade.entry_price || !trade.initial_sl) return null;
+    const entry = parseFloat(trade.entry_price);
+    const sl = parseFloat(trade.initial_sl);
+    const lots = parseFloat(trade.lot_size) || 0;
+    if (isNaN(entry) || isNaN(sl)) return null;
+
+    const multiplier = getSymbolMultiplier(trade.symbol);
+    const pointValue = getSymbolPointValue(trade.symbol);
+    const riskPoints = Math.abs(entry - sl) * multiplier;
+
+    return Math.round(riskPoints * pointValue * lots * 100) / 100;
+}
+

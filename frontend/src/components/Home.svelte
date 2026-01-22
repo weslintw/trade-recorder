@@ -5,7 +5,7 @@
   import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
   import BatchShareModal from './BatchShareModal.svelte';
@@ -2059,6 +2059,7 @@
 
                         <div class="trade-details">
                           {#if trade.trade_type === 'actual'}
+                            {@const bulletToDisplay = calculateBulletSize(trade) || trade.bullet_size}
                             <div class="detail-row">
                               <!-- 第一組：價格資訊 -->
                               <div class="info-group">
@@ -2080,13 +2081,14 @@
 
                               <!-- 第二組：績效資訊 -->
                               <div class="info-group">
+
                                 <span class="label">子彈</span>
                                 <strong class="bullet">
-                                  {trade.bullet_size && trade.bullet_size > 0
-                                    ? trade.bullet_size.toFixed(1)
+                                  {bulletToDisplay && bulletToDisplay > 0
+                                    ? bulletToDisplay.toFixed(1)
                                     : 'NA'}
                                 </strong>
-                                {#if trade.bullet_size > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
+                                {#if (bulletToDisplay && bulletToDisplay > 0) && (trade.rr_ratio || trade.rr_ratio === 0)}
                                   <span class="label">風報比</span>
                                   <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
                                     >{trade.rr_ratio.toFixed(2)}</strong
@@ -3377,6 +3379,10 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    flex: 1;
+    min-width: 0;
   }
 
   .pnl-tag {
@@ -3836,7 +3842,7 @@
     }
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 1024px) {
     .day-card-container {
       grid-template-columns: 1fr;
     }
@@ -3845,6 +3851,7 @@
       border-bottom: 1px dashed #e2e8f0;
       padding-right: 0;
       padding-bottom: 1.5rem;
+      width: 100% !important;
     }
     .top-actions-bar {
       display: none; /* Already in bottom nav */

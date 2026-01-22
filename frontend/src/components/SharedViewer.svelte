@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { sharesAPI, imagesAPI } from '../lib/api';
-  import { getStrategyLabel, determineMarketSession, getMarketSessionLabel, calculateDuration } from '../lib/utils';
+  import { getStrategyLabel, determineMarketSession, getMarketSessionLabel, calculateDuration, calculateBulletSize } from '../lib/utils';
   import 'quill/dist/quill.snow.css';
 import Sparkline from './Sparkline.svelte';
 import SharedTradeDetail from './SharedTradeDetail.svelte';
@@ -371,6 +371,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                     {#if group.trades.length > 0}
                       <div class="trades-stack">
                         {#each group.trades as trade}
+                          {@const bulletToDisplay = calculateBulletSize(trade) || trade.bullet_size}
                           <div class="trade-item-card clickable {trade.color_tag ? `tag-${trade.color_tag}` : ''} {trade.trade_type === 'actual' && !trade.exit_time ? 'is-ongoing' : ''}" on:click={() => selectedItem = { type: 'trade', data: trade }}>
                             <div class="item-header">
                               <div class="trade-meta">
@@ -397,6 +398,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                             </div>
 
                             <div class="trade-details-shared">
+
                                 <div class="detail-row">
                                     <div class="info-group">
                                         <span class="label">進場</span>
@@ -415,8 +417,10 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                                     </div>
                                     <div class="info-group">
                                         <span class="label">子彈</span>
-                                        <strong class="bullet">{trade.bullet_size || 'NA'}</strong>
-                                        {#if trade.rr_ratio}
+                                        <strong class="bullet">
+                                            {bulletToDisplay ? bulletToDisplay.toFixed(1) : 'NA'}
+                                        </strong>
+                                        {#if (bulletToDisplay) && (trade.rr_ratio || trade.rr_ratio === 0)}
                                             <span class="label">風報比</span>
                                             <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}">{trade.rr_ratio.toFixed(2)}</strong>
                                         {/if}

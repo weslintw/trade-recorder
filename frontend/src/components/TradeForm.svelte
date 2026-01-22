@@ -14,6 +14,7 @@
   import EliteStrategy from './trade-form/EliteStrategy.svelte';
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
   import Sparkline from './Sparkline.svelte';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe, getSymbolMultiplier, getSymbolPointValue, calculateBulletSize } from '../lib/utils';
 
   export let id = null;
   const symbols = SYMBOLS;
@@ -279,80 +280,8 @@
     });
   }
 
-  // 市場時段判別函數
-  function determineMarketSession(entryTime, timezoneOffset) {
-    if (!entryTime) return '';
+  // 市場時段判別已由 utils.js 的 determineMarketSession 處理
 
-    const date = new Date(entryTime);
-    const month = date.getMonth() + 1; // 1-12
-
-    // 判斷是否為夏令時間（3月-11月）
-    const isDST = month >= 3 && month <= 11;
-
-    // 轉換為 UTC 時間
-    const utcHour = date.getUTCHours();
-    const utcMinute = date.getUTCMinutes();
-
-    // 轉換為 GMT+8（台北時間）用於判斷
-    const gmt8Hour = (utcHour + 8 + 24) % 24;
-    const timeInMinutes = gmt8Hour * 60 + utcMinute;
-
-    // 時間範圍定義（以 GMT+8 為基準，單位：分鐘）
-    // 亞盤（東京）：08:00 - 15:00（全年不變）
-    const asianStart = 8 * 60; // 08:00
-    const asianEnd = 15 * 60; // 15:00
-
-    // 歐盤（倫敦）
-    let europeanStart, europeanEnd;
-    if (isDST) {
-      // 夏令時間：15:00 - 23:00
-      europeanStart = 15 * 60; // 15:00
-      europeanEnd = 23 * 60; // 23:00
-    } else {
-      // 冬令時間：16:00 - 00:00
-      europeanStart = 16 * 60; // 16:00
-      europeanEnd = 24 * 60; // 00:00 (midnight)
-    }
-
-    // 美盤（紐約）
-    let usStart, usEnd;
-    if (isDST) {
-      // 夏令時間：20:00 - 04:00（跨日）
-      usStart = 20 * 60; // 20:00
-      usEnd = 4 * 60; // 04:00
-    } else {
-      // 冬令時間：21:00 - 05:00（跨日）
-      usStart = 21 * 60; // 21:00
-      usEnd = 5 * 60; // 05:00
-    }
-
-    // 判斷市場時段
-    // 亞盤：08:00 - 15:00
-    if (timeInMinutes >= asianStart && timeInMinutes < asianEnd) {
-      return 'asian';
-    }
-
-    // 美盤優先（處理跨日情況）
-    if (timeInMinutes >= usStart || timeInMinutes < usEnd) {
-      return 'us';
-    }
-
-    // 歐盤
-    if (isDST) {
-      // 夏令時間：15:00 - 23:00
-      if (timeInMinutes >= europeanStart && timeInMinutes < europeanEnd) {
-        return 'european';
-      }
-    } else {
-      // 冬令時間：16:00 - 00:00（處理跨日）
-      if (timeInMinutes >= europeanStart || timeInMinutes < 0) {
-        return 'european';
-      }
-    }
-
-    // 其他時間（間隙）預設為亞盤
-    return 'asian';
-  }
 
   // 取得交易日（處理美盤跨日：凌晨的時間算前一天的交易日）
   function getTradingDate(entryTime) {
@@ -376,7 +305,7 @@
 
   // 盈虧點數與風險指標自動計算
   $: {
-    const { trade_type, entry_price, exit_price, lot_size, initial_sl, pnl, symbol, side } =
+    const { trade_type, entry_price, exit_price, lot_size, initial_sl, symbol, side } =
       formData;
     if (trade_type === 'actual' && entry_price) {
       const entry = parseFloat(entry_price);
@@ -384,27 +313,8 @@
       const sl = parseFloat(initial_sl);
       const lots = parseFloat(lot_size);
 
-      let multiplier = 1; // 預設 (金子 XAUUSD: $1 = 1點, 指數: 1.0 = 1點)
-      let pointValue = 1; // 每一點所代表的價值 (1手)
-
-      if (symbol === 'XAUUSD') {
-        multiplier = 1;
-        pointValue = 100;
-      } else if (symbol.includes('JPY')) {
-        multiplier = 100;
-        pointValue = 10;
-      } else if (
-        symbol.includes('EUR') ||
-        symbol.includes('GBP') ||
-        symbol.includes('AUD') ||
-        (symbol.includes('USD') && !symbol.includes('XAU'))
-      ) {
-        multiplier = 10000;
-        pointValue = 10;
-      } else if (symbol === 'NAS100' || symbol === 'US30' || symbol === 'GER40') {
-        multiplier = 1;
-        pointValue = 1;
-      }
+      const multiplier = getSymbolMultiplier(symbol);
+      const pointValue = getSymbolPointValue(symbol);
 
       // 1. 盈虧點數計算
       let currentPnlPoints = 0;
@@ -422,7 +332,7 @@
       if (!isNaN(entry) && !isNaN(sl)) {
         const diff = Math.abs(entry - sl);
         currentRiskPoints = diff * multiplier;
-        const result = Math.round(currentRiskPoints * pointValue * lots * 100) / 100;
+        const result = calculateBulletSize(formData);
         if (formData.bullet_size !== result) {
           formData.bullet_size = result;
         }
@@ -442,7 +352,9 @@
       // 4. 加強：如果盈虧金額為空，也自動算一下
       if (!formData.pnl && !isNaN(entry) && !isNaN(exit) && !isNaN(lots)) {
         const calculatedPnl = Math.round(currentPnlPoints * pointValue * lots * 100) / 100;
-        formData.pnl = calculatedPnl;
+        if (calculatedPnl !== 0) {
+          formData.pnl = calculatedPnl;
+        }
       }
     }
   }
@@ -501,14 +413,7 @@
     return new Date(date.getTime() - offset).toISOString().slice(0, 16);
   }
 
-  function parseJSONSafe(str, defaultValue) {
-    if (!str) return defaultValue;
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      return defaultValue;
-    }
-  }
+
 
   let tagInput = '';
   let saving = false;
