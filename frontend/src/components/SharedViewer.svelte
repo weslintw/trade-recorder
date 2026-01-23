@@ -27,6 +27,7 @@
   let activeDateRange = 'all'; // 'all', '1D', '1W', '1M', 'custom'
   let customStartDate = '';
   let customEndDate = '';
+  let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
 
   const EXPERT_SIGNALS = ['向下蘇美', '起漲靠山', '雙柱', '夾縫'];
   const ELITE_CHECKLIST = [
@@ -274,7 +275,6 @@
       });
   }
 
-  // Reactive Filter Logic
   $: filteredTrades = (() => {
     if (!sharedData || !sharedData.data || !sharedData.data.trades) return [];
     return sharedData.data.trades.filter(t => {
@@ -284,6 +284,15 @@
         if (entryDate === 'unknown') return false;
         if (customStartDate && entryDate < customStartDate) return false;
         if (customEndDate && entryDate > customEndDate) return false;
+      }
+
+      // TP/SL Filter
+      if (activeExitFilter === 'tp') {
+        const reason = String(t.exit_reason || '').toLowerCase();
+        if (!reason.includes('tp') && !reason.includes('take profit')) return false;
+      } else if (activeExitFilter === 'sl') {
+        const reason = String(t.exit_reason || '').toLowerCase();
+        if (!reason.includes('sl') && !reason.includes('stop loss')) return false;
       }
 
       // Color Filter
@@ -541,6 +550,29 @@
                       <input type="date" class="date-input" bind:value={customEndDate} />
                     </div>
                   {/if}
+
+                  <div class="filter-stats-spacer"></div>
+
+                  <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
+                    <div class="stats-icon">✅</div>
+                    <div class="stats-content">
+                      <span class="stats-label">結果：</span>
+                      <span class="stats-value">{filteredTrades.length} 筆</span>
+                      {#if filteredStats.total > 0}
+                        <span class="stats-sep">/</span>
+                        <span class="stats-label">勝率</span>
+                        <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+                      {/if}
+                      <div class="stats-color-groups">
+                        <span class="stats-color-dot green"></span>
+                        <span class="stats-color-count">{filteredStats.green}</span>
+                        <span class="stats-color-dot yellow"></span>
+                        <span class="stats-color-count">{filteredStats.yellow}</span>
+                        <span class="stats-color-dot red"></span>
+                        <span class="stats-color-count">{filteredStats.red}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="divider-horizontal"></div>
@@ -599,28 +631,20 @@
                     <span class="stats-color-dot red"></span>
                   </button>
 
-                  <div class="filter-stats-spacer"></div>
+                  <div class="divider"></div>
 
-                  <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
-                    <div class="stats-icon">✅</div>
-                    <div class="stats-content">
-                      <span class="stats-label">結果：</span>
-                      <span class="stats-value">{filteredTrades.length} 筆</span>
-                      {#if filteredStats.total > 0}
-                        <span class="stats-sep">/</span>
-                        <span class="stats-label">勝率</span>
-                        <span class="stats-value win-rate">{filteredStats.winRate}%</span>
-                      {/if}
-                      <div class="stats-color-groups">
-                        <span class="stats-color-dot green"></span>
-                        <span class="stats-color-count">{filteredStats.green}</span>
-                        <span class="stats-color-dot yellow"></span>
-                        <span class="stats-color-count">{filteredStats.yellow}</span>
-                        <span class="stats-color-dot red"></span>
-                        <span class="stats-color-count">{filteredStats.red}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <button
+                    class="filter-type-btn {activeExitFilter === 'tp' ? 'active' : ''}"
+                    on:click={() => (activeExitFilter = activeExitFilter === 'tp' ? 'all' : 'tp')}
+                  >
+                    🎯 TP
+                  </button>
+                  <button
+                    class="filter-type-btn {activeExitFilter === 'sl' ? 'active' : ''}"
+                    on:click={() => (activeExitFilter = activeExitFilter === 'sl' ? 'all' : 'sl')}
+                  >
+                    🛑 SL
+                  </button>
                 </div>
 
                 {#if activeFilterType !== 'all'}

@@ -52,6 +52,7 @@
   let activeFilterType = 'all'; // 'all', 'expert', 'elite', 'legend'
   let activeSubFilter = null;
   let activeColorFilter = null; // 紅綠燈過濾
+  let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
 
   const EXPERT_SIGNALS = [
     '向下蘇美',
@@ -168,7 +169,8 @@
     groupedData,
     activeFilterType,
     activeSubFilter,
-    activeColorFilter
+    activeColorFilter,
+    activeExitFilter
   );
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
@@ -297,11 +299,11 @@
     return [...new Set(waves)].join(' | ');
   }
 
-  function applyFilters(data, type, sub, color) {
+  function applyFilters(data, type, sub, color, exitFilter) {
     if (!data) return [];
 
     // 如果是全選且無任何子過濾，直接返回
-    if (type === 'all' && !sub && !color) return data;
+    if (type === 'all' && !sub && !color && (!exitFilter || exitFilter === 'all')) return data;
 
     const debug = !!sub;
     const cleanSub = sub ? String(sub).trim() : null;
@@ -314,6 +316,14 @@
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
+              // TP/SL Filter
+              if (exitFilter === 'tp') {
+                const reason = String(trade.exit_reason || '').toLowerCase();
+                if (!reason.includes('tp') && !reason.includes('take profit')) return false;
+              } else if (exitFilter === 'sl') {
+                const reason = String(trade.exit_reason || '').toLowerCase();
+                if (!reason.includes('sl') && !reason.includes('stop loss')) return false;
+              }
               // 1. 策略類型匹配 (高度容錯)
               const tStrat = String(trade.entry_strategy || trade.strategy || '')
                 .trim()
@@ -370,9 +380,9 @@
         };
       })
       .filter(day => {
-        // 如果有設定策略篩選 (type !== 'all')、子篩選 (搜尋模式) 或顏色篩選，
+        // 如果有設定策略篩選 (type !== 'all')、子篩選 (搜尋模式)、顏色篩選或 TP/SL 篩選，
         // 則嚴格只顯示有交易紀錄命中的日期，隱藏那些只有盤面規劃但沒有符合交易的空區塊
-        if (type !== 'all' || cleanSub || color) {
+        if (type !== 'all' || cleanSub || color || (exitFilter && exitFilter !== 'all')) {
           return day.groupedTrades.length > 0;
         }
         // 一般全覽模式：顯示有規劃或有交易的日期
@@ -1697,6 +1707,30 @@
             />
           </div>
         {/if}
+
+        <div class="filter-stats-spacer"></div>
+
+        <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
+          <div class="stats-icon">✅</div>
+          <div class="stats-content">
+            <span class="stats-label">
+              {statsLabel}
+            </span>
+            <span class="stats-value">{filteredStats.total} 筆</span>
+            <span class="stats-sep">/</span>
+            <span class="stats-label">勝率</span>
+            <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+
+            <div class="stats-color-groups">
+              <span class="stats-color-dot green"></span>
+              <span class="stats-color-count">{filteredStats.green}</span>
+              <span class="stats-color-dot yellow"></span>
+              <span class="stats-color-count">{filteredStats.yellow}</span>
+              <span class="stats-color-dot red"></span>
+              <span class="stats-color-count">{filteredStats.red}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="divider-horizontal"></div>
@@ -1755,6 +1789,21 @@
           <span class="stats-color-dot red" style="width: 12px; height: 12px;"></span>
         </button>
 
+        <div class="divider"></div>
+
+        <button
+          class="filter-type-btn {activeExitFilter === 'tp' ? 'active' : ''}"
+          on:click={() => (activeExitFilter = activeExitFilter === 'tp' ? 'all' : 'tp')}
+        >
+          🎯 TP
+        </button>
+        <button
+          class="filter-type-btn {activeExitFilter === 'sl' ? 'active' : ''}"
+          on:click={() => (activeExitFilter = activeExitFilter === 'sl' ? 'all' : 'sl')}
+        >
+          🛑 SL
+        </button>
+
         <div class="page-size-selector">
           <span class="selector-label">加載量:</span>
           <select
@@ -1769,30 +1818,6 @@
               <option value={opt}>{opt}</option>
             {/each}
           </select>
-        </div>
-
-        <div class="filter-stats-spacer"></div>
-
-        <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
-          <div class="stats-icon">✅</div>
-          <div class="stats-content">
-            <span class="stats-label">
-              {statsLabel}
-            </span>
-            <span class="stats-value">{filteredStats.total} 筆</span>
-            <span class="stats-sep">/</span>
-            <span class="stats-label">勝率</span>
-            <span class="stats-value win-rate">{filteredStats.winRate}%</span>
-
-            <div class="stats-color-groups">
-              <span class="stats-color-dot green"></span>
-              <span class="stats-color-count">{filteredStats.green}</span>
-              <span class="stats-color-dot yellow"></span>
-              <span class="stats-color-count">{filteredStats.yellow}</span>
-              <span class="stats-color-dot red"></span>
-              <span class="stats-color-count">{filteredStats.red}</span>
-            </div>
-          </div>
         </div>
       </div>
 
