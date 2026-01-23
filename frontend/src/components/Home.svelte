@@ -197,9 +197,6 @@
     return stats;
   })();
 
-  $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
-  $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
-
   function formatSignalsSummary(trend) {
     if (!trend) return '';
     let signals = [];
@@ -272,35 +269,43 @@
 
   function applyFilters(data, type, sub) {
     if (!data) return [];
+    
+    // 偵錯日誌：僅在選擇了子項目時開啟
+    const debug = !!sub;
+    if (debug) console.log(`🔍 [ApplyFilters] Debug Mode. Type: ${type}, Sub: ${sub}`);
 
     const robustParse = (val, def = []) => {
       if (val === null || val === undefined) return def;
       if (Array.isArray(val)) return val;
       if (typeof val === 'object') return [val];
       try {
-        let parsed = JSON.parse(val);
-        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : def);
+        let parsed = val;
+        let safeCounter = 0;
+        // 強化：遞迴解析可能的嵌套 JSON 字串
+        while (typeof parsed === 'string' && safeCounter < 3) {
+            parsed = JSON.parse(parsed);
+            safeCounter++;
+        }
+        if (!parsed) return def;
+        return Array.isArray(parsed) ? parsed : [parsed];
       } catch (e) {
         return def;
       }
     };
 
-    // 終極匹配函數：支援物件匹配與全文檢索回退
     const checkMatch = (val, target) => {
       if (!val || !target) return false;
       const cleanTarget = String(target).trim();
       
-      // 1. 標準物件路徑匹配
       const arr = robustParse(val);
       const formalMatch = arr.some(item => {
         if (!item) return false;
-        const name = typeof item === 'object' ? item.name : String(item);
+        const name = item.name || item.label || item.value || (typeof item === 'string' ? item : null);
         return name && String(name).trim() === cleanTarget;
       });
       if (formalMatch) return true;
 
-      // 2. 暴力檢索：直接搜尋原始字串（應對各種非預期格式）
+      // 全文搜尋回退
       try {
         const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
         if (rawStr.includes(cleanTarget)) return true;
@@ -338,22 +343,31 @@
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
-              // 策略類型檢查 (加上 trim 確保萬無一失)
-              const tStrat = String(trade.entry_strategy || '').trim();
-              if (type !== 'all' && tStrat !== type) return false;
-
+              const tStrat = String(trade.entry_strategy || '').trim().toLowerCase();
+              const fType = type.toLowerCase();
+              
+              if (fType !== 'all' && tStrat !== fType) return false;
               if (!sub) return true;
 
-              // 依序檢查所有可能欄位
-              if (checkMatch(trade.entry_signals, sub)) return true;
-              if (checkMatch(trade.entry_pattern, sub)) return true;
+              const mS = checkMatch(trade.entry_signals, sub);
+              const mP = checkMatch(trade.entry_pattern, sub);
 
               const checklist = typeof trade.entry_checklist === 'string' 
                 ? parseJSONSafe(trade.entry_checklist, {}) 
                 : (trade.entry_checklist || {});
-              if (checklist[sub] === true) return true;
+              const mC = checklist[sub] === true;
 
-              return false;
+              const isMatch = mS || mP || mC;
+              
+              if (debug && !isMatch && (fType === 'all' || tStrat === fType)) {
+                  console.warn(`[Filter Fail #${trade.ticket || trade.id}] No match for '${sub}' in:`, {
+                      strategy: tStrat,
+                      signals: trade.entry_signals,
+                      pattern: trade.entry_pattern
+                  });
+              }
+
+              return isMatch;
             });
 
             if (filteredTrades.length === 0) return null;
