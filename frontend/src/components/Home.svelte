@@ -477,7 +477,8 @@
     const { signal } = loadController;
     let currentResetTimer = null;
 
-    console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent:`, silent);
+    console.debug(`[Diagnostic] --- loadData #${callId} START ---`);
+    const diagnosticStart = performance.now();
 
     try {
       if (!silent) {
@@ -733,8 +734,8 @@
       }
 
       groupedData = newGroupedData;
-      const totalDuration = performance.now() - diagnosticStart;
-      const processingDuration = performance.now() - processingStart;
+      const totalDuration = performance.now() - (diagnosticStart || performance.now());
+      const processingDuration = performance.now() - (processingStart || performance.now());
       console.log(`[Diagnostic] #${callId} Processing Finish: ${processingDuration.toFixed(2)}ms`);
       console.log(
         `[Diagnostic] --- loadData #${callId} COMPLETE: ${totalDuration.toFixed(2)}ms ---`
