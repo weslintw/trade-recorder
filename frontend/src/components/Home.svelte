@@ -157,7 +157,7 @@
     loadData();
   }
 
-  $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
+  $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter, activeColorFilter);
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
@@ -285,8 +285,11 @@
     return [...new Set(waves)].join(' | ');
   }
 
-  function applyFilters(data, type, sub) {
+  function applyFilters(data, type, sub, color) {
     if (!data) return [];
+    
+    // 如果是全選且無任何子過濾，直接返回
+    if (type === 'all' && !sub && !color) return data;
     
     const debug = !!sub;
     const cleanSub = sub ? String(sub).trim() : null;
@@ -349,9 +352,9 @@
         };
       })
       .filter(day => {
-          // 如果有設定子篩選 (搜尋模式)，嚴格只顯示有交易命中的日期
+          // 如果有設定子篩選 (搜尋模式) 或顏色篩選，嚴格只顯示有交易命中的日期
           // 這樣可以隱藏那些只有盤面規劃但沒有符合交易的空區塊
-          if (cleanSub) {
+          if (cleanSub || color) {
               return day.groupedTrades.length > 0;
           }
           // 一般瀏覽模式：顯示有規劃或有交易的日期
@@ -2319,7 +2322,7 @@
                   {/each}
                 </div>
               {:else}
-                {#if !activeSubFilter}
+                {#if !activeSubFilter && !activeColorFilter}
                   <div
                     class="empty-placeholder dash-trade"
                     on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
