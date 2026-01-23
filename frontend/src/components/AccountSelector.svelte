@@ -25,19 +25,12 @@
   }
 
   onMount(() => {
-    console.log('🟣 AccountSelector mounted');
-    if ($auth.isAuthenticated) {
-      console.log('🟣 AccountSelector: Initial fetch');
-      fetchAccounts();
-    }
+    // 移除重複的抓取，統一交由 Home 組件負責
   });
 
-
-
   function handleAccountChange(e) {
-    selectedAccountId.set(parseInt(e.target.value));
-    // 重整頁面以確保所有元件重新加載數據
-    window.location.reload();
+    const newId = parseInt(e.target.value);
+    selectedAccountId.set(newId);
   }
 </script>
 
@@ -52,9 +45,7 @@
           {#each $accounts as account}
             <option value={account.id}>
               {account.name}
-              {account.type === 'ctrader'
-                  ? '(cTrader)'
-                  : '(本地)'}
+              {account.type === 'ctrader' ? '(cTrader)' : '(本地)'}
             </option>
           {/each}
         {/if}

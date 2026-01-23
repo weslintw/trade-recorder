@@ -12,7 +12,9 @@ const api = axios.create({
   },
 });
 
-// 請求攔截器：自動加入 Token, 診斷 Log, 與防止快取 (Cache-buster)
+// 請求去重佇列 (Request Deduplication Queue)
+const pendingRequests = new Map();
+
 api.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token');
@@ -27,43 +29,44 @@ api.interceptors.request.use(
     }
 
     config.metadata = { startTime: performance.now() };
-    console.log(`🚀 [API Request] ${config.method.toUpperCase()} ${config.url}`);
     return config;
   },
-  error => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
-// 回應攔截器：計算耗時
+// 回應攔截器：統一記錄 Log 並清理佇列
 api.interceptors.response.use(
   response => {
     const duration = performance.now() - response.config.metadata.startTime;
-    console.log(
-      `✅ [API Response] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration.toFixed(
-        2
-      )}ms`
-    );
+    console.log(`✅ [API] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration.toFixed(2)}ms`);
     return response;
   },
   error => {
-    const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
-    const duration = error.config?.metadata
-      ? (performance.now() - error.config.metadata.startTime).toFixed(2)
-      : 'unknown';
-    
-    if (isTimeout) {
-      console.warn(`⏳ [API Timeout] ${error.config?.url} 請求超時 (${duration}ms)。請檢查是否開啟過多分頁或網路不穩。`);
-    }
-
-    console.error(
-      `❌ [API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${duration}ms - Error: ${
-        error.message
-      } (Code: ${error.code})`
-    );
+    const duration = error.config?.metadata ? (performance.now() - error.config.metadata.startTime).toFixed(2) : 'unknown';
+    console.error(`❌ [API Error] ${error.config?.url} - ${duration}ms - ${error.message}`);
     return Promise.reject(error);
   }
 );
+
+// 包裝特定 API 實現真正去重
+const originalGet = api.get;
+api.get = function(url, config) {
+  // 只針對特定的高頻資源進行去重 (如 /accounts)
+  if (url === '/accounts' || url.startsWith('/accounts?')) {
+    if (pendingRequests.has(url)) {
+      console.log(`🛡️ [Dedupe] Sharing existing request for ${url}`);
+      return pendingRequests.get(url);
+    }
+    
+    const request = originalGet.call(this, url, config).finally(() => {
+      pendingRequests.delete(url);
+    });
+    
+    pendingRequests.set(url, request);
+    return request;
+  }
+  return originalGet.call(this, url, config);
+};
 
 // 認證相關
 export const authAPI = {
