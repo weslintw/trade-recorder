@@ -141,7 +141,16 @@
 
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
   $: filteredStats = (() => {
-    let stats = { total: 0, wins: 0, winRate: "0.0", totalPnl: "0.00", hasTrades: false };
+    let stats = { 
+      total: 0, 
+      wins: 0, 
+      winRate: "0.0", 
+      totalPnl: "0.00", 
+      hasTrades: false,
+      green: 0,
+      yellow: 0,
+      red: 0
+    };
     if (!filteredGroupedData) return stats;
     
     // 獲取所有篩選後的交易 (採用傳統迴圈避免箭頭函數以符合編譯安全規則)
@@ -167,7 +176,13 @@
     
     for (let i = 0; i < allTrades.length; i++) {
         const t = allTrades[i];
-        // 僅統計已平倉的實盤交易
+        
+        // 統計顏色標籤
+        if (t.color_tag === 'green') stats.green++;
+        else if (t.color_tag === 'yellow') stats.yellow++;
+        else if (t.color_tag === 'red') stats.red++;
+
+        // 僅統計已平倉的實盤交易 (用於勝率)
         if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
             total++;
             if (t.pnl > 0) wins++;
@@ -1646,6 +1661,15 @@
             <span class="stats-sep">/</span>
             <span class="stats-label">勝率</span>
             <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+
+            <div class="stats-color-groups">
+              <span class="stats-color-dot green"></span>
+              <span class="stats-color-count">{filteredStats.green}</span>
+              <span class="stats-color-dot yellow"></span>
+              <span class="stats-color-count">{filteredStats.yellow}</span>
+              <span class="stats-color-dot red"></span>
+              <span class="stats-color-count">{filteredStats.red}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -4260,6 +4284,32 @@
   .stats-sep {
     color: rgba(34, 197, 94, 0.25);
     font-weight: 300;
+  }
+
+  .stats-color-groups {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid rgba(34, 197, 94, 0.15);
+  }
+
+  .stats-color-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+  }
+
+  .stats-color-dot.green { background-color: #22c55e; }
+  .stats-color-dot.yellow { background-color: #eab308; }
+  .stats-color-dot.red { background-color: #ef4444; }
+
+  .stats-color-count {
+    font-size: 0.8rem;
+    color: var(--text-main);
+    font-weight: 700;
+    margin-right: 0.2rem;
   }
 
   .filter-type-btn {
