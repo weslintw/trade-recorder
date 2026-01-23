@@ -630,6 +630,7 @@
       trades = uniqueTrades;
 
       // 按日期分組 (YYYY-MM-DD)
+      const processingStart = performance.now();
       const dateMap = {};
       let processedCount = 0;
       const totalToProcess = plans.length + trades.length;
