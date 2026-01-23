@@ -274,41 +274,66 @@
 
   function applyFilters(data, type, sub) {
     if (!data) return [];
-    if (type === 'all' && !sub) return data;
+    
+    // 安全解析函數，支援已是物件的情況
+    const safeParse = (val, def) => {
+      if (val === null || val === undefined) return def;
+      if (typeof val === 'object') return val;
+      return parseJSONSafe(val, def);
+    };
 
     return data
       .map(day => {
         const filteredPlans = day.plans.filter(plan => {
-          // 規劃目前僅支持達人訊號過濾
-          if (type !== 'expert' && type !== 'all') return false;
+          // 規劃目前僅支持達人訊號過濾，或者是全部模式下帶有 sub 的情況
+          if (type !== 'expert' && type !== 'all' && sub) return false;
 
-          const trendData = parseJSONSafe(plan.trend_analysis, {});
+          const trendData = safeParse(plan.trend_analysis, {});
           // 檢查所有時段與時區
-          for (const sessionKey of ['asian', 'european', 'us']) {
+          for (const sessionKey of ['asian', 'european', 'us', 'all']) {
             const sessData = trendData[sessionKey];
-            if (!sessData || !sessData.trends) continue;
+            if (!sessData || !sessData.trends) {
+              // 處理舊格式：trends 可能直接在頂層
+              const trends = sessionKey === 'all' ? trendData : null;
+              if (!trends) continue;
+              
+              for (const tf of TIMEFRAMES) {
+                const trend = trends[tf];
+                if (!trend) continue;
+                for (const dir of ['long', 'short', 'neutral']) {
+                  const dData = trend[dir] || (dir === 'neutral' ? null : trend); // 兼顧極舊格式
+                  if (!dData) continue;
+                  
+                  const signals = dData.signals || [];
+                  const expected = dData.expected_signals || [];
+                  
+                  if (!sub) {
+                    if (signals.length > 0 || expected.length > 0) return true;
+                  } else {
+                    if (signals.includes(sub)) return true;
+                    if (expected.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
+                  }
+                }
+              }
+              continue;
+            }
 
-            for (const tf of TIMEFRAMES) {
+            for (const tf in sessData.trends) {
               const trend = sessData.trends[tf];
               if (!trend) continue;
 
-              // 檢查 long 和 short 方向
-              for (const dir of ['long', 'short']) {
+              for (const dir of ['long', 'short', 'neutral']) {
                 const dData = trend[dir];
                 if (!dData) continue;
 
-                if (type === 'expert' || type === 'all') {
-                  const signals = dData.has_signals ? dData.signals || [] : [];
-                  const expected = dData.has_expected_signals ? dData.expected_signals || [] : [];
+                const signals = dData.signals || [];
+                const expected = dData.expected_signals || [];
 
-                  if (!sub) {
-                    // 如果沒選子項目，只要是達人有訊號就顯示
-                    if (signals.length > 0 || expected.length > 0) return true;
-                  } else {
-                    if (dData.has_signals && signals.includes(sub)) return true;
-                    if (dData.has_expected_signals && expected.some(s => s.name === sub))
-                      return true;
-                  }
+                if (!sub) {
+                  if (signals.length > 0 || expected.length > 0) return true;
+                } else {
+                  if (signals.includes(sub)) return true;
+                  if (expected.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
                 }
               }
             }
@@ -319,28 +344,30 @@
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
+              // 如果選了特定策略類型，先過濾策略
               if (type !== 'all' && trade.entry_strategy !== type) return false;
 
-              if (type === 'expert') {
-                const signals = parseJSONSafe(trade.entry_signals, []);
-                if (!sub) return true;
-                return signals.some(s => (typeof s === 'object' ? s.name === sub : s === sub));
+              // 如果沒有子過濾器，且已經符合策略類型（或選全部），則顯示
+              if (!sub) return true;
+
+              // 處理子過濾器
+              if (type === 'expert' || type === 'all' || trade.entry_strategy === 'expert') {
+                const signals = safeParse(trade.entry_signals, []);
+                if (signals.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
               }
 
-              if (type === 'elite') {
-                const patterns = parseJSONSafe(trade.entry_pattern, []);
-                if (!sub) return true;
-                return patterns.some(p => (typeof p === 'object' ? p.name === sub : p === sub));
+              if (type === 'elite' || type === 'all' || trade.entry_strategy === 'elite') {
+                const patterns = safeParse(trade.entry_pattern, []);
+                if (patterns.some(p => (typeof p === 'object' ? p.name === sub : p === sub))) return true;
               }
 
-              if (type === 'legend') {
-                const checklist = parseJSONSafe(trade.entry_checklist, {});
-                if (!sub) return true;
-                return checklist[sub] === true;
+              if (type === 'legend' || type === 'all' || trade.entry_strategy === 'legend') {
+                const checklist = safeParse(trade.entry_checklist, {});
+                if (checklist[sub] === true) return true;
               }
 
-              // 如果 type 為 all 且有 sub，這情況較少見，目前暫不特別處理
-              return type === 'all';
+              // 如果沒匹配到任何子過濾器條件
+              return false;
             });
 
             if (filteredTrades.length === 0) return null;

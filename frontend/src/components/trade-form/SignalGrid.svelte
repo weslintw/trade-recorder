@@ -2,7 +2,7 @@
   export let formData = {};
   export let entry_signals = []; 
 
-  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '夾縫', '倚天', '攻城池上'];
+  const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '夾縫', '喇叭-上', '喇叭-中', '喇叭-下', '倚天', '攻城池上'];
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '夾縫', '向上蘇美', '雷霆'];
 
   $: expertSignals = formData.side === 'long' ? expertSignalsLong : expertSignalsShort;
