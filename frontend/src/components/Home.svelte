@@ -443,6 +443,7 @@
 
   async function loadData(silent = false) {
     const callId = ++loadDataCallCount;
+    console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
     const now = Date.now();
 
     // --- 強制防抖 (Strict Debounce) ---
@@ -636,11 +637,11 @@
           // Pre-parse trend analysis to avoid template errors & const limitations
           plan.trendData = parseJSONSafe(plan.trend_analysis, {});
 
-          if (!plan.plan_date) return;
+          if (!plan.plan_date) continue;
           const planDateObj = new Date(plan.plan_date);
           if (isNaN(planDateObj.getTime())) {
             console.warn('Invalid plan date:', plan.plan_date);
-            return;
+            continue;
           }
           const date = planDateObj.toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
@@ -658,9 +659,9 @@
           await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
-          if (!trade.entry_time) return; // Skip if no entry time
+          if (!trade.entry_time) continue; // Skip if no entry time
           const dateObj = new Date(trade.entry_time);
-          if (isNaN(dateObj.getTime())) return; // Skip invalid date
+          if (isNaN(dateObj.getTime())) continue; // Skip invalid date
 
           const date = dateObj.toISOString().slice(0, 10);
           if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
@@ -1802,10 +1803,23 @@
         </button>
       </div>
     </div>
-  {:else if groupedData.length === 0}
+  {:else if filteredGroupedData.length === 0}
     <div class="empty-state">
       <div class="empty-icon">🏜️</div>
-      <p>這裡空空如也，開始記錄您的第一筆 {$selectedSymbol} 規劃或交易吧！</p>
+      {#if isAllMode && !activeColorFilter}
+        <p>這裡空空如也，開始記錄您的第一筆 {$selectedSymbol} 規劃或交易吧！</p>
+      {:else}
+        <p>找不到符合篩選條件的資料。</p>
+        <button
+          class="btn btn-secondary btn-sm"
+          style="margin-top: 10px;"
+          on:click={() => {
+            activeFilterType = 'all';
+            activeSubFilter = null;
+            activeColorFilter = null;
+          }}>清除所有篩選</button
+        >
+      {/if}
     </div>
   {:else}
     <div class="timeline">
