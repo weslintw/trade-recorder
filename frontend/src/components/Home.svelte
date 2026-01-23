@@ -129,6 +129,9 @@
       activeFilterType = type;
       activeSubFilter = null;
     }
+    // 切換篩選時，重置回第一頁並重新載入資料 (後端篩選)
+    pagination.page = 1;
+    loadData();
   }
 
   function toggleSubFilter(value) {
@@ -137,6 +140,9 @@
     } else {
       activeSubFilter = value;
     }
+    // 切換子項目時，重置回第一頁並重新載入資料 (後端篩選)
+    pagination.page = 1;
+    loadData();
   }
 
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
@@ -526,6 +532,9 @@
             page: activeDateRange === 'all' ? pagination.page : 1,
             start_date: activeDateRange === 'all' ? undefined : customStartDate,
             end_date: activeDateRange === 'all' ? undefined : customEndDate ? customEndDate + ' 23:59:59' : undefined,
+            // 傳遞篩選參數到後端
+            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+            keyword: activeSubFilter || undefined,
           },
           signal
         ).catch(e => {
