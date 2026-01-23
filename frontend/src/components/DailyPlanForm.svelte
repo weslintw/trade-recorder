@@ -50,7 +50,6 @@
         directions: [], // 支持多個方向
         long: createDirectionData(),
         short: createDirectionData(),
-        neutral: createDirectionData(), // 中性訊號（夾縫、喇叭等）
         image: '',
         originalImage: '',
         // 為了向後兼容，保留舊欄位名稱但主要使用上述結構
@@ -85,7 +84,6 @@
       for (let tf in currentTrends) {
         if (!currentTrends[tf].long) currentTrends[tf].long = createDirectionData();
         if (!currentTrends[tf].short) currentTrends[tf].short = createDirectionData();
-        if (!currentTrends[tf].neutral) currentTrends[tf].neutral = createDirectionData();
       }
     }
   }
@@ -103,10 +101,9 @@
   // 達人訊號選項
   const expertSignalsLong = ['向下蘇美', '起漲靠山', '雙柱', '倚天', '攻城池上'];
   const expertSignalsShort = ['起跌靠山', '君臨城下', '雙塔', '向上蘇美', '雷霆'];
-  const expertSignalsNeutral = ['夾縫', '喇叭-上', '喇叭-中', '喇叭-下'];
 
   // 全部訊號清單（去除重複）
-  const allExpertSignals = Array.from(new Set([...expertSignalsLong, ...expertSignalsShort, ...expertSignalsNeutral]));
+  const allExpertSignals = Array.from(new Set([...expertSignalsLong, ...expertSignalsShort]));
 
   // 波浪數字選項
   const waveNumbers = ['1', '2', '3', '4', '5'];
@@ -318,15 +315,6 @@
             }
             if (!t.long) t.long = createDirectionData();
             if (!t.short) t.short = createDirectionData();
-            if (!t.neutral) t.neutral = createDirectionData();
-
-            // 更新標籤
-            if (t.neutral.has_signals === undefined || t.neutral.has_signals === null) {
-              t.neutral.has_signals = t.neutral.signals?.length > 0 || !!t.neutral.signals_image;
-            }
-            if (t.neutral.has_expected_signals === undefined || t.neutral.has_expected_signals === null) {
-              t.neutral.has_expected_signals = t.neutral.expected_signals?.length > 0;
-            }
 
             // 遷移舊資料到 long 或 short 下 (如果舊資料有 direction)
             if (t.direction && t.direction !== 'both') {
@@ -1182,161 +1170,7 @@
                 </div>
               {/each}
 
-              {#if currentTrends[timeframe]?.directions}
-                {#if currentTrends[timeframe].directions.length > 0}
-                  {#if currentTrends[timeframe]?.neutral}
-                    <div class="direction-analysis-box neutral">
-                      <div class="direction-badge neutral">🎯 中性訊號</div>
 
-                      <!-- 已成立的中性訊號 -->
-                      <div class="timeframe-signals">
-                        <label class="section-label inline-check">
-                          <input
-                            type="checkbox"
-                            bind:checked={currentTrends[timeframe].neutral.has_signals}
-                          />
-                          已成立的中性訊號
-                        </label>
-
-                        {#if currentTrends[timeframe].neutral.has_signals}
-                          <div class="signal-chips">
-                            {#each expertSignalsNeutral as signal (waveButtonKey + '-' + timeframe + '-neutral-established-' + signal)}
-                              <button
-                                type="button"
-                                class="signal-chip"
-                                class:active={isTimeframeSignalSelected(timeframe, 'neutral', signal)}
-                                on:click|stopPropagation={() =>
-                                  toggleTimeframeSignal(timeframe, 'neutral', signal)}
-                              >
-                                {signal}
-                              </button>
-                            {/each}
-                          </div>
-
-                          <!-- 中性訊號圖片 -->
-                          {#if currentTrends[timeframe].neutral.signals_image}
-                            <div
-                              class="trend-image-preview"
-                              on:click|stopPropagation={() =>
-                                enlargeImage(
-                                  currentTrends[timeframe].neutral.signals_image,
-                                  `${timeframe} 中性訊號圖`,
-                                  { type: 'signals', key: timeframe, direction: 'neutral' }
-                                )}
-                            >
-                              <img
-                                src={getImageUrl(currentTrends[timeframe].neutral.signals_image)}
-                                alt="{timeframe} 中性訊號"
-                                style="pointer-events: none;"
-                              />
-                              <button
-                                type="button"
-                                class="remove-image-btn"
-                                on:click|stopPropagation={() =>
-                                  removeTrendImage(timeframe, 'signals', 'neutral')}
-                                title="移除圖片"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          {:else}
-                            <div class="split-upload-area">
-                              <button
-                                type="button"
-                                class="split-upload-btn"
-                                on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'signals', 'neutral')}
-                                title="上傳圖片"
-                              >
-                                📸
-                              </button>
-                              <div
-                                class="split-paste-zone"
-                                on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'signals', 'neutral')}
-                                tabindex="0"
-                              >
-                                貼上中性訊號圖 (Ctrl+V)
-                              </div>
-                            </div>
-                          {/if}
-                        {/if}
-                      </div>
-
-                      <!-- 預期產生的中性訊號 -->
-                      <div class="timeframe-signals expected">
-                        <label class="section-label inline-check">
-                          <input
-                            type="checkbox"
-                            bind:checked={currentTrends[timeframe].neutral.has_expected_signals}
-                          />
-                          預期產生的中性訊號
-                        </label>
-
-                        {#if currentTrends[timeframe].neutral.has_expected_signals}
-                          <div class="signal-chips">
-                            {#each expertSignalsNeutral as signal (waveButtonKey + '-' + timeframe + '-neutral-expected-' + signal)}
-                              <button
-                                type="button"
-                                class="signal-chip expected"
-                                class:active={isExpectedSignalSelected(timeframe, 'neutral', signal)}
-                                on:click|stopPropagation={() =>
-                                  toggleExpectedSignal(timeframe, 'neutral', signal)}
-                              >
-                                {signal}
-                              </button>
-                            {/each}
-                          </div>
-
-                          <!-- 預期中性訊號圖片 -->
-                          {#if currentTrends[timeframe].neutral.expected_signals_image}
-                            <div
-                              class="trend-image-preview"
-                              on:click|stopPropagation={() =>
-                                enlargeImage(
-                                  currentTrends[timeframe].neutral.expected_signals_image,
-                                  `${timeframe} 中性預期訊號圖`,
-                                  { type: 'expected_signals', key: timeframe, direction: 'neutral' }
-                                )}
-                            >
-                              <img
-                                src={getImageUrl(currentTrends[timeframe].neutral.expected_signals_image)}
-                                alt="{timeframe} 中性預期訊號"
-                                style="pointer-events: none;"
-                              />
-                              <button
-                                type="button"
-                                class="remove-image-btn"
-                                on:click|stopPropagation={() =>
-                                  removeTrendImage(timeframe, 'expected_signals', 'neutral')}
-                                title="移除圖片"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          {:else}
-                            <div class="split-upload-area">
-                              <button 
-                                type="button" 
-                                class="split-upload-btn" 
-                                on:click|stopPropagation={() => triggerTrendUpload(timeframe, 'expected_signals', 'neutral')}
-                                title="上傳圖片"
-                              >
-                                📸
-                              </button>
-                              <div 
-                                class="split-paste-zone"
-                                on:paste|preventDefault|stopPropagation={e => handleTrendImagePaste(e, timeframe, 'expected_signals', 'neutral')}
-                                tabindex="0"
-                              >
-                                貼上訊號圖 (Ctrl+V)
-                              </div>
-                            </div>
-                          {/if}
-                        {/if}
-                      </div>
-                    </div>
-                  {/if}
-                {/if}
-              {/if}
 
               <!-- 如果沒有選方向，顯示提示 -->
               {#if (currentTrends[timeframe]?.directions || []).length === 0}
@@ -1565,6 +1399,12 @@
 
     .dark-mode .data-indicator-v {
       box-shadow: 0 0 0 2px #2d3748;
+    }
+
+    .dark-mode .section-label,
+    .dark-mode .signal-chip.expected,
+    .dark-mode .split-paste-zone {
+      color: #ffffff !important;
     }
 
     /* 趨勢分析 */
@@ -2138,6 +1978,10 @@
       border-style: dashed;
       background: var(--card-bg);
       color: #1e40af;
+    }
+
+    .dark-mode .signal-chip.expected {
+      color: #ffffff;
     }
 
     .signal-chip.expected.active {
