@@ -752,13 +752,10 @@
   let isRefreshingAccounts = false;
   let refreshAccountsController = null;
   let lastRefreshAccountsTime = 0;
-  async function refreshAccounts() {
-    const now = performance.now();
-    if (isRefreshingAccounts || now - lastRefreshAccountsTime < 10000) {
-      // 10秒內不重複刷新帳號列表，除非是手動強制觸發
+  async function refreshAccounts(force = false) {
+    if (isRefreshingAccounts) {
       return;
     }
-    lastRefreshAccountsTime = now;
 
     // Abort previous refresh if any
     if (refreshAccountsController) refreshAccountsController.abort();
@@ -827,7 +824,7 @@
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
             console.log('🚀 [Realtime] Trade update detected, reloading...');
             loadData(true);
-            refreshAccounts();
+            throttledRefreshAccounts();
           }
         } else if (msg.type === 'PRICE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
@@ -854,8 +851,17 @@
     };
   }
 
-  // 節流處理價格更新，避免過度頻繁的 API 請求
-  let lastRealtimeLoadTime = 0;
+  // 節流處理帳號更新，避免 WebSocket 廣播引發雪崩
+  let lastRefreshAccountsCall = 0;
+  function throttledRefreshAccounts() {
+    const now = Date.now();
+    if (now - lastRefreshAccountsCall > 10000) {
+      lastRefreshAccountsCall = now;
+      refreshAccounts();
+    }
+  }
+
+  // 節流處理數據更新
 
   // 核心優化：直接更新記憶體中的盈虧，不發起網路請求
   function updatePnLInMemory(prices) {
