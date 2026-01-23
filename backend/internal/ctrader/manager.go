@@ -415,7 +415,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 			}
 
 			if msg.PayloadType != 51 {
-				// log.Printf("[cTrader Manager] Msg Received Type: %d, Payload: %s", msg.PayloadType, string(msg.Payload))
+				log.Printf("[cTrader Manager] Msg Received Type: %d, Account: %d, Payload Size: %d", msg.PayloadType, accountID, len(msg.Payload))
 			}
 
 			if msg.PayloadType == PayloadExecutionEvent {
@@ -829,6 +829,7 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 		return nil, fmt.Errorf("managed connection is nil")
 	}
 
+	startTime := time.Now()
 	resChan := make(chan *CTraderMessage, 1)
 	ac.WaitMu.Lock()
 	ac.Waiters[msg.ClientMsgID] = resChan
@@ -840,14 +841,19 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 		ac.WaitMu.Unlock()
 	}()
 
+	log.Printf("[cTrader Manager Communication] SENDING Type: %d, ID: %s", msg.PayloadType, msg.ClientMsgID)
+
 	if err := ac.Conn.WriteJSON(msg); err != nil {
+		log.Printf("[cTrader Manager Communication] SEND ERROR Type: %d, ID: %s, Error: %v", msg.PayloadType, msg.ClientMsgID, err)
 		return nil, err
 	}
 
 	select {
 	case res := <-resChan:
+		log.Printf("[cTrader Manager Communication] RECEIVED Type: %d (for Request %s), Took: %v", res.PayloadType, msg.ClientMsgID, time.Since(startTime))
 		return res, nil
 	case <-time.After(15 * time.Second):
+		log.Printf("[cTrader Manager Communication] TIMEOUT for Request %s (Type %d) after 15s", msg.ClientMsgID, msg.PayloadType)
 		return nil, fmt.Errorf("request timeout (managed)")
 	}
 }

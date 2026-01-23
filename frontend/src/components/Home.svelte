@@ -5,7 +5,12 @@
   import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize } from '../lib/utils';
+  import {
+    determineMarketSession,
+    getStrategyLabel,
+    parseJSONSafe,
+    calculateBulletSize,
+  } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
   import BatchShareModal from './BatchShareModal.svelte';
@@ -157,60 +162,65 @@
     loadData();
   }
 
-  $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter, activeColorFilter);
+  $: filteredGroupedData = applyFilters(
+    groupedData,
+    activeFilterType,
+    activeSubFilter,
+    activeColorFilter
+  );
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
 
   $: filteredStats = (() => {
-    let stats = { 
-      total: 0, 
-      wins: 0, 
-      winRate: "0.0", 
-      totalPnl: "0.00", 
+    let stats = {
+      total: 0,
+      wins: 0,
+      winRate: '0.0',
+      totalPnl: '0.00',
       hasTrades: false,
       green: 0,
       yellow: 0,
-      red: 0
+      red: 0,
     };
     if (!filteredGroupedData) return stats;
-    
+
     let allTrades = [];
     for (let i = 0; i < filteredGroupedData.length; i++) {
-        const day = filteredGroupedData[i];
-        if (day.groupedTrades) {
-            for (let j = 0; j < day.groupedTrades.length; j++) {
-                const group = day.groupedTrades[j];
-                if (group.trades) {
-                    for (let k = 0; k < group.trades.length; k++) {
-                        allTrades.push(group.trades[k]);
-                    }
-                }
+      const day = filteredGroupedData[i];
+      if (day.groupedTrades) {
+        for (let j = 0; j < day.groupedTrades.length; j++) {
+          const group = day.groupedTrades[j];
+          if (group.trades) {
+            for (let k = 0; k < group.trades.length; k++) {
+              allTrades.push(group.trades[k]);
             }
+          }
         }
+      }
     }
-    
+
     let total = 0;
     let wins = 0;
     let totalPnlValue = 0;
-    
-    for (let i = 0; i < allTrades.length; i++) {
-        const t = allTrades[i];
-        if (t.color_tag === 'green') stats.green++;
-        else if (t.color_tag === 'yellow') stats.yellow++;
-        else if (t.color_tag === 'red') stats.red++;
 
-        if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
-            total++;
-            if (t.pnl > 0) wins++;
-            totalPnlValue += (t.pnl || 0);
-        }
+    for (let i = 0; i < allTrades.length; i++) {
+      const t = allTrades[i];
+      if (t.color_tag === 'green') stats.green++;
+      else if (t.color_tag === 'yellow') stats.yellow++;
+      else if (t.color_tag === 'red') stats.red++;
+
+      if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
+        total++;
+        if (t.pnl > 0) wins++;
+        totalPnlValue += t.pnl || 0;
+      }
     }
-    
+
     stats.total = total;
     stats.wins = wins;
     stats.hasTrades = allTrades.length > 0;
-    if (total > 0) stats.winRate = (wins * 100 / total).toFixed(1);
+    if (total > 0) stats.winRate = ((wins * 100) / total).toFixed(1);
     stats.totalPnl = totalPnlValue.toFixed(2);
     return stats;
   })();
@@ -287,10 +297,10 @@
 
   function applyFilters(data, type, sub, color) {
     if (!data) return [];
-    
+
     // 如果是全選且無任何子過濾，直接返回
     if (type === 'all' && !sub && !color) return data;
-    
+
     const debug = !!sub;
     const cleanSub = sub ? String(sub).trim() : null;
 
@@ -303,14 +313,17 @@
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
               // 1. 策略類型匹配 (高度容錯)
-              const tStrat = String(trade.entry_strategy || trade.strategy || '').trim().toLowerCase();
+              const tStrat = String(trade.entry_strategy || trade.strategy || '')
+                .trim()
+                .toLowerCase();
               const fType = type.toLowerCase();
-              
-              const stratMatch = (fType === 'all') || 
-                                (fType === 'expert' && (tStrat === 'expert' || tStrat === '達人')) ||
-                                (fType === 'elite' && (tStrat === 'elite' || tStrat === '菁英')) ||
-                                (fType === 'legend' && (tStrat === 'legend' || tStrat === '傳奇')) ||
-                                (tStrat === fType);
+
+              const stratMatch =
+                fType === 'all' ||
+                (fType === 'expert' && (tStrat === 'expert' || tStrat === '達人')) ||
+                (fType === 'elite' && (tStrat === 'elite' || tStrat === '菁英')) ||
+                (fType === 'legend' && (tStrat === 'legend' || tStrat === '傳奇')) ||
+                tStrat === fType;
 
               if (!stratMatch) return false;
               if (!cleanSub) return true;
@@ -318,16 +331,19 @@
               // 2. 終極修正：全物件透視搜尋 (JSON String Search)
               // 直接看整筆交易的原始資料裡面有沒有「甲」
               try {
-                  const tradeStr = JSON.stringify(trade);
-                  const isMatch = tradeStr.includes(cleanSub);
-                  
-                  if (debug && !isMatch && stratMatch) {
-                      console.warn(`[Filter Debug] Trade #${trade.id} Fail. '${cleanSub}' not found in:`, tradeStr);
-                  }
-                  
-                  return isMatch;
+                const tradeStr = JSON.stringify(trade);
+                const isMatch = tradeStr.includes(cleanSub);
+
+                if (debug && !isMatch && stratMatch) {
+                  console.warn(
+                    `[Filter Debug] Trade #${trade.id} Fail. '${cleanSub}' not found in:`,
+                    tradeStr
+                  );
+                }
+
+                return isMatch;
               } catch (e) {
-                  return false;
+                return false;
               }
             });
 
@@ -352,13 +368,13 @@
         };
       })
       .filter(day => {
-          // 如果有設定子篩選 (搜尋模式) 或顏色篩選，嚴格只顯示有交易命中的日期
-          // 這樣可以隱藏那些只有盤面規劃但沒有符合交易的空區塊
-          if (cleanSub || color) {
-              return day.groupedTrades.length > 0;
-          }
-          // 一般瀏覽模式：顯示有規劃或有交易的日期
-          return day.plans.length > 0 || day.groupedTrades.length > 0;
+        // 如果有設定子篩選 (搜尋模式) 或顏色篩選，嚴格只顯示有交易命中的日期
+        // 這樣可以隱藏那些只有盤面規劃但沒有符合交易的空區塊
+        if (cleanSub || color) {
+          return day.groupedTrades.length > 0;
+        }
+        // 一般瀏覽模式：顯示有規劃或有交易的日期
+        return day.plans.length > 0 || day.groupedTrades.length > 0;
       });
   }
 
@@ -427,7 +443,7 @@
 
   async function loadData(silent = false) {
     const callId = ++loadDataCallCount; // 每次調用產生唯一 ID
-    
+
     // --- 防抖與衝突處理 (改良版) ---
     if (loadController) {
       if (silent) {
@@ -435,16 +451,22 @@
         const timeSinceLastCall = Date.now() - (window._lastLoadDataTime || 0);
         if (timeSinceLastCall < 5000) {
           // 5秒內有請求，跳過這次靜默請求
-          console.log(`[${INSTANCE_ID}] Skipping silent loadData #${callId} (recent request active)`);
+          console.log(
+            `[${INSTANCE_ID}] Skipping silent loadData #${callId} (recent request active)`
+          );
           return;
         } else {
           // 超過5秒，可能前一個請求卡住了，強制中斷並繼續
-          console.warn(`[${INSTANCE_ID}] Previous request seems stuck, aborting and proceeding with #${callId}`);
+          console.warn(
+            `[${INSTANCE_ID}] Previous request seems stuck, aborting and proceeding with #${callId}`
+          );
           loadController.abort();
         }
       } else {
         // 使用者手動操作：直接中斷之前的請求
-        console.log(`[${INSTANCE_ID}] Aborting previous in-flight requests to prioritize user action.`);
+        console.log(
+          `[${INSTANCE_ID}] Aborting previous in-flight requests to prioritize user action.`
+        );
         loadController.abort();
       }
     }
@@ -484,7 +506,7 @@
         const resetSafetyTimer = (seconds = 30) => {
           if (safetyTimer) clearTimeout(safetyTimer);
           if (!loading || activeLoadCallId !== lastActivityCallId) return;
-          
+
           safetyTimer = setTimeout(() => {
             if (loading && activeLoadCallId === lastActivityCallId) {
               console.warn(
@@ -498,7 +520,7 @@
 
         // 初始給30秒超時（從60秒縮短）
         resetSafetyTimer(30);
-        
+
         // 建立一個局部變數供後續呼叫
         currentResetTimer = resetSafetyTimer;
       }
@@ -520,47 +542,61 @@
       try {
         // 1. 先抓盤面規劃
         loadingMessage = `正在讀取盤面規劃資料...`;
-        const plansRes = await dailyPlansAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            start_date: activeDateRange === 'all' ? undefined : customStartDate,
-            end_date: activeDateRange === 'all' ? undefined : customEndDate ? customEndDate + ' 23:59:59' : undefined,
-          },
-          signal
-        ).catch(e => {
-          if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-          console.error('Plans fetch error:', e);
-          return { data: [] };
-        });
+        const plansRes = await dailyPlansAPI
+          .getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+              page: activeDateRange === 'all' ? pagination.page : 1,
+              start_date: activeDateRange === 'all' ? undefined : customStartDate,
+              end_date:
+                activeDateRange === 'all'
+                  ? undefined
+                  : customEndDate
+                    ? customEndDate + ' 23:59:59'
+                    : undefined,
+            },
+            signal
+          )
+          .catch(e => {
+            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+            console.error('Plans fetch error:', e);
+            return { data: [] };
+          });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-        
+
         // 進度更新，重置計時器
         loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
         if (currentResetTimer) currentResetTimer(30);
-        const tradesRes = await tradesAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            start_date: activeDateRange === 'all' ? undefined : customStartDate,
-            end_date: activeDateRange === 'all' ? undefined : customEndDate ? customEndDate + ' 23:59:59' : undefined,
-            // 傳遞篩選參數到後端
-            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
-            keyword: activeSubFilter || undefined,
-            color_tag: activeColorFilter || undefined,
-          },
-          signal
-        ).catch(e => {
-          if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-          console.error('Trades fetch error:', e);
-          return { data: [] };
-        });
+        const tradesRes = await tradesAPI
+          .getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: activeDateRange === 'all' ? pagination.page_size : 1000,
+              page: activeDateRange === 'all' ? pagination.page : 1,
+              start_date: activeDateRange === 'all' ? undefined : customStartDate,
+              end_date:
+                activeDateRange === 'all'
+                  ? undefined
+                  : customEndDate
+                    ? customEndDate + ' 23:59:59'
+                    : undefined,
+              // 傳遞篩選參數到後端
+              strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+              keyword: activeSubFilter || undefined,
+              color_tag: activeColorFilter || undefined,
+            },
+            signal
+          )
+          .catch(e => {
+            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
+            console.error('Trades fetch error:', e);
+            return { data: [] };
+          });
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
-        
+
         // 更新分頁資訊
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
@@ -603,10 +639,10 @@
       for (let idx = 0; idx < plans.length; idx++) {
         const plan = plans[idx];
         if (idx % 50 === 0) {
-           loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
-           if (currentResetTimer) currentResetTimer(20);
-           // 透過 yield 讓瀏覽器有機會渲染 UI
-           await new Promise(resolve => setTimeout(resolve, 0));
+          loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
+          if (currentResetTimer) currentResetTimer(20);
+          // 透過 yield 讓瀏覽器有機會渲染 UI
+          await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
           // Pre-parse trend analysis to avoid template errors & const limitations
@@ -629,9 +665,9 @@
       for (let idx = 0; idx < trades.length; idx++) {
         const trade = trades[idx];
         if (idx % 50 === 0) {
-           loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
-           if (currentResetTimer) currentResetTimer(20);
-           await new Promise(resolve => setTimeout(resolve, 0));
+          loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
+          if (currentResetTimer) currentResetTimer(20);
+          await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
           if (!trade.entry_time) return; // Skip if no entry time
@@ -697,8 +733,12 @@
       }
 
       groupedData = newGroupedData;
-      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} Data Processing`);
-      console.log(`Final groupedData (Call #${callId}):`, groupedData);
+      const totalDuration = performance.now() - diagnosticStart;
+      const processingDuration = performance.now() - processingStart;
+      console.log(`[Diagnostic] #${callId} Processing Finish: ${processingDuration.toFixed(2)}ms`);
+      console.log(
+        `[Diagnostic] --- loadData #${callId} COMPLETE: ${totalDuration.toFixed(2)}ms ---`
+      );
     } catch (error) {
       if (error.name === 'CanceledError' || error.name === 'AbortError') {
         console.log(`[${INSTANCE_ID}] loadData #${callId} caught abort.`);
@@ -709,7 +749,7 @@
           loadError = {
             message: '資料載入失敗',
             detail: error.message || '未知錯誤',
-            canRetry: true
+            canRetry: true,
           };
         }
       }
@@ -864,7 +904,7 @@
   function startDeferredServices() {
     console.log('[Home] Starting deferred services...');
     initRealtimeNotifications();
-    
+
     // 如果還在加載，再延後一點啟動輪詢
     if (loading) {
       setTimeout(poll, 15000);
@@ -878,7 +918,7 @@
 
     // Step 0: 清理所有殘留狀態（防止上次未完成的請求干擾）
     console.log('[onMount] Cleaning up any residual state...');
-    
+
     // 中斷任何殘留的請求控制器
     if (loadController) {
       console.log('[onMount] Aborting residual loadController');
@@ -890,14 +930,14 @@
       refreshAccountsController.abort();
       refreshAccountsController = null;
     }
-    
+
     // 清除全域時間戳記
     window._lastLoadDataTime = 0;
-    
+
     // 重置載入狀態
     loading = false;
     isRefreshingAccounts = false;
-    
+
     // 清除任何殘留的計時器
     if (debounceTimer) {
       clearTimeout(debounceTimer);
@@ -907,7 +947,7 @@
       clearTimeout(pollingTimeout);
       pollingTimeout = null;
     }
-    
+
     console.log('[onMount] Cleanup complete, starting fresh');
 
     // Step 1: 預加載帳號列表
@@ -1080,9 +1120,10 @@
     modalTitle = title;
     enlargedImageContext = context;
     enlargedOriginalImage = originalPath || imagePath;
-    selectedImage = imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('blob:') 
-      ? imagePath 
-      : imagesAPI.getUrl(imagePath);
+    selectedImage =
+      imagePath.startsWith('http') || imagePath.startsWith('data:') || imagePath.startsWith('blob:')
+        ? imagePath
+        : imagesAPI.getUrl(imagePath);
     showAnnotator = false;
   }
 
@@ -1099,7 +1140,7 @@
 
       const uploadData = new FormData();
       uploadData.append('image', file);
-      uploadData.append('symbol', 'annotated'); 
+      uploadData.append('symbol', 'annotated');
 
       const uploadRes = await imagesAPI.upload(uploadData);
       const serverPath = uploadRes.data.path;
@@ -1107,7 +1148,7 @@
       const { tradeId, type, index, name } = enlargedImageContext;
       const fullTradeRes = await tradesAPI.getOne(tradeId);
       const fullTrade = fullTradeRes.data;
-      
+
       const payload = sanitizeTradePayload(fullTrade);
       const originalPath = enlargedOriginalImage;
 
@@ -1120,7 +1161,8 @@
         const signals = parseJSONSafe(payload.entry_signals, []);
         const sIdx = signals.findIndex(s => s.name === name);
         if (sIdx >= 0) {
-          const sigImages = signals[sIdx].images || (signals[sIdx].image ? [{image: signals[sIdx].image}] : []);
+          const sigImages =
+            signals[sIdx].images || (signals[sIdx].image ? [{ image: signals[sIdx].image }] : []);
           if (sigImages[index]) {
             sigImages[index].image = serverPath;
           }
@@ -1131,7 +1173,9 @@
         const patterns = parseJSONSafe(payload.entry_pattern, []);
         const pIdx = patterns.findIndex(p => p.name === name);
         if (pIdx >= 0) {
-          const patImages = patterns[pIdx].images || (patterns[pIdx].image ? [{image: patterns[pIdx].image}] : []);
+          const patImages =
+            patterns[pIdx].images ||
+            (patterns[pIdx].image ? [{ image: patterns[pIdx].image }] : []);
           if (patImages[index]) {
             patImages[index].image = serverPath;
           }
@@ -1183,7 +1227,8 @@
           });
           payload.entry_pattern = JSON.stringify(pats);
         }
-        if (payload.entry_strategy_image === originalPath) payload.entry_strategy_image = serverPath;
+        if (payload.entry_strategy_image === originalPath)
+          payload.entry_strategy_image = serverPath;
         if (payload.legend_htf_image === originalPath) payload.legend_htf_image = serverPath;
         if (payload.legend_king_image === originalPath) payload.legend_king_image = serverPath;
         if (payload.legend_images && typeof payload.legend_images === 'string') {
@@ -1208,12 +1253,12 @@
           payload.elite_images = JSON.stringify(elts);
         }
       }
-      
+
       await tradesAPI.update(tradeId, payload);
-      
+
       selectedImage = imagesAPI.getUrl(serverPath);
       showAnnotator = false;
-      loadData(false); 
+      loadData(false);
     } catch (e) {
       console.error('Failed to save annotated image', e);
       alert('儲存標註圖片失敗');
@@ -1474,9 +1519,8 @@
           {#if currentAccount.type !== 'local'}
             <div class="sync-status-info">
               <span
-                class="sync-badge {currentAccount.sync_status} {
-                  currentAccount.sync_status && 
-                  !['success', 'failed', 'idle'].includes(currentAccount.sync_status.toLowerCase())
+                class="sync-badge {currentAccount.sync_status} {currentAccount.sync_status &&
+                !['success', 'failed', 'idle'].includes(currentAccount.sync_status.toLowerCase())
                   ? 'syncing'
                   : ''}">{currentAccount.sync_status}</span
               >
@@ -1674,7 +1718,7 @@
         </button>
 
         <div class="filter-stats-spacer"></div>
-        
+
         <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
           <div class="stats-icon">✅</div>
           <div class="stats-content">
@@ -1734,7 +1778,9 @@
       <div class="loader"></div>
       <p class="loading-text">{loadingMessage}</p>
       {#if loadingMessage.includes('網路連線')}
-         <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px;">建議切換至更穩定的 Wi-Fi</small>
+        <small style="color: var(--text-muted); font-size: 0.8rem; margin-top: 5px;"
+          >建議切換至更穩定的 Wi-Fi</small
+        >
       {/if}
     </div>
   {:else if loadError}
@@ -1743,11 +1789,15 @@
       <h3>{loadError.message}</h3>
       <p class="error-detail">{loadError.detail}</p>
       {#if loadError.canRetry}
-        <button class="btn btn-primary" on:click={() => loadData(false)}>
-          🔄 重新載入
-        </button>
+        <button class="btn btn-primary" on:click={() => loadData(false)}> 🔄 重新載入 </button>
       {/if}
-      <button class="btn btn-secondary" on:click={() => { loadError = null; groupedData = []; }}>
+      <button
+        class="btn btn-secondary"
+        on:click={() => {
+          loadError = null;
+          groupedData = [];
+        }}
+      >
         關閉
       </button>
     </div>
@@ -2095,28 +2145,40 @@
                             </div>
                           {/each}
                         </div>
-                         {#if timeGroup.trades.some(t => t.images && t.images.length > 0)}
-                           {@const allImages = timeGroup.trades.reduce((acc, t) => [...acc, ...(t.images || [])], [])}
-                           <div class="mini-gallery">
-                             {#each allImages.slice(0, 3) as img, idx}
-                               <div
-                                 class="mini-img"
-                                 on:click|stopPropagation={() =>
-                                   openImageModal(
-                                     img.image_path,
-                                     `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
-                                     { tradeId: timeGroup.trades.find(t => (t.images || []).includes(img))?.id || timeGroup.trades[0].id, type: 'general', index: (timeGroup.trades.find(t => (t.images || []).includes(img))?.images || []).indexOf(img) }
-                                   )}
-                               >
-                                 <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
-                               </div>
-                             {/each}
-                             {#if allImages.length > 3}
-                               <div class="more-imgs">+{allImages.length - 3}</div>
-                             {/if}
-                           </div>
-                         {/if}
-                       </div>
+                        {#if timeGroup.trades.some(t => t.images && t.images.length > 0)}
+                          {@const allImages = timeGroup.trades.reduce(
+                            (acc, t) => [...acc, ...(t.images || [])],
+                            []
+                          )}
+                          <div class="mini-gallery">
+                            {#each allImages.slice(0, 3) as img, idx}
+                              <div
+                                class="mini-img"
+                                on:click|stopPropagation={() =>
+                                  openImageModal(
+                                    img.image_path,
+                                    `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    {
+                                      tradeId:
+                                        timeGroup.trades.find(t => (t.images || []).includes(img))
+                                          ?.id || timeGroup.trades[0].id,
+                                      type: 'general',
+                                      index: (
+                                        timeGroup.trades.find(t => (t.images || []).includes(img))
+                                          ?.images || []
+                                      ).indexOf(img),
+                                    }
+                                  )}
+                              >
+                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                              </div>
+                            {/each}
+                            {#if allImages.length > 3}
+                              <div class="more-imgs">+{allImages.length - 3}</div>
+                            {/if}
+                          </div>
+                        {/if}
+                      </div>
                     {:else}
                       <!-- 一般單 (單筆進出) -->
                       {@const trade = timeGroup.trades[0]}
@@ -2242,7 +2304,8 @@
 
                         <div class="trade-details">
                           {#if trade.trade_type === 'actual'}
-                            {@const bulletToDisplay = calculateBulletSize(trade) || trade.bullet_size}
+                            {@const bulletToDisplay =
+                              calculateBulletSize(trade) || trade.bullet_size}
                             <div class="detail-row">
                               <!-- 第一組：價格資訊 -->
                               <div class="info-group">
@@ -2264,14 +2327,13 @@
 
                               <!-- 第二組：績效資訊 -->
                               <div class="info-group">
-
                                 <span class="label">子彈</span>
                                 <strong class="bullet">
                                   {bulletToDisplay && Number(bulletToDisplay) > 0
                                     ? Number(bulletToDisplay).toFixed(1)
                                     : 'NA'}
                                 </strong>
-                                {#if (bulletToDisplay && bulletToDisplay > 0) && (trade.rr_ratio || trade.rr_ratio === 0)}
+                                {#if bulletToDisplay && bulletToDisplay > 0 && (trade.rr_ratio || trade.rr_ratio === 0)}
                                   <span class="label">風報比</span>
                                   <strong class="rr {trade.rr_ratio >= 0 ? 'profit' : 'loss'}"
                                     >{trade.rr_ratio.toFixed(2)}</strong
@@ -2321,16 +2383,14 @@
                     {/if}
                   {/each}
                 </div>
-              {:else}
-                {#if !activeSubFilter && !activeColorFilter}
-                  <div
-                    class="empty-placeholder dash-trade"
-                    on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
-                  >
-                    <div class="plus-icon">➕</div>
-                    <span>新增交易紀錄</span>
-                  </div>
-                {/if}
+              {:else if !activeSubFilter && !activeColorFilter}
+                <div
+                  class="empty-placeholder dash-trade"
+                  on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
+                >
+                  <div class="plus-icon">➕</div>
+                  <span>新增交易紀錄</span>
+                </div>
               {/if}
             </div>
           </div>
@@ -2341,22 +2401,32 @@
     {#if totalPages > 1}
       <div class="pagination-container">
         <div class="pagination-info">
-          顯示第 {(pagination.page - 1) * pagination.page_size + 1} 至 {Math.min(pagination.page * pagination.page_size, pagination.total)} 筆，共 {pagination.total} 筆
+          顯示第 {(pagination.page - 1) * pagination.page_size + 1} 至 {Math.min(
+            pagination.page * pagination.page_size,
+            pagination.total
+          )} 筆，共 {pagination.total} 筆
         </div>
         <div class="pagination-controls">
-          <button 
-            class="pagination-btn" 
+          <button
+            class="pagination-btn"
             disabled={pagination.page === 1}
             on:click={() => changePage(pagination.page - 1)}
           >
             上一步
           </button>
-          
+
           <div class="page-numbers">
             {#each Array(Math.min(5, totalPages)) as _, i}
-              {@const pageNum = totalPages <= 5 ? i + 1 : (pagination.page <= 3 ? i + 1 : (pagination.page >= totalPages - 2 ? totalPages - 4 + i : pagination.page - 2 + i))}
-              <button 
-                class="page-num-btn" 
+              {@const pageNum =
+                totalPages <= 5
+                  ? i + 1
+                  : pagination.page <= 3
+                    ? i + 1
+                    : pagination.page >= totalPages - 2
+                      ? totalPages - 4 + i
+                      : pagination.page - 2 + i}
+              <button
+                class="page-num-btn"
                 class:active={pagination.page === pageNum}
                 on:click={() => changePage(pageNum)}
               >
@@ -2365,8 +2435,8 @@
             {/each}
           </div>
 
-          <button 
-            class="pagination-btn" 
+          <button
+            class="pagination-btn"
             disabled={pagination.page === totalPages}
             on:click={() => changePage(pagination.page + 1)}
           >
@@ -2375,7 +2445,6 @@
         </div>
       </div>
     {/if}
-
   {/if}
 </div>
 
@@ -3753,9 +3822,16 @@
   }
 
   @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-10px); }
-    75% { transform: translateX(10px); }
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-10px);
+    }
+    75% {
+      transform: translateX(10px);
+    }
   }
 
   .empty-icon {
@@ -4327,9 +4403,15 @@
     border-radius: 50%;
   }
 
-  .stats-color-dot.green { background-color: #22c55e; }
-  .stats-color-dot.yellow { background-color: #eab308; }
-  .stats-color-dot.red { background-color: #ef4444; }
+  .stats-color-dot.green {
+    background-color: #22c55e;
+  }
+  .stats-color-dot.yellow {
+    background-color: #eab308;
+  }
+  .stats-color-dot.red {
+    background-color: #ef4444;
+  }
 
   .stats-color-count {
     font-size: 0.8rem;
@@ -4624,6 +4706,6 @@
     max-height: calc(95vh - 4rem);
     object-fit: contain;
     border-radius: 4px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   }
 </style>

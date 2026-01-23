@@ -954,34 +954,54 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 	if conn == nil {
 		return nil, fmt.Errorf("websocket connection is nil")
 	}
+	startTime := time.Now()
 	clientMsgID := fmt.Sprintf("m-%d", time.Now().UnixNano())
 	payloadJSON, _ := json.Marshal(payload)
 	msg := CTraderMessage{ClientMsgID: clientMsgID, PayloadType: payloadType, Payload: payloadJSON}
+
+	log.Printf("[cTrader Communication] SENDING Type: %d, ID: %s, Payload: %s", payloadType, clientMsgID, string(payloadJSON))
+
 	if err := conn.WriteJSON(msg); err != nil {
+		log.Printf("[cTrader Communication] SEND ERROR Type: %d, ID: %s, Error: %v", payloadType, clientMsgID, err)
 		return nil, err
 	}
+
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	for {
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
+			log.Printf("[cTrader Communication] READ ERROR for Request ID %s (Type %d): %v", clientMsgID, payloadType, err)
 			return nil, err
 		}
 		var resp CTraderMessage
 		if err := json.Unmarshal(raw, &resp); err != nil {
+			log.Printf("[cTrader Communication] UNMARSHAL ERROR: %v, Raw: %s", err, string(raw))
 			continue
 		}
 		if resp.PayloadType == PayloadHeartbeatEvent {
 			continue
 		}
+
+		duration := time.Since(startTime)
+
 		if resp.PayloadType == PayloadErrorRes {
+			log.Printf("[cTrader Communication] RESPONSE ERROR Type: %d (for Request %d), ID: %s, Took: %v, Error: %s", resp.PayloadType, payloadType, resp.ClientMsgID, duration, string(resp.Payload))
 			return nil, fmt.Errorf("cTrader Error: %s", string(resp.Payload))
 		}
-		if resp.ClientMsgID == clientMsgID ||
+
+		match := resp.ClientMsgID == clientMsgID ||
 			(resp.PayloadType == PayloadAppAuthRes && payloadType == PayloadAppAuthReq) ||
 			(resp.PayloadType == PayloadAccountAuthRes && payloadType == PayloadAccountAuthReq) ||
 			(resp.PayloadType == PayloadOrderDetailsRes && payloadType == PayloadOrderDetailsReq) ||
-			(resp.PayloadType == PayloadOrderListByPositionIdRes && payloadType == PayloadOrderListByPositionIdReq) {
+			(resp.PayloadType == PayloadOrderListByPositionIdRes && payloadType == PayloadOrderListByPositionIdReq)
+
+		if match {
+			log.Printf("[cTrader Communication] RECEIVED Type: %d (for Request %d), ID: %s, Took: %v, Payload Size: %d", resp.PayloadType, payloadType, resp.ClientMsgID, duration, len(resp.Payload))
 			return &resp, nil
+		} else {
+			// This might be an unsolicited event (ExecutionEvent, SpotEvent, etc.)
+			// In sync mode, we might just ignore them or log them.
+			// log.Printf("[cTrader Communication] IGNORED Event during wait: Type %d, ID: %s", resp.PayloadType, resp.ClientMsgID)
 		}
 	}
 }
