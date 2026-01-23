@@ -140,6 +140,10 @@
   }
 
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
+  $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
+  $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
+  $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
+
   $: filteredStats = (() => {
     let stats = { 
       total: 0, 
@@ -153,7 +157,6 @@
     };
     if (!filteredGroupedData) return stats;
     
-    // 獲取所有篩選後的交易 (採用傳統迴圈避免箭頭函數以符合編譯安全規則)
     let allTrades = [];
     for (let i = 0; i < filteredGroupedData.length; i++) {
         const day = filteredGroupedData[i];
@@ -169,20 +172,16 @@
         }
     }
     
-    // 計算統計數據
     let total = 0;
     let wins = 0;
     let totalPnlValue = 0;
     
     for (let i = 0; i < allTrades.length; i++) {
         const t = allTrades[i];
-        
-        // 統計顏色標籤
         if (t.color_tag === 'green') stats.green++;
         else if (t.color_tag === 'yellow') stats.yellow++;
         else if (t.color_tag === 'red') stats.red++;
 
-        // 僅統計已平倉的實盤交易 (用於勝率)
         if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
             total++;
             if (t.pnl > 0) wins++;
@@ -195,7 +194,6 @@
     stats.hasTrades = allTrades.length > 0;
     if (total > 0) stats.winRate = (wins * 100 / total).toFixed(1);
     stats.totalPnl = totalPnlValue.toFixed(2);
-    
     return stats;
   })();
 
@@ -275,64 +273,61 @@
   function applyFilters(data, type, sub) {
     if (!data) return [];
 
-    // 強化版安全解析，支援多重解析與 Null 守衛
     const robustParse = (val, def = []) => {
       if (val === null || val === undefined) return def;
       if (Array.isArray(val)) return val;
-      if (typeof val === 'object') {
-        return Array.isArray(val) ? val : [val];
-      }
+      if (typeof val === 'object') return [val];
       try {
         let parsed = JSON.parse(val);
-        // 有些資料在資料庫中可能被存了兩次 JSON string
         if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-        if (!parsed) return def;
-        return Array.isArray(parsed) ? parsed : [parsed];
+        return Array.isArray(parsed) ? parsed : (parsed ? [parsed] : def);
       } catch (e) {
         return def;
       }
     };
 
-    // 統一的匹配檢查函數
-    const checkMatch = (arr, target) => {
-      if (!arr || !Array.isArray(arr) || !target) return false;
+    // 終極匹配函數：支援物件匹配與全文檢索回退
+    const checkMatch = (val, target) => {
+      if (!val || !target) return false;
       const cleanTarget = String(target).trim();
-      return arr.some(item => {
+      
+      // 1. 標準物件路徑匹配
+      const arr = robustParse(val);
+      const formalMatch = arr.some(item => {
         if (!item) return false;
         const name = typeof item === 'object' ? item.name : String(item);
         return name && String(name).trim() === cleanTarget;
       });
+      if (formalMatch) return true;
+
+      // 2. 暴力檢索：直接搜尋原始字串（應對各種非預期格式）
+      try {
+        const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
+        if (rawStr.includes(cleanTarget)) return true;
+      } catch (e) {}
+
+      return false;
     };
 
     return data
       .map(day => {
         const filteredPlans = day.plans.filter(plan => {
-          // 規劃目前僅支持達人訊號過濾，或者是全部模式下帶有 sub 的情況
           if (type !== 'expert' && type !== 'all' && sub) return false;
-
           const trendData = parseJSONSafe(plan.trend_analysis, {});
-          // 檢查所有時段與時區
           for (const sessionKey of ['asian', 'european', 'us', 'all']) {
             const sessData = trendData[sessionKey];
             const trends = (sessData && sessData.trends) ? sessData.trends : (sessionKey === 'all' ? trendData : null);
             if (!trends) continue;
-
             for (const tf in trends) {
               const trend = trends[tf];
               if (!trend) continue;
-
               for (const dir of ['long', 'short', 'neutral']) {
                 const dData = trend[dir] || (dir === 'neutral' ? null : trend);
                 if (!dData) continue;
-
-                const signals = robustParse(dData.signals);
-                const expected = robustParse(dData.expected_signals);
-
                 if (!sub) {
-                  if (signals.length > 0 || expected.length > 0) return true;
+                  if (robustParse(dData.signals).length > 0 || robustParse(dData.expected_signals).length > 0) return true;
                 } else {
-                  if (checkMatch(signals, sub)) return true;
-                  if (checkMatch(expected, sub)) return true;
+                  if (checkMatch(dData.signals, sub) || checkMatch(dData.expected_signals, sub)) return true;
                 }
               }
             }
@@ -343,23 +338,16 @@
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
-              // 1. 策略類型檢查: 如果不是 'all', 則必須符合指定的 strategy
-              if (type !== 'all' && trade.entry_strategy !== type) return false;
+              // 策略類型檢查 (加上 trim 確保萬無一失)
+              const tStrat = String(trade.entry_strategy || '').trim();
+              if (type !== 'all' && tStrat !== type) return false;
 
-              // 2. 如果沒有子項目，且通過了類型檢查，直接通過
               if (!sub) return true;
 
-              // 3. 子項目檢查: 我們不分塊，只要任何一個欄位匹配就視為符合，這更能相容 all 模式
-              
-              // 檢查達人訊號感
-              const signals = robustParse(trade.entry_signals);
-              if (checkMatch(signals, sub)) return true;
+              // 依序檢查所有可能欄位
+              if (checkMatch(trade.entry_signals, sub)) return true;
+              if (checkMatch(trade.entry_pattern, sub)) return true;
 
-              // 檢查菁英樣態
-              const patterns = robustParse(trade.entry_pattern);
-              if (checkMatch(patterns, sub)) return true;
-
-              // 檢查傳奇清單
               const checklist = typeof trade.entry_checklist === 'string' 
                 ? parseJSONSafe(trade.entry_checklist, {}) 
                 : (trade.entry_checklist || {});
@@ -2268,8 +2256,8 @@
 
                                 <span class="label">子彈</span>
                                 <strong class="bullet">
-                                  {bulletToDisplay && bulletToDisplay > 0
-                                    ? bulletToDisplay.toFixed(1)
+                                  {bulletToDisplay && Number(bulletToDisplay) > 0
+                                    ? Number(bulletToDisplay).toFixed(1)
                                     : 'NA'}
                                 </strong>
                                 {#if (bulletToDisplay && bulletToDisplay > 0) && (trade.rr_ratio || trade.rr_ratio === 0)}
