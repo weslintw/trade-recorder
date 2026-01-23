@@ -213,6 +213,23 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			countQuery += " AND tg.name = ?"
 			countArgs = append(countArgs, query.Tag)
 		}
+		if query.StartDate != "" {
+			countQuery += " AND t.entry_time >= ?"
+			countArgs = append(countArgs, query.StartDate)
+		}
+		if query.EndDate != "" {
+			countQuery += " AND t.entry_time <= ?"
+			countArgs = append(countArgs, query.EndDate)
+		}
+		if query.Strategy != "" && query.Strategy != "all" {
+			countQuery += " AND t.entry_strategy = ?"
+			countArgs = append(countArgs, query.Strategy)
+		}
+		if query.Keyword != "" {
+			searchPattern := "%" + query.Keyword + "%"
+			countQuery += " AND (t.entry_signals LIKE ? OR t.entry_pattern LIKE ? OR t.entry_checklist LIKE ? OR t.notes LIKE ?)"
+			countArgs = append(countArgs, searchPattern, searchPattern, searchPattern, searchPattern)
+		}
 
 		var total int
 		db.QueryRow(countQuery, countArgs...).Scan(&total)
