@@ -88,6 +88,21 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			args = append(args, query.EndDate)
 		}
 
+		if query.Strategy != "" && query.Strategy != "all" {
+			// 前端可能傳 "expert" (達人), "elite" (菁英), "legend" (傳奇)
+			// 資料庫存的是小寫英文，所以直接匹配即可
+			sqlQuery += " AND t.entry_strategy = ?"
+			args = append(args, query.Strategy)
+		}
+
+		if query.Keyword != "" {
+			// 關鍵字搜尋：搜尋訊號、樣態、清單以及筆記
+			// 使用 LIKE %keyword% 進行模糊搜尋
+			searchPattern := "%" + query.Keyword + "%"
+			sqlQuery += " AND (t.entry_signals LIKE ? OR t.entry_pattern LIKE ? OR t.entry_checklist LIKE ? OR t.notes LIKE ?)"
+			args = append(args, searchPattern, searchPattern, searchPattern, searchPattern)
+		}
+
 		sqlQuery += " ORDER BY t.entry_time DESC LIMIT ? OFFSET ?"
 		args = append(args, query.PageSize, offset)
 

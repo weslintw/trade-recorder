@@ -136,6 +136,8 @@ type TradeQuery struct {
 	EndDate   string `form:"end_date"`
 	Page      int    `form:"page"`
 	PageSize  int    `form:"page_size"`
+	Strategy  string `form:"strategy"` // "expert", "elite", "legend"
+	Keyword   string `form:"keyword"`  // 搜尋關鍵字 (針對訊號、樣態等)
 }
 
 // StatsSummary 統計摘要
