@@ -800,6 +800,15 @@
       isRefreshingAccounts = false;
     }
   }
+
+  // 小優化：帳號列表改為 30 秒才允許自動刷新一次
+  let lastRefreshTime = 0;
+  async function safeRefreshAccounts() {
+    const now = Date.now();
+    if (now - lastRefreshTime < 30000) return;
+    lastRefreshTime = now;
+    return refreshAccounts();
+  }
   function initRealtimeNotifications() {
     if (ws) {
       ws.onclose = null;
@@ -901,7 +910,7 @@
       lastRealtimeLoadTime = now;
       console.log('📈 [Realtime] Price update detected, refreshing...');
       loadData(true);
-      refreshAccounts();
+      safeRefreshAccounts();
     }
   }
 
@@ -915,18 +924,15 @@
       return;
     }
 
-    // 如果 WebSocket 斷線，則維持基本的輪詢
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
+    if (ws && ws.readyState === WebSocket.OPEN) {
       if ($selectedAccountId) {
-        console.log(`[Fallback Polling] Triggering refresh...`);
-        await Promise.all([loadData(true), refreshAccounts()]);
+        await safeRefreshAccounts();
       }
-    } else {
-      // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
-      if ($selectedAccountId) {
-        // console.log(`[Health Check] Routine refresh...`);
-        await refreshAccounts(); // 僅刷新帳號狀態
-      }
+    } else if ($selectedAccountId) {
+      // 只有在 WebSocket 斷線時，才執行基本的備援輪詢
+      console.log(`[Fallback Polling] Triggering refresh...`);
+      await Promise.all([loadData(true), safeRefreshAccounts()]);
     }
 
     pollingTimeout = setTimeout(poll, currentPollingInterval);
