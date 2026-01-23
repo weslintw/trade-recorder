@@ -140,6 +140,52 @@
   }
 
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
+  $: filteredStats = (() => {
+    let stats = { total: 0, wins: 0, winRate: "0.0", totalPnl: "0.00", hasTrades: false };
+    if (!filteredGroupedData) return stats;
+    
+    // 獲取所有篩選後的交易 (採用傳統迴圈避免箭頭函數以符合編譯安全規則)
+    let allTrades = [];
+    for (let i = 0; i < filteredGroupedData.length; i++) {
+        const day = filteredGroupedData[i];
+        if (day.groupedTrades) {
+            for (let j = 0; j < day.groupedTrades.length; j++) {
+                const group = day.groupedTrades[j];
+                if (group.trades) {
+                    for (let k = 0; k < group.trades.length; k++) {
+                        allTrades.push(group.trades[k]);
+                    }
+                }
+            }
+        }
+    }
+    
+    // 計算統計數據
+    let total = 0;
+    let wins = 0;
+    let totalPnlValue = 0;
+    
+    for (let i = 0; i < allTrades.length; i++) {
+        const t = allTrades[i];
+        // 僅統計已平倉的實盤交易
+        if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
+            total++;
+            if (t.pnl > 0) wins++;
+            totalPnlValue += (t.pnl || 0);
+        }
+    }
+    
+    stats.total = total;
+    stats.wins = wins;
+    stats.hasTrades = allTrades.length > 0;
+    if (total > 0) stats.winRate = (wins * 100 / total).toFixed(1);
+    stats.totalPnl = totalPnlValue.toFixed(2);
+    
+    return stats;
+  })();
+
+  $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
+  $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
 
   function formatSignalsSummary(trend) {
     if (!trend) return '';
@@ -1587,6 +1633,21 @@
           <span class="btn-icon">👑</span>
           <span class="btn-text">傳奇</span>
         </button>
+
+        <div class="filter-stats-spacer"></div>
+        
+        <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
+          <div class="stats-icon">✅</div>
+          <div class="stats-content">
+            <span class="stats-label">
+              {statsLabel}
+            </span>
+            <span class="stats-value">{filteredStats.total} 筆</span>
+            <span class="stats-sep">/</span>
+            <span class="stats-label">勝率</span>
+            <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+          </div>
+        </div>
       </div>
 
       {#if activeFilterType !== 'all'}
@@ -4132,6 +4193,73 @@
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .filter-stats-spacer {
+    flex: 1;
+    min-width: 1rem;
+  }
+
+  .filter-stats-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1rem;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  :global(body.dark-mode) .filter-stats-badge {
+    background: rgba(34, 197, 94, 0.05);
+    border-color: rgba(34, 197, 94, 0.1);
+  }
+
+  .filter-stats-badge:hover {
+    transform: translateY(-1px);
+    background: rgba(34, 197, 94, 0.12);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1);
+  }
+
+  .stats-icon {
+    font-size: 1rem;
+    filter: drop-shadow(0 0 2px rgba(34, 197, 94, 0.5));
+  }
+
+  .stats-content {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .stats-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .stats-value {
+    color: #16a34a;
+    font-weight: 700;
+  }
+
+  :global(body.dark-mode) .stats-value {
+    color: #4ade80;
+  }
+
+  .stats-value.win-rate {
+    font-weight: 800;
+    font-size: 0.95rem;
+  }
+
+  .stats-sep {
+    color: rgba(34, 197, 94, 0.25);
+    font-weight: 300;
   }
 
   .filter-type-btn {
