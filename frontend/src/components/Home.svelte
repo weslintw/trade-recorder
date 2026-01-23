@@ -477,8 +477,8 @@
     const { signal } = loadController;
     let currentResetTimer = null;
 
-    console.debug(`[Diagnostic] --- loadData #${callId} START ---`);
-    const diagnosticStart = performance.now();
+    let diagnosticStart = performance.now();
+    let processingStart = performance.now();
 
     try {
       if (!silent) {
@@ -630,7 +630,7 @@
       trades = uniqueTrades;
 
       // 按日期分組 (YYYY-MM-DD)
-      const processingStart = performance.now();
+      processingStart = performance.now();
       const dateMap = {};
       let processedCount = 0;
       const totalToProcess = plans.length + trades.length;
