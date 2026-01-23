@@ -751,9 +751,9 @@
   let lastAccountsData = null;
   let isRefreshingAccounts = false;
   let refreshAccountsController = null;
-  let lastRefreshAccountsTime = 0;
-  async function refreshAccounts(force = false) {
+  async function refreshAccounts() {
     if (isRefreshingAccounts) {
+      console.log('🟢 [refreshAccounts] Already refreshing, skipping.');
       return;
     }
 
@@ -824,7 +824,7 @@
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
             console.log('🚀 [Realtime] Trade update detected, reloading...');
             loadData(true);
-            throttledRefreshAccounts();
+            refreshAccounts();
           }
         } else if (msg.type === 'PRICE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
@@ -851,17 +851,8 @@
     };
   }
 
-  // 節流處理帳號更新，避免 WebSocket 廣播引發雪崩
-  let lastRefreshAccountsCall = 0;
-  function throttledRefreshAccounts() {
-    const now = Date.now();
-    if (now - lastRefreshAccountsCall > 10000) {
-      lastRefreshAccountsCall = now;
-      refreshAccounts();
-    }
-  }
-
-  // 節流處理數據更新
+  // 節流處理價格更新，避免過度頻繁的 API 請求
+  let lastRealtimeLoadTime = 0;
 
   // 核心優化：直接更新記憶體中的盈虧，不發起網路請求
   function updatePnLInMemory(prices) {
@@ -922,16 +913,18 @@
       return;
     }
 
-    // 如果 WebSocket 正常，則跳過輪詢，完全依賴 WebSocket
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      pollingTimeout = setTimeout(poll, currentPollingInterval);
-      return;
-    }
-
-    // 只有在 WebSocket 斷線時，才執行基本的備援輪詢
-    if ($selectedAccountId) {
-      console.log(`[Fallback Polling] WS is down, triggering safety refresh...`);
-      await Promise.all([loadData(true), refreshAccounts()]);
+    // 如果 WebSocket 斷線，則維持基本的輪詢
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if ($selectedAccountId) {
+        console.log(`[Fallback Polling] Triggering refresh...`);
+        await Promise.all([loadData(true), refreshAccounts()]);
+      }
+    } else {
+      // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
+      if ($selectedAccountId) {
+        // console.log(`[Health Check] Routine refresh...`);
+        await refreshAccounts(); // 僅刷新帳號狀態
+      }
     }
 
     pollingTimeout = setTimeout(poll, currentPollingInterval);
