@@ -442,36 +442,22 @@
   let activeLoadCallId = 0; // 新增：追蹤當前最新的加載 ID，防止舊請求覆蓋新請求
 
   async function loadData(silent = false) {
-    const callId = ++loadDataCallCount; // 每次調用產生唯一 ID
+    const callId = ++loadDataCallCount;
+    const now = Date.now();
 
-    // --- 防抖與衝突處理 (改良版) ---
-    if (loadController) {
-      if (silent) {
-        // 靜默請求：如果有請求在進行中，檢查是否已超過合理時間
-        const timeSinceLastCall = Date.now() - (window._lastLoadDataTime || 0);
-        if (timeSinceLastCall < 5000) {
-          // 5秒內有請求，跳過這次靜默請求
-          console.log(
-            `[${INSTANCE_ID}] Skipping silent loadData #${callId} (recent request active)`
-          );
-          return;
-        } else {
-          // 超過5秒，可能前一個請求卡住了，強制中斷並繼續
-          console.warn(
-            `[${INSTANCE_ID}] Previous request seems stuck, aborting and proceeding with #${callId}`
-          );
-          loadController.abort();
-        }
-      } else {
-        // 使用者手動操作：直接中斷之前的請求
-        console.log(
-          `[${INSTANCE_ID}] Aborting previous in-flight requests to prioritize user action.`
-        );
-        loadController.abort();
-      }
+    // --- 強制防抖 (Strict Debounce) ---
+    if (window._isActuallyLoading && now - (window._lastLoadDataTime || 0) < 500) {
+      console.log(`[${INSTANCE_ID}] Ignoring rapid-fire loadData #${callId} (Debounced)`);
+      return;
     }
 
-    window._lastLoadDataTime = Date.now();
+    if (loadController) {
+      console.log(`[${INSTANCE_ID}] Aborting in-flight request to start #${callId}`);
+      loadController.abort();
+    }
+
+    window._isActuallyLoading = true;
+    window._lastLoadDataTime = now;
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
@@ -760,6 +746,7 @@
       if (activeLoadCallId === callId) {
         loading = false;
         loadController = null;
+        window._isActuallyLoading = false;
       }
     }
   }
