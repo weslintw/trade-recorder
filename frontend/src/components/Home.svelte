@@ -502,6 +502,7 @@
               );
               loading = false;
               loadController = null;
+              window._isActuallyLoading = false;
             }
           }, seconds * 1000);
         };
