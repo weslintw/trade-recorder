@@ -1403,6 +1403,7 @@
 
     .dark-mode .section-label,
     .dark-mode .signal-chip.expected,
+    .dark-mode .wave-number-btn,
     .dark-mode .split-paste-zone {
       color: #ffffff !important;
     }
