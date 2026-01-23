@@ -27,7 +27,7 @@
   let loadError = null; // 新增：錯誤狀態
   let pagination = {
     page: 1,
-    page_size: 100,
+    page_size: 5000,
     total: 0,
   };
   let loadingMessage = '正在啟動時光機...';
