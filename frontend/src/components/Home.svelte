@@ -2271,9 +2271,9 @@
 
                                 <span class="label">子彈</span>
                                 <strong class="bullet">
-                                  {bulletToDisplay !== null && bulletToDisplay !== undefined && !isNaN(Number(bulletToDisplay))
+                                  {bulletToDisplay && Number(bulletToDisplay) > 0
                                     ? Number(bulletToDisplay).toFixed(1)
-                                    : '0.0'}
+                                    : 'NA'}
                                 </strong>
                                 {#if (bulletToDisplay && bulletToDisplay > 0) && (trade.rr_ratio || trade.rr_ratio === 0)}
                                   <span class="label">風報比</span>
