@@ -394,7 +394,7 @@
       // 重設分頁
       pagination.page = 1;
       loadData();
-    }, 300); // 300ms 防抖
+    }, 500); // 500ms 防抖
   }
 
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
@@ -443,22 +443,19 @@
 
   async function loadData(silent = false) {
     const callId = ++loadDataCallCount;
-    console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
     const now = Date.now();
-
-    // --- 強制防抖 (Strict Debounce) ---
-    // 如果是靜默請求 (silent)，才進行嚴格防抖
-    if (silent && window._isActuallyLoading && now - (window._lastLoadDataTime || 0) < 1000) {
+    console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
+    // --- 防抖與中斷處理 ---
+    if (silent && loading && now - (window._lastLoadDataTime || 0) < 500) {
       return;
     }
 
     if (loadController) {
-      console.log(`[${INSTANCE_ID}] Aborting in-flight request to start #${callId}`);
       loadController.abort();
     }
 
-    window._isActuallyLoading = true;
     window._lastLoadDataTime = now;
+    activeLoadCallId = callId;
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
@@ -502,7 +499,6 @@
               );
               loading = false;
               loadController = null;
-              window._isActuallyLoading = false;
             }
           }, seconds * 1000);
         };
@@ -747,7 +743,6 @@
       if (activeLoadCallId === callId) {
         loading = false;
         loadController = null;
-        window._isActuallyLoading = false;
       }
     }
   }
