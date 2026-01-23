@@ -46,6 +46,7 @@
   let showSyncOptionsModal = false;
   let activeFilterType = 'all'; // 'all', 'expert', 'elite', 'legend'
   let activeSubFilter = null;
+  let activeColorFilter = null; // 紅綠燈過濾
 
   const EXPERT_SIGNALS = [
     '向下蘇美',
