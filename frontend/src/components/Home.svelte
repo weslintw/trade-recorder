@@ -337,7 +337,8 @@
         };
       })
       .filter(day => {
-          // 如果有設定子篩選 (搜尋模式)，只顯示有交易命中的日期
+          // 如果有設定子篩選 (搜尋模式)，嚴格只顯示有交易命中的日期
+          // 這樣可以隱藏那些只有盤面規劃但沒有符合交易的空區塊
           if (cleanSub) {
               return day.groupedTrades.length > 0;
           }
@@ -2281,13 +2282,15 @@
                   {/each}
                 </div>
               {:else}
-                <div
-                  class="empty-placeholder dash-trade"
-                  on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
-                >
-                  <div class="plus-icon">➕</div>
-                  <span>新增交易紀錄</span>
-                </div>
+                {#if !activeSubFilter}
+                  <div
+                    class="empty-placeholder dash-trade"
+                    on:click={() => navigate(`/new?symbol=${$selectedSymbol}`)}
+                  >
+                    <div class="plus-icon">➕</div>
+                    <span>新增交易紀錄</span>
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>
