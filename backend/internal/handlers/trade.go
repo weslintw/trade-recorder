@@ -95,6 +95,11 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			args = append(args, query.Strategy)
 		}
 
+		if query.ColorTag != "" && query.ColorTag != "all" {
+			sqlQuery += " AND t.color_tag = ?"
+			args = append(args, query.ColorTag)
+		}
+
 		if query.Keyword != "" {
 			// 關鍵字搜尋：搜尋訊號、樣態、清單以及筆記
 			// 使用 LIKE %keyword% 進行模糊搜尋
@@ -224,6 +229,10 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		if query.Strategy != "" && query.Strategy != "all" {
 			countQuery += " AND t.entry_strategy = ?"
 			countArgs = append(countArgs, query.Strategy)
+		}
+		if query.ColorTag != "" && query.ColorTag != "all" {
+			countQuery += " AND t.color_tag = ?"
+			countArgs = append(countArgs, query.ColorTag)
 		}
 		if query.Keyword != "" {
 			searchPattern := "%" + query.Keyword + "%"

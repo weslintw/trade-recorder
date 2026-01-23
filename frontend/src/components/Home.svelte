@@ -145,6 +145,17 @@
     loadData();
   }
 
+  function selectColorFilter(color) {
+    if (activeColorFilter === color) {
+      activeColorFilter = null;
+    } else {
+      activeColorFilter = color;
+    }
+    // 切換顏色時，重置回第一頁並重新載入資料
+    pagination.page = 1;
+    loadData();
+  }
+
   $: filteredGroupedData = applyFilters(groupedData, activeFilterType, activeSubFilter);
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
@@ -536,6 +547,7 @@
             // 傳遞篩選參數到後端
             strategy: activeFilterType === 'all' ? undefined : activeFilterType,
             keyword: activeSubFilter || undefined,
+            color_tag: activeColorFilter || undefined,
           },
           signal
         ).catch(e => {
@@ -1631,6 +1643,30 @@
         >
           <span class="btn-icon">👑</span>
           <span class="btn-text">傳奇</span>
+        </button>
+
+        <div class="divider"></div>
+
+        <button
+          class="filter-type-btn color-filter {activeColorFilter === 'green' ? 'active' : ''}"
+          on:click={() => selectColorFilter('green')}
+          title="篩選綠燈 (標準單)"
+        >
+          <span class="stats-color-dot green" style="width: 12px; height: 12px;"></span>
+        </button>
+        <button
+          class="filter-type-btn color-filter {activeColorFilter === 'yellow' ? 'active' : ''}"
+          on:click={() => selectColorFilter('yellow')}
+          title="篩選黃燈 (討論空間)"
+        >
+          <span class="stats-color-dot yellow" style="width: 12px; height: 12px;"></span>
+        </button>
+        <button
+          class="filter-type-btn color-filter {activeColorFilter === 'red' ? 'active' : ''}"
+          on:click={() => selectColorFilter('red')}
+          title="篩選紅燈 (非標準單)"
+        >
+          <span class="stats-color-dot red" style="width: 12px; height: 12px;"></span>
         </button>
 
         <div class="filter-stats-spacer"></div>
