@@ -24,6 +24,9 @@
   let activeFilterType = 'all'; // 'all', 'expert', 'elite', 'legend'
   let activeColorFilter = null; // null, 'green', 'yellow', 'red'
   let activeSubFilter = null; // for expert/elite sub-filters
+  let activeDateRange = 'all'; // 'all', '1D', '1W', '1M', 'custom'
+  let customStartDate = '';
+  let customEndDate = '';
 
   const EXPERT_SIGNALS = ['向下蘇美', '起漲靠山', '雙柱', '夾縫'];
   const ELITE_CHECKLIST = [
@@ -46,6 +49,7 @@
   };
 
   // Detail View State
+  let selectedItem = null;
 
   // Image Modal State
   let enlargedImage = null;
@@ -274,6 +278,14 @@
   $: filteredTrades = (() => {
     if (!sharedData || !sharedData.data || !sharedData.data.trades) return [];
     return sharedData.data.trades.filter(t => {
+      // Date Filter
+      if (activeDateRange !== 'all') {
+        const entryDate = t.entry_time ? getTradingDate(t.entry_time) : 'unknown';
+        if (entryDate === 'unknown') return false;
+        if (customStartDate && entryDate < customStartDate) return false;
+        if (customEndDate && entryDate > customEndDate) return false;
+      }
+
       // Color Filter
       if (activeColorFilter && t.color_tag !== activeColorFilter) return false;
 
@@ -299,12 +311,12 @@
   $: filteredPlans = (() => {
     if (!sharedData || !sharedData.data || !sharedData.data.plans) return [];
     return sharedData.data.plans.filter(p => {
-      // Plans only filter by strategy if applicable (mostly trades)
-      // But for plans we can filter by SYMBOL if we had multiple
-      if (activeFilterType !== 'all') {
-        // Generally plans are tied to symbol, not strategy as strictly as trades
-        // But if we want consistency:
-        // return true; // Keep all plans for now unless specifically asked to filter them
+      // Date Filter
+      if (activeDateRange !== 'all') {
+        const planDate = p.plan_date ? p.plan_date.slice(0, 10) : 'unknown';
+        if (planDate === 'unknown') return false;
+        if (customStartDate && planDate < customStartDate) return false;
+        if (customEndDate && planDate > customEndDate) return false;
       }
       return true;
     });
@@ -347,6 +359,33 @@
       activeFilterType = type;
     }
     activeSubFilter = null;
+  }
+
+  function setDateRange(range) {
+    if (activeDateRange === range) {
+      activeDateRange = 'all';
+      customStartDate = '';
+      customEndDate = '';
+    } else {
+      activeDateRange = range;
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+
+      if (range === '1D') {
+        customStartDate = todayStr;
+        customEndDate = todayStr;
+      } else if (range === '1W') {
+        const d = new Date();
+        d.setDate(d.getDate() - 7);
+        customStartDate = d.toISOString().split('T')[0];
+        customEndDate = todayStr;
+      } else if (range === '1M') {
+        const d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        customStartDate = d.toISOString().split('T')[0];
+        customEndDate = todayStr;
+      }
+    }
   }
 
   function selectColorFilter(color) {
@@ -450,80 +489,155 @@
             </p>
 
             <!-- Ported Filter UI -->
-            <div class="shared-filter-bar">
-              <div class="filter-main-types">
-                <button
-                  class="filter-type-btn {activeFilterType === 'all' ? 'active' : ''}"
-                  on:click={() => selectFilterType('all')}>全部</button
-                >
-                <div class="divider"></div>
-                <button
-                  class="filter-type-btn {activeFilterType === 'expert' ? 'active' : ''}"
-                  on:click={() => selectFilterType('expert')}>👨‍🏫 達人</button
-                >
-                <button
-                  class="filter-type-btn {activeFilterType === 'elite' ? 'active' : ''}"
-                  on:click={() => selectFilterType('elite')}>🛡️ 菁英</button
-                >
-                <button
-                  class="filter-type-btn {activeFilterType === 'legend' ? 'active' : ''}"
-                  on:click={() => selectFilterType('legend')}>👑 傳奇</button
-                >
+            <div class="filter-section">
+              <div class="filter-glass-container">
+                <!-- 日期篩選區 -->
+                <div class="filter-date-row">
+                  <div class="date-presets">
+                    <button
+                      class="filter-type-btn {activeDateRange === '1D' ? 'active' : ''}"
+                      on:click={() => setDateRange('1D')}
+                    >
+                      1日
+                    </button>
+                    <button
+                      class="filter-type-btn {activeDateRange === '1W' ? 'active' : ''}"
+                      on:click={() => setDateRange('1W')}
+                    >
+                      1週
+                    </button>
+                    <button
+                      class="filter-type-btn {activeDateRange === '1M' ? 'active' : ''}"
+                      on:click={() => setDateRange('1M')}
+                    >
+                      1月
+                    </button>
+                    <button
+                      class="filter-type-btn {activeDateRange === 'custom' ? 'active' : ''}"
+                      on:click={() => {
+                        if (activeDateRange === 'custom') {
+                          activeDateRange = 'all';
+                          customStartDate = '';
+                          customEndDate = '';
+                        } else {
+                          activeDateRange = 'custom';
+                          if (!customStartDate) {
+                            const d = new Date();
+                            d.setDate(d.getDate() - 7);
+                            customStartDate = d.toISOString().split('T')[0];
+                            customEndDate = new Date().toISOString().split('T')[0];
+                          }
+                        }
+                      }}
+                    >
+                      📅 自訂
+                    </button>
+                  </div>
 
-                <div class="divider"></div>
-
-                <button
-                  class="filter-type-btn color-filter {activeColorFilter === 'green'
-                    ? 'active'
-                    : ''}"
-                  on:click={() => selectColorFilter('green')}
-                >
-                  <span class="color-dot green"></span>
-                </button>
-                <button
-                  class="filter-type-btn color-filter {activeColorFilter === 'yellow'
-                    ? 'active'
-                    : ''}"
-                  on:click={() => selectColorFilter('yellow')}
-                >
-                  <span class="color-dot yellow"></span>
-                </button>
-                <button
-                  class="filter-type-btn color-filter {activeColorFilter === 'red' ? 'active' : ''}"
-                  on:click={() => selectColorFilter('red')}
-                >
-                  <span class="color-dot red"></span>
-                </button>
-
-                <div class="filter-stats-spacer"></div>
-
-                <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
-                  <span class="stats-label">結果：</span>
-                  <span class="stats-value"
-                    >{filteredStats.hasTrades ? filteredTrades.length : 0} 筆</span
-                  >
-                  {#if filteredStats.total > 0}
-                    <span class="stats-sep">/</span>
-                    <span class="stats-label">勝率</span>
-                    <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+                  {#if activeDateRange === 'custom'}
+                    <div class="custom-date-inputs">
+                      <input type="date" class="date-input" bind:value={customStartDate} />
+                      <span class="date-sep">~</span>
+                      <input type="date" class="date-input" bind:value={customEndDate} />
+                    </div>
                   {/if}
                 </div>
-              </div>
 
-              {#if activeFilterType !== 'all'}
-                <div class="sub-filter-scroll-wrapper">
-                  <div class="sub-filter-container">
-                    {#each subFilters[activeFilterType] as sub}
-                      <button
-                        class="sub-filter-chip {activeSubFilter === sub.value ? 'active' : ''}"
-                        on:click={() => toggleSubFilter(sub.value)}
-                      >
-                        {sub.label}
-                      </button>
-                    {/each}
+                <div class="divider-horizontal"></div>
+
+                <div class="filter-main-types">
+                  <button
+                    class="filter-type-btn {activeFilterType === 'all' ? 'active' : ''}"
+                    on:click={() => selectFilterType('all')}
+                  >
+                    全部
+                  </button>
+                  <div class="divider"></div>
+                  <button
+                    class="filter-type-btn {activeFilterType === 'expert' ? 'active' : ''}"
+                    on:click={() => selectFilterType('expert')}
+                  >
+                    👨‍🏫 達人
+                  </button>
+                  <button
+                    class="filter-type-btn {activeFilterType === 'elite' ? 'active' : ''}"
+                    on:click={() => selectFilterType('elite')}
+                  >
+                    🛡️ 菁英
+                  </button>
+                  <button
+                    class="filter-type-btn {activeFilterType === 'legend' ? 'active' : ''}"
+                    on:click={() => selectFilterType('legend')}
+                  >
+                    👑 傳奇
+                  </button>
+
+                  <div class="divider"></div>
+
+                  <button
+                    class="filter-type-btn color-filter {activeColorFilter === 'green'
+                      ? 'active'
+                      : ''}"
+                    on:click={() => selectColorFilter('green')}
+                  >
+                    <span class="stats-color-dot green"></span>
+                  </button>
+                  <button
+                    class="filter-type-btn color-filter {activeColorFilter === 'yellow'
+                      ? 'active'
+                      : ''}"
+                    on:click={() => selectColorFilter('yellow')}
+                  >
+                    <span class="stats-color-dot yellow"></span>
+                  </button>
+                  <button
+                    class="filter-type-btn color-filter {activeColorFilter === 'red'
+                      ? 'active'
+                      : ''}"
+                    on:click={() => selectColorFilter('red')}
+                  >
+                    <span class="stats-color-dot red"></span>
+                  </button>
+
+                  <div class="filter-stats-spacer"></div>
+
+                  <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
+                    <div class="stats-icon">✅</div>
+                    <div class="stats-content">
+                      <span class="stats-label">結果：</span>
+                      <span class="stats-value">{filteredTrades.length} 筆</span>
+                      {#if filteredStats.total > 0}
+                        <span class="stats-sep">/</span>
+                        <span class="stats-label">勝率</span>
+                        <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+                      {/if}
+                      <div class="stats-color-groups">
+                        <span class="stats-color-dot green"></span>
+                        <span class="stats-color-count">{filteredStats.green}</span>
+                        <span class="stats-color-dot yellow"></span>
+                        <span class="stats-color-count">{filteredStats.yellow}</span>
+                        <span class="stats-color-dot red"></span>
+                        <span class="stats-color-count">{filteredStats.red}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              {/if}
+
+                {#if activeFilterType !== 'all'}
+                  <div class="sub-filter-scroll-wrapper">
+                    <div class="sub-filter-container">
+                      {#each subFilters[activeFilterType] as sub}
+                        <button
+                          class="sub-filter-chip {activeSubFilter === sub.value ? 'active' : ''}"
+                          on:click={() => toggleSubFilter(sub.value)}
+                        >
+                          {sub.label}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+              </div>
             </div>
           </div>
           <div class="timeline">
@@ -1090,6 +1204,302 @@
     background: var(--bg-main);
     border-radius: 1rem;
     line-height: 1.6;
+  }
+
+  /* 過濾器樣式 */
+  .filter-section {
+    margin: 0.5rem 0 1.5rem 0;
+    z-index: 10;
+  }
+
+  .filter-glass-container {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px;
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  :global(body.dark-mode) .filter-glass-container {
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .filter-main-types {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .filter-stats-spacer {
+    flex: 1;
+    min-width: 1rem;
+  }
+
+  .filter-stats-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1rem;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  :global(body.dark-mode) .filter-stats-badge {
+    background: rgba(34, 197, 94, 0.05);
+    border-color: rgba(34, 197, 94, 0.1);
+  }
+
+  .filter-stats-badge:hover {
+    transform: translateY(-1px);
+    background: rgba(34, 197, 94, 0.12);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.1);
+  }
+
+  .stats-icon {
+    font-size: 1rem;
+    filter: drop-shadow(0 0 2px rgba(34, 197, 94, 0.5));
+  }
+
+  .stats-content {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .stats-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+
+  .stats-value {
+    color: #16a34a;
+    font-weight: 700;
+  }
+
+  :global(body.dark-mode) .stats-value {
+    color: #4ade80;
+  }
+
+  .stats-value.win-rate {
+    font-weight: 800;
+    font-size: 0.95rem;
+  }
+
+  .stats-sep {
+    color: rgba(34, 197, 94, 0.25);
+    font-weight: 300;
+  }
+
+  .stats-color-groups {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid rgba(34, 197, 94, 0.15);
+  }
+
+  .stats-color-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+  }
+
+  .stats-color-dot.green {
+    background-color: #22c55e;
+  }
+  .stats-color-dot.yellow {
+    background-color: #eab308;
+  }
+  .stats-color-dot.red {
+    background-color: #ef4444;
+  }
+
+  .stats-color-count {
+    font-size: 0.8rem;
+    color: var(--text-main);
+    font-weight: 700;
+    margin-right: 0.2rem;
+  }
+
+  .filter-type-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border: none;
+    background: transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+
+  :global(body.dark-mode) .filter-type-btn {
+    color: #94a3b8;
+  }
+
+  .filter-type-btn:hover {
+    background: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+  }
+
+  :global(body.dark-mode) .filter-type-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .filter-type-btn.active {
+    background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  }
+
+  .divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.1);
+    margin: 0 0.25rem;
+  }
+
+  :global(body.dark-mode) .divider {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .divider-horizontal {
+    height: 1px;
+    background: rgba(0, 0, 0, 0.05);
+    margin: 0.75rem 0;
+    width: 100%;
+  }
+
+  :global(body.dark-mode) .divider-horizontal {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .sub-filter-scroll-wrapper {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .sub-filter-scroll-wrapper::-webkit-scrollbar {
+    display: none;
+  }
+
+  :global(body.dark-mode) .sub-filter-scroll-wrapper {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .sub-filter-container {
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .sub-filter-chip {
+    white-space: nowrap;
+    padding: 0.4rem 1rem;
+    border-radius: 100px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: white;
+    font-size: 0.85rem;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  :global(body.dark-mode) .sub-filter-chip {
+    background: #1e293b;
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+  }
+
+  .sub-filter-chip:hover {
+    border-color: #6366f1;
+    color: #6366f1;
+  }
+
+  .sub-filter-chip.active {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: white;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+  }
+
+  .filter-date-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+
+  .date-presets {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .custom-date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    animation: fadeIn 0.3s ease;
+  }
+
+  .date-input {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    color: #475569;
+    font-family: inherit;
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .date-input:focus {
+    border-color: #6366f1;
+    background: white;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+
+  :global(body.dark-mode) .date-input {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .view-header-main {
+    margin-bottom: 2rem;
   }
 
   .batch-viewer {
