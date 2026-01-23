@@ -111,7 +111,7 @@
         {/each}
       </div>
     </div>
-    <SignalGrid bind:formData />
+    <SignalGrid bind:entry_signals={formData.entry_signals} bind:formData />
   </div>
 {/if}
 

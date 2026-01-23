@@ -274,12 +274,34 @@
 
   function applyFilters(data, type, sub) {
     if (!data) return [];
-    
-    // 安全解析函數，支援已是物件的情況
-    const safeParse = (val, def) => {
+
+    // 強化版安全解析，支援多重解析與 Null 守衛
+    const robustParse = (val, def = []) => {
       if (val === null || val === undefined) return def;
-      if (typeof val === 'object') return val;
-      return parseJSONSafe(val, def);
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'object') {
+        return Array.isArray(val) ? val : [val];
+      }
+      try {
+        let parsed = JSON.parse(val);
+        // 有些資料在資料庫中可能被存了兩次 JSON string
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        if (!parsed) return def;
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch (e) {
+        return def;
+      }
+    };
+
+    // 統一的匹配檢查函數
+    const checkMatch = (arr, target) => {
+      if (!arr || !Array.isArray(arr) || !target) return false;
+      const cleanTarget = String(target).trim();
+      return arr.some(item => {
+        if (!item) return false;
+        const name = typeof item === 'object' ? item.name : String(item);
+        return name && String(name).trim() === cleanTarget;
+      });
     };
 
     return data
@@ -288,52 +310,29 @@
           // 規劃目前僅支持達人訊號過濾，或者是全部模式下帶有 sub 的情況
           if (type !== 'expert' && type !== 'all' && sub) return false;
 
-          const trendData = safeParse(plan.trend_analysis, {});
+          const trendData = parseJSONSafe(plan.trend_analysis, {});
           // 檢查所有時段與時區
           for (const sessionKey of ['asian', 'european', 'us', 'all']) {
             const sessData = trendData[sessionKey];
-            if (!sessData || !sessData.trends) {
-              // 處理舊格式：trends 可能直接在頂層
-              const trends = sessionKey === 'all' ? trendData : null;
-              if (!trends) continue;
-              
-              for (const tf of TIMEFRAMES) {
-                const trend = trends[tf];
-                if (!trend) continue;
-                for (const dir of ['long', 'short', 'neutral']) {
-                  const dData = trend[dir] || (dir === 'neutral' ? null : trend); // 兼顧極舊格式
-                  if (!dData) continue;
-                  
-                  const signals = dData.signals || [];
-                  const expected = dData.expected_signals || [];
-                  
-                  if (!sub) {
-                    if (signals.length > 0 || expected.length > 0) return true;
-                  } else {
-                    if (signals.includes(sub)) return true;
-                    if (expected.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
-                  }
-                }
-              }
-              continue;
-            }
+            const trends = (sessData && sessData.trends) ? sessData.trends : (sessionKey === 'all' ? trendData : null);
+            if (!trends) continue;
 
-            for (const tf in sessData.trends) {
-              const trend = sessData.trends[tf];
+            for (const tf in trends) {
+              const trend = trends[tf];
               if (!trend) continue;
 
               for (const dir of ['long', 'short', 'neutral']) {
-                const dData = trend[dir];
+                const dData = trend[dir] || (dir === 'neutral' ? null : trend);
                 if (!dData) continue;
 
-                const signals = dData.signals || [];
-                const expected = dData.expected_signals || [];
+                const signals = robustParse(dData.signals);
+                const expected = robustParse(dData.expected_signals);
 
                 if (!sub) {
                   if (signals.length > 0 || expected.length > 0) return true;
                 } else {
-                  if (signals.includes(sub)) return true;
-                  if (expected.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
+                  if (checkMatch(signals, sub)) return true;
+                  if (checkMatch(expected, sub)) return true;
                 }
               }
             }
@@ -344,29 +343,28 @@
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
-              // 如果選了特定策略類型，先過濾策略
+              // 1. 策略類型檢查: 如果不是 'all', 則必須符合指定的 strategy
               if (type !== 'all' && trade.entry_strategy !== type) return false;
 
-              // 如果沒有子過濾器，且已經符合策略類型（或選全部），則顯示
+              // 2. 如果沒有子項目，且通過了類型檢查，直接通過
               if (!sub) return true;
 
-              // 處理子過濾器
-              if (type === 'expert' || type === 'all' || trade.entry_strategy === 'expert') {
-                const signals = safeParse(trade.entry_signals, []);
-                if (signals.some(s => (typeof s === 'object' ? s.name === sub : s === sub))) return true;
-              }
+              // 3. 子項目檢查: 我們不分塊，只要任何一個欄位匹配就視為符合，這更能相容 all 模式
+              
+              // 檢查達人訊號感
+              const signals = robustParse(trade.entry_signals);
+              if (checkMatch(signals, sub)) return true;
 
-              if (type === 'elite' || type === 'all' || trade.entry_strategy === 'elite') {
-                const patterns = safeParse(trade.entry_pattern, []);
-                if (patterns.some(p => (typeof p === 'object' ? p.name === sub : p === sub))) return true;
-              }
+              // 檢查菁英樣態
+              const patterns = robustParse(trade.entry_pattern);
+              if (checkMatch(patterns, sub)) return true;
 
-              if (type === 'legend' || type === 'all' || trade.entry_strategy === 'legend') {
-                const checklist = safeParse(trade.entry_checklist, {});
-                if (checklist[sub] === true) return true;
-              }
+              // 檢查傳奇清單
+              const checklist = typeof trade.entry_checklist === 'string' 
+                ? parseJSONSafe(trade.entry_checklist, {}) 
+                : (trade.entry_checklist || {});
+              if (checklist[sub] === true) return true;
 
-              // 如果沒匹配到任何子過濾器條件
               return false;
             });
 
