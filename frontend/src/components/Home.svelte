@@ -297,21 +297,22 @@
       if (!val || !target) return false;
       const cleanTarget = String(target).trim();
       
-      const arr = robustParse(val);
-      const formalMatch = arr.some(item => {
-        if (!item) return false;
-        const name = item.name || item.label || item.value || (typeof item === 'string' ? item : null);
-        return name && String(name).trim() === cleanTarget;
-      });
-      if (formalMatch) return true;
-
-      // 全文搜尋回退
+      // 1. 全文檢索回退 (應對各種非預期格式的最強防護)
       try {
         const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
         if (rawStr.includes(cleanTarget)) return true;
       } catch (e) {}
 
-      return false;
+      // 2. 深度物件匹配 (掃描所有屬性值)
+      const arr = robustParse(val);
+      return arr.some(item => {
+        if (!item) return false;
+        if (typeof item === 'object') {
+            // 只要物件中的任何一個值匹配目標，就算符合
+            return Object.values(item).some(v => v !== null && v !== undefined && String(v).trim() === cleanTarget);
+        }
+        return String(item).trim() === cleanTarget;
+      });
     };
 
     return data
@@ -2270,9 +2271,9 @@
 
                                 <span class="label">子彈</span>
                                 <strong class="bullet">
-                                  {bulletToDisplay && Number(bulletToDisplay) > 0
+                                  {bulletToDisplay !== null && bulletToDisplay !== undefined && !isNaN(Number(bulletToDisplay))
                                     ? Number(bulletToDisplay).toFixed(1)
-                                    : 'NA'}
+                                    : '0.0'}
                                 </strong>
                                 {#if (bulletToDisplay && bulletToDisplay > 0) && (trade.rr_ratio || trade.rr_ratio === 0)}
                                   <span class="label">風報比</span>
