@@ -716,9 +716,8 @@
       });
 
       if (activeLoadCallId !== callId) {
-        console.log(
-          `[${INSTANCE_ID}] loadData #${callId} superseded by #${activeLoadCallId}, skipping UI update.`
-        );
+        // 安靜化：如果只是因為有了更新的請求，不必列為顯眼訊息
+        console.debug(`[${INSTANCE_ID}] loadData #${callId} superseded by #${activeLoadCallId}`);
         return;
       }
 
@@ -834,7 +833,12 @@
           }
         } else if (msg.type === 'PRICE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
-            throttledLoadData();
+            // 優化：直接更新記憶體中的盈虧，不要重新執行 loadData()
+            const updatedTradesCount = updatePnLInMemory(msg.prices);
+            if (updatedTradesCount > 0) {
+              // 觸發 Svelte 響應式刷新
+              groupedData = groupedData;
+            }
           }
         }
       } catch (e) {
@@ -854,6 +858,46 @@
 
   // 節流處理價格更新，避免過度頻繁的 API 請求
   let lastRealtimeLoadTime = 0;
+
+  // 核心優化：直接更新記憶體中的盈虧，不發起網路請求
+  function updatePnLInMemory(prices) {
+    if (!prices || !groupedData) return 0;
+    let count = 0;
+
+    // 遍歷所有日期組下的交易群組
+    groupedData.forEach(day => {
+      day.groupedTrades.forEach(group => {
+        let groupUpdated = false;
+        group.trades.forEach(trade => {
+          // 只針對未平倉位 (無平倉價格或平倉時間)
+          if (!trade.exit_price && !trade.exit_time && trade.symbol) {
+            const updateInfo = prices[trade.ticket] || prices[trade.symbol];
+            if (updateInfo) {
+              // 更新 PnL
+              if (typeof updateInfo === 'number') {
+                trade.pnl = updateInfo;
+              } else if (updateInfo.pnl !== undefined) {
+                trade.pnl = updateInfo.pnl;
+              }
+
+              // 更新價格
+              if (updateInfo.price) {
+                trade.current_price = updateInfo.price;
+              }
+              count++;
+              groupUpdated = true;
+            }
+          }
+        });
+
+        // 重新計算群組總盈虧
+        if (groupUpdated) {
+          group.summary.totalPnl = group.trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+        }
+      });
+    });
+    return count;
+  }
   function throttledLoadData() {
     const now = Date.now();
     if (now - lastRealtimeLoadTime > 5000) {
