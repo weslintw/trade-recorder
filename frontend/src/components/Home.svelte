@@ -273,75 +273,23 @@
     const debug = !!sub;
     const cleanSub = sub ? String(sub).trim() : null;
 
-    const robustParse = (val, def = []) => {
-      if (val === null || val === undefined) return def;
-      if (Array.isArray(val)) return val;
-      if (typeof val === 'object') return [val];
-      try {
-        let parsed = val;
-        let safeCounter = 0;
-        while (typeof parsed === 'string' && safeCounter < 3) {
-            parsed = JSON.parse(parsed);
-            safeCounter++;
-        }
-        if (!parsed) return def;
-        return Array.isArray(parsed) ? parsed : [parsed];
-      } catch (e) {
-        return def;
-      }
-    };
-
-    const checkMatch = (val, target) => {
-      if (!val || !target) return false;
-      const targetStr = String(target).trim();
-      
-      // 1. 文字全匹配
-      try {
-        const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
-        if (rawStr.includes(targetStr)) return true;
-      } catch (e) {}
-
-      // 2. 深度掃描
-      const arr = robustParse(val);
-      return arr.some(item => {
-        if (!item) return false;
-        if (typeof item === 'object') {
-           return Object.values(item).some(v => v !== null && v !== undefined && String(v).trim() === targetStr);
-        }
-        return String(item).trim() === targetStr;
-      });
-    };
-
     return data
       .map(day => {
         const filteredPlans = day.plans.filter(plan => {
           if (type !== 'expert' && type !== 'all' && sub) return false;
-          const trendData = parseJSONSafe(plan.trend_analysis, {});
-          for (const sessionKey of ['asian', 'european', 'us', 'all']) {
-            const sessData = trendData[sessionKey];
-            const trends = (sessData && sessData.trends) ? sessData.trends : (sessionKey === 'all' ? trendData : null);
-            if (!trends) continue;
-            for (const tf in trends) {
-              const trend = trends[tf];
-              if (!trend) continue;
-              for (const dir of ['long', 'short', 'neutral']) {
-                const dData = trend[dir] || (dir === 'neutral' ? null : trend);
-                if (!dData) continue;
-                if (!cleanSub) {
-                  if (robustParse(dData.signals).length > 0 || robustParse(dData.expected_signals).length > 0) return true;
-                } else {
-                  if (checkMatch(dData.signals, cleanSub) || checkMatch(dData.expected_signals, cleanSub)) return true;
-                }
-              }
-            }
+          // 規劃搜尋：同樣使用文字掃描確保不漏掉
+          const planStr = JSON.stringify(plan);
+          if (!cleanSub) {
+              // 如果沒選子項，有任何訊號就顯示
+              return planStr.includes('signals') || planStr.includes('expected');
           }
-          return false;
+          return planStr.includes(cleanSub);
         });
 
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
             const filteredTrades = group.trades.filter(trade => {
-              // 策略類型匹配 (高度容錯：entry_strategy 或 strategy)
+              // 1. 策略類型匹配 (高度容錯)
               const tStrat = String(trade.entry_strategy || trade.strategy || '').trim().toLowerCase();
               const fType = type.toLowerCase();
               
@@ -354,32 +302,20 @@
               if (!stratMatch) return false;
               if (!cleanSub) return true;
 
-              // --- 終極修正：自動掃描交易物件中所有可能的相關欄位 ---
-              let isMatch = false;
-              
-              // 1. 掃描所有 key 名稱包含訊號、樣態、清單關鍵字的欄位
-              for (const key in trade) {
-                  const lowerKey = key.toLowerCase();
-                  if (lowerKey.includes('signal') || lowerKey.includes('pattern') || lowerKey.includes('checklist')) {
-                      if (checkMatch(trade[key], cleanSub)) {
-                          isMatch = true;
-                          break;
-                      }
+              // 2. 終極修正：全物件透視搜尋 (JSON String Search)
+              // 直接看整筆交易的原始資料裡面有沒有「甲」
+              try {
+                  const tradeStr = JSON.stringify(trade);
+                  const isMatch = tradeStr.includes(cleanSub);
+                  
+                  if (debug && !isMatch && stratMatch) {
+                      console.warn(`[Filter Debug] Trade #${trade.id} Fail. '甲' not found in:`, tradeStr);
                   }
+                  
+                  return isMatch;
+              } catch (e) {
+                  return false;
               }
-
-              // 2. 針對 checklist 的特殊布林值檢查
-              if (!isMatch) {
-                  const checklist = (trade.entry_checklist || trade.checklist);
-                  const parsedChecklist = typeof checklist === 'string' ? parseJSONSafe(checklist, {}) : (checklist || {});
-                  if (parsedChecklist[cleanSub] === true) isMatch = true;
-              }
-              
-              if (debug && !isMatch && stratMatch) {
-                  console.warn(`[Filter Debug] Trade #${trade.id} Fail. All Fields:`, trade);
-              }
-
-              return isMatch;
             });
 
             if (filteredTrades.length === 0) return null;
