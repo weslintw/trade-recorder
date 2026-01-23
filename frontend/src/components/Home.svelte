@@ -447,8 +447,8 @@
     const now = Date.now();
 
     // --- 強制防抖 (Strict Debounce) ---
-    if (window._isActuallyLoading && now - (window._lastLoadDataTime || 0) < 500) {
-      console.log(`[${INSTANCE_ID}] Ignoring rapid-fire loadData #${callId} (Debounced)`);
+    // 如果是靜默請求 (silent)，才進行嚴格防抖
+    if (silent && window._isActuallyLoading && now - (window._lastLoadDataTime || 0) < 1000) {
       return;
     }
 
