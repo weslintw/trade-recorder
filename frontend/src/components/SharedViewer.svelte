@@ -288,11 +288,9 @@
 
       // TP/SL Filter
       if (activeExitFilter === 'tp') {
-        const reason = String(t.exit_reason || '').toLowerCase();
-        if (!reason.includes('tp') && !reason.includes('take profit')) return false;
+        if (!(t.pnl > 0)) return false;
       } else if (activeExitFilter === 'sl') {
-        const reason = String(t.exit_reason || '').toLowerCase();
-        if (!reason.includes('sl') && !reason.includes('stop loss')) return false;
+        if (!(t.pnl < 0)) return false;
       }
 
       // Color Filter

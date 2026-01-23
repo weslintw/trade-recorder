@@ -318,11 +318,9 @@
             const filteredTrades = group.trades.filter(trade => {
               // TP/SL Filter
               if (exitFilter === 'tp') {
-                const reason = String(trade.exit_reason || '').toLowerCase();
-                if (!reason.includes('tp') && !reason.includes('take profit')) return false;
+                if (!(trade.pnl > 0)) return false;
               } else if (exitFilter === 'sl') {
-                const reason = String(trade.exit_reason || '').toLowerCase();
-                if (!reason.includes('sl') && !reason.includes('stop loss')) return false;
+                if (!(trade.pnl < 0)) return false;
               }
               // 1. 策略類型匹配 (高度容錯)
               const tStrat = String(trade.entry_strategy || trade.strategy || '')
