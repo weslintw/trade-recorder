@@ -275,16 +275,8 @@
 
     return data
       .map(day => {
-        const filteredPlans = day.plans.filter(plan => {
-          if (type !== 'expert' && type !== 'all' && sub) return false;
-          // 規劃搜尋：同樣使用文字掃描確保不漏掉
-          const planStr = JSON.stringify(plan);
-          if (!cleanSub) {
-              // 如果沒選子項，有任何訊號就顯示
-              return planStr.includes('signals') || planStr.includes('expected');
-          }
-          return planStr.includes(cleanSub);
-        });
+        // 盤面規劃不參與篩選，始終顯示完整內容
+        const filteredPlans = day.plans;
 
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
@@ -309,7 +301,7 @@
                   const isMatch = tradeStr.includes(cleanSub);
                   
                   if (debug && !isMatch && stratMatch) {
-                      console.warn(`[Filter Debug] Trade #${trade.id} Fail. '甲' not found in:`, tradeStr);
+                      console.warn(`[Filter Debug] Trade #${trade.id} Fail. '${cleanSub}' not found in:`, tradeStr);
                   }
                   
                   return isMatch;
@@ -338,7 +330,14 @@
           groupedTrades: filteredGroupedTrades,
         };
       })
-      .filter(day => day.plans.length > 0 || day.groupedTrades.length > 0);
+      .filter(day => {
+          // 如果有設定子篩選 (搜尋模式)，只顯示有交易命中的日期
+          if (cleanSub) {
+              return day.groupedTrades.length > 0;
+          }
+          // 一般瀏覽模式：顯示有規劃或有交易的日期
+          return day.plans.length > 0 || day.groupedTrades.length > 0;
+      });
   }
 
   // 追蹤當前選取的帳號詳情
