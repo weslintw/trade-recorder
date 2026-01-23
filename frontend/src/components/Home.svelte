@@ -751,11 +751,14 @@
   let lastAccountsData = null;
   let isRefreshingAccounts = false;
   let refreshAccountsController = null;
+  let lastRefreshAccountsTime = 0;
   async function refreshAccounts() {
-    if (isRefreshingAccounts) {
-      console.log('🟢 [refreshAccounts] Already refreshing, skipping.');
+    const now = performance.now();
+    if (isRefreshingAccounts || now - lastRefreshAccountsTime < 10000) {
+      // 10秒內不重複刷新帳號列表，除非是手動強制觸發
       return;
     }
+    lastRefreshAccountsTime = now;
 
     // Abort previous refresh if any
     if (refreshAccountsController) refreshAccountsController.abort();
@@ -913,18 +916,16 @@
       return;
     }
 
-    // 如果 WebSocket 斷線，則維持基本的輪詢
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      if ($selectedAccountId) {
-        console.log(`[Fallback Polling] Triggering refresh...`);
-        await Promise.all([loadData(true), refreshAccounts()]);
-      }
-    } else {
-      // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
-      if ($selectedAccountId) {
-        // console.log(`[Health Check] Routine refresh...`);
-        await refreshAccounts(); // 僅刷新帳號狀態
-      }
+    // 如果 WebSocket 正常，則跳過輪詢，完全依賴 WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      pollingTimeout = setTimeout(poll, currentPollingInterval);
+      return;
+    }
+
+    // 只有在 WebSocket 斷線時，才執行基本的備援輪詢
+    if ($selectedAccountId) {
+      console.log(`[Fallback Polling] WS is down, triggering safety refresh...`);
+      await Promise.all([loadData(true), refreshAccounts()]);
     }
 
     pollingTimeout = setTimeout(poll, currentPollingInterval);
