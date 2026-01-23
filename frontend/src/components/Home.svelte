@@ -368,12 +368,12 @@
         };
       })
       .filter(day => {
-        // 如果有設定子篩選 (搜尋模式) 或顏色篩選，嚴格只顯示有交易命中的日期
-        // 這樣可以隱藏那些只有盤面規劃但沒有符合交易的空區塊
-        if (cleanSub || color) {
+        // 如果有設定策略篩選 (type !== 'all')、子篩選 (搜尋模式) 或顏色篩選，
+        // 則嚴格只顯示有交易紀錄命中的日期，隱藏那些只有盤面規劃但沒有符合交易的空區塊
+        if (type !== 'all' || cleanSub || color) {
           return day.groupedTrades.length > 0;
         }
-        // 一般瀏覽模式：顯示有規劃或有交易的日期
+        // 一般全覽模式：顯示有規劃或有交易的日期
         return day.plans.length > 0 || day.groupedTrades.length > 0;
       });
   }
