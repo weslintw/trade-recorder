@@ -414,7 +414,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 				continue
 			}
 
-			if msg.PayloadType != 51 {
+			if msg.PayloadType != 51 && msg.PayloadType != 2155 && msg.PayloadType != 2131 {
 				log.Printf("[cTrader Manager] Msg Received Type: %d, Account: %d, Payload Size: %d", msg.PayloadType, accountID, len(msg.Payload))
 			}
 
@@ -605,6 +605,25 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				if event.Position.TradeData.Volume == 0 {
 					m.db.Exec("DELETE FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)", accountID, posTicket, legacyTicket)
 					log.Printf("[cTrader Manager] Full close of position %d", deal.PositionID)
+
+					// --- 退訂邏輯：檢查是否還有同品種的開倉位 ---
+					go func(accID int64, sym string, sid int64) {
+						var otherExists int
+						m.db.QueryRow("SELECT 1 FROM trades WHERE account_id = ? AND symbol = ? AND exit_price IS NULL LIMIT 1", accID, sym).Scan(&otherExists)
+						if otherExists == 0 {
+							log.Printf("[cTrader Manager] No more open positions for %s. Unsubscribing from spots...", sym)
+							m.mu.RLock()
+							targetAc, ok := m.connections[accID]
+							m.mu.RUnlock()
+							if ok && targetAc != nil && targetAc.Conn != nil {
+								targetAc.Conn.WriteJSON(CTraderMessage{
+									ClientMsgID: fmt.Sprintf("unsub-%d", time.Now().UnixNano()),
+									PayloadType: PayloadUnsubscribeSpotsReq,
+									Payload:     json.RawMessage(fmt.Sprintf(`{"ctidTraderAccountId": %d, "symbolId": [%d]}`, ctid, sid)),
+								})
+							}
+						}
+					}(accountID, symbol, deal.SymbolID)
 				} else {
 					log.Printf("[cTrader Manager] Partial close of position %d, remaining volume: %d", deal.PositionID, event.Position.TradeData.Volume)
 					remVol := float64(event.Position.TradeData.Volume) / float64(lotSize)

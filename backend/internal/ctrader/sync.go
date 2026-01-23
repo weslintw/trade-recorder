@@ -46,6 +46,8 @@ const (
 	PayloadGetTrendbarsRes          = 2138
 	PayloadSubscribeSpotsReq        = 2104
 	PayloadSubscribeSpotsRes        = 2105
+	PayloadUnsubscribeSpotsReq      = 2106
+	PayloadUnsubscribeSpotsRes      = 2107
 	PayloadSpotEvent                = 2131
 	PayloadAccountListByTokenReq    = 2149
 	PayloadAccountListByTokenRes    = 2150
