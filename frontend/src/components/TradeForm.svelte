@@ -2057,31 +2057,31 @@
     }
 
     .color-tag-item:hover {
-      background: #f1f5f9;
-      border-color: #e2e8f0;
+      background: var(--bg-main);
+      border-color: var(--primary);
     }
 
     .color-tag-item.active {
-      background: #eff6ff;
-      border-color: #bfdbfe;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      background: var(--card-bg);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
     }
 
     .color-label {
       font-size: 0.9rem;
       font-weight: 600;
-      color: #475569;
+      color: var(--text-main);
     }
 
     .color-tag-item.active .color-label {
-      color: #1e40af;
+      color: var(--primary);
     }
 
     .color-select-btn {
       width: 1.5rem;
       height: 1.5rem;
       border-radius: 50%;
-      border: 2px solid #e2e8f0;
+      border: 2px solid var(--border-color);
       cursor: pointer;
       transition: all 0.2s;
       padding: 0;
@@ -2138,16 +2138,16 @@
     }
 
     .radio-option:hover {
-      border-color: #667eea;
-      background: #f7fafc;
+      border-color: var(--primary);
+      background: var(--bg-main);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
     }
 
     .radio-option.active {
-      border-color: #667eea;
-      background: #edf2f7;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      border-color: var(--primary);
+      background: var(--card-bg);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
     }
 
     .radio-option input[type='radio'] {
@@ -2176,12 +2176,12 @@
 
     .radio-text strong {
       font-size: 1rem;
-      color: #2d3748;
+      color: var(--text-main);
     }
 
     .radio-text small {
       font-size: 0.85rem;
-      color: #718096;
+      color: var(--text-muted);
     }
 
     .form-row {
@@ -4061,13 +4061,13 @@
     :global(body.dark-mode) .strategy-label,
     :global(body.dark-mode) .signal-name,
     :global(body.dark-mode) .trend-name {
-      color: var(--text-main) !important;
+      color: #ffffff !important;
     }
 
     :global(body.dark-mode) .radio-text small,
     :global(body.dark-mode) .mini-trend,
     :global(body.dark-mode) .form-hint {
-      color: var(--text-muted) !important;
+      color: #cbd5e1 !important;
     }
 
     /* Quill 富文本編輯器 Dark Mode 核心修正 */
