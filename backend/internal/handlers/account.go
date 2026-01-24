@@ -59,6 +59,13 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 
 		var accounts = []models.Account{}
 		for rows.Next() {
+			// 一樣加入中斷檢查
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			var acc models.Account
 			err := rows.Scan(
 				&acc.ID, &acc.Name, &acc.Type, &acc.MT5AccountID, &acc.MT5Token,

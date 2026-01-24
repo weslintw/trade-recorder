@@ -114,7 +114,9 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		sqlQuery += " ORDER BY t.entry_time DESC LIMIT ? OFFSET ?"
 		args = append(args, query.PageSize, offset)
 
-		rows, err := db.Query(sqlQuery, args...)
+		// 使用請求上下文，支援前端斷開時自動取消資料庫查詢
+		ctx := c.Request.Context()
+		rows, err := db.QueryContext(ctx, sqlQuery, args...)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -123,6 +125,14 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 
 		trades := []models.Trade{}
 		for rows.Next() {
+			// 每掃描一行都檢查一次連線是否還在，不在就立刻收工
+			select {
+			case <-ctx.Done():
+				log.Printf("[GetTrades] Client disconnected, stopping scan.")
+				return
+			default:
+			}
+
 			var trade models.Trade
 			err := rows.Scan(
 				&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
