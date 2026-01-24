@@ -471,6 +471,9 @@
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
+    let diagnosticStart = performance.now();
+    let processingStart = performance.now();
+
     try {
       if (!silent) {
         loading = true;
