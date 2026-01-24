@@ -471,9 +471,6 @@
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
-    let diagnosticStart = performance.now();
-    let processingStart = performance.now();
-
     try {
       if (!silent) {
         loading = true;
@@ -491,230 +488,117 @@
       }
 
       const symbol = $selectedSymbol;
-
-      // 更新今天日期文字
       todayString = new Date().toISOString().slice(0, 10);
 
-      console.log(
-        `🔵 [${INSTANCE_ID}] Fetching data for account=${$selectedAccountId}, symbol=${symbol}`
-      );
-
-      // 分別獲獲取，避免一個失敗全部失敗
       let plans = [];
       let trades = [];
 
-      console.time(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
       try {
-        // 1. 先抓盤面規劃
         loadingMessage = `正在讀取盤面規劃資料...`;
-        const plansRes = await dailyPlansAPI
-          .getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: pagination.page_size,
-              page: activeDateRange === 'all' ? pagination.page : 1,
-              start_date: activeDateRange === 'all' ? undefined : customStartDate,
-              end_date:
-                activeDateRange === 'all'
-                  ? undefined
-                  : customEndDate
-                    ? customEndDate + ' 23:59:59'
-                    : undefined,
-            },
-            signal
-          )
-          .catch(e => {
-            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-            console.error('Plans fetch error:', e);
-            return { data: [] };
-          });
+        const plansRes = await dailyPlansAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: pagination.page_size,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            start_date: activeDateRange === 'all' ? undefined : customStartDate,
+            end_date:
+              activeDateRange === 'all'
+                ? undefined
+                : customEndDate
+                  ? customEndDate + ' 23:59:59'
+                  : undefined,
+          },
+          signal
+        );
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
 
-        // 進度更新
         loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
-        const tradesRes = await tradesAPI
-          .getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: pagination.page_size,
-              page: activeDateRange === 'all' ? pagination.page : 1,
-              start_date: activeDateRange === 'all' ? undefined : customStartDate,
-              end_date:
-                activeDateRange === 'all'
-                  ? undefined
-                  : customEndDate
-                    ? customEndDate + ' 23:59:59'
-                    : undefined,
-              // 傳遞篩選參數到後端
-              strategy: activeFilterType === 'all' ? undefined : activeFilterType,
-              keyword: activeSubFilter || undefined,
-              color_tag: activeColorFilter || undefined,
-            },
-            signal
-          )
-          .catch(e => {
-            if (e.name === 'CanceledError' || e.name === 'AbortError') return { data: [] };
-            console.error('Trades fetch error:', e);
-            return { data: [] };
-          });
+        const tradesRes = await tradesAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: pagination.page_size,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            start_date: activeDateRange === 'all' ? undefined : customStartDate,
+            end_date:
+              activeDateRange === 'all'
+                ? undefined
+                : customEndDate
+                  ? customEndDate + ' 23:59:59'
+                  : undefined,
+            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+            keyword: activeSubFilter || undefined,
+            color_tag: activeColorFilter || undefined,
+          },
+          signal
+        );
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
 
-        // 更新分頁資訊
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
         } else if (Array.isArray(tradesRes.data)) {
           pagination.total = tradesRes.data.length;
         }
-
-        loadingMessage = `數據接收完成 (共 ${plans.length + trades.length} 筆)，正在準備時空序列...`;
       } catch (err) {
-        if (err.name === 'CanceledError' || err.name === 'AbortError') {
-          console.log('Request was aborted intentionally.');
-        } else {
-          console.error('Critical failure in sequence fetch:', err);
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+          console.error('Sequence fetch error:', err);
         }
       }
-      console.timeEnd(`🔵 [${INSTANCE_ID}] loadData #${callId} API Calls`);
 
-      // De-duplicate trades on client side as a safety measure
-      loadingMessage = `正在排除重複交易 (${trades.length} 筆)...`;
-      const seenTickets = new Set();
-      const uniqueTrades = [];
-      trades.forEach(trade => {
-        if (trade.ticket && trade.ticket.startsWith('ctrader-')) {
-          if (seenTickets.has(trade.ticket)) return;
-          seenTickets.add(trade.ticket);
-        }
-        uniqueTrades.push(trade);
-      });
-      trades = uniqueTrades;
-
-      // 按日期分組 (YYYY-MM-DD)
-      processingStart = performance.now();
+      // 數據預處理
+      loadingMessage = `正在分組數據 (${plans.length + trades.length} 筆)...`;
       const dateMap = {};
-      let processedCount = 0;
-
-      // 強制推入今天的日期，確保最上面有東西
       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
-      for (let idx = 0; idx < plans.length; idx++) {
-        const plan = plans[idx];
-        if (idx % 50 === 0) {
-          loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
-          // 透過 yield 讓瀏覽器有機會渲染 UI
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
-        try {
-          // Pre-parse trend analysis to avoid template errors & const limitations
-          plan.trendData = parseJSONSafe(plan.trend_analysis, {});
-
-          if (!plan.plan_date) continue;
-          const planDateObj = new Date(plan.plan_date);
-          if (isNaN(planDateObj.getTime())) {
-            console.warn('Invalid plan date:', plan.plan_date);
-            continue;
-          }
-          const date = planDateObj.toISOString().slice(0, 10);
-          if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-          dateMap[date].plans.push(plan);
-        } catch (e) {
-          console.warn('Skipping invalid plan:', plan, e);
-        }
-      }
-
-      for (let idx = 0; idx < trades.length; idx++) {
-        const trade = trades[idx];
-        if (idx % 50 === 0) {
-          loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
-        try {
-          if (!trade.entry_time) continue; // Skip if no entry time
-          const dateObj = new Date(trade.entry_time);
-          if (isNaN(dateObj.getTime())) continue; // Skip invalid date
-
-          const date = dateObj.toISOString().slice(0, 10);
-          if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-
-          // 尋找是否已有相同開倉時間的群組
-          const entryTimeKey = trade.entry_time;
-          let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
-
-          if (!timeGroup) {
-            timeGroup = {
-              entry_time: entryTimeKey,
-              trades: [],
-              summary: {
-                totalPnl: 0,
-                totalLot: 0,
-                symbol: trade.symbol,
-                entry_price: trade.entry_price,
-                side: trade.side,
-              },
-            };
-            dateMap[date].groupedTrades.push(timeGroup);
-          }
-          timeGroup.trades.push(trade);
-          timeGroup.summary.totalPnl += trade.pnl || 0;
-          timeGroup.summary.totalLot += trade.lot_size || 0;
-        } catch (e) {
-          console.warn('Skipping invalid trade:', trade, e);
-        }
-      }
-
-      // 轉換為陣列並排序（日期降序，群組內按時間排序通常已由 API 處理）
-      const newGroupedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
-
-      // 針對組合單內的成員排序 (先平倉的在上面)
-      newGroupedData.forEach(day => {
-        // 先對卡片進行排序：最新平倉的在最上面 (未平倉視為最新)
-        day.groupedTrades.sort((a, b) => {
-          const getTime = g => {
-            if (g.trades.some(t => !t.exit_time)) return Infinity; // 未平倉置頂
-            return Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
-          };
-          return getTime(b) - getTime(a);
-        });
-
-        // 再對群組內部的交易排序
-        day.groupedTrades.forEach(group => {
-          if (group.trades.length > 1) {
-            group.trades.sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
-          }
-        });
+      // ... 略過細碎的進度更新，直接處理 ...
+      plans.forEach(plan => {
+        plan.trendData = parseJSONSafe(plan.trend_analysis, {});
+        if (!plan.plan_date) return;
+        const date = new Date(plan.plan_date).toISOString().slice(0, 10);
+        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
+        dateMap[date].plans.push(plan);
       });
 
-      if (activeLoadCallId !== callId) {
-        // 安靜化：如果只是因為有了更新的請求，不必列為顯眼訊息
-        console.debug(`[${INSTANCE_ID}] loadData #${callId} superseded by #${activeLoadCallId}`);
-        return;
-      }
+      trades.forEach(trade => {
+        if (!trade.entry_time) return;
+        const date = new Date(trade.entry_time).toISOString().slice(0, 10);
+        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
 
-      groupedData = newGroupedData;
-      const totalDuration = performance.now() - (diagnosticStart || performance.now());
-      const processingDuration = performance.now() - (processingStart || performance.now());
-      console.log(`[Diagnostic] #${callId} Processing Finish: ${processingDuration.toFixed(2)}ms`);
-      console.log(
-        `[Diagnostic] --- loadData #${callId} COMPLETE: ${totalDuration.toFixed(2)}ms ---`
-      );
-    } catch (error) {
-      if (error.name === 'CanceledError' || error.name === 'AbortError') {
-        console.log(`[${INSTANCE_ID}] loadData #${callId} caught abort.`);
-      } else {
-        console.error(`載入首頁資料失敗 (Call #${callId}):`, error);
-        // 顯示錯誤給使用者
-        if (activeLoadCallId === callId) {
-          loadError = {
-            message: '資料載入失敗',
-            detail: error.message || '未知錯誤',
-            canRetry: true,
+        const entryTimeKey = trade.entry_time;
+        let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
+        if (!timeGroup) {
+          timeGroup = {
+            entry_time: entryTimeKey,
+            trades: [],
+            summary: {
+              totalPnl: 0,
+              totalLot: 0,
+              symbol: trade.symbol,
+              entry_price: trade.entry_price,
+              side: trade.side,
+            },
           };
+          dateMap[date].groupedTrades.push(timeGroup);
+        }
+        timeGroup.trades.push(trade);
+        timeGroup.summary.totalPnl += trade.pnl || 0;
+        timeGroup.summary.totalLot += trade.lot_size || 0;
+      });
+
+      const sortedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
+
+      if (activeLoadCallId === callId) {
+        groupedData = sortedData;
+      }
+    } catch (error) {
+      if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
+        console.error('loadData failed:', error);
+        if (activeLoadCallId === callId) {
+          loadError = { message: '載入失敗', detail: error.message };
         }
       }
     } finally {
-      // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
       if (activeLoadCallId === callId) {
         loading = false;
         loadController = null;
