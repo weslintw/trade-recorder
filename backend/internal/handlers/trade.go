@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -208,58 +207,61 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			}
 		}
 
-		// 計算總數
-		countQuery := `SELECT COUNT(DISTINCT t.id) FROM trades t
+		// --- 新增：全局統計查詢 (不受分頁限制) ---
+		summaryQuery := `
+			SELECT 
+				COUNT(*) as total_count,
+				COUNT(CASE WHEN pnl > 0 AND trade_type = 'actual' AND exit_time IS NOT NULL THEN 1 END) as win_count,
+				SUM(CASE WHEN trade_type = 'actual' AND exit_time IS NOT NULL THEN COALESCE(pnl, 0) ELSE 0 END) as total_pnl,
+				COUNT(CASE WHEN entry_strategy IN ('expert', '達人') THEN 1 END) as expert_count,
+				COUNT(CASE WHEN entry_strategy IN ('elite', '菁英') THEN 1 END) as elite_count,
+				COUNT(CASE WHEN entry_strategy IN ('legend', '傳奇') THEN 1 END) as legend_count,
+				COUNT(CASE WHEN color_tag = 'green' THEN 1 END) as green_count,
+				COUNT(CASE WHEN color_tag = 'yellow' THEN 1 END) as yellow_count,
+				COUNT(CASE WHEN color_tag = 'red' THEN 1 END) as red_count
+			FROM trades t
 			LEFT JOIN accounts a ON t.account_id = a.id
-			LEFT JOIN trade_tags tt ON t.id = tt.trade_id
-			LEFT JOIN tags tg ON tt.tag_id = tg.id
-			WHERE a.user_id = ?`
-
-		countArgs := []interface{}{userID}
+			WHERE a.user_id = ?
+		`
+		summaryArgs := []interface{}{userID}
 		if query.AccountID > 0 {
-			countQuery += " AND t.account_id = ?"
-			countArgs = append(countArgs, query.AccountID)
+			summaryQuery += " AND t.account_id = ?"
+			summaryArgs = append(summaryArgs, query.AccountID)
 		}
 		if query.Symbol != "" {
-			countQuery += " AND t.symbol = ?"
-			countArgs = append(countArgs, query.Symbol)
+			summaryQuery += " AND t.symbol = ?"
+			summaryArgs = append(summaryArgs, query.Symbol)
 		}
+		// ... 其他篩選條件也要跟進 (不含分頁)
 		if query.Side != "" {
-			countQuery += " AND t.side = ?"
-			countArgs = append(countArgs, query.Side)
-		}
-		if query.Tag != "" {
-			countQuery += " AND tg.name = ?"
-			countArgs = append(countArgs, query.Tag)
+			summaryQuery += " AND t.side = ?"
+			summaryArgs = append(summaryArgs, query.Side)
 		}
 		if query.StartDate != "" {
-			countQuery += " AND t.entry_time >= ?"
-			countArgs = append(countArgs, query.StartDate)
+			summaryQuery += " AND t.entry_time >= ?"
+			summaryArgs = append(summaryArgs, query.StartDate)
 		}
 		if query.EndDate != "" {
-			countQuery += " AND t.entry_time <= ?"
-			countArgs = append(countArgs, query.EndDate)
-		}
-		if query.Strategy != "" && query.Strategy != "all" {
-			countQuery += " AND t.entry_strategy = ?"
-			countArgs = append(countArgs, query.Strategy)
-		}
-		if query.ColorTag != "" && query.ColorTag != "all" {
-			countQuery += " AND t.color_tag = ?"
-			countArgs = append(countArgs, query.ColorTag)
-		}
-		if query.Keyword != "" {
-			searchPattern := "%" + query.Keyword + "%"
-			countQuery += " AND (t.entry_signals LIKE ? OR t.entry_pattern LIKE ? OR t.entry_checklist LIKE ? OR t.notes LIKE ?)"
-			countArgs = append(countArgs, searchPattern, searchPattern, searchPattern, searchPattern)
+			summaryQuery += " AND t.entry_time <= ?"
+			summaryArgs = append(summaryArgs, query.EndDate)
 		}
 
-		var total int
-		db.QueryRow(countQuery, countArgs...).Scan(&total)
-
-		// Estimate size
-		jsonData, _ := json.Marshal(trades)
-		sizeKB := float64(len(jsonData)) / 1024
+		var summary struct {
+			TotalCount  int     `json:"total_count"`
+			WinCount    int     `json:"win_count"`
+			TotalPnL    float64 `json:"total_pnl"`
+			ExpertCount int     `json:"expert_count"`
+			EliteCount  int     `json:"elite_count"`
+			LegendCount int     `json:"legend_count"`
+			GreenCount  int     `json:"green_count"`
+			YellowCount int     `json:"yellow_count"`
+			RedCount    int     `json:"red_count"`
+		}
+		db.QueryRow(summaryQuery, summaryArgs...).Scan(
+			&summary.TotalCount, &summary.WinCount, &summary.TotalPnL,
+			&summary.ExpertCount, &summary.EliteCount, &summary.LegendCount,
+			&summary.GreenCount, &summary.YellowCount, &summary.RedCount,
+		)
 
 		log.Printf("[GetTrades PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", time.Since(startTime), len(trades), total, sizeKB)
 
@@ -270,6 +272,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				"page_size": query.PageSize,
 				"total":     total,
 			},
+			"summary": summary,
 		})
 	}
 }

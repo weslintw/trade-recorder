@@ -56,6 +56,17 @@
   let activeColorFilter = null; // 紅綠燈過濾
   let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
   let activeSideFilter = 'all'; // 'all', 'long', 'short'
+  let globalSummary = {
+    total_count: 0,
+    win_count: 0,
+    total_pnl: 0,
+    expert_count: 0,
+    elite_count: 0,
+    legend_count: 0,
+    green_count: 0,
+    yellow_count: 0,
+    red_count: 0,
+  };
 
   const EXPERT_SIGNALS = [
     '向下蘇美',
@@ -517,8 +528,7 @@
       const symbol = $selectedSymbol;
       todayString = new Date().toISOString().slice(0, 10);
 
-      let plans = [];
-      let trades = [];
+      let globalSummaryData = null;
 
       // API 請求區塊
       try {
@@ -555,6 +565,7 @@
           signal
         );
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+        globalSummaryData = tradesRes.data?.summary || null;
 
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
@@ -635,6 +646,9 @@
 
       if (activeLoadCallId === callId) {
         groupedData = sortedResult;
+        if (globalSummaryData) {
+          globalSummary = globalSummaryData;
+        }
       }
     } catch (globalErr) {
       if (globalErr.name !== 'CanceledError' && globalErr.name !== 'AbortError') {
@@ -1642,30 +1656,34 @@
 
         <div class="filter-stats-spacer"></div>
 
-        <div class="filter-stats-badge" class:has-data={filteredStats.hasTrades}>
+        <div class="filter-stats-badge" class:has-data={globalSummary.total_count > 0}>
           <div class="stats-icon">✅</div>
           <div class="stats-content">
             <span class="stats-label">
               {statsLabel}
             </span>
-            <span class="stats-value">{filteredStats.total} 筆</span>
+            <span class="stats-value">{globalSummary.total_count} 筆</span>
             <span class="stats-sep">/</span>
             <span class="stats-label">勝率</span>
-            <span class="stats-value win-rate">{filteredStats.winRate}%</span>
+            <span class="stats-value win-rate"
+              >{((globalSummary.win_count * 100) / (globalSummary.total_count || 1)).toFixed(
+                1
+              )}%</span
+            >
 
             <div class="stats-color-groups">
               <span class="stats-color-dot green"></span>
-              <span class="stats-color-count">{filteredStats.green}</span>
+              <span class="stats-color-count">{globalSummary.green_count}</span>
               <span class="stats-color-dot yellow"></span>
-              <span class="stats-color-count">{filteredStats.yellow}</span>
+              <span class="stats-color-count">{globalSummary.yellow_count}</span>
               <span class="stats-color-dot red"></span>
-              <span class="stats-color-count">{filteredStats.red}</span>
+              <span class="stats-color-count">{globalSummary.red_count}</span>
             </div>
 
             <div class="stats-strategy-groups">
-              <span class="strat-tag expert">達 {filteredStats.expert}</span>
-              <span class="strat-tag elite">菁 {filteredStats.elite}</span>
-              <span class="strat-tag legend">傳 {filteredStats.legend}</span>
+              <span class="strat-tag expert">達 {globalSummary.expert_count}</span>
+              <span class="strat-tag elite">菁 {globalSummary.elite_count}</span>
+              <span class="strat-tag legend">傳 {globalSummary.legend_count}</span>
             </div>
           </div>
         </div>
