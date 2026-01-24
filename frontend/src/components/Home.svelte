@@ -55,6 +55,7 @@
   let activeSubFilter = null;
   let activeColorFilter = null; // 紅綠燈過濾
   let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
+  let activeSideFilter = 'all'; // 'all', 'long', 'short'
 
   const EXPERT_SIGNALS = [
     '向下蘇美',
@@ -172,7 +173,8 @@
     activeFilterType,
     activeSubFilter,
     activeColorFilter,
-    activeExitFilter
+    activeExitFilter,
+    activeSideFilter
   );
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
@@ -301,11 +303,18 @@
     return [...new Set(waves)].join(' | ');
   }
 
-  function applyFilters(data, type, sub, color, exitFilter) {
+  function applyFilters(data, type, sub, color, exitFilter, sideFilter) {
     if (!data) return [];
 
     // 如果是全選且無任何子過濾，直接返回
-    if (type === 'all' && !sub && !color && (!exitFilter || exitFilter === 'all')) return data;
+    if (
+      type === 'all' &&
+      !sub &&
+      !color &&
+      (!exitFilter || exitFilter === 'all') &&
+      (!sideFilter || sideFilter === 'all')
+    )
+      return data;
 
     const debug = !!sub;
     const cleanSub = sub ? String(sub).trim() : null;
@@ -323,6 +332,13 @@
                 if (!(trade.pnl > 0)) return false;
               } else if (exitFilter === 'sl') {
                 if (!(trade.pnl < 0)) return false;
+              }
+
+              // Side Filter (Long/Short)
+              if (sideFilter === 'long') {
+                if (trade.side !== 'long' && trade.side !== 'buy') return false;
+              } else if (sideFilter === 'short') {
+                if (trade.side !== 'short' && trade.side !== 'sell') return false;
               }
               // 1. 策略類型匹配 (高度容錯)
               const tStrat = String(trade.entry_strategy || trade.strategy || '')
@@ -382,7 +398,13 @@
       .filter(day => {
         // 如果有設定策略篩選 (type !== 'all')、子篩選 (搜尋模式)、顏色篩選或 TP/SL 篩選，
         // 則嚴格只顯示有交易紀錄命中的日期，隱藏那些只有盤面規劃但沒有符合交易的空區塊
-        if (type !== 'all' || cleanSub || color || (exitFilter && exitFilter !== 'all')) {
+        if (
+          type !== 'all' ||
+          cleanSub ||
+          color ||
+          (exitFilter && exitFilter !== 'all') ||
+          (sideFilter && sideFilter !== 'all')
+        ) {
           return day.groupedTrades.length > 0;
         }
         // 一般全覽模式：顯示有規劃或有交易的日期
@@ -1675,6 +1697,21 @@
           on:click={() => (activeExitFilter = activeExitFilter === 'sl' ? 'all' : 'sl')}
         >
           🛑 SL
+        </button>
+
+        <div class="divider"></div>
+
+        <button
+          class="filter-type-btn {activeSideFilter === 'long' ? 'active' : ''}"
+          on:click={() => (activeSideFilter = activeSideFilter === 'long' ? 'all' : 'long')}
+        >
+          📈 做多
+        </button>
+        <button
+          class="filter-type-btn {activeSideFilter === 'short' ? 'active' : ''}"
+          on:click={() => (activeSideFilter = activeSideFilter === 'short' ? 'all' : 'short')}
+        >
+          📉 做空
         </button>
 
         <div class="page-size-selector">
