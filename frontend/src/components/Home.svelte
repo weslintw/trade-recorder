@@ -461,6 +461,10 @@
       pagination.page = 1;
       loadData();
     }, 500); // 500ms 防抖
+  } else {
+    console.warn(
+      `🏠 [Reactive] SKIPPED loadData: selectedAccountId=${$selectedAccountId}, selectedSymbol=${$selectedSymbol}`
+    );
   }
 
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
@@ -926,15 +930,25 @@
     }
 
     // Step 2: 檢查當前選取的帳號是否有效
+    console.log(
+      `[onMount] Current state: accounts=${$accounts.length}, selectedAccountId=${$selectedAccountId}, selectedSymbol=${$selectedSymbol}`
+    );
     const accountExists = $accounts.some(a => a.id === $selectedAccountId);
     if ($accounts.length > 0) {
       if (!$selectedAccountId || !accountExists) {
         console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
         selectedAccountId.set($accounts[0].id);
+      } else {
+        console.log(`[onMount] Account ${$selectedAccountId} is valid, keeping selection`);
       }
     } else {
+      console.warn('[onMount] NO ACCOUNTS FOUND! User needs to create an account first.');
       loading = false; // No accounts, stop loading spinner
     }
+
+    console.log(
+      `[onMount] After account check: selectedAccountId=${$selectedAccountId}, selectedSymbol=${$selectedSymbol}`
+    );
 
     // 初始化日期範圍 (Default to all)
     // setDateRange('all'); // Already default

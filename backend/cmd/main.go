@@ -227,32 +227,9 @@ func main() {
 			log.Printf("[Init] ✓ index.html 存在 (大小: %d bytes)", info.Size())
 		}
 
-		// 註冊 /assets 靜態路由
-		assetsPath := filepath.Join(staticDir, "assets")
-		if assetsInfo, err := os.Stat(assetsPath); err == nil && assetsInfo.IsDir() {
-			r.Static("/assets", assetsPath)
-			log.Printf("[Init] ✓ /assets 路由已註冊: %s", assetsPath)
-		} else {
-			log.Printf("[Init] ⚠ assets 目錄不存在: %s", assetsPath)
-		}
+		r.Static("/assets", filepath.Join(staticDir, "assets"))
 	} else {
 		log.Printf("[Init] ⚠ 啟動時未找到靜態目錄,將在請求時動態尋找")
-		// 即使啟動時找不到,也註冊一個動態 /assets 處理器
-		r.GET("/assets/*filepath", func(c *gin.Context) {
-			currentStaticDir := detectStaticDir()
-			if currentStaticDir == "" {
-				c.AbortWithStatus(404)
-				return
-			}
-			assetsPath := filepath.Join(currentStaticDir, "assets", c.Param("filepath"))
-			if info, err := os.Stat(assetsPath); err == nil && !info.IsDir() {
-				c.Header("Cache-Control", "public, max-age=31536000, immutable")
-				c.File(assetsPath)
-				return
-			}
-			c.AbortWithStatus(404)
-		})
-		log.Printf("[Init] ✓ 動態 /assets 處理器已註冊")
 	}
 
 	// SPA Fallback: 處理所有非 API 的請求
