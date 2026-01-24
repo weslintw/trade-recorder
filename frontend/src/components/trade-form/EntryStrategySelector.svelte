@@ -144,23 +144,32 @@
 
   .timeframe-options {
     display: flex;
-    gap: 2px;
-    background: #1a1a1a;
+    gap: 4px;
+    background: #f1f5f9;
     padding: 4px;
-    border-radius: 8px;
+    border-radius: 10px;
     width: fit-content;
+    border: 1px solid #e2e8f0;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  }
+
+  :global(body.dark-mode) .timeframe-options {
+    background: #1a1a1a;
+    border-color: #334155;
+    gap: 2px;
+    padding: 2px;
   }
 
   .timeframe-btn {
-    padding: 6px 10px;
+    padding: 6px 12px;
     background: transparent;
     border: none;
-    border-radius: 6px;
-    color: #888;
+    border-radius: 8px;
+    color: #64748b;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     white-space: nowrap;
     display: flex;
     align-items: center;
@@ -168,14 +177,33 @@
     min-width: fit-content;
   }
 
+  :global(body.dark-mode) .timeframe-btn {
+    padding: 6px 10px;
+    color: #888;
+    border-radius: 6px;
+  }
+
   .timeframe-btn:hover {
+    color: #1e293b;
+    background: rgba(255, 255, 255, 0.5);
+  }
+
+  :global(body.dark-mode) .timeframe-btn:hover {
     color: #fff;
     background: rgba(255, 255, 255, 0.05);
   }
 
   .timeframe-btn.active {
+    background: white;
+    color: #4f46e5;
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.08),
+      0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  :global(body.dark-mode) .timeframe-btn.active {
     background: #333;
-    color: #60a5fa; /* 藍色亮顯，符合交易軟體習慣 */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    color: #60a5fa;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 </style>

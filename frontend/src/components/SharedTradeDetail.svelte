@@ -190,7 +190,6 @@
       <div class="info-row-divider"></div>
 
       <div class="info-row-group">
-
         <div class="info-item">
           <label>盈虧金額</label><span class="rr-value {trade.pnl >= 0 ? 'profit' : 'loss'}"
             >{trade.pnl !== undefined && trade.pnl !== null ? trade.pnl.toFixed(2) : '--'}</span
@@ -389,7 +388,8 @@
                   <!-- svelte-ignore a11y-click-events-have-key-events -->
                   <div
                     class="legend-img-container"
-                    on:click={() => openModal(getImageUrl(expertImg.image), `達人觀察圖 ${idx + 1}`)}
+                    on:click={() =>
+                      openModal(getImageUrl(expertImg.image), `達人觀察圖 ${idx + 1}`)}
                   >
                     <img
                       src={getImageUrl(expertImg.image)}
@@ -439,17 +439,28 @@
             <div class="tags-container">
               {#each signals as sig}
                 {@const sigName = typeof sig === 'string' ? sig : sig.name}
-                {@const primaryImg = typeof sig === 'object' ? sig.image || sig.originalImage : null}
-                {@const allImages = (sig.images && Array.isArray(sig.images)) ? sig.images : (primaryImg ? [{image: primaryImg}] : [])}
-                
+                {@const primaryImg =
+                  typeof sig === 'object' ? sig.image || sig.originalImage : null}
+                {@const allImages =
+                  sig.images && Array.isArray(sig.images)
+                    ? sig.images
+                    : primaryImg
+                      ? [{ image: primaryImg }]
+                      : []}
+
                 {#if allImages.length > 0}
                   {#each allImages as img, imgIdx}
                     <span
                       class="analysis-tag has-img"
-                      on:click={() => openModal(getImageUrl(img.image), `${expertSignals[sigName] || sigName} - 圖 ${imgIdx + 1}`)}
+                      on:click={() =>
+                        openModal(
+                          getImageUrl(img.image),
+                          `${expertSignals[sigName] || sigName} - 圖 ${imgIdx + 1}`
+                        )}
                     >
                       <img src={getImageUrl(img.image)} alt={sigName} class="tag-icon" />
-                      {expertSignals[sigName] || sigName} {#if allImages.length > 1}({imgIdx + 1}){/if}
+                      {expertSignals[sigName] || sigName}
+                      {#if allImages.length > 1}({imgIdx + 1}){/if}
                     </span>
                   {/each}
                 {:else}
@@ -473,17 +484,25 @@
             <div class="tags-container">
               {#each patterns as pat}
                 {@const patName = typeof pat === 'string' ? pat : pat.name}
-                {@const primaryImg = typeof pat === 'object' ? pat.image || pat.originalImage : null}
-                {@const allImages = (pat.images && Array.isArray(pat.images)) ? pat.images : (primaryImg ? [{image: primaryImg}] : [])}
-                
+                {@const primaryImg =
+                  typeof pat === 'object' ? pat.image || pat.originalImage : null}
+                {@const allImages =
+                  pat.images && Array.isArray(pat.images)
+                    ? pat.images
+                    : primaryImg
+                      ? [{ image: primaryImg }]
+                      : []}
+
                 {#if allImages.length > 0}
                   {#each allImages as img, imgIdx}
                     <span
                       class="analysis-tag pattern has-img"
-                      on:click={() => openModal(getImageUrl(img.image), `${patName} - 圖 ${imgIdx + 1}`)}
+                      on:click={() =>
+                        openModal(getImageUrl(img.image), `${patName} - 圖 ${imgIdx + 1}`)}
                     >
                       <img src={getImageUrl(img.image)} alt={patName} class="tag-icon" />
-                      {patName} {#if allImages.length > 1}({imgIdx + 1}){/if}
+                      {patName}
+                      {#if allImages.length > 1}({imgIdx + 1}){/if}
                     </span>
                   {/each}
                 {:else}
@@ -866,27 +885,28 @@
 
   .mock-tf-pills {
     display: flex;
-    background: #1a1a1a;
-    border-radius: 8px;
+    background: #f1f5f9;
+    border-radius: 10px;
     padding: 4px;
-    gap: 2px;
+    gap: 4px;
     width: fit-content;
     align-items: center;
+    border: 1px solid #e2e8f0;
   }
   .tf-pill {
-    color: #888;
+    color: #64748b;
     padding: 6px 12px;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: default;
     transition: all 0.2s;
     white-space: nowrap;
-    border-radius: 6px;
+    border-radius: 8px;
   }
   .tf-pill.active {
-    background: #333;
-    color: #60a5fa !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    background: white;
+    color: #4f46e5 !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
   }
 
   .analysis-section {

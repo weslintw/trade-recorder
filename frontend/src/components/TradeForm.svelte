@@ -3153,43 +3153,6 @@
       line-height: 1.4;
     }
 
-    /* 進場時區按鈕組 */
-    .timeframe-options {
-      display: flex;
-      gap: 2px;
-      background: #1a1a1a;
-      padding: 4px;
-      border-radius: 8px;
-      width: fit-content;
-    }
-
-    .timeframe-btn {
-      padding: 6px 10px;
-      background: transparent;
-      border: none;
-      border-radius: 6px;
-      color: #888;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: fit-content;
-    }
-
-    .timeframe-btn:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    .timeframe-btn.active {
-      background: #333;
-      color: #60a5fa; /* 藍色亮顯，符合交易軟體習慣 */
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
 
     /* 市場時段狀態卡片 */
     .session-status-card {
