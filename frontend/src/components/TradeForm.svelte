@@ -1959,13 +1959,13 @@
       gap: 1.5rem;
       margin-bottom: 2.5rem;
       padding-bottom: 1.5rem;
-      border-bottom: 1px solid #edf2f7;
+      border-bottom: 1px solid var(--border-color);
     }
 
     .header-main-row h2 {
       font-size: 1.75rem;
       font-weight: 800;
-      color: #1e293b;
+      color: var(--text-main);
       margin: 0;
       letter-spacing: -0.02em;
     }
@@ -2007,9 +2007,9 @@
     }
 
     .btn-secondary {
-      background: white;
-      color: #4f46e5;
-      border: 1px solid #e0e7ff;
+      background: var(--card-bg);
+      color: var(--primary);
+      border: 1px solid var(--border-color);
     }
     .btn-secondary:hover {
       background: #f5f3ff;
@@ -2019,9 +2019,9 @@
     }
 
     .btn-accent {
-      background: #f0fdfa;
+      background: var(--card-bg);
       color: #0d9488;
-      border: 1px solid #ccfbf1;
+      border: 1px solid var(--border-color);
     }
     .btn-accent:hover {
       background: #ccfbf1;
@@ -4022,6 +4022,28 @@
       .card {
         padding: 1rem;
       }
+
+    :global(body.dark-mode) .btn-secondary,
+    :global(body.dark-mode) .btn-accent {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+    }
+
+    :global(body.dark-mode) .ticket-label {
+      background: #1e293b !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+
+    :global(body.dark-mode) .ticket-label::before {
+      background: #0f172a !important;
+      color: #94a3b8 !important;
+    }
+
+    :global(body.dark-mode) .header-sparkline-box {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+    }
 
     :global(body.dark-mode) .color-tag-section,
     :global(body.dark-mode) .trade-type-section,
