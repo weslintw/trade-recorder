@@ -14,7 +14,14 @@
   import EliteStrategy from './trade-form/EliteStrategy.svelte';
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
   import Sparkline from './Sparkline.svelte';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe, getSymbolMultiplier, getSymbolPointValue, calculateBulletSize } from '../lib/utils';
+  import {
+    determineMarketSession,
+    getStrategyLabel,
+    parseJSONSafe,
+    getSymbolMultiplier,
+    getSymbolPointValue,
+    calculateBulletSize,
+  } from '../lib/utils';
 
   export let id = null;
   const symbols = SYMBOLS;
@@ -268,7 +275,6 @@
     formData.symbol = $selectedSymbol;
   }
 
-
   // 時區選項 (UTC-12 到 UTC+14)
 
   // 時區選項 (UTC-12 到 UTC+14)
@@ -281,7 +287,6 @@
   }
 
   // 市場時段判別已由 utils.js 的 determineMarketSession 處理
-
 
   // 取得交易日（處理美盤跨日：凌晨的時間算前一天的交易日）
   function getTradingDate(entryTime) {
@@ -305,8 +310,7 @@
 
   // 盈虧點數與風險指標自動計算
   $: {
-    const { trade_type, entry_price, exit_price, lot_size, initial_sl, symbol, side } =
-      formData;
+    const { trade_type, entry_price, exit_price, lot_size, initial_sl, symbol, side } = formData;
     if (trade_type === 'actual' && entry_price) {
       const entry = parseFloat(entry_price);
       const exit = parseFloat(exit_price);
@@ -412,8 +416,6 @@
     const offset = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - offset).toISOString().slice(0, 16);
   }
-
-
 
   let tagInput = '';
   let saving = false;
@@ -529,7 +531,9 @@
               let parsed = JSON.parse(val);
               if (typeof parsed === 'string') parsed = JSON.parse(parsed);
               val = parsed;
-            } catch (e) { val = []; }
+            } catch (e) {
+              val = [];
+            }
           }
           if (!Array.isArray(val)) return [];
           return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
@@ -538,7 +542,11 @@
         entry_pattern: (() => {
           let val = response.data.entry_pattern;
           if (typeof val === 'string') {
-            try { val = JSON.parse(val); } catch (e) { val = []; }
+            try {
+              val = JSON.parse(val);
+            } catch (e) {
+              val = [];
+            }
           }
           if (!Array.isArray(val)) return [];
           return val.map(v => (typeof v === 'string' ? { name: v, image: '' } : v));
@@ -547,7 +555,10 @@
         entry_timeframe: response.data.entry_timeframe || '',
         trend_type: response.data.trend_type || '',
         market_session: response.data.market_session || '',
-        timezone_offset: response.data.timezone_offset !== null ? response.data.timezone_offset : new Date().getTimezoneOffset() / -60,
+        timezone_offset:
+          response.data.timezone_offset !== null
+            ? response.data.timezone_offset
+            : new Date().getTimezoneOffset() / -60,
         entry_time: formatToLocalISO(response.data.entry_time),
         exit_time: response.data.exit_time ? formatToLocalISO(response.data.exit_time) : '',
         entry_strategy_image: response.data.entry_strategy_image || '',
@@ -580,7 +591,7 @@
           migratedImages.push({
             image_path: path,
             image_type: type || 'general',
-            file_size: 0
+            file_size: 0,
           });
           existingPaths.add(path);
         }
@@ -603,9 +614,12 @@
       }
 
       // 2. 策略觀察圖
-      if (Array.isArray(formData.legend_images)) formData.legend_images.forEach(img => addMigrationImage(img?.image, 'legend_obs'));
-      if (Array.isArray(formData.expert_images)) formData.expert_images.forEach(img => addMigrationImage(img?.image, 'expert_obs'));
-      if (Array.isArray(formData.elite_images)) formData.elite_images.forEach(img => addMigrationImage(img?.image, 'elite_obs'));
+      if (Array.isArray(formData.legend_images))
+        formData.legend_images.forEach(img => addMigrationImage(img?.image, 'legend_obs'));
+      if (Array.isArray(formData.expert_images))
+        formData.expert_images.forEach(img => addMigrationImage(img?.image, 'expert_obs'));
+      if (Array.isArray(formData.elite_images))
+        formData.elite_images.forEach(img => addMigrationImage(img?.image, 'elite_obs'));
 
       // 3. 單一欄位圖片
       addMigrationImage(formData.entry_strategy_image, 'strategy');
@@ -707,19 +721,26 @@
         );
         enlargedOriginalImage = signal?.originalImage || signal?.image || imageSrc;
       } else if (type === 'trend') {
-        enlargedOriginalImage = formData.trend_analysis[key]?.originalImage || formData.trend_analysis[key]?.image || imageSrc;
+        enlargedOriginalImage =
+          formData.trend_analysis[key]?.originalImage ||
+          formData.trend_analysis[key]?.image ||
+          imageSrc;
       } else if (type === 'pattern') {
         const pattern = formData.entry_pattern.find(p => p.name === targetName);
         enlargedOriginalImage = pattern?.originalImage || pattern?.image || imageSrc;
       } else if (type === 'strategy') {
-        enlargedOriginalImage = formData.entry_strategy_image_original || formData.entry_strategy_image || imageSrc;
+        enlargedOriginalImage =
+          formData.entry_strategy_image_original || formData.entry_strategy_image || imageSrc;
       } else if (type === 'legend_htf') {
-        enlargedOriginalImage = formData.legend_htf_image_original || formData.legend_htf_image || imageSrc;
+        enlargedOriginalImage =
+          formData.legend_htf_image_original || formData.legend_htf_image || imageSrc;
       } else if (type === 'legend_king') {
-        enlargedOriginalImage = formData.legend_king_image_original || formData.legend_king_image || imageSrc;
+        enlargedOriginalImage =
+          formData.legend_king_image_original || formData.legend_king_image || imageSrc;
       } else if (type === 'legend_images' || type === 'expert_images' || type === 'elite_images') {
         const imgArray = formData[type];
-        enlargedOriginalImage = imgArray?.[context.index]?.originalImage || imgArray?.[context.index]?.image || imageSrc;
+        enlargedOriginalImage =
+          imgArray?.[context.index]?.originalImage || imgArray?.[context.index]?.image || imageSrc;
       } else {
         enlargedOriginalImage = imageSrc;
       }
@@ -748,7 +769,7 @@
         allImages.push({
           image_type: type,
           image_path: path,
-          file_size: size || 0
+          file_size: size || 0,
         });
         addedPaths.add(path);
       }
@@ -812,7 +833,8 @@
     // 一般圖片
     if (formData.images) {
       formData.images.forEach(img => {
-        if (img && img.image_path) addImage(img.image_path, img.image_type || 'general', img.file_size);
+        if (img && img.image_path)
+          addImage(img.image_path, img.image_type || 'general', img.file_size);
       });
     }
 
@@ -831,9 +853,15 @@
       entry_strategy_image_original: formData.entry_strategy_image_original,
       entry_timeframe: formData.entry_timeframe,
       trend_analysis: JSON.stringify(formData.trend_analysis),
-      legend_images: formData.legend_images ? JSON.stringify(formData.legend_images.filter(img => img !== null)) : '[]',
-      expert_images: formData.expert_images ? JSON.stringify(formData.expert_images.filter(img => img !== null)) : '[]',
-      elite_images: formData.elite_images ? JSON.stringify(formData.elite_images.filter(img => img !== null)) : '[]',
+      legend_images: formData.legend_images
+        ? JSON.stringify(formData.legend_images.filter(img => img !== null))
+        : '[]',
+      expert_images: formData.expert_images
+        ? JSON.stringify(formData.expert_images.filter(img => img !== null))
+        : '[]',
+      elite_images: formData.elite_images
+        ? JSON.stringify(formData.elite_images.filter(img => img !== null))
+        : '[]',
       trend_type: formData.trend_type,
       entry_time: new Date(formData.entry_time).toISOString(),
       exit_time: formData.exit_time ? new Date(formData.exit_time).toISOString() : null,
@@ -906,7 +934,16 @@
         if (sIdx >= 0) {
           const currentSignal = formData.entry_signals[sIdx];
           if (typeof currentSignal !== 'string') {
-            const sigImages = currentSignal.images || (currentSignal.image ? [{image: currentSignal.image, originalImage: currentSignal.originalImage || currentSignal.image}] : []);
+            const sigImages =
+              currentSignal.images ||
+              (currentSignal.image
+                ? [
+                    {
+                      image: currentSignal.image,
+                      originalImage: currentSignal.originalImage || currentSignal.image,
+                    },
+                  ]
+                : []);
             if (sigImages[imgIdx]) {
               sigImages[imgIdx].image = serverPath;
             } else if (imgIdx === undefined && sigImages[0]) {
@@ -915,7 +952,12 @@
             formData.entry_signals[sIdx].images = sigImages;
             formData.entry_signals[sIdx].image = serverPath; // Legacy sync
           } else {
-             formData.entry_signals[sIdx] = { name: targetName, image: serverPath, originalImage: serverPath, size: serverSize };
+            formData.entry_signals[sIdx] = {
+              name: targetName,
+              image: serverPath,
+              originalImage: serverPath,
+              size: serverSize,
+            };
           }
         }
       } else if (type === 'trend') {
@@ -938,20 +980,31 @@
         const targetName = signalName || key;
         const pIdx = formData.entry_pattern.findIndex(p => p.name === targetName);
         if (pIdx >= 0) {
-          const patImages = formData.entry_pattern[pIdx].images || (formData.entry_pattern[pIdx].image ? [{image: formData.entry_pattern[pIdx].image, originalImage: formData.entry_pattern[pIdx].originalImage || formData.entry_pattern[pIdx].image}] : []);
+          const patImages =
+            formData.entry_pattern[pIdx].images ||
+            (formData.entry_pattern[pIdx].image
+              ? [
+                  {
+                    image: formData.entry_pattern[pIdx].image,
+                    originalImage:
+                      formData.entry_pattern[pIdx].originalImage ||
+                      formData.entry_pattern[pIdx].image,
+                  },
+                ]
+              : []);
           const actualIdx = imgIdx === undefined ? 0 : imgIdx;
           if (patImages[actualIdx]) {
-             patImages[actualIdx].image = serverPath;
+            patImages[actualIdx].image = serverPath;
           }
           formData.entry_pattern[pIdx].images = patImages;
           formData.entry_pattern[pIdx].image = serverPath; // Legacy update
-          
+
           if (patternImagesCache[targetName]) {
             patternImagesCache[targetName] = {
               ...patternImagesCache[targetName],
               image: serverPath,
               size: serverSize,
-              images: patImages
+              images: patImages,
             };
           }
         }
@@ -996,7 +1049,8 @@
           });
         }
         // 更新單一欄位
-        if (formData.entry_strategy_image === originalPath) formData.entry_strategy_image = serverPath;
+        if (formData.entry_strategy_image === originalPath)
+          formData.entry_strategy_image = serverPath;
         if (formData.legend_htf_image === originalPath) formData.legend_htf_image = serverPath;
         if (formData.legend_king_image === originalPath) formData.legend_king_image = serverPath;
         if (formData.legend_images) {
@@ -1021,10 +1075,10 @@
 
       // 3. 重要：如果對現有交易進行標註，立即提交更新到後端 (比照 Home.svelte 邏輯)
       if (id) {
-         // 使用新封裝的邏輯準備資料，確保數值轉換與 Quill 內容正確
-         const updatePayload = getSubmitData();
-         await tradesAPI.update(id, updatePayload);
-         console.log('[DEBUG] Image annotation auto-saved to DB');
+        // 使用新封裝的邏輯準備資料，確保數值轉換與 Quill 內容正確
+        const updatePayload = getSubmitData();
+        await tradesAPI.update(id, updatePayload);
+        console.log('[DEBUG] Image annotation auto-saved to DB');
       }
 
       // 更新目前顯示的圖片路徑
@@ -1161,7 +1215,6 @@
       return [];
     }
   }
-
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -1691,15 +1744,24 @@
 
         <!-- 達人訊號（卡片形式，可貼圖） -->
         {#if formData.entry_strategy === 'expert'}
-          <ExpertStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
+          <ExpertStrategy
+            bind:formData
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
         {/if}
 
         {#if formData.entry_strategy === 'elite'}
-          <EliteStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
+          <EliteStrategy
+            bind:formData
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
         {/if}
 
         {#if formData.entry_strategy === 'legend'}
-          <LegendStrategy bind:formData on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)} />
+          <LegendStrategy
+            bind:formData
+            on:enlarge={e => enlargeImage(e.detail.image, e.detail.title, e.detail.context)}
+          />
         {/if}
 
         <!-- 一般截圖區塊 -->
@@ -1724,9 +1786,9 @@
             {/each}
             <div class="general-upload-container">
               <!-- 獨立的上傳按鈕 -->
-              <button 
-                type="button" 
-                class="upload-trigger-btn" 
+              <button
+                type="button"
+                class="upload-trigger-btn"
                 on:click={triggerGeneralUpload}
                 title="點擊從電腦上傳圖片"
               >
@@ -1745,12 +1807,12 @@
                 <span class="text">點擊此處後 Ctrl+V 貼上</span>
               </div>
 
-              <input 
-                type="file" 
-                accept="image/*" 
+              <input
+                type="file"
+                accept="image/*"
                 multiple
-                style="display: none;" 
-                bind:this={generalFileInput} 
+                style="display: none;"
+                bind:this={generalFileInput}
                 on:change={handleGeneralFileSelect}
               />
             </div>
@@ -1768,7 +1830,7 @@
           bind:value={formData.journal}
           placeholder="記錄這筆交易的相關細節、觀察或心情..."
           height="180px"
-          on:imageUpload={e => editorImages = [...editorImages, e.detail]}
+          on:imageUpload={e => (editorImages = [...editorImages, e.detail])}
         />
       </div>
 
@@ -1783,7 +1845,7 @@
             bind:value={formData.exit_reason}
             placeholder="為什麼平倉？止盈/止損/訊號反轉？可以貼上圖片說明..."
             height="180px"
-            on:imageUpload={e => editorImages = [...editorImages, e.detail]}
+            on:imageUpload={e => (editorImages = [...editorImages, e.detail])}
           />
         </div>
 
@@ -1797,7 +1859,7 @@
             bind:value={formData.notes}
             placeholder="記錄當下的心態、策略、失誤等...可以貼上圖片說明..."
             height="200px"
-            on:imageUpload={e => editorImages = [...editorImages, e.detail]}
+            on:imageUpload={e => (editorImages = [...editorImages, e.detail])}
           />
         </div>
       {/if}
@@ -1976,6 +2038,88 @@
       margin-bottom: 2rem;
     }
 
+    @media (prefers-color-scheme: dark) {
+      .color-tag-section,
+      .trade-type-section,
+      .signals-section,
+      .checklist-section,
+      .general-images-section {
+        background: #1e293b !important;
+        border-color: #334155 !important;
+      }
+      .color-tag-item,
+      .radio-option,
+      .signal-card,
+      .trend-item,
+      .trend-option,
+      .strategy-option,
+      .timeframe-trend-row {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+        color: #f1f5f9 !important;
+      }
+
+      .radio-option.active,
+      .color-tag-item.active,
+      .signal-card.selected,
+      .trend-option.active,
+      .strategy-option.active {
+        background: #2d3748 !important;
+        border-color: #6366f1 !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+      }
+
+      .color-label,
+      .radio-text strong,
+      .trade-type-label,
+      .section-label,
+      .strategy-label,
+      .signal-name,
+      .trend-name {
+        color: #f1f5f9 !important;
+      }
+
+      .radio-text small,
+      .mini-trend,
+      .form-hint {
+        color: #94a3b8 !important;
+      }
+
+      /* Quill 富文本編輯器 Dark Mode 核心修正 */
+      :global(.ql-toolbar) {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+      }
+      :global(.ql-toolbar .ql-stroke) {
+        stroke: #94a3b8 !important;
+      }
+      :global(.ql-toolbar .ql-fill) {
+        fill: #94a3b8 !important;
+      }
+      :global(.ql-toolbar .ql-picker) {
+        color: #94a3b8 !important;
+      }
+      :global(.ql-container) {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+        color: #f1f5f9 !important;
+      }
+      :global(.ql-editor) {
+        color: #f1f5f9 !important;
+      }
+      :global(.ql-editor.ql-blank::before) {
+        color: #4b5563 !important;
+      }
+
+      /* 全域表單輸入框色彩修正 */
+      .form-control,
+      select.form-control {
+        background: #0f172a !important;
+        border-color: #334155 !important;
+        color: #f1f5f9 !important;
+      }
+    }
+
     .color-tags-options {
       display: flex;
       gap: 1.5rem;
@@ -2078,7 +2222,7 @@
       border-color: #667eea;
       background: #f7fafc;
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
     }
 
     .radio-option.active {
@@ -2237,7 +2381,6 @@
       transform: scale(1.1);
     }
 
-
     .general-upload-container {
       display: flex;
       gap: 0.75rem;
@@ -2289,7 +2432,8 @@
       outline: none;
     }
 
-    .image-paste-area:hover, .image-paste-area:focus {
+    .image-paste-area:hover,
+    .image-paste-area:focus {
       border-color: #667eea;
       background: #f1f5f9;
     }
@@ -2304,7 +2448,6 @@
       font-weight: 500;
       color: #64748b;
     }
-
 
     /* 進場分析區塊 */
     .highlight-label {
