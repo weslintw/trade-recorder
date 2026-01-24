@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-const dispatch = createEventDispatcher();
+  const dispatch = createEventDispatcher();
   import Quill from 'quill';
   import 'quill/dist/quill.snow.css';
   import { imagesAPI } from '../lib/api';
@@ -21,13 +21,13 @@ const dispatch = createEventDispatcher();
       modules: {
         toolbar: [
           ['bold', 'italic', 'underline', 'strike'],
-          [{ 'header': [1, 2, 3, false] }],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-          [{ 'color': [] }, { 'background': [] }],
+          [{ header: [1, 2, 3, false] }],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+          [{ color: [] }, { background: [] }],
           ['link', 'image'],
-          ['clean']
-        ]
-      }
+          ['clean'],
+        ],
+      },
     });
 
     // 設定初始內容
@@ -111,7 +111,7 @@ const dispatch = createEventDispatcher();
       // 通知父組件圖片上傳資訊 (用於儲存空間統計)
       dispatch('imageUpload', {
         path: response.data.path,
-        size: response.data.size
+        size: response.data.size,
       });
     } catch (error) {
       console.error('圖片上傳失敗:', error);
@@ -139,32 +139,35 @@ const dispatch = createEventDispatcher();
 
 <style>
   .rich-editor-wrapper {
-    border: 1px solid #cbd5e0;
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     overflow: hidden;
-    background: white;
+    background: var(--card-bg);
   }
 
   .rich-editor-wrapper :global(.ql-toolbar) {
     border: none;
-    border-bottom: 1px solid #e2e8f0;
-    background: #f7fafc;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-main);
   }
 
   .rich-editor-wrapper :global(.ql-container) {
     border: none;
     font-family: inherit;
     font-size: 0.95rem;
+    color: var(--text-main);
+    background: var(--card-bg);
   }
 
   .rich-editor-wrapper :global(.ql-editor) {
     min-height: 150px;
     max-height: 400px;
     overflow-y: auto;
+    color: var(--text-main);
   }
 
   .rich-editor-wrapper :global(.ql-editor.ql-blank::before) {
-    color: #a0aec0;
+    color: var(--text-muted);
     font-style: normal;
   }
 
@@ -178,6 +181,17 @@ const dispatch = createEventDispatcher();
 
   .rich-editor-wrapper :global(.ql-snow .ql-picker) {
     font-size: 0.9rem;
+    color: var(--text-main);
+  }
+
+  /* Quill Toolbar Icons in Dark Mode */
+  :global(body.dark-mode) .rich-editor-wrapper :global(.ql-stroke) {
+    stroke: #cbd5e1 !important;
+  }
+  :global(body.dark-mode) .rich-editor-wrapper :global(.ql-fill) {
+    fill: #cbd5e1 !important;
+  }
+  :global(body.dark-mode) .rich-editor-wrapper :global(.ql-picker) {
+    color: #cbd5e1 !important;
   }
 </style>
-

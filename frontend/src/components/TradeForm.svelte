@@ -4099,7 +4099,8 @@
     :global(body.dark-mode) .pattern-name,
     :global(body.dark-mode) .signals-label,
     :global(body.dark-mode) .entry-pattern-label,
-    :global(body.dark-mode) .tf-label {
+    :global(body.dark-mode) .tf-label,
+    :global(body.dark-mode) label {
       color: #ffffff !important;
     }
 
@@ -4109,7 +4110,8 @@
     :global(body.dark-mode) .view-link,
     :global(body.dark-mode) .add-link,
     :global(body.dark-mode) .plan-general-notes,
-    :global(body.dark-mode) .note-text {
+    :global(body.dark-mode) .note-text,
+    :global(body.dark-mode) .hint-inline {
       color: #cbd5e1 !important;
     }
 
@@ -4124,30 +4126,15 @@
       border-color: rgba(251, 113, 133, 0.3) !important;
     }
 
-    /* Quill 富文本編輯器 Dark Mode 核心修正 */
-    :global(body.dark-mode .ql-toolbar) {
+    /* Quill 富文本編輯器 Dark Mode 核心修正 (全域鎖定) */
+    :global(body.dark-mode) .ql-toolbar {
       background: var(--bg-main) !important;
       border-color: var(--border-color) !important;
     }
-    :global(body.dark-mode .ql-toolbar .ql-stroke) {
-      stroke: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-toolbar .ql-fill) {
-      fill: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-toolbar .ql-picker) {
-      color: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-container) {
-      background: var(--bg-main) !important;
+    :global(body.dark-mode) .ql-container {
+      background: var(--card-bg) !important;
       border-color: var(--border-color) !important;
       color: var(--text-main) !important;
-    }
-    :global(body.dark-mode .ql-editor) {
-      color: var(--text-main) !important;
-    }
-    :global(body.dark-mode .ql-editor.ql-blank::before) {
-      color: var(--text-muted) !important;
     }
 
     /* 全域表單輸入框色彩修正 */
