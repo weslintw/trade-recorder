@@ -24,6 +24,7 @@
         day: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
+        second: '2-digit',
         hour12: false,
       });
     } catch (e) {
@@ -39,14 +40,16 @@
     const diff = e - s;
     if (diff < 0) return '';
 
-    const minutes = Math.floor(diff / 60000);
+    const totalSeconds = Math.floor(diff / 1000);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days}天 ${hours % 24}小時 ${minutes % 60}分`;
-    if (hours > 0) return `${hours}小時 ${minutes % 60}分`;
-    if (minutes > 0) return `${minutes}分`;
-    return '1分鐘內';
+    if (days > 0) return `${days}天 ${hours % 24}小時 ${minutes % 60}分 ${seconds}秒`;
+    if (hours > 0) return `${hours}小時 ${minutes % 60}分 ${seconds}秒`;
+    if (minutes > 0) return `${minutes}分 ${seconds}秒`;
+    return `${seconds}秒`;
   }
 
   function lazyLoadHTML(html) {
