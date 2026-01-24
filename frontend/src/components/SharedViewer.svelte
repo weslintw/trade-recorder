@@ -38,9 +38,10 @@
     { id: 'risk_reward', label: '風報比 OK' },
   ];
   const LEGEND_CHECKLIST = [
-    { id: 'king_trend', label: 'King 趨勢' },
-    { id: 'htf_structure', label: 'HTF 結構' },
-    { id: 'de_interaction', label: 'DE 互動' },
+    { id: 'item_618_786', label: '王者回調' },
+    { id: 'item_che', label: '大時區破測破' },
+    { id: 'item_de', label: '整理段訊號' },
+    { id: 'item_legend_wave', label: '傳奇波段' },
   ];
 
   const subFilters = {

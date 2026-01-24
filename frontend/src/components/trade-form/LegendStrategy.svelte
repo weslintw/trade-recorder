@@ -7,6 +7,7 @@
     { id: 'item_618_786', label: '王者出現回調618或786' },
     { id: 'item_che', label: '大時區破[測]破' },
     { id: 'item_de', label: '整理段的ABC[D][E]' },
+    { id: 'item_legend_wave', label: '傳奇波段' },
   ];
 
   const timeframes = [

@@ -91,6 +91,7 @@
     { id: 'item_618_786', label: '王者回調' },
     { id: 'item_che', label: '大時區破測破' },
     { id: 'item_de', label: '整理段訊號' },
+    { id: 'item_legend_wave', label: '傳奇波段' },
   ];
 
   const subFilters = {
