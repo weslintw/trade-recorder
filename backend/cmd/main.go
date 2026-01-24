@@ -54,8 +54,7 @@ func main() {
 	// 啟動 cTrader 背景監聽管理器
 	ctrader.StartManager(db)
 
-	// 自動遷移舊的 Base64 圖片到 MinIO
-	go database.MigrateBase64ToMinIO(db, minioClient)
+	// 舊的 Base64 圖片已完成系統性遷移，不再執行自動遷移任務
 
 	// 設置Gin路由
 	r := gin.Default()
