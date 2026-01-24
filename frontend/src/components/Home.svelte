@@ -56,6 +56,8 @@
   let activeColorFilter = null; // 紅綠燈過濾
   let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
   let activeSideFilter = 'all'; // 'all', 'long', 'short'
+  let plans = [];
+  let trades = [];
   let globalSummary = {
     total_count: 0,
     win_count: 0,
@@ -198,6 +200,8 @@
       winRate: '0.0',
       totalPnl: '0.00',
       hasTrades: false,
+      green: 0,
+      yellow: 0,
       red: 0,
       expert: 0,
       elite: 0,
@@ -528,8 +532,6 @@
       const symbol = $selectedSymbol;
       todayString = new Date().toISOString().slice(0, 10);
 
-      let plans = [];
-      let trades = [];
       let globalSummaryData = null;
 
       // API 請求區塊
