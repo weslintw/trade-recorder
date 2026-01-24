@@ -187,9 +187,10 @@
       winRate: '0.0',
       totalPnl: '0.00',
       hasTrades: false,
-      green: 0,
-      yellow: 0,
       red: 0,
+      expert: 0,
+      elite: 0,
+      legend: 0,
     };
     if (!filteredGroupedData) return stats;
 
@@ -217,6 +218,11 @@
       if (t.color_tag === 'green') stats.green++;
       else if (t.color_tag === 'yellow') stats.yellow++;
       else if (t.color_tag === 'red') stats.red++;
+
+      const strat = String(t.entry_strategy || '').toLowerCase();
+      if (strat === 'expert' || strat === '達人') stats.expert++;
+      else if (strat === 'elite' || strat === '菁英') stats.elite++;
+      else if (strat === 'legend' || strat === '傳奇') stats.legend++;
 
       if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
         total++;
@@ -1050,6 +1056,19 @@
     const yellow = allTrades.filter(t => t.color_tag === 'yellow').length;
     const red = allTrades.filter(t => t.color_tag === 'red').length;
 
+    const expert = allTrades.filter(t => {
+      const s = String(t.entry_strategy || '').toLowerCase();
+      return s === 'expert' || s === '達人';
+    }).length;
+    const elite = allTrades.filter(t => {
+      const s = String(t.entry_strategy || '').toLowerCase();
+      return s === 'elite' || s === '菁英';
+    }).length;
+    const legend = allTrades.filter(t => {
+      const s = String(t.entry_strategy || '').toLowerCase();
+      return s === 'legend' || s === '傳奇';
+    }).length;
+
     return {
       winRate,
       realizedPnl,
@@ -1061,6 +1080,9 @@
       green,
       yellow,
       red,
+      expert,
+      elite,
+      legend,
     };
   }
 
@@ -1639,6 +1661,12 @@
               <span class="stats-color-dot red"></span>
               <span class="stats-color-count">{filteredStats.red}</span>
             </div>
+
+            <div class="stats-strategy-groups">
+              <span class="strat-tag expert">達 {filteredStats.expert}</span>
+              <span class="strat-tag elite">菁 {filteredStats.elite}</span>
+              <span class="strat-tag legend">傳 {filteredStats.legend}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1869,6 +1897,12 @@
                     <span class="stats-color-count">{dailyStats.yellow}</span>
                     <span class="stats-color-dot red"></span>
                     <span class="stats-color-count">{dailyStats.red}</span>
+                  </div>
+
+                  <div class="stats-strategy-groups small">
+                    <span class="strat-tag expert">達 {dailyStats.expert}</span>
+                    <span class="strat-tag elite">菁 {dailyStats.elite}</span>
+                    <span class="strat-tag legend">傳 {dailyStats.legend}</span>
                   </div>
 
                   {#if Math.abs(dailyStats.realizedPnl) > 0.001}
@@ -4415,7 +4449,50 @@
     gap: 0.3rem;
     margin-left: 0.75rem;
     padding-left: 0.75rem;
-    border-left: 1px solid rgba(34, 197, 94, 0.15);
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  :global(body.dark-mode) .stats-color-groups {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .stats-strategy-groups {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 0.75rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  :global(body.dark-mode) .stats-strategy-groups {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .stats-strategy-groups.small {
+    gap: 0.25rem;
+    margin-left: 0.5rem;
+    padding-left: 0.5rem;
+    transform: scale(0.9);
+  }
+
+  .strat-tag {
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .strat-tag.expert {
+    background: #6366f1;
+  }
+  .strat-tag.elite {
+    background: #f59e0b;
+  }
+  .strat-tag.legend {
+    background: #ef4444;
   }
 
   .stats-color-dot {
