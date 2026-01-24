@@ -457,7 +457,7 @@
     const callId = ++loadDataCallCount;
     const now = Date.now();
     console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
-    // --- 防抖與中斷處理 ---
+
     if (silent && loading && now - (window._lastLoadDataTime || 0) < 500) {
       return;
     }
@@ -468,9 +468,9 @@
 
     window._lastLoadDataTime = now;
     activeLoadCallId = callId;
-    activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
+
     try {
       if (!silent) {
         loading = true;
@@ -478,7 +478,6 @@
         loadingMessage = '正在準備連線...';
         groupedData = [];
 
-        // 加強版保險機制：10秒後強制關閉 loading
         setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
             console.warn(`[${INSTANCE_ID}] Loading state safety timeout (10s). Forcing OFF.`);
@@ -493,116 +492,113 @@
       let plans = [];
       let trades = [];
 
+      // API 請求區塊
       try {
         loadingMessage = `正在讀取盤面規劃資料...`;
-        const plansRes = await dailyPlansAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: pagination.page_size,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            start_date: activeDateRange === 'all' ? undefined : customStartDate,
-            end_date:
-              activeDateRange === 'all'
-                ? undefined
-                : customEndDate
-                  ? customEndDate + ' 23:59:59'
-                  : undefined,
-          },
-          signal
-        );
+        const plansRes = await dailyPlansAPI.getAll({
+          account_id: $selectedAccountId,
+          symbol,
+          page_size: 500,
+          page: activeDateRange === 'all' ? pagination.page : 1,
+          start_date: activeDateRange === 'all' ? undefined : customStartDate,
+          end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined),
+        }, signal);
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
 
-        loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
-        const tradesRes = await tradesAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: pagination.page_size,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            start_date: activeDateRange === 'all' ? undefined : customStartDate,
-            end_date:
-              activeDateRange === 'all'
-                ? undefined
-                : customEndDate
-                  ? customEndDate + ' 23:59:59'
-                  : undefined,
-            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
-            keyword: activeSubFilter || undefined,
-            color_tag: activeColorFilter || undefined,
-          },
-          signal
-        );
+        loadingMessage = `正在抓取交易紀錄...`;
+        const tradesRes = await tradesAPI.getAll({
+          account_id: $selectedAccountId,
+          symbol,
+          page_size: 500,
+          page: activeDateRange === 'all' ? pagination.page : 1,
+          strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+          keyword: activeSubFilter || undefined,
+          color_tag: activeColorFilter || undefined,
+        }, signal);
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
 
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
-        } else if (Array.isArray(tradesRes.data)) {
-          pagination.total = tradesRes.data.length;
         }
-      } catch (err) {
-        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
-          console.error('Sequence fetch error:', err);
+      } catch (apiErr) {
+        if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
+          console.error('API Error in loadData:', apiErr);
         }
       }
 
-      // 數據預處理
-      loadingMessage = `正在分組數據 (${plans.length + trades.length} 筆)...`;
+      // 數據過濾與去重
+      const seenTickets = new Set();
+      const uniqueTrades = [];
+      trades.forEach(t => {
+        if (t.ticket && seenTickets.has(t.ticket)) return;
+        if (t.ticket) seenTickets.add(t.ticket);
+        uniqueTrades.push(t);
+      });
+
+      // 數據分組邏輯
+      loadingMessage = `正在分組並解析數據...`;
       const dateMap = {};
       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
-      // ... 略過細碎的進度更新，直接處理 ...
       plans.forEach(plan => {
         plan.trendData = parseJSONSafe(plan.trend_analysis, {});
         if (!plan.plan_date) return;
-        const date = new Date(plan.plan_date).toISOString().slice(0, 10);
-        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
-        dateMap[date].plans.push(plan);
+        try {
+          const d = new Date(plan.plan_date);
+          if (isNaN(d.getTime())) return;
+          const ds = d.toISOString().slice(0, 10);
+          if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
+          dateMap[ds].plans.push(plan);
+        } catch(e) {}
       });
 
-      trades.forEach(trade => {
+      uniqueTrades.forEach(trade => {
         if (!trade.entry_time) return;
-        const date = new Date(trade.entry_time).toISOString().slice(0, 10);
-        if (!dateMap[date]) dateMap[date] = { date, plans: [], groupedTrades: [] };
+        try {
+          const d = new Date(trade.entry_time);
+          if (isNaN(d.getTime())) return;
+          const ds = d.toISOString().slice(0, 10);
+          if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
-        const entryTimeKey = trade.entry_time;
-        let timeGroup = dateMap[date].groupedTrades.find(g => g.entry_time === entryTimeKey);
-        if (!timeGroup) {
-          timeGroup = {
-            entry_time: entryTimeKey,
-            trades: [],
-            summary: {
-              totalPnl: 0,
-              totalLot: 0,
-              symbol: trade.symbol,
-              entry_price: trade.entry_price,
-              side: trade.side,
-            },
-          };
-          dateMap[date].groupedTrades.push(timeGroup);
-        }
-        timeGroup.trades.push(trade);
-        timeGroup.summary.totalPnl += trade.pnl || 0;
-        timeGroup.summary.totalLot += trade.lot_size || 0;
+          const entryTimeKey = trade.entry_time;
+          let timeGroup = dateMap[ds].groupedTrades.find(g => g.entry_time === entryTimeKey);
+          if (!timeGroup) {
+            timeGroup = {
+              entry_time: entryTimeKey,
+              trades: [],
+              summary: { totalPnl: 0, totalLot: 0, symbol: trade.symbol, entry_price: trade.entry_price, side: trade.side }
+            };
+            dateMap[ds].groupedTrades.push(timeGroup);
+          }
+          timeGroup.trades.push(trade);
+          timeGroup.summary.totalPnl += (trade.pnl || 0);
+          timeGroup.summary.totalLot += (trade.lot_size || 0);
+        } catch(e) {}
       });
 
-      const sortedData = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
+      // 排序與更新顯示
+      const sortedResult = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
+      sortedResult.forEach(day => {
+        day.groupedTrades.sort((a, b) => {
+          const getT = g => g.trades.some(t => !t.exit_time) ? Infinity : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
+          return getT(b) - getT(a);
+        });
+      });
 
       if (activeLoadCallId === callId) {
-        groupedData = sortedData;
+        groupedData = sortedResult;
       }
-    } catch (error) {
-      if (error.name !== 'CanceledError' && error.name !== 'AbortError') {
-        console.error('loadData failed:', error);
+    } catch (globalErr) {
+      if (globalErr.name !== 'CanceledError' && globalErr.name !== 'AbortError') {
+        console.error('Fatal loadData error:', globalErr);
         if (activeLoadCallId === callId) {
-          loadError = { message: '載入失敗', detail: error.message };
+          loadError = { message: '系統錯誤', detail: globalErr.message };
         }
       }
     } finally {
       if (activeLoadCallId === callId) {
         loading = false;
         loadController = null;
-      }
     }
   }
 
