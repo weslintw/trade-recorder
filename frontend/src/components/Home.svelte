@@ -450,18 +450,35 @@
 
   let loadController; // To abort in-flight requests
 
+  // 追蹤頁面可見性，避免背景切回時重複載入
+  let isPageVisible = !document.hidden;
+  let lastReactiveValues = { accountId: null, symbol: null };
+
   // 響應式：當帳號或品種改變時，自動重新載入資料 (加上 Debounce 防止連點)
   let debounceTimer;
   $: if ($selectedAccountId && $selectedSymbol) {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => {
-      console.log(
-        `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
-      );
-      // 重設分頁
-      pagination.page = 1;
-      loadData();
-    }, 500); // 500ms 防抖
+    // 檢查是否真的有變化（避免 Svelte 重新評估時觸發）
+    const hasChanged =
+      lastReactiveValues.accountId !== $selectedAccountId ||
+      lastReactiveValues.symbol !== $selectedSymbol;
+
+    if (hasChanged) {
+      // 更新追蹤值
+      lastReactiveValues = {
+        accountId: $selectedAccountId,
+        symbol: $selectedSymbol,
+      };
+
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        console.log(
+          `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}, pageVisible=${isPageVisible}`
+        );
+        // 重設分頁
+        pagination.page = 1;
+        loadData();
+      }, 500); // 500ms 防抖
+    }
   } else {
     console.warn(
       `🏠 [Reactive] SKIPPED loadData: selectedAccountId=${$selectedAccountId}, selectedSymbol=${$selectedSymbol}`
@@ -970,16 +987,32 @@
       }, 300);
     }
 
+    let lastVisibilityChangeTime = 0;
     handleVisibilityChange = () => {
       const hidden = document.hidden;
+      const now = Date.now();
+
       if (isDocumentHidden !== hidden) {
         isDocumentHidden = hidden;
-        console.log(`[Home] Visibility changed: hidden=${isDocumentHidden}`);
+        isPageVisible = !hidden;
+        console.log(`🏠 [Visibility] Page is now ${isPageVisible ? 'visible' : 'hidden'}`);
+
         if (!isDocumentHidden) {
-          // 當分頁重新回到視野，執行一次校準同步
-          console.log('[Home] Back in focus, performing catch-up sync...');
-          loadData(true);
-          refreshAccounts();
+          // 當分頁重新回到視野，檢查是否需要同步
+          const timeSinceLastChange = now - lastVisibilityChangeTime;
+          lastVisibilityChangeTime = now;
+
+          // 只有在離開超過 5 秒才執行同步，避免快速切換時重複載入
+          if (timeSinceLastChange > 5000) {
+            console.log('[Home] Back in focus after 5+ seconds, performing catch-up sync...');
+            // 使用 silent 模式避免顯示 loading spinner
+            setTimeout(() => {
+              loadData(true);
+              refreshAccounts(true);
+            }, 300); // 延遲 300ms 讓 Svelte 的響應式系統先穩定
+          } else {
+            console.log('[Home] Back in focus quickly, skipping redundant sync.');
+          }
         }
       }
     };
