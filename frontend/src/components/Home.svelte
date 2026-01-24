@@ -1715,7 +1715,7 @@
         </button>
 
         <div class="page-size-selector">
-          <span class="selector-label">加載量:</span>
+          <span class="selector-label">每頁顯示交易數量:</span>
           <select
             class="size-select"
             bind:value={pagination.page_size}
