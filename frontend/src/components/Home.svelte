@@ -181,14 +181,22 @@
     loadData();
   }
 
-  $: filteredGroupedData = applyFilters(
-    groupedData,
-    activeFilterType,
-    activeSubFilter,
-    activeColorFilter,
-    activeExitFilter,
-    activeSideFilter
-  );
+  $: filteredGroupedData = (() => {
+    try {
+      if (!groupedData || !Array.isArray(groupedData)) return [];
+      return applyFilters(
+        groupedData,
+        activeFilterType,
+        activeSubFilter,
+        activeColorFilter,
+        activeExitFilter,
+        activeSideFilter
+      );
+    } catch (err) {
+      console.error('[Home] filteredGroupedData error:', err);
+      return [];
+    }
+  })();
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
@@ -325,7 +333,10 @@
   }
 
   function applyFilters(data, type, sub, color, exitFilter, sideFilter) {
-    if (!data) return [];
+    if (!data || !Array.isArray(data)) {
+      console.log('[applyFilters] Invalid data, returning empty array');
+      return [];
+    }
 
     // 如果是全選且無任何子過濾，直接返回
     if (
@@ -529,6 +540,8 @@
         }, 10000);
       }
 
+      console.log(`[${INSTANCE_ID}] loadData #${callId} started for symbol:`, $selectedSymbol);
+
       const symbol = $selectedSymbol;
       todayString = new Date().toISOString().slice(0, 10);
 
@@ -574,9 +587,19 @@
         if (tradesRes.data?.pagination) {
           pagination.total = tradesRes.data.pagination.total;
         }
+        console.log(
+          `[${INSTANCE_ID}] loadData #${callId} API calls success. Plans: ${plans.length}, Trades: ${trades.length}`
+        );
       } catch (apiErr) {
         if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
-          console.error('API Error in loadData:', apiErr);
+          console.error(`[${INSTANCE_ID}] API Error in loadData #${callId}:`, apiErr);
+          // 如果 API 真的報錯，也讓使用者知道
+          if (activeLoadCallId === callId) {
+            loadError = {
+              message: '讀取資料失敗',
+              detail: `API Error: ${apiErr.message || 'Unknown'}`,
+            };
+          }
         }
       }
 
