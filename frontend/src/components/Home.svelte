@@ -27,7 +27,7 @@
   let loadError = null; // 新增：錯誤狀態
   let pagination = {
     page: 1,
-    page_size: 500,
+    page_size: 100,
     total: 0,
   };
   let loadingMessage = '正在啟動時光機...';
@@ -86,7 +86,7 @@
     legend: LEGEND_CHECKLIST.map(l => ({ value: l.id, label: l.label })),
   };
 
-  const PAGE_SIZE_OPTIONS = [500, 1000, 2000, 3000, 5000, 10000];
+  const PAGE_SIZE_OPTIONS = [50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 5000, 10000];
 
   const colorTagMeanings = {
     green: '有照標準進單',
