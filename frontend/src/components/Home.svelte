@@ -931,45 +931,19 @@
     }
   }
 
-  async function poll() {
-    // 如果分頁隱藏中，則停止背景輪詢
-    if (isDocumentHidden) {
-      console.log('[Home] Tab hidden, pausing background poll.');
-      pollingTimeout = setTimeout(poll, currentPollingInterval);
-      return;
-    }
-
-    // 如果當前正在轉圈圈加載中，則跳過本次輪詢，不與主連線搶資源
-    if (loading) {
-      console.log('[Home] Main loading is active, skipping background poll.');
-      pollingTimeout = setTimeout(poll, currentPollingInterval);
-      return;
-    }
-
-    // 如果 WebSocket 正常，則每分鐘執行一次「大檢查」即可
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      if ($selectedAccountId) {
-        await safeRefreshAccounts();
-      }
-    } else if ($selectedAccountId) {
-      // 只有在 WebSocket 斷線時，才執行基本的備援輪詢
-      console.log(`[Fallback Polling] Triggering refresh...`);
-      await Promise.all([loadData(true), safeRefreshAccounts()]);
-    }
-
-    pollingTimeout = setTimeout(poll, currentPollingInterval);
-  }
+  // 移除自動輪詢迴圈，改為完全依賴 WebSocket (事件驅動) 與 視野切換 (喚醒同步)
+  // 原有的 poll 函式將不再循環執行
 
   // 修改：將初始啟動延後，且增加 loading 檢查
   function startDeferredServices() {
     console.log('[Home] Starting deferred services...');
     initRealtimeNotifications();
 
-    // 如果還在加載，再延後一點啟動輪詢
-    if (loading) {
-      setTimeout(poll, 15000);
-    } else {
-      poll();
+    // 如果 WebSocket 斷開，才考慮在一段時間後執行補償刷新，否則不主動輪詢
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.log('[Home] WS is not ready, performing initial sync.');
+      loadData(true);
+      refreshAccounts();
     }
   }
 
