@@ -32,8 +32,8 @@ func GetDailyPlans(db *sql.DB) gin.HandlerFunc {
 		if query.PageSize <= 0 {
 			query.PageSize = 20
 		}
-		if query.PageSize > 500 {
-			query.PageSize = 500
+		if query.PageSize > 10000 {
+			query.PageSize = 10000
 		}
 
 		offset := (query.Page - 1) * query.PageSize

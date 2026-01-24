@@ -527,7 +527,7 @@
           {
             account_id: $selectedAccountId,
             symbol,
-            page_size: 500,
+            page_size: pagination.page_size,
             page: activeDateRange === 'all' ? pagination.page : 1,
             start_date: activeDateRange === 'all' ? undefined : customStartDate,
             end_date:
@@ -546,7 +546,7 @@
           {
             account_id: $selectedAccountId,
             symbol,
-            page_size: 500,
+            page_size: pagination.page_size,
             page: activeDateRange === 'all' ? pagination.page : 1,
             strategy: activeFilterType === 'all' ? undefined : activeFilterType,
             keyword: activeSubFilter || undefined,
