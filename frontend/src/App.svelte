@@ -25,9 +25,10 @@
   const buildTime = __BUILD_TIME__;
 
   // Dark Mode Support
-  let isDarkMode = localStorage.getItem('theme') === 'dark' || 
-                   (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  
+  let isDarkMode =
+    localStorage.getItem('theme') === 'dark' ||
+    (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
   function toggleDarkMode() {
     isDarkMode = !isDarkMode;
     if (isDarkMode) {
@@ -86,7 +87,11 @@
           <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
             <div class="logo-image-container">
               {#if isDarkMode}
-                <img src="/logo-dark.png" alt="Trade Time Machine Logo" class="brand-logo-img dark" />
+                <img
+                  src="/logo-dark.png"
+                  alt="Trade Time Machine Logo"
+                  class="brand-logo-img dark"
+                />
               {:else}
                 <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
               {/if}
@@ -164,10 +169,10 @@
                 </div>
 
                 <div class="user-profile-box">
-                  <button 
-                    class="theme-toggle-btn" 
+                  <button
+                    class="theme-toggle-btn"
                     on:click={toggleDarkMode}
-                    title={isDarkMode ? "切換至淺色模式" : "切換至深色模式"}
+                    title={isDarkMode ? '切換至淺色模式' : '切換至深色模式'}
                   >
                     {isDarkMode ? '🌙' : '☀️'}
                   </button>
@@ -215,19 +220,35 @@
     {#if $auth.isAuthenticated && !window.location.pathname.startsWith('/shared/')}
       <!-- Mobile Bottom Navigation -->
       <nav class="mobile-bottom-nav">
-        <Link to="/" class={activeNav === 'home' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'home')}>
+        <Link
+          to="/"
+          class={activeNav === 'home' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+          on:click={() => (activeNav = 'home')}
+        >
           <span class="icon">🏠</span>
           <span class="label">主頁</span>
         </Link>
-        <Link to="/new" class={activeNav === 'new-trade' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'new-trade')}>
+        <Link
+          to="/new"
+          class={activeNav === 'new-trade' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+          on:click={() => (activeNav = 'new-trade')}
+        >
           <span class="icon">➕</span>
           <span class="label">記交易</span>
         </Link>
-        <Link to="/plans/new" class={activeNav === 'new-plan' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'new-plan')}>
+        <Link
+          to="/plans/new"
+          class={activeNav === 'new-plan' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+          on:click={() => (activeNav = 'new-plan')}
+        >
           <span class="icon">📝</span>
           <span class="label">寫規劃</span>
         </Link>
-        <Link to="/dashboard" class={activeNav === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'} on:click={() => (activeNav = 'dashboard')}>
+        <Link
+          to="/dashboard"
+          class={activeNav === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+          on:click={() => (activeNav = 'dashboard')}
+        >
           <span class="icon">📊</span>
           <span class="label">統計</span>
         </Link>
@@ -242,7 +263,7 @@
   :global(:root) {
     --primary: #6366f1;
     --primary-hover: #4f46e5;
-    --bg-main: #f8fafc;
+    --bg-main: #ffffff;
     --card-bg: #ffffff;
     --text-main: #1e293b;
     --text-muted: #64748b;
@@ -400,8 +421,6 @@
     padding-left: 1rem;
     border-left: 1px solid var(--border-color);
   }
-
-
 
   :global(.nav-icon-btn) {
     text-decoration: none !important;
@@ -818,8 +837,12 @@
   }
 
   @keyframes rotation {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
   }
 
   /* Responsive Optimizations */
@@ -867,7 +890,7 @@
       padding: 0 1rem;
       margin-bottom: 5rem; /* Space for bottom nav */
     }
-    
+
     .mobile-bottom-nav {
       display: flex;
       position: fixed;

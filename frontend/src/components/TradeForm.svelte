@@ -2031,93 +2031,92 @@
     }
 
     .color-tag-section {
-      background: #f7fafc;
+      background: var(--nav-group-bg);
       border-radius: 12px;
-      border: 2px solid #e2e8f0;
+      border: 2px solid var(--border-color);
       padding: 1.5rem;
       margin-bottom: 2rem;
     }
 
-    @media (prefers-color-scheme: dark) {
-      .color-tag-section,
-      .trade-type-section,
-      .signals-section,
-      .checklist-section,
-      .general-images-section {
-        background: #1e293b !important;
-        border-color: #334155 !important;
-      }
-      .color-tag-item,
-      .radio-option,
-      .signal-card,
-      .trend-item,
-      .trend-option,
-      .strategy-option,
-      .timeframe-trend-row {
-        background: #0f172a !important;
-        border-color: #334155 !important;
-        color: #f1f5f9 !important;
-      }
+    :global(body.dark-mode) .color-tag-section,
+    :global(body.dark-mode) .trade-type-section,
+    :global(body.dark-mode) .signals-section,
+    :global(body.dark-mode) .checklist-section,
+    :global(body.dark-mode) .general-images-section {
+      background: var(--card-bg) !important;
+      border-color: var(--border-color) !important;
+    }
 
-      .radio-option.active,
-      .color-tag-item.active,
-      .signal-card.selected,
-      .trend-option.active,
-      .strategy-option.active {
-        background: #2d3748 !important;
-        border-color: #6366f1 !important;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
-      }
+    :global(body.dark-mode) .color-tag-item,
+    :global(body.dark-mode) .radio-option,
+    :global(body.dark-mode) .signal-card,
+    :global(body.dark-mode) .trend-item,
+    :global(body.dark-mode) .trend-option,
+    :global(body.dark-mode) .strategy-option,
+    :global(body.dark-mode) .timeframe-trend-row {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+    }
 
-      .color-label,
-      .radio-text strong,
-      .trade-type-label,
-      .section-label,
-      .strategy-label,
-      .signal-name,
-      .trend-name {
-        color: #f1f5f9 !important;
-      }
+    :global(body.dark-mode) .radio-option.active,
+    :global(body.dark-mode) .color-tag-item.active,
+    :global(body.dark-mode) .signal-card.selected,
+    :global(body.dark-mode) .trend-option.active,
+    :global(body.dark-mode) .strategy-option.active {
+      background: var(--nav-group-bg) !important;
+      border-color: var(--primary) !important;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+    }
 
-      .radio-text small,
-      .mini-trend,
-      .form-hint {
-        color: #94a3b8 !important;
-      }
+    :global(body.dark-mode) .color-label,
+    :global(body.dark-mode) .radio-text strong,
+    :global(body.dark-mode) .trade-type-label,
+    :global(body.dark-mode) .section-label,
+    :global(body.dark-mode) .strategy-label,
+    :global(body.dark-mode) .signal-name,
+    :global(body.dark-mode) .trend-name {
+      color: var(--text-main) !important;
+    }
 
-      /* Quill 富文本編輯器 Dark Mode 核心修正 */
-      :global(.ql-toolbar) {
-        background: #0f172a !important;
-        border-color: #334155 !important;
-      }
-      :global(.ql-toolbar .ql-stroke) {
-        stroke: #94a3b8 !important;
-      }
-      :global(.ql-toolbar .ql-fill) {
-        fill: #94a3b8 !important;
-      }
-      :global(.ql-toolbar .ql-picker) {
-        color: #94a3b8 !important;
-      }
-      :global(.ql-container) {
-        background: #0f172a !important;
-        border-color: #334155 !important;
-        color: #f1f5f9 !important;
-      }
-      :global(.ql-editor) {
-        color: #f1f5f9 !important;
-      }
-      :global(.ql-editor.ql-blank::before) {
-        color: #4b5563 !important;
-      }
+    :global(body.dark-mode) .radio-text small,
+    :global(body.dark-mode) .mini-trend,
+    :global(body.dark-mode) .form-hint {
+      color: var(--text-muted) !important;
+    }
 
-      /* 全域表單輸入框色彩修正 */
-      .form-control,
-      select.form-control {
-        background: #0f172a !important;
-        border-color: #334155 !important;
-        color: #f1f5f9 !important;
-      }
+    /* Quill 富文本編輯器 Dark Mode 核心修正 */
+    :global(body.dark-mode .ql-toolbar) {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-stroke) {
+      stroke: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-fill) {
+      fill: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-picker) {
+      color: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-container) {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+    }
+    :global(body.dark-mode .ql-editor) {
+      color: var(--text-main) !important;
+    }
+    :global(body.dark-mode .ql-editor.ql-blank::before) {
+      color: var(--text-muted) !important;
+    }
+
+    /* 全域表單輸入框色彩修正 */
+    :global(body.dark-mode) .form-control,
+    :global(body.dark-mode) select.form-control {
+      background: var(--input-bg) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
     }
 
     .color-tags-options {
