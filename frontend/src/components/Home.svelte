@@ -1046,7 +1046,22 @@
     const winRate = total > 0 ? (wins / total) * 100 : 0;
     const hasFloating = openTrades.length > 0;
 
-    return { winRate, realizedPnl, floatingPnl, totalPnl, wins, total, hasFloating };
+    const green = allTrades.filter(t => t.color_tag === 'green').length;
+    const yellow = allTrades.filter(t => t.color_tag === 'yellow').length;
+    const red = allTrades.filter(t => t.color_tag === 'red').length;
+
+    return {
+      winRate,
+      realizedPnl,
+      floatingPnl,
+      totalPnl,
+      wins,
+      total,
+      hasFloating,
+      green,
+      yellow,
+      red,
+    };
   }
 
   function getMarketSessionLabel(trade) {
@@ -1838,45 +1853,36 @@
               />
             {/if}
             <div class="date-tag">{formatDay(group.date)}</div>
-            {#if dailyStats.total > 0 || dailyStats.hasFloating}
-              <div class="daily-stats">
-                {#if dailyStats.total > 0}
-                  <span
-                    class="stat-item win-rate"
-                    class:high-win={dailyStats.winRate >= 60}
-                    class:low-win={dailyStats.winRate < 50}
-                  >
-                    <span class="stat-label">勝率</span>
-                    <span class="stat-value">{dailyStats.winRate.toFixed(1)}%</span>
-                    <span class="stat-detail">({dailyStats.wins}/{dailyStats.total})</span>
-                  </span>
-                  <span class="stat-divider">|</span>
-                {/if}
-                <span
-                  class="stat-item pnl"
-                  class:profit={dailyStats.realizedPnl > 0}
-                  class:loss={dailyStats.realizedPnl < 0}
-                >
-                  <span class="stat-label">已實現</span>
-                  <span class="stat-value"
-                    >{dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(
-                      2
-                    )}</span
-                  >
-                </span>
-                {#if dailyStats.hasFloating}
-                  <span class="stat-divider">|</span>
-                  <span
-                    class="stat-item pnl floating"
-                    class:profit={dailyStats.totalPnl > 0}
-                    class:loss={dailyStats.totalPnl < 0}
-                  >
-                    <span class="stat-label">浮動盈虧</span>
-                    <span class="stat-value"
-                      >{dailyStats.totalPnl >= 0 ? '+' : ''}{dailyStats.totalPnl.toFixed(2)}</span
+            {#if dailyStats.total > 0 || dailyStats.hasFloating || dailyStats.green + dailyStats.yellow + dailyStats.red > 0}
+              <div class="daily-stats-badge">
+                <div class="stats-content">
+                  <span class="stats-label">每日統計：</span>
+                  <span class="stats-value">{dailyStats.total} 筆</span>
+                  <span class="stats-sep">/</span>
+                  <span class="stats-label">勝率</span>
+                  <span class="stats-value win-rate">{dailyStats.winRate.toFixed(1)}%</span>
+
+                  <div class="stats-color-groups">
+                    <span class="stats-color-dot green"></span>
+                    <span class="stats-color-count">{dailyStats.green}</span>
+                    <span class="stats-color-dot yellow"></span>
+                    <span class="stats-color-count">{dailyStats.yellow}</span>
+                    <span class="stats-color-dot red"></span>
+                    <span class="stats-color-count">{dailyStats.red}</span>
+                  </div>
+
+                  {#if Math.abs(dailyStats.realizedPnl) > 0.001}
+                    <span class="stats-sep">|</span>
+                    <span class="stats-label">已實現</span>
+                    <span
+                      class="stats-value pnl"
+                      class:profit={dailyStats.realizedPnl > 0}
+                      class:loss={dailyStats.realizedPnl < 0}
                     >
-                  </span>
-                {/if}
+                      {dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(2)}
+                    </span>
+                  {/if}
+                </div>
               </div>
             {/if}
           </div>
@@ -2874,21 +2880,34 @@
     line-height: 1;
   }
 
-  .daily-stats {
+  .daily-stats-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.6rem;
+    padding: 0.35rem 0.8rem;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.12);
+    border-radius: 12px;
     margin-left: 0.75rem;
-    padding: 0.4rem 1rem;
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 20px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
   }
 
-  :global(body.dark-mode) .daily-stats {
-    background: rgba(30, 41, 59, 0.95);
-    border-color: #334155;
+  :global(body.dark-mode) .daily-stats-badge {
+    background: rgba(34, 197, 94, 0.04);
+    border-color: rgba(34, 197, 94, 0.08);
+  }
+
+  .daily-stats-badge:hover {
+    background: rgba(34, 197, 94, 0.1);
+    transform: translateY(-1px);
+  }
+
+  .daily-stats-badge .stats-value.pnl.profit {
+    color: #10b981;
+  }
+
+  .daily-stats-badge .stats-value.pnl.loss {
+    color: #ef4444;
   }
 
   /* 強制將 day-wrapper 增加 padding 以騰出空間給 absolute 標籤 */
