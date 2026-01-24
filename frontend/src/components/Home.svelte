@@ -471,11 +471,6 @@
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
-    let currentResetTimer = null;
-
-    let diagnosticStart = performance.now();
-    let processingStart = performance.now();
-
     try {
       if (!silent) {
         loading = true;
@@ -484,15 +479,12 @@
         groupedData = [];
 
         // 加強版保險機制：10秒後強制關閉 loading
-        const safetyTimeoutId = setTimeout(() => {
+        setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
             console.warn(`[${INSTANCE_ID}] Loading state safety timeout (10s). Forcing OFF.`);
             loading = false;
           }
         }, 10000);
-
-        // 將定時器 ID 存起來以便成功時清除
-        currentResetTimer = safetyTimeoutId;
       }
 
       const symbol = $selectedSymbol;
@@ -536,16 +528,8 @@
           });
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
 
-        // 進度更新，重置計時器 (與 cTrader 同步大數據時，這裡提供更多時間)
-        if (currentResetTimer) {
-          clearTimeout(currentResetTimer);
-          currentResetTimer = setTimeout(() => {
-            if (loading && activeLoadCallId === callId) {
-              console.warn(`[${INSTANCE_ID}] Loading state safety timeout (step 1). Forcing OFF.`);
-              loading = false;
-            }
-          }, 15000); // 延長 15 秒給 cTrader 巨量數據
-        }
+        // 進度更新
+        loadingMessage = `規劃讀取完成 (${plans.length} 筆)，正在抓取交易紀錄...`;
         const tradesRes = await tradesAPI
           .getAll(
             {
@@ -582,15 +566,6 @@
         }
 
         loadingMessage = `數據接收完成 (共 ${plans.length + trades.length} 筆)，正在準備時空序列...`;
-        if (currentResetTimer) {
-          clearTimeout(currentResetTimer);
-          currentResetTimer = setTimeout(() => {
-            if (loading && activeLoadCallId === callId) {
-              console.warn(`[${INSTANCE_ID}] Loading state safety timeout (step 2). Forcing OFF.`);
-              loading = false;
-            }
-          }, 10000);
-        }
       } catch (err) {
         if (err.name === 'CanceledError' || err.name === 'AbortError') {
           console.log('Request was aborted intentionally.');
@@ -617,7 +592,6 @@
       processingStart = performance.now();
       const dateMap = {};
       let processedCount = 0;
-      const totalToProcess = plans.length + trades.length;
 
       // 強制推入今天的日期，確保最上面有東西
       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
@@ -626,12 +600,6 @@
         const plan = plans[idx];
         if (idx % 50 === 0) {
           loadingMessage = `解析盤面規劃中 (${idx + 1}/${plans.length})...`;
-          if (currentResetTimer) {
-            clearTimeout(currentResetTimer);
-            currentResetTimer = setTimeout(() => {
-              if (loading && activeLoadCallId === callId) loading = false;
-            }, 5000);
-          }
           // 透過 yield 讓瀏覽器有機會渲染 UI
           await new Promise(resolve => setTimeout(resolve, 0));
         }
@@ -657,12 +625,6 @@
         const trade = trades[idx];
         if (idx % 50 === 0) {
           loadingMessage = `對齊交易紀錄中 (${idx + 1}/${trades.length})...`;
-          if (currentResetTimer) {
-            clearTimeout(currentResetTimer);
-            currentResetTimer = setTimeout(() => {
-              if (loading && activeLoadCallId === callId) loading = false;
-            }, 5000);
-          }
           await new Promise(resolve => setTimeout(resolve, 0));
         }
         try {
@@ -749,9 +711,6 @@
         }
       }
     } finally {
-      // 清除保險計時器
-      if (currentResetTimer) clearTimeout(currentResetTimer);
-
       // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
       if (activeLoadCallId === callId) {
         loading = false;
