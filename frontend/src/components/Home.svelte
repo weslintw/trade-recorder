@@ -528,6 +528,8 @@
       const symbol = $selectedSymbol;
       todayString = new Date().toISOString().slice(0, 10);
 
+      let plans = [];
+      let trades = [];
       let globalSummaryData = null;
 
       // API 請求區塊
