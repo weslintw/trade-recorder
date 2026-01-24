@@ -2238,15 +2238,20 @@
     }
 
     /* 一般圖片上傳區塊 */
+
     .general-images-section {
       margin-top: 1.5rem;
+      padding: 1.25rem;
+      background: var(--nav-group-bg);
+      border-radius: 12px;
+      border: 1.5px solid var(--border-color);
     }
 
     .general-images-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
       gap: 1rem;
-      margin-top: 1rem;
+      margin-top: 0.75rem;
     }
 
     .image-thumb-container {
@@ -2718,21 +2723,6 @@
       animation: slideIn 0.3s ease-out;
     }
 
-    /* 一般圖片網格樣式 */
-    .general-images-section {
-      margin-top: 1.5rem;
-      padding: 1.25rem;
-      background: #f1f5f9;
-      border-radius: 12px;
-      border: 1.5px solid #e2e8f0;
-    }
-
-    .general-images-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
-      gap: 1rem;
-      margin-top: 0.75rem;
-    }
 
     .image-thumb-container {
       position: relative;
