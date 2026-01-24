@@ -2038,87 +2038,6 @@
       margin-bottom: 2rem;
     }
 
-    :global(body.dark-mode) .color-tag-section,
-    :global(body.dark-mode) .trade-type-section,
-    :global(body.dark-mode) .signals-section,
-    :global(body.dark-mode) .checklist-section,
-    :global(body.dark-mode) .general-images-section {
-      background: var(--card-bg) !important;
-      border-color: var(--border-color) !important;
-    }
-
-    :global(body.dark-mode) .color-tag-item,
-    :global(body.dark-mode) .radio-option,
-    :global(body.dark-mode) .signal-card,
-    :global(body.dark-mode) .trend-item,
-    :global(body.dark-mode) .trend-option,
-    :global(body.dark-mode) .strategy-option,
-    :global(body.dark-mode) .timeframe-trend-row {
-      background: var(--bg-main) !important;
-      border-color: var(--border-color) !important;
-      color: var(--text-main) !important;
-    }
-
-    :global(body.dark-mode) .radio-option.active,
-    :global(body.dark-mode) .color-tag-item.active,
-    :global(body.dark-mode) .signal-card.selected,
-    :global(body.dark-mode) .trend-option.active,
-    :global(body.dark-mode) .strategy-option.active {
-      background: var(--nav-group-bg) !important;
-      border-color: var(--primary) !important;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
-    }
-
-    :global(body.dark-mode) .color-label,
-    :global(body.dark-mode) .radio-text strong,
-    :global(body.dark-mode) .trade-type-label,
-    :global(body.dark-mode) .section-label,
-    :global(body.dark-mode) .strategy-label,
-    :global(body.dark-mode) .signal-name,
-    :global(body.dark-mode) .trend-name {
-      color: var(--text-main) !important;
-    }
-
-    :global(body.dark-mode) .radio-text small,
-    :global(body.dark-mode) .mini-trend,
-    :global(body.dark-mode) .form-hint {
-      color: var(--text-muted) !important;
-    }
-
-    /* Quill 富文本編輯器 Dark Mode 核心修正 */
-    :global(body.dark-mode .ql-toolbar) {
-      background: var(--bg-main) !important;
-      border-color: var(--border-color) !important;
-    }
-    :global(body.dark-mode .ql-toolbar .ql-stroke) {
-      stroke: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-toolbar .ql-fill) {
-      fill: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-toolbar .ql-picker) {
-      color: var(--text-muted) !important;
-    }
-    :global(body.dark-mode .ql-container) {
-      background: var(--bg-main) !important;
-      border-color: var(--border-color) !important;
-      color: var(--text-main) !important;
-    }
-    :global(body.dark-mode .ql-editor) {
-      color: var(--text-main) !important;
-    }
-    :global(body.dark-mode .ql-editor.ql-blank::before) {
-      color: var(--text-muted) !important;
-    }
-
-    /* 全域表單輸入框色彩修正 */
-    :global(body.dark-mode) .form-control,
-    :global(body.dark-mode) select.form-control {
-      background: var(--input-bg) !important;
-      border-color: var(--border-color) !important;
-      color: var(--text-main) !important;
-    }
-
     .color-tags-options {
       display: flex;
       gap: 1.5rem;
@@ -2133,8 +2052,8 @@
       transition: all 0.2s;
       padding: 0.4rem 0.8rem;
       border-radius: 10px;
-      border: 1px solid transparent;
-      background: white;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
     }
 
     .color-tag-item:hover {
@@ -2188,16 +2107,16 @@
     .trade-type-section {
       margin-bottom: 2rem;
       padding: 1.5rem;
-      background: #f7fafc;
+      background: var(--nav-group-bg);
       border-radius: 12px;
-      border: 2px solid #e2e8f0;
+      border: 2px solid var(--border-color);
     }
 
     .trade-type-label {
       display: block;
       font-size: 1.1rem;
       font-weight: 600;
-      color: #2d3748;
+      color: var(--text-main);
       margin-bottom: 1rem;
     }
 
@@ -2210,10 +2129,11 @@
     .radio-option {
       position: relative;
       cursor: pointer;
-      border: 2px solid #cbd5e0;
+      border: 2px solid var(--border-color);
       border-radius: 12px;
       padding: 1.25rem;
-      background: white;
+      background: var(--card-bg);
+      color: var(--text-main);
       transition: all 0.2s ease;
     }
 
@@ -4102,6 +4022,86 @@
       .card {
         padding: 1rem;
       }
+
+    :global(body.dark-mode) .color-tag-section,
+    :global(body.dark-mode) .trade-type-section,
+    :global(body.dark-mode) .signals-section,
+    :global(body.dark-mode) .checklist-section,
+    :global(body.dark-mode) .general-images-section {
+      background: var(--card-bg) !important;
+      border-color: var(--border-color) !important;
+    }
+
+    :global(body.dark-mode) .color-tag-item,
+    :global(body.dark-mode) .radio-option,
+    :global(body.dark-mode) .signal-card,
+    :global(body.dark-mode) .trend-item,
+    :global(body.dark-mode) .trend-option,
+    :global(body.dark-mode) .strategy-option,
+    :global(body.dark-mode) .timeframe-trend-row {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+    }
+
+    :global(body.dark-mode) .radio-option.active,
+    :global(body.dark-mode) .color-tag-item.active,
+    :global(body.dark-mode) .signal-card.selected,
+    :global(body.dark-mode) .trend-option.active,
+    :global(body.dark-mode) .strategy-option.active {
+      background: var(--nav-group-bg) !important;
+      border-color: var(--primary) !important;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+    }
+
+    :global(body.dark-mode) .color-label,
+    :global(body.dark-mode) .radio-text strong,
+    :global(body.dark-mode) .trade-type-label,
+    :global(body.dark-mode) .section-label,
+    :global(body.dark-mode) .strategy-label,
+    :global(body.dark-mode) .signal-name,
+    :global(body.dark-mode) .trend-name {
+      color: var(--text-main) !important;
+    }
+
+    :global(body.dark-mode) .radio-text small,
+    :global(body.dark-mode) .mini-trend,
+    :global(body.dark-mode) .form-hint {
+      color: var(--text-muted) !important;
+    }
+
+    /* Quill 富文本編輯器 Dark Mode 核心修正 */
+    :global(body.dark-mode .ql-toolbar) {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-stroke) {
+      stroke: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-fill) {
+      fill: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-toolbar .ql-picker) {
+      color: var(--text-muted) !important;
+    }
+    :global(body.dark-mode .ql-container) {
+      background: var(--bg-main) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
+    }
+    :global(body.dark-mode .ql-editor) {
+      color: var(--text-main) !important;
+    }
+    :global(body.dark-mode .ql-editor.ql-blank::before) {
+      color: var(--text-muted) !important;
+    }
+
+    /* 全域表單輸入框色彩修正 */
+    :global(body.dark-mode) .form-control,
+    :global(body.dark-mode) select.form-control {
+      background: var(--input-bg) !important;
+      border-color: var(--border-color) !important;
+      color: var(--text-main) !important;
     }
   </style>
 {/if}
