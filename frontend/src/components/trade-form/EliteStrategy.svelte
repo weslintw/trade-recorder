@@ -75,16 +75,16 @@
   .checklist-section {
     margin-top: 1rem;
     padding: 1rem;
-    background: white;
+    background: var(--nav-group-bg);
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .checklist-label {
     display: block;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
     margin-bottom: 0.75rem;
   }
 
@@ -99,9 +99,9 @@
     display: inline-flex;
     align-items: center;
     padding: 0.35rem 0.75rem;
-    border: 2px solid #cbd5e0;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--card-bg);
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
@@ -109,19 +109,19 @@
   }
 
   .checklist-btn:hover {
-    border-color: #667eea;
-    background: #f7fafc;
+    border-color: var(--primary);
+    background: var(--bg-main);
   }
 
   .checklist-btn.active {
-    border-color: #667eea;
-    background: #667eea;
+    border-color: var(--primary);
+    background: var(--primary);
   }
 
   .btn-text {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #4a5568;
+    color: var(--text-main);
   }
 
   .checklist-btn.active .btn-text {
@@ -131,16 +131,16 @@
   .entry-pattern-section {
     margin-top: 1.5rem;
     padding: 1rem;
-    background: white;
+    background: var(--nav-group-bg);
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .entry-pattern-label {
     display: block;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
     margin-bottom: 0.75rem;
   }
 
@@ -154,28 +154,28 @@
     display: inline-flex;
     align-items: center;
     padding: 0.5rem 1rem;
-    border: 2px solid #cbd5e0;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--card-bg);
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
   }
 
   .pattern-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
+    border-color: var(--primary);
+    background: var(--bg-main);
   }
 
   .pattern-option.active {
-    border-color: #667eea;
-    background: #667eea;
+    border-color: var(--primary);
+    background: var(--primary);
   }
 
   .pattern-name {
     font-size: 0.95rem;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
   }
 
   .pattern-option.active .pattern-name {

@@ -13,8 +13,18 @@
   function getDirectionLabel(trend) {
     if (!trend) return '';
     const dirs = [];
-    if (trend.directions?.includes('long') || trend.direction === 'long' || trend.direction === 'both') dirs.push('多');
-    if (trend.directions?.includes('short') || trend.direction === 'short' || trend.direction === 'both') dirs.push('空');
+    if (
+      trend.directions?.includes('long') ||
+      trend.direction === 'long' ||
+      trend.direction === 'both'
+    )
+      dirs.push('多');
+    if (
+      trend.directions?.includes('short') ||
+      trend.direction === 'short' ||
+      trend.direction === 'both'
+    )
+      dirs.push('空');
     return dirs.join('＋');
   }
 
@@ -35,11 +45,7 @@
         ✅ 已有規劃 <span class="view-link">查看 ↗</span>
       </button>
     {:else}
-      <button
-        type="button"
-        class="plan-status-badge missing"
-        on:click={handleCreatePlan}
-      >
+      <button type="button" class="plan-status-badge missing" on:click={handleCreatePlan}>
         ❓ 尚無規劃 <span class="add-link">建立 ➕</span>
       </button>
     {/if}
@@ -66,8 +72,12 @@
                   {#if hasDirection(asianTrend)}
                     <span
                       class="step"
-                      class:long={asianTrend.directions?.includes('long') || asianTrend.direction === 'long' || asianTrend.direction === 'both'}
-                      class:short={asianTrend.directions?.includes('short') || asianTrend.direction === 'short' || asianTrend.direction === 'both'}
+                      class:long={asianTrend.directions?.includes('long') ||
+                        asianTrend.direction === 'long' ||
+                        asianTrend.direction === 'both'}
+                      class:short={asianTrend.directions?.includes('short') ||
+                        asianTrend.direction === 'short' ||
+                        asianTrend.direction === 'both'}
                     >
                       亞盤 {getDirectionLabel(asianTrend)}
                     </span>
@@ -77,8 +87,12 @@
                     {#if hasDirection(asianTrend)}<span class="arrow">=></span>{/if}
                     <span
                       class="step"
-                      class:long={europeanTrend.directions?.includes('long') || europeanTrend.direction === 'long' || europeanTrend.direction === 'both'}
-                      class:short={europeanTrend.directions?.includes('short') || europeanTrend.direction === 'short' || europeanTrend.direction === 'both'}
+                      class:long={europeanTrend.directions?.includes('long') ||
+                        europeanTrend.direction === 'long' ||
+                        europeanTrend.direction === 'both'}
+                      class:short={europeanTrend.directions?.includes('short') ||
+                        europeanTrend.direction === 'short' ||
+                        europeanTrend.direction === 'both'}
                     >
                       歐盤 {getDirectionLabel(europeanTrend)}
                     </span>
@@ -90,8 +104,12 @@
                       >{/if}
                     <span
                       class="step"
-                      class:long={usTrend.directions?.includes('long') || usTrend.direction === 'long' || usTrend.direction === 'both'}
-                      class:short={usTrend.directions?.includes('short') || usTrend.direction === 'short' || usTrend.direction === 'both'}
+                      class:long={usTrend.directions?.includes('long') ||
+                        usTrend.direction === 'long' ||
+                        usTrend.direction === 'both'}
+                      class:short={usTrend.directions?.includes('short') ||
+                        usTrend.direction === 'short' ||
+                        usTrend.direction === 'both'}
                     >
                       美盤 {getDirectionLabel(usTrend)}
                     </span>
@@ -108,7 +126,11 @@
               {#if trendData[session]?.notes}
                 <div class="plan-note-item">
                   <span class="session-tag {session}"
-                    >{session === 'asian' ? '亞盤' : session === 'european' ? '歐盤' : '美盤'}備註：</span
+                    >{session === 'asian'
+                      ? '亞盤'
+                      : session === 'european'
+                        ? '歐盤'
+                        : '美盤'}備註：</span
                   >
                   <span class="note-text">{trendData[session].notes}</span>
                 </div>
@@ -123,11 +145,11 @@
 
 <style>
   .trade-plan-status-section {
-    background: #f8fafc;
+    background: var(--nav-group-bg);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1.5rem;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .section-label-group {
@@ -136,10 +158,10 @@
     align-items: center;
     margin-bottom: 1rem;
   }
-  
+
   .strategy-label {
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -190,10 +212,10 @@
 
   .plan-general-notes {
     font-size: 0.95rem;
-    color: #4a5568;
+    color: var(--text-main);
     padding: 0.75rem;
-    background: white;
-    border: 1px solid #e2e8f0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     margin-bottom: 1rem;
   }
@@ -228,8 +250,8 @@
   .step {
     padding: 2px 6px;
     border-radius: 4px;
-    background: #edf2f7;
-    color: #718096;
+    background: var(--bg-main);
+    color: var(--text-muted);
     font-size: 0.8rem;
   }
   .step.long {

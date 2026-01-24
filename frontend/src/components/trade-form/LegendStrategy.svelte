@@ -119,16 +119,16 @@
   .checklist-section {
     margin-top: 1rem;
     padding: 1rem;
-    background: white;
+    background: var(--nav-group-bg);
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
   }
 
   .checklist-label {
     display: block;
     font-size: 0.95rem;
     font-weight: 600;
-    color: #4a5568;
+    color: var(--text-main);
     margin-bottom: 0.75rem;
   }
 
@@ -143,9 +143,9 @@
     display: inline-flex;
     align-items: center;
     padding: 0.35rem 0.75rem;
-    border: 2px solid #cbd5e0;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--card-bg);
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
@@ -153,19 +153,19 @@
   }
 
   .checklist-btn:hover {
-    border-color: #805ad5;
-    background: #f9f5ff;
+    border-color: var(--primary);
+    background: var(--bg-main);
   }
 
   .checklist-btn.active {
-    border-color: #805ad5;
-    background: #805ad5;
+    border-color: var(--primary);
+    background: var(--primary);
   }
 
   .btn-text {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #4a5568;
+    color: var(--text-main);
   }
 
   .checklist-btn.active .btn-text {
@@ -175,14 +175,14 @@
   .signals-section {
     margin-top: 1.5rem;
     padding: 1rem;
-    background: #fdfdfd;
-    border: 1px solid #e2e8f0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
   }
 
   .signals-section.nested {
-    background: #f8fafc;
-    border: 1px dashed #cbd5e0;
+    background: var(--nav-group-bg);
+    border: 1px dashed var(--border-color);
     margin-left: 1rem;
     padding: 1rem;
   }
@@ -191,7 +191,7 @@
     display: block;
     font-weight: 600;
     margin-bottom: 1rem;
-    color: #4a5568;
+    color: var(--text-main);
     font-size: 0.95rem;
   }
 
@@ -208,13 +208,14 @@
 
   .timeframe-btn {
     padding: 0.35rem 0.75rem;
-    border: 1px solid #cbd5e0;
-    background: white;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
     border-radius: 6px;
     font-size: 0.85rem;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s;
+    color: var(--text-main);
   }
 
   .timeframe-btn.active {

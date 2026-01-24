@@ -8,7 +8,7 @@
     { label: '1小時', value: 'H1' },
     { label: '4小時', value: 'H4' },
     { label: '天', value: 'D1' },
-    ...(formData.entry_strategy === 'legend' ? [{ label: '超k', value: 'SuperK' }] : [])
+    ...(formData.entry_strategy === 'legend' ? [{ label: '超k', value: 'SuperK' }] : []),
   ];
 
   /* 如果切換到傳奇模式，預設選擇「超k」 */
@@ -62,30 +62,30 @@
 
 <style>
   .form-row {
-      display: flex;
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
   }
-  
+
   .form-group {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
   }
-  
+
   label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 600;
-      color: #4a5568;
-      font-size: 0.95rem;
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-main);
+    font-size: 0.95rem;
   }
 
   .timeframe-trend-row {
-    background: white;
+    background: var(--nav-group-bg);
     padding: 1rem;
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border-color);
     margin-bottom: 1.5rem;
     align-items: flex-end; /* 讓內容底部對齊 */
   }
@@ -110,20 +110,20 @@
     align-items: center;
     cursor: pointer;
     padding: 1rem;
-    border: 2px solid #cbd5e0;
+    border: 2px solid var(--border-color);
     border-radius: 8px;
-    background: white;
+    background: var(--card-bg);
     transition: all 0.2s ease;
   }
 
   .strategy-option:hover {
-    border-color: #667eea;
-    background: #f7fafc;
+    border-color: var(--primary);
+    background: var(--bg-main);
   }
 
   .strategy-option.active {
-    border-color: #667eea;
-    background: #edf2f7;
+    border-color: var(--primary);
+    background: var(--card-bg);
     box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
   }
 
@@ -134,7 +134,7 @@
 
   .strategy-name {
     font-weight: 600;
-    color: #2d3748;
+    color: var(--text-main);
     font-size: 1rem;
   }
 

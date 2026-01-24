@@ -2254,12 +2254,12 @@
       aspect-ratio: 1;
       border-radius: 8px;
       overflow: hidden;
-      border: 2px solid #e2e8f0;
+      border: 2px solid var(--border-color);
       transition: all 0.2s;
     }
 
     .image-thumb-container:hover {
-      border-color: #667eea;
+      border-color: var(--primary);
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
     }
@@ -2314,7 +2314,7 @@
       justify-content: center;
       gap: 0.5rem;
       background: var(--card-bg);
-      border: 2px dashed #cbd5e1;
+      border: 2px dashed var(--border-color);
       border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s;
@@ -2333,7 +2333,7 @@
     .upload-trigger-btn .text {
       font-size: 0.75rem;
       font-weight: 600;
-      color: #64748b;
+      color: var(--text-muted);
     }
 
     .image-paste-area {
@@ -2342,8 +2342,8 @@
       align-items: center;
       justify-content: center;
       gap: 0.75rem;
-      background: #f8fafc;
-      border: 2px dashed #cbd5e1;
+      background: var(--nav-group-bg);
+      border: 2px dashed var(--border-color);
       border-radius: 8px;
       padding: 1rem;
       cursor: pointer;
@@ -2353,8 +2353,8 @@
 
     .image-paste-area:hover,
     .image-paste-area:focus {
-      border-color: #667eea;
-      background: #f1f5f9;
+      border-color: var(--primary);
+      background: var(--bg-main);
     }
 
     .image-paste-area .icon {
@@ -2365,7 +2365,7 @@
     .image-paste-area .text {
       font-size: 0.85rem;
       font-weight: 500;
-      color: #64748b;
+      color: var(--text-muted);
     }
 
     /* 進場分析區塊 */
@@ -4049,7 +4049,9 @@
     :global(body.dark-mode) .trade-type-section,
     :global(body.dark-mode) .signals-section,
     :global(body.dark-mode) .checklist-section,
-    :global(body.dark-mode) .general-images-section {
+    :global(body.dark-mode) .general-images-section,
+    :global(body.dark-mode) .trade-plan-status-section,
+    :global(body.dark-mode) .entry-pattern-section {
       background: var(--card-bg) !important;
       border-color: var(--border-color) !important;
     }
@@ -4060,7 +4062,12 @@
     :global(body.dark-mode) .trend-item,
     :global(body.dark-mode) .trend-option,
     :global(body.dark-mode) .strategy-option,
-    :global(body.dark-mode) .timeframe-trend-row {
+    :global(body.dark-mode) .timeframe-trend-row,
+    :global(body.dark-mode) .checklist-btn,
+    :global(body.dark-mode) .pattern-option,
+    :global(body.dark-mode) .signal-btn,
+    :global(body.dark-mode) .plan-general-notes,
+    :global(body.dark-mode) .image-paste-area {
       background: var(--bg-main) !important;
       border-color: var(--border-color) !important;
       color: var(--text-main) !important;
@@ -4070,7 +4077,10 @@
     :global(body.dark-mode) .color-tag-item.active,
     :global(body.dark-mode) .signal-card.selected,
     :global(body.dark-mode) .trend-option.active,
-    :global(body.dark-mode) .strategy-option.active {
+    :global(body.dark-mode) .strategy-option.active,
+    :global(body.dark-mode) .checklist-btn.active,
+    :global(body.dark-mode) .pattern-option.active,
+    :global(body.dark-mode) .signal-btn.active {
       background: var(--nav-group-bg) !important;
       border-color: var(--primary) !important;
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
@@ -4082,14 +4092,36 @@
     :global(body.dark-mode) .section-label,
     :global(body.dark-mode) .strategy-label,
     :global(body.dark-mode) .signal-name,
-    :global(body.dark-mode) .trend-name {
+    :global(body.dark-mode) .trend-name,
+    :global(body.dark-mode) .checklist-label,
+    :global(body.dark-mode) .entry-pattern-label,
+    :global(body.dark-mode) .btn-text,
+    :global(body.dark-mode) .pattern-name,
+    :global(body.dark-mode) .signals-label,
+    :global(body.dark-mode) .entry-pattern-label,
+    :global(body.dark-mode) .tf-label {
       color: #ffffff !important;
     }
 
     :global(body.dark-mode) .radio-text small,
     :global(body.dark-mode) .mini-trend,
-    :global(body.dark-mode) .form-hint {
+    :global(body.dark-mode) .form-hint,
+    :global(body.dark-mode) .view-link,
+    :global(body.dark-mode) .add-link,
+    :global(body.dark-mode) .plan-general-notes,
+    :global(body.dark-mode) .note-text {
       color: #cbd5e1 !important;
+    }
+
+    :global(body.dark-mode) .plan-status-badge.linked {
+      background: rgba(22, 101, 52, 0.2) !important;
+      color: #4ade80 !important;
+      border-color: rgba(74, 222, 128, 0.3) !important;
+    }
+    :global(body.dark-mode) .plan-status-badge.missing {
+      background: rgba(190, 18, 60, 0.2) !important;
+      color: #fb7185 !important;
+      border-color: rgba(251, 113, 133, 0.3) !important;
     }
 
     /* Quill 富文本編輯器 Dark Mode 核心修正 */

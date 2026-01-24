@@ -19,8 +19,8 @@
   .signals-section {
     margin-top: 1.5rem;
     padding: 1rem;
-    background: #fdfdfd;
-    border: 1px solid #e2e8f0;
+    background: var(--nav-group-bg);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
   }
 
@@ -28,7 +28,7 @@
     display: block;
     font-weight: 600;
     margin-bottom: 1rem;
-    color: #4a5568;
+    color: var(--text-main);
     font-size: 0.95rem;
   }
 </style>
