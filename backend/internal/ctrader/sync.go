@@ -319,29 +319,26 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	insertedCount := 0
 	skippedExisting := 0
 	skippedDeleted := 0
-	updateInterval := 20 // 增加間隔，減少 DB 寫入壓力
-	if len(posGroups) > 500 {
-		updateInterval = len(posGroups) / 10 // 較多時改為每 10%
-	}
-	if updateInterval < 1 {
-		updateInterval = 1
-	}
+	updateInterval := 25 // 減少 DB 寫入壓力
 
 	for pid, deals := range posGroups {
 		count++
 
-		// Only update status every few positions to show activity
-		if count%updateInterval == 0 || count == len(posGroups) {
-			currentSymbol := "Unknown"
+		// === BREATHING SPACE FOR DATABASE ===
+		// Every batch of positions, sleep briefly to allow other web requests to use the DB
+		if count%updateInterval == 0 {
+			time.Sleep(150 * time.Millisecond)
+
+			// Update status less frequently to save DB bandwidth
+			currentSymbol := "Analyzing..."
 			if len(deals) > 0 {
 				currentSymbol = symbolMap[deals[0].SymbolID]
 			}
 			db.Exec("UPDATE accounts SET sync_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-				fmt.Sprintf("Analyzing %s (%d/%d)...", currentSymbol, count, len(posGroups)), accountID)
+				fmt.Sprintf("Progress: %d/%d (%s)", count, len(posGroups), currentSymbol), accountID)
 		}
 
 		// === PERFORMANCE OPTIMIZATION: Check if all deals in this position are already synced ===
-		// If all deals exist in DB, we can skip the entire deep SL search for this position
 		allDealsExist := true
 		for _, d := range deals {
 			if d.ClosePositionDetail.EntryPrice == 0 {
@@ -356,7 +353,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 		if allDealsExist {
 			skippedExisting += len(deals)
-			log.Printf("[cTrader Sync] Position %d: All deals already synced, skipping deep SL search", pid)
+			// log.Printf("[cTrader Sync] Position %d: Already synced", pid)
 			continue
 		}
 
