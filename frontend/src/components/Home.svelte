@@ -984,8 +984,13 @@
 
     console.log('[onMount] Cleanup complete, starting fresh');
 
-    // Step 1: 預加載帳號列表
-    await refreshAccounts();
+    // Step 1: 預加載帳號列表 (優化：如果已有資料就不重複抓取)
+    if ($accounts.length === 0) {
+      console.log('[onMount] Pre-fetching accounts...');
+      await refreshAccounts();
+    } else {
+      console.log('[onMount] Accounts already in store, skipping redundant fetch.');
+    }
 
     // Step 2: 檢查當前選取的帳號是否有效
     const accountExists = $accounts.some(a => a.id === $selectedAccountId);
