@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 	_ "modernc.org/sqlite"
@@ -36,10 +37,16 @@ func InitDB() (*sql.DB, error) {
 		return nil, err
 	}
 
-	// 設定 Busy Timeout，避免併發寫入時直接鎖死
 	_, _ = db.Exec("PRAGMA foreign_keys = ON;")
 	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
-	_, _ = db.Exec("PRAGMA busy_timeout = 5000;")
+	_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
+	_, _ = db.Exec("PRAGMA busy_timeout = 10000;")
+
+	// 限制連線池數量，避免 SQLite 產生太多潛伏連線耗盡資源
+	// 對 SQLite 而言，單個寫入者 + 多個讀取者 (WAL) 是最佳狀態
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
 
 	// 執行Schema建立
 	if err := createTables(db); err != nil {

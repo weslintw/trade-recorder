@@ -751,30 +751,6 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 			ask, multiplier, accountID, symbol)
 		if err == nil && res != nil {
 			if n, _ := res.RowsAffected(); n > 0 {
-				// Broadcast simple price update with symbols to avoid front-end reload
-				prices := make(map[string]interface{})
-				prices[symbol] = map[string]interface{}{
-					"price": bid,
-					"time":  time.Now().UnixMilli(),
-				}
-				
-				msg := ws.WSMessage{
-					Type:      "PRICE_UPDATE",
-					AccountID: accountID,
-					Data:      prices,
-				}
-				data, _ := json.Marshal(msg)
-				ws.GlobalHub.Broadcast(data)
-			}
-		}
-	}
-
-	if ask > 0 {
-		res, err := m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
-			WHERE account_id = ? AND symbol = ? AND side = 'short' AND exit_price IS NULL`,
-			ask, multiplier, accountID, symbol)
-		if err == nil && res != nil {
-			if n, _ := res.RowsAffected(); n > 0 {
 				prices := make(map[string]interface{})
 				prices[symbol] = map[string]interface{}{
 					"price": ask,

@@ -3,14 +3,26 @@ package database
 import (
 	"database/sql"
 	"log"
+	"sync"
 )
 
-// UpdateAccountStorageUsage 更新指定帳號的儲存空間佔用量
+var (
+	usageUpdateMu sync.Map // map[int64]*sync.Mutex
+)
+
+// UpdateAccountStorageUsage 更新指定帳號的儲存空間佔用量 (加上併發保護避免鎖定)
 func UpdateAccountStorageUsage(db *sql.DB, accountID int64) error {
-	// 計算邏輯：
-	// 1. 交易紀錄中的文字長度 (notes, reasons, signals 等)
-	// 2. 每日規劃中的文字長度 (notes, trend_analysis)
-	// 3. 交易圖片關聯表中的檔案大小 (file_size)
+	// 使用 sync.Map 確保同一個帳號同一時間只有一個計算在跑
+	actualMu, _ := usageUpdateMu.LoadOrStore(accountID, &sync.Mutex{})
+	mu := actualMu.(*sync.Mutex)
+	if !mu.TryLock() {
+		// 如果該帳號已經在計算中了，直接跳過本次請求，減少 DB 壓力
+		return nil
+	}
+	defer mu.Unlock()
+
+	// 計算邏輯保持不變，但加上 Limit 或優化
+	// 這裡維持原邏輯但因為有了 TryLock，不會產生堆積效應
 	query := `
 		UPDATE accounts SET storage_usage = (
 			SELECT COALESCE(SUM(

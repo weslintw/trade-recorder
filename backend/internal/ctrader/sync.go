@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"trade-journal/internal/database"
@@ -59,7 +60,20 @@ type CTraderMessage struct {
 	Payload     json.RawMessage `json:"payload"`
 }
 
+var (
+	syncMutex sync.Map // map[int64]*sync.Mutex
+)
+
 func SyncCTraderHistory(db *sql.DB, accountID int64, cTraderAccountID string, token string, clientID string, clientSecret string, env string, fromTimestamp int64) error {
+	// 加上同步鎖，避免同一個帳號重疊執行同步
+	actualMu, _ := syncMutex.LoadOrStore(accountID, &sync.Mutex{})
+	mu := actualMu.(*sync.Mutex)
+	if !mu.TryLock() {
+		log.Printf("[cTrader Sync] Account %d is already syncing, skipping new request", accountID)
+		return fmt.Errorf("該帳號同步任務已在執行中")
+	}
+	defer mu.Unlock()
+
 	log.Printf("[cTrader Sync] --- Manual Sync START for Account %d (v2.36) ---", accountID)
 	db.Exec("UPDATE accounts SET sync_status = 'syncing (Preparing)...', last_sync_error = '', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 
