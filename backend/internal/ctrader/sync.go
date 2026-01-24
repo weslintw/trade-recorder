@@ -319,9 +319,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	insertedCount := 0
 	skippedExisting := 0
 	skippedDeleted := 0
-	updateInterval := 5 // 每 5 個 update 一次，給使用者更細動態感
-	if len(posGroups) > 200 {
-		updateInterval = len(posGroups) / 20 // 較多時改為每 5%
+	updateInterval := 20 // 增加間隔，減少 DB 寫入壓力
+	if len(posGroups) > 500 {
+		updateInterval = len(posGroups) / 10 // 較多時改為每 10%
+	}
+	if updateInterval < 1 {
+		updateInterval = 1
 	}
 
 	for pid, deals := range posGroups {
@@ -593,13 +596,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				var currentInitialSL, currentExitSL float64
 				db.QueryRow("SELECT pnl_series, initial_sl, exit_sl FROM trades WHERE account_id = ? AND ticket = ?", accountID, ticket).Scan(&currentPnL, &currentInitialSL, &currentExitSL)
 
-				// Decide if we should refresh this trade
-				shouldRefresh := currentPnL == "" || currentPnL == "[]" || currentPnL == "null" || len(currentPnL) < 50
-				// Also refresh if we found better SL data than what we currently have
-				betterSL := (currentInitialSL == 0 && initialSL > 0) || (currentExitSL == 0 && exitSL > 0)
+					// Decide if we should refresh this trade
+					shouldRefresh := currentPnL == "" || currentPnL == "[]" || currentPnL == "null" || len(currentPnL) < 50
+					// Also refresh if we found better SL data than what we currently have
+					betterSL := (currentInitialSL == 0 && initialSL > 0) || (currentExitSL == 0 && exitSL > 0)
 
-				if shouldRefresh || betterSL {
-					log.Printf("[cTrader Sync] Refreshing/Repairing existing trade %s (pnl_refresh=%v, better_sl=%v)", ticket, shouldRefresh, betterSL)
+					if shouldRefresh || betterSL {
+						// log.Printf("[cTrader Sync] Refreshing/Repairing existing trade %s (pnl_refresh=%v, better_sl=%v)", ticket, shouldRefresh, betterSL)
 
 					posSide := 1 // Buy/Long
 					if d.TradeSide == 1 {

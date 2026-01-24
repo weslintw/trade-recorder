@@ -27,7 +27,7 @@
   let loadError = null; // 新增：錯誤狀態
   let pagination = {
     page: 1,
-    page_size: 5000,
+    page_size: 500,
     total: 0,
   };
   let loadingMessage = '正在啟動時光機...';
@@ -41,6 +41,8 @@
   let pollingTimeout;
   let currentPollingInterval = 60000; // 預設閒置輪詢改為 60 秒 (僅作為 WebSocket 的備援)
   let ws;
+  let isDocumentHidden = false;
+  let handleVisibilityChange;
 
   // 批次分享相關狀態
   let selectionMode = false;
@@ -841,7 +843,11 @@
 
         if (msg.type === 'TRADE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
-            console.log('🚀 [Realtime] Trade update detected, reloading...');
+            console.log('🚀 [Realtime] Trade update detected');
+            if (isDocumentHidden) {
+              console.log('[Realtime] Tab hidden, deferring reload until visible.');
+              return;
+            }
             loadData(true);
             refreshAccounts();
           }
@@ -923,7 +929,12 @@
   }
 
   async function poll() {
-    if (pollingTimeout) clearTimeout(pollingTimeout);
+    // 如果分頁隱藏中，則停止背景輪詢
+    if (isDocumentHidden) {
+      console.log('[Home] Tab hidden, pausing background poll.');
+      pollingTimeout = setTimeout(poll, currentPollingInterval);
+      return;
+    }
 
     // 如果當前正在轉圈圈加載中，則跳過本次輪詢，不與主連線搶資源
     if (loading) {
@@ -1029,6 +1040,21 @@
       }, 300);
     }
 
+    handleVisibilityChange = () => {
+      const hidden = document.hidden;
+      if (isDocumentHidden !== hidden) {
+        isDocumentHidden = hidden;
+        console.log(`[Home] Visibility changed: hidden=${isDocumentHidden}`);
+        if (!isDocumentHidden) {
+          // 當分頁重新回到視野，執行一次校準同步
+          console.log('[Home] Back in focus, performing catch-up sync...');
+          loadData(true);
+          refreshAccounts();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     console.log('=== 🏠 Home onMount END ===');
   });
 
@@ -1046,6 +1072,9 @@
     if (ws) {
       ws.onclose = null; // 阻止自動重連
       ws.close();
+    }
+    if (handleVisibilityChange) {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
   });
 

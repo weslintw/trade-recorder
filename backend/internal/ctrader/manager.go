@@ -751,74 +751,52 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 			ask, multiplier, accountID, symbol)
 		if err == nil && res != nil {
 			if n, _ := res.RowsAffected(); n > 0 {
-				// Updated
-				ws.GlobalHub.BroadcastUpdate(accountID, "PRICE_UPDATE")
+				// Broadcast simple price update with symbols to avoid front-end reload
+				prices := make(map[string]interface{})
+				prices[symbol] = map[string]interface{}{
+					"price": bid,
+					"time":  time.Now().UnixMilli(),
+				}
+				
+				msg := ws.WSMessage{
+					Type:      "PRICE_UPDATE",
+					AccountID: accountID,
+					Data:      prices,
+				}
+				data, _ := json.Marshal(msg)
+				ws.GlobalHub.Broadcast(data)
 			}
 		}
 	}
 
-	// Real-time Sparkline (pnl_series) Update
-	rows, err := m.db.Query(`SELECT ticket, entry_price, pnl_series, entry_time, side, lot_size FROM trades 
-		WHERE account_id = ? AND symbol = ? AND exit_price IS NULL`, accountID, symbol)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var ticket, side string
-			var seriesNull sql.NullString
-			var entry, tradeLots float64
-			var entryTime time.Time
-			if err := rows.Scan(&ticket, &entry, &seriesNull, &entryTime, &side, &tradeLots); err == nil {
-				var series []float64
-				seriesStr := seriesNull.String
-				if seriesStr != "" {
-					json.Unmarshal([]byte(seriesStr), &series)
+	if ask > 0 {
+		res, err := m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
+			WHERE account_id = ? AND symbol = ? AND side = 'short' AND exit_price IS NULL`,
+			ask, multiplier, accountID, symbol)
+		if err == nil && res != nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				prices := make(map[string]interface{})
+				prices[symbol] = map[string]interface{}{
+					"price": ask,
+					"time":  time.Now().UnixMilli(),
 				}
-
-				var cur float64
-				if side == "long" {
-					cur = bid
-				} else {
-					cur = ask
+				
+				msg := ws.WSMessage{
+					Type:      "PRICE_UPDATE",
+					AccountID: accountID,
+					Data:      prices,
 				}
-
-				if cur == 0 {
-					continue
-				}
-
-				// Calculate actual dollar PnL to match the displayed PnL
-				currentPnL := (cur - entry) * tradeLots * multiplier * float64(lotSize)
-				if side == "short" {
-					currentPnL = (entry - cur) * tradeLots * multiplier * float64(lotSize)
-				}
-
-				// Ensure we have 32 points
-				if len(series) != 32 {
-					newSeries := make([]float64, 32)
-					if len(series) > 0 {
-						// Stretch existing data to 32 points
-						for i := 0; i < 32; i++ {
-							idx := int(float64(i) * float64(len(series)-1) / 31.0)
-							newSeries[i] = series[idx]
-						}
-					} else {
-						// Initialize with a linear progression from 0 to currentPnL
-						// to avoid a flat line at the start.
-						for i := 0; i < 32; i++ {
-							newSeries[i] = currentPnL * (float64(i) / 31.0)
-						}
-					}
-					series = newSeries
-				}
-
-				series[31] = currentPnL
-				newJSON, _ := json.Marshal(series)
-				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", string(newJSON), ticket)
-
-				// 2. Open Trades no longer fetch historical series via API to save performance
-				// PnL series is updated only at the current tip (point 31)
+				data, _ := json.Marshal(msg)
+				ws.GlobalHub.Broadcast(data)
 			}
 		}
 	}
+
+	// === PERFORMANCE OPTIMIZATION ===
+	// We no longer update pnl_series in DB every 5 seconds to reduce write pressure.
+	// The front-end can calculate the current tip of the sparkline from the price updates.
+	// Only full manual sync or trade closing will refresh the historical series.
+	return
 }
 
 func (m *Manager) handleSpotEvent(accountID int64, payload json.RawMessage, symbolMap map[int64]string, lotSizeMap map[int64]int64, fetchSymbol func(int64) string) {

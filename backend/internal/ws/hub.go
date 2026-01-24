@@ -87,6 +87,10 @@ func (h *Hub) BroadcastUpdate(accID int64, msgType string) {
 	h.broadcast <- data
 }
 
+func (h *Hub) Broadcast(data []byte) {
+	h.broadcast <- data
+}
+
 func (h *Hub) Register() chan *Client {
 	return h.register
 }
