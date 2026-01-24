@@ -479,47 +479,20 @@
     try {
       if (!silent) {
         loading = true;
-        loadError = null; // 清除之前的錯誤
-        loadingMessage = '正在發起網路連線...';
+        loadError = null;
+        loadingMessage = '正在準備連線...';
         groupedData = [];
 
-        // 階段性狀態提醒
-        setTimeout(() => {
+        // 加強版保險機制：10秒後強制關閉 loading
+        const safetyTimeoutId = setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
-            loadingMessage = '正在從 cTrader 同步大數據，請稍候...';
+            console.warn(`[${INSTANCE_ID}] Loading state safety timeout (10s). Forcing OFF.`);
+            loading = false;
           }
-        }, 3000);
+        }, 10000);
 
-        setTimeout(() => {
-          if (loading && activeLoadCallId === callId) {
-            loadingMessage = '您的網路連線穩定度較低，仍在努力讀取中...';
-          }
-        }, 12000);
-
-        // 保險機制：30秒後強制關閉 loading
-        let lastActivityCallId = callId;
-        let safetyTimer;
-
-        const resetSafetyTimer = (seconds = 30) => {
-          if (safetyTimer) clearTimeout(safetyTimer);
-          if (!loading || activeLoadCallId !== lastActivityCallId) return;
-
-          safetyTimer = setTimeout(() => {
-            if (loading && activeLoadCallId === lastActivityCallId) {
-              console.warn(
-                `[${INSTANCE_ID}] Loading state inactivity timeout triggered (${seconds}s). Forcing spinner OFF.`
-              );
-              loading = false;
-              loadController = null;
-            }
-          }, seconds * 1000);
-        };
-
-        // 初始給30秒超時（從60秒縮短）
-        resetSafetyTimer(30);
-
-        // 建立一個局部變數供後續呼叫
-        currentResetTimer = resetSafetyTimer;
+        // 將定時器 ID 存起來以便成功時清除
+        currentResetTimer = safetyTimeoutId;
       }
 
       const symbol = $selectedSymbol;
@@ -751,6 +724,9 @@
         }
       }
     } finally {
+      // 清除保險計時器
+      if (currentResetTimer) clearTimeout(currentResetTimer);
+
       // 只有當前這個 call 是最後一個發出的，才解除 Loading 狀態
       if (activeLoadCallId === callId) {
         loading = false;
