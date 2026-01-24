@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -24,6 +25,11 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()
 		userID := c.GetInt64("user_id")
+
+		// 建立具備 5 秒超時的 Context
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		query := `
 			SELECT 
 				id, name, type, COALESCE(mt5_account_id, ''), COALESCE(mt5_token, ''), 
@@ -39,8 +45,13 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 			WHERE user_id = ? 
 			ORDER BY created_at ASC`
 
-		rows, err := db.Query(query, userID)
+		rows, err := db.QueryContext(ctx, query, userID)
 		if err != nil {
+			if err == context.DeadlineExceeded {
+				log.Printf("[GetAccounts] TIMEOUT after 5 seconds")
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "資料庫忙碌中，請稍後再試"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -66,7 +77,10 @@ func GetAccounts(db *sql.DB) gin.HandlerFunc {
 			accounts = append(accounts, acc)
 		}
 
-		log.Printf("[GetAccounts PERF] Total duration: %v, count: %d", time.Since(startTime), len(accounts))
+		duration := time.Since(startTime)
+		if duration > 1*time.Second {
+			log.Printf("[GetAccounts PERF] SLOW query: %v, count: %d", duration, len(accounts))
+		}
 		c.JSON(http.StatusOK, accounts)
 	}
 }

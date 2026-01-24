@@ -763,7 +763,7 @@
   let lastAccountsData = null;
   let isRefreshingAccounts = false;
   let refreshAccountsController = null;
-  async function refreshAccounts() {
+  async function refreshAccounts(silent = false) {
     if (isRefreshingAccounts) {
       console.log('🟢 [refreshAccounts] Already refreshing, skipping.');
       return;
@@ -805,6 +805,9 @@
         // console.log('🟢 [refreshAccounts] Request was aborted.');
       } else {
         console.error('Failed to refresh accounts:', e);
+        if (!silent) {
+          alert('更新帳號資訊失敗: ' + (e.message || '網路超時'));
+        }
       }
     } finally {
       isRefreshingAccounts = false;
@@ -817,7 +820,7 @@
     const now = Date.now();
     if (now - lastRefreshTime < 30000) return;
     lastRefreshTime = now;
-    return refreshAccounts();
+    return refreshAccounts(true);
   }
   function initRealtimeNotifications() {
     if (ws) {
