@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -279,8 +280,12 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 		id := c.Param("id")
 		userID := c.GetInt64("user_id")
 
+		// 建立具備 5 秒超時的 Context，支援前端中斷取消
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
 		var trade models.Trade
-		err := db.QueryRow(`
+		err := db.QueryRowContext(ctx, `
 			SELECT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, t.lot_size, t.pnl, t.pnl_points,
 				   COALESCE(t.notes, ''), t.entry_reason, t.exit_reason, t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist,
 				   t.entry_pattern, t.trend_analysis, t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
@@ -303,11 +308,15 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 		if err != nil {
+			if err == context.DeadlineExceeded {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "資料庫忙碌中，請點擊重試"})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 
-		loadTradeRelations(db, &trade)
+		loadTradeRelations(ctx, db, &trade)
 		c.JSON(http.StatusOK, trade)
 	}
 }
@@ -589,33 +598,35 @@ func SyncSingleTrade(db *sql.DB) gin.HandlerFunc {
 }
 
 // loadTradeRelations 載入交易的關聯資料（圖片和標籤）
-func loadTradeRelations(db *sql.DB, trade *models.Trade) {
+func loadTradeRelations(ctx context.Context, db *sql.DB, trade *models.Trade) {
 	// 載入圖片
-	imgRows, _ := db.Query(`
+	imgRows, _ := db.QueryContext(ctx, `
 		SELECT id, trade_id, image_type, image_path, file_size, created_at
 		FROM trade_images WHERE trade_id = ?
 	`, trade.ID)
-	defer imgRows.Close()
-
-	for imgRows.Next() {
-		var img models.Image
-		imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt)
-		trade.Images = append(trade.Images, img)
+	if imgRows != nil {
+		defer imgRows.Close()
+		for imgRows.Next() {
+			var img models.Image
+			imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt)
+			trade.Images = append(trade.Images, img)
+		}
 	}
 
 	// 載入標籤
-	tagRows, _ := db.Query(`
+	tagRows, _ := db.QueryContext(ctx, `
 		SELECT t.id, t.name, t.created_at
 		FROM tags t
 		INNER JOIN trade_tags tt ON t.id = tt.tag_id
 		WHERE tt.trade_id = ?
 	`, trade.ID)
-	defer tagRows.Close()
-
-	for tagRows.Next() {
-		var tag models.Tag
-		tagRows.Scan(&tag.ID, &tag.Name, &tag.CreatedAt)
-		trade.Tags = append(trade.Tags, tag)
+	if tagRows != nil {
+		defer tagRows.Close()
+		for tagRows.Next() {
+			var tag models.Tag
+			tagRows.Scan(&tag.ID, &tag.Name, &tag.CreatedAt)
+			trade.Tags = append(trade.Tags, tag)
+		}
 	}
 }
 
