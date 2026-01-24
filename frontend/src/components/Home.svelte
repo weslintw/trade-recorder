@@ -588,17 +588,12 @@
       if (activeLoadCallId === callId) {
         groupedData = sortedResult;
       }
-    } catch (globalErr) {
-      if (globalErr.name !== 'CanceledError' && globalErr.name !== 'AbortError') {
-        console.error('Fatal loadData error:', globalErr);
-        if (activeLoadCallId === callId) {
-          loadError = { message: '系統錯誤', detail: globalErr.message };
-        }
       }
     } finally {
       if (activeLoadCallId === callId) {
         loading = false;
         loadController = null;
+      }
     }
   }
 
