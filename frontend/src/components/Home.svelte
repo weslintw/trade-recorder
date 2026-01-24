@@ -495,26 +495,37 @@
       // API 請求區塊
       try {
         loadingMessage = `正在讀取盤面規劃資料...`;
-        const plansRes = await dailyPlansAPI.getAll({
-          account_id: $selectedAccountId,
-          symbol,
-          page_size: 500,
-          page: activeDateRange === 'all' ? pagination.page : 1,
-          start_date: activeDateRange === 'all' ? undefined : customStartDate,
-          end_date: activeDateRange === 'all' ? undefined : (customEndDate ? customEndDate + ' 23:59:59' : undefined),
-        }, signal);
+        const plansRes = await dailyPlansAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: 500,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            start_date: activeDateRange === 'all' ? undefined : customStartDate,
+            end_date:
+              activeDateRange === 'all'
+                ? undefined
+                : customEndDate
+                  ? customEndDate + ' 23:59:59'
+                  : undefined,
+          },
+          signal
+        );
         plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
 
         loadingMessage = `正在抓取交易紀錄...`;
-        const tradesRes = await tradesAPI.getAll({
-          account_id: $selectedAccountId,
-          symbol,
-          page_size: 500,
-          page: activeDateRange === 'all' ? pagination.page : 1,
-          strategy: activeFilterType === 'all' ? undefined : activeFilterType,
-          keyword: activeSubFilter || undefined,
-          color_tag: activeColorFilter || undefined,
-        }, signal);
+        const tradesRes = await tradesAPI.getAll(
+          {
+            account_id: $selectedAccountId,
+            symbol,
+            page_size: 500,
+            page: activeDateRange === 'all' ? pagination.page : 1,
+            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+            keyword: activeSubFilter || undefined,
+            color_tag: activeColorFilter || undefined,
+          },
+          signal
+        );
         trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
 
         if (tradesRes.data?.pagination) {
@@ -549,7 +560,7 @@
           const ds = d.toISOString().slice(0, 10);
           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
           dateMap[ds].plans.push(plan);
-        } catch(e) {}
+        } catch (e) {}
       });
 
       uniqueTrades.forEach(trade => {
@@ -566,21 +577,30 @@
             timeGroup = {
               entry_time: entryTimeKey,
               trades: [],
-              summary: { totalPnl: 0, totalLot: 0, symbol: trade.symbol, entry_price: trade.entry_price, side: trade.side }
+              summary: {
+                totalPnl: 0,
+                totalLot: 0,
+                symbol: trade.symbol,
+                entry_price: trade.entry_price,
+                side: trade.side,
+              },
             };
             dateMap[ds].groupedTrades.push(timeGroup);
           }
           timeGroup.trades.push(trade);
-          timeGroup.summary.totalPnl += (trade.pnl || 0);
-          timeGroup.summary.totalLot += (trade.lot_size || 0);
-        } catch(e) {}
+          timeGroup.summary.totalPnl += trade.pnl || 0;
+          timeGroup.summary.totalLot += trade.lot_size || 0;
+        } catch (e) {}
       });
 
       // 排序與更新顯示
       const sortedResult = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
       sortedResult.forEach(day => {
         day.groupedTrades.sort((a, b) => {
-          const getT = g => g.trades.some(t => !t.exit_time) ? Infinity : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
+          const getT = g =>
+            g.trades.some(t => !t.exit_time)
+              ? Infinity
+              : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
           return getT(b) - getT(a);
         });
       });
@@ -588,6 +608,12 @@
       if (activeLoadCallId === callId) {
         groupedData = sortedResult;
       }
+    } catch (globalErr) {
+      if (globalErr.name !== 'CanceledError' && globalErr.name !== 'AbortError') {
+        console.error('Fatal loadData error:', globalErr);
+        if (activeLoadCallId === callId) {
+          loadError = { message: '系統錯誤', detail: globalErr.message };
+        }
       }
     } finally {
       if (activeLoadCallId === callId) {
