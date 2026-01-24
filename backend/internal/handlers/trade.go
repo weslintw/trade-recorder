@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -232,7 +233,6 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			summaryQuery += " AND t.symbol = ?"
 			summaryArgs = append(summaryArgs, query.Symbol)
 		}
-		// ... 其他篩選條件也要跟進 (不含分頁)
 		if query.Side != "" {
 			summaryQuery += " AND t.side = ?"
 			summaryArgs = append(summaryArgs, query.Side)
@@ -244,6 +244,19 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		if query.EndDate != "" {
 			summaryQuery += " AND t.entry_time <= ?"
 			summaryArgs = append(summaryArgs, query.EndDate)
+		}
+		if query.Strategy != "" && query.Strategy != "all" {
+			summaryQuery += " AND t.entry_strategy = ?"
+			summaryArgs = append(summaryArgs, query.Strategy)
+		}
+		if query.ColorTag != "" && query.ColorTag != "all" {
+			summaryQuery += " AND t.color_tag = ?"
+			summaryArgs = append(summaryArgs, query.ColorTag)
+		}
+		if query.Keyword != "" {
+			searchPattern := "%" + query.Keyword + "%"
+			summaryQuery += " AND (t.entry_signals LIKE ? OR t.entry_pattern LIKE ? OR t.entry_checklist LIKE ? OR t.notes LIKE ?)"
+			summaryArgs = append(summaryArgs, searchPattern, searchPattern, searchPattern, searchPattern)
 		}
 
 		var summary struct {
@@ -262,6 +275,11 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			&summary.ExpertCount, &summary.EliteCount, &summary.LegendCount,
 			&summary.GreenCount, &summary.YellowCount, &summary.RedCount,
 		)
+
+		total := summary.TotalCount
+		// Estimate size
+		jsonData, _ := json.Marshal(trades)
+		sizeKB := float64(len(jsonData)) / 1024
 
 		log.Printf("[GetTrades PERF] Total duration: %v, items: %d, total: %d, size: %.2f KB", time.Since(startTime), len(trades), total, sizeKB)
 
