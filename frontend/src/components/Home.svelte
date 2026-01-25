@@ -2108,6 +2108,51 @@
       {/if}
     </div>
   {:else}
+    {#if totalPages > 1}
+      <div class="pagination-container pagination-container-top">
+        <div class="pagination-info">
+          第 {pagination.page} / {totalPages} 頁 (共 {filteredStats.total} 筆交易)
+        </div>
+        <div class="pagination-controls">
+          <button
+            class="pagination-btn"
+            disabled={pagination.page === 1}
+            on:click={() => changePage(pagination.page - 1)}
+          >
+            上一步
+          </button>
+
+          <div class="page-numbers">
+            {#each Array(Math.min(5, totalPages)) as _, i}
+              {@const pageNum =
+                totalPages <= 5
+                  ? i + 1
+                  : pagination.page <= 3
+                    ? i + 1
+                    : pagination.page >= totalPages - 2
+                      ? totalPages - 4 + i
+                      : pagination.page - 2 + i}
+              <button
+                class="page-num-btn"
+                class:active={pagination.page === pageNum}
+                on:click={() => changePage(pageNum)}
+              >
+                {pageNum}
+              </button>
+            {/each}
+          </div>
+
+          <button
+            class="pagination-btn"
+            disabled={pagination.page === totalPages}
+            on:click={() => changePage(pagination.page + 1)}
+          >
+            下一步
+          </button>
+        </div>
+      </div>
+    {/if}
+
     <div class="timeline">
       {#each paginatedGroupedData as group}
         {@const dailyStats = calculateDailyStats(group)}
@@ -2803,6 +2848,16 @@
     gap: 1rem;
     padding: 2rem 0;
     border-top: 1px dashed var(--border-color);
+  }
+
+  /* 頂部分頁器樣式覆寫 */
+  .pagination-container-top {
+    margin-top: 0.5rem; /* 不需要那麼大的上間距 */
+    margin-bottom: 2rem; /* 下方與 Timeline 保持距離 */
+    border-top: none; /* 移除上方虛線 */
+    border-bottom: 1px dashed var(--border-color); /* 改為下方虛線 */
+    padding-top: 0;
+    padding-bottom: 1.5rem;
   }
 
   .pagination-info {
