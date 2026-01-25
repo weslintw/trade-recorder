@@ -4023,6 +4023,7 @@
       .card {
         padding: 1rem;
       }
+    }
 
     :global(body.dark-mode) .btn-secondary,
     :global(body.dark-mode) .btn-accent {
@@ -4031,19 +4032,21 @@
     }
 
     :global(body.dark-mode) .ticket-label {
-      background: #1e293b !important;
+      background: #0f172a !important; /* Slate-900 更深 */
       color: #f1f5f9 !important;
       border-color: #334155 !important;
     }
 
     :global(body.dark-mode) .ticket-label::before {
-      background: #0f172a !important;
+      background: #1e293b !important; /* Slate-800 */
       color: #94a3b8 !important;
     }
 
     :global(body.dark-mode) .header-sparkline-box {
-      background: #1e293b !important;
-      border-color: #334155 !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important; /* 移除 padding 以便對齊 */
     }
 
     :global(body.dark-mode) .color-tag-section,

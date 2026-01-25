@@ -757,4 +757,91 @@
       transform: rotate(360deg);
     }
   }
+
+  /* Dark Mode Overrides */
+  :global(body.dark-mode) {
+    --dashboard-bg: #0f172a;
+    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+  }
+
+  :global(body.dark-mode) .glass-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  :global(body.dark-mode) .section-header h3 {
+    color: #f1f5f9;
+  }
+
+  :global(body.dark-mode) .metric-card {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  :global(body.dark-mode) .metric-icon {
+    background: #334155;
+    color: #f1f5f9;
+  }
+
+  /* Table Dark Mode */
+  :global(body.dark-mode) .modern-table td {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  :global(body.dark-mode) .modern-table td:first-child {
+    border-left-color: #334155;
+  }
+  :global(body.dark-mode) .modern-table td:last-child {
+    border-right-color: #334155;
+  }
+  :global(body.dark-mode) .symbol-cell strong {
+    color: #818cf8;
+  }
+  :global(body.dark-mode) .progress-bar-container {
+    background: #334155;
+  }
+  :global(body.dark-mode) .progress-text {
+    color: #f1f5f9;
+  }
+
+  /* Strategy List */
+  :global(body.dark-mode) .strategy-header-row {
+    background: #334155;
+  }
+  :global(body.dark-mode) .sub-item-name {
+    color: #f1f5f9;
+  }
+  :global(body.dark-mode) .sub-item-row {
+    border-bottom-color: #334155;
+  }
+  :global(body.dark-mode) .sub-pnl.pos {
+    background: rgba(22, 101, 52, 0.4);
+    color: #4ade80;
+  }
+  :global(body.dark-mode) .sub-pnl.neg {
+    background: rgba(153, 27, 27, 0.4);
+    color: #f87171;
+  }
+
+  /* Color Analysis */
+  :global(body.dark-mode) .color-stat-row {
+    background: #1e293b;
+  }
+  :global(body.dark-mode) .color-stat-row.green {
+    background: rgba(22, 101, 52, 0.2);
+    border-left-color: #22c55e;
+  }
+  :global(body.dark-mode) .color-stat-row.yellow {
+    background: rgba(180, 83, 9, 0.2);
+    border-left-color: #f59e0b;
+  }
+  :global(body.dark-mode) .color-stat-row.red {
+    background: rgba(153, 27, 27, 0.2);
+    border-left-color: #ef4444;
+  }
+  :global(body.dark-mode) .color-stat-metrics {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
 </style>
