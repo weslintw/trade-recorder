@@ -631,17 +631,8 @@
       // ------------------------------------------
 
       // 檢查是否為組合單（相同進場時間、帳號、品種）
-      const allTradesRes = await tradesAPI.getAll({
-        account_id: formData.account_id,
-        symbol: formData.symbol,
-        page_size: 100,
-      });
-      const allTradesData =
-        (Array.isArray(allTradesRes.data) ? allTradesRes.data : allTradesRes.data?.data) || [];
-      groupTrades = allTradesData
-        .filter(t => t.entry_time === response.data.entry_time)
-        .sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
-      isGroup = groupTrades.length > 1;
+      // 檢查是否為組合單（非阻塞背景執行）
+      checkGroupStatus(formData.account_id, formData.symbol, response.data.entry_time);
     } catch (error) {
       console.error('載入交易失敗:', error);
       alert('載入交易資料失敗');
@@ -650,6 +641,33 @@
       setTimeout(() => {
         isLoadingTrade = false;
       }, 100);
+    }
+  }
+
+  // 背景檢查組合單狀態 (避免阻塞主載入流程)
+  async function checkGroupStatus(accountId, symbol, entryTime) {
+    if (!accountId || !symbol || !entryTime) return;
+
+    try {
+      const allTradesRes = await tradesAPI.getAll({
+        account_id: accountId,
+        symbol: symbol,
+        page_size: 100,
+      });
+      const allTradesData =
+        (Array.isArray(allTradesRes.data) ? allTradesRes.data : allTradesRes.data?.data) || [];
+
+      groupTrades = allTradesData
+        .filter(t => t.entry_time === entryTime)
+        .sort((a, b) => new Date(a.exit_time || 0) - new Date(b.exit_time || 0));
+
+      isGroup = groupTrades.length > 1;
+
+      if (isGroup) {
+        console.log(`[TradeForm] Group detected: ${groupTrades.length} trades`);
+      }
+    } catch (err) {
+      console.warn('[TradeForm] Failed to check group status:', err);
     }
   }
 
