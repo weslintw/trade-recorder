@@ -3248,6 +3248,29 @@
     .plan-status-mini span {
       font-size: 0.8rem;
       font-weight: 700;
+      /* ... existing content ... */
+    }
+
+    /* Dark Mode 適配 */
+    :global(body.dark-mode) .session-status-card {
+      background: rgba(30, 41, 59, 0.5);
+      border-color: #334155;
+    }
+    :global(body.dark-mode) .session-status-card.asian {
+      background: rgba(99, 102, 241, 0.2);
+    }
+    :global(body.dark-mode) .session-status-card.european {
+      background: rgba(244, 63, 94, 0.2);
+    }
+    :global(body.dark-mode) .session-status-card.us {
+      background: rgba(14, 165, 233, 0.2);
+    }
+    :global(body.dark-mode) .session-info-line {
+      color: #94a3b8;
+    }
+    :global(body.dark-mode) .session-time-text {
+      color: #f1f5f9; /* Slate-100 更亮 */
+    }
       cursor: pointer;
       padding: 2px 8px;
       border-radius: 4px;
