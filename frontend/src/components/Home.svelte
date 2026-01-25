@@ -636,64 +636,125 @@
         // 但這裡我們先簡單處理，後續可以優化
       } else {
         // Cache 無效，需要請求 API
-        console.log(`[${INSTANCE_ID}] Cache invalid or empty, fetching from API...`);
+        console.log(`[${INSTANCE_ID}] Cache invalid or empty, starting progressive fetch...`);
 
         // API 請求區塊
         try {
-          loadingMessage = `正在讀取盤面規劃資料...`;
-          console.log(`[${INSTANCE_ID}] calling dailyPlansAPI.getAll...`);
-          const plansRes = await dailyPlansAPI.getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: 10000, // 獲取所有數據
-              page: 1,
-              start_date: activeDateRange === 'all' ? undefined : customStartDate,
-              end_date:
-                activeDateRange === 'all'
-                  ? undefined
-                  : customEndDate
-                    ? customEndDate + ' 23:59:59'
-                    : undefined,
-            },
-            signal
-          );
-          console.log(`[${INSTANCE_ID}] dailyPlansAPI done.`);
+          loadingMessage = `正在快速載入最新資料...`;
+
+          // 階段一：快速並行請求
+          // Plans 通常不多，一次抓完；Trades 先抓 100 筆讓畫面出來
+          const [plansRes, tradesFastRes] = await Promise.all([
+            dailyPlansAPI.getAll(
+              {
+                account_id: $selectedAccountId,
+                symbol,
+                page_size: 10000,
+                page: 1,
+                start_date: activeDateRange === 'all' ? undefined : customStartDate,
+                end_date:
+                  activeDateRange === 'all'
+                    ? undefined
+                    : customEndDate
+                      ? customEndDate + ' 23:59:59'
+                      : undefined,
+              },
+              signal
+            ),
+            tradesAPI.getAll(
+              {
+                account_id: $selectedAccountId,
+                symbol,
+                page_size: 100, // 🚀 快速載入：只抓前 100 筆
+                page: 1,
+                color_tag: activeColorFilter || undefined,
+              },
+              signal
+            ),
+          ]);
+
+          console.log(`[${INSTANCE_ID}] Fast fetch complete.`);
+
           plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+          const fastTrades =
+            (Array.isArray(tradesFastRes.data) ? tradesFastRes.data : tradesFastRes.data?.data) ||
+            [];
 
-          loadingMessage = `正在抓取交易紀錄...`;
-          console.log(`[${INSTANCE_ID}] calling tradesAPI.getAll...`);
-          const tradesRes = await tradesAPI.getAll(
-            {
-              account_id: $selectedAccountId,
-              symbol,
-              page_size: 10000, // 獲取所有數據以支持完整的客戶端篩選與分頁
-              page: 1, // 始終抓取第一頁（全部）
-              // 移除 strategy 和 keyword 參數，獲取完整數據集以支持客戶端篩選
-              color_tag: activeColorFilter || undefined,
-            },
-            signal
-          );
-          console.log(`[${INSTANCE_ID}] tradesAPI done.`);
-          trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
-          globalSummaryData = tradesRes.data?.summary || null;
+          // 立即更新畫面
+          trades = fastTrades;
+          globalSummaryData = tradesFastRes.data?.summary || null;
 
-          if (tradesRes.data?.pagination) {
-            pagination.total = tradesRes.data.pagination.total;
+          if (tradesFastRes.data?.pagination) {
+            pagination.total = tradesFastRes.data.pagination.total;
           }
 
-          // 更新 cache
-          dataCache = {
-            key: cacheKey,
-            plans: plans,
-            trades: trades,
-            summary: globalSummaryData,
-            timestamp: Date.now(),
-          };
+          // 🔓 解除 Loading 狀態 (前提是沒有報錯)
+          if (!silent) {
+            loading = false;
+            // 如果我們強制關閉了 loading，也要確保從 activeLoadCallId 機制中解除 timeout 警告?
+            // 其實不需要特別做，timeout 只是會在 10s 後把 loading 強制設為 false
+          }
 
-          console.log(
-            `[${INSTANCE_ID}] loadData #${callId} API calls success. Plans: ${plans.length}, Trades: ${trades.length}. Cache updated.`
-          );
+          // 階段二：背景完整同步 (Background Full Sync)
+          // 如果總數大於 100，或者為了確保 Cache 完整性，我們再抓一次全量
+          if (pagination.total > 100 || fastTrades.length === 100) {
+            console.log(`[${INSTANCE_ID}] Starting background fetch for full dataset...`);
+
+            // 使用 Promise chain 進行背景處理，不阻塞當前執行
+            tradesAPI
+              .getAll(
+                {
+                  account_id: $selectedAccountId,
+                  symbol,
+                  page_size: 10000, // 抓所有
+                  page: 1,
+                  color_tag: activeColorFilter || undefined,
+                },
+                signal
+              )
+              .then(tradesFullRes => {
+                if (signal.aborted) return;
+
+                const fullTrades =
+                  (Array.isArray(tradesFullRes.data)
+                    ? tradesFullRes.data
+                    : tradesFullRes.data?.data) || [];
+                console.log(
+                  `[${INSTANCE_ID}] Background fetch complete. Full Trades: ${fullTrades.length}`
+                );
+
+                // 更新數據 (Svelte 會自動處理 Diff 無縫更新)
+                trades = fullTrades;
+
+                // 如果後端有更準確的 summary，也可以更新
+                if (tradesFullRes.data?.summary) {
+                  globalSummaryData = tradesFullRes.data.summary;
+                }
+
+                // 只有在完整數據抓回來後，才更新 Cache
+                dataCache = {
+                  key: cacheKey,
+                  plans: plans,
+                  trades: fullTrades,
+                  summary: globalSummaryData,
+                  timestamp: Date.now(),
+                };
+              })
+              .catch(err => {
+                if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+                  console.error('Background sync failed', err);
+                }
+              });
+          } else {
+            // 如果數據少於 100 筆，那第一階段就是完整的了
+            dataCache = {
+              key: cacheKey,
+              plans: plans,
+              trades: fastTrades,
+              summary: globalSummaryData,
+              timestamp: Date.now(),
+            };
+          }
         } catch (apiErr) {
           if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
             console.error(`[${INSTANCE_ID}] API Error in loadData #${callId}:`, apiErr);
