@@ -219,6 +219,7 @@
 
   $: paginatedGroupedData = (() => {
     if (!filteredGroupedData) return [];
+    // console.log(`[Pagination] Recalculating page ${pagination.page}, total items: ${filteredGroupedData.length}`);
     const start = (pagination.page - 1) * DAYS_PER_PAGE;
     // 確保 page 不會超過範圍 (例如從很多頁的 filter 切換到很少頁的 filter)
     if (start >= filteredGroupedData.length && pagination.page > 1) {
@@ -581,11 +582,20 @@
     const { signal } = loadController;
 
     try {
+      // 預防空狀態：如果沒有數據且 silent=true，強制轉為 loading=true 讓用戶知道正在載入
+      if (silent && (!dataCache.trades || dataCache.trades.length === 0)) {
+        console.log(
+          `[${INSTANCE_ID}] Silent load promoted to explicit load because cache is empty.`
+        );
+        silent = false;
+      }
+
       if (!silent) {
         loading = true;
         loadError = null;
         loadingMessage = '正在準備連線...';
-        groupedData = [];
+        // 不要在這裡清空 groupedData，這樣會導致畫面閃爍
+        // groupedData = [];
 
         setTimeout(() => {
           if (loading && activeLoadCallId === callId) {
@@ -631,6 +641,7 @@
         // API 請求區塊
         try {
           loadingMessage = `正在讀取盤面規劃資料...`;
+          console.log(`[${INSTANCE_ID}] calling dailyPlansAPI.getAll...`);
           const plansRes = await dailyPlansAPI.getAll(
             {
               account_id: $selectedAccountId,
@@ -647,9 +658,11 @@
             },
             signal
           );
+          console.log(`[${INSTANCE_ID}] dailyPlansAPI done.`);
           plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
 
           loadingMessage = `正在抓取交易紀錄...`;
+          console.log(`[${INSTANCE_ID}] calling tradesAPI.getAll...`);
           const tradesRes = await tradesAPI.getAll(
             {
               account_id: $selectedAccountId,
@@ -661,6 +674,7 @@
             },
             signal
           );
+          console.log(`[${INSTANCE_ID}] tradesAPI done.`);
           trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
           globalSummaryData = tradesRes.data?.summary || null;
 
@@ -1031,6 +1045,8 @@
         selectedAccountId.set($accounts[0].id);
       } else {
         console.log(`[onMount] Account ${$selectedAccountId} is valid, keeping selection`);
+        // 主動觸發一次載入，確保即使 Store 值沒變也能載入資料
+        loadData();
       }
     } else {
       console.warn('[onMount] NO ACCOUNTS FOUND! User needs to create an account first.');
