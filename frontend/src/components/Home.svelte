@@ -296,6 +296,22 @@
     return stats;
   })();
 
+  // 統一的統計數據介面 (Adapter)
+  // 當處於全部模式時使用 globalSummary，否則使用即時計算的 filteredStats
+  $: displayedSummary = isAllMode
+    ? globalSummary
+    : {
+        total_count: filteredStats.total,
+        win_count: filteredStats.wins,
+        total_pnl: parseFloat(filteredStats.totalPnl),
+        green_count: filteredStats.green,
+        yellow_count: filteredStats.yellow,
+        red_count: filteredStats.red,
+        expert_count: filteredStats.expert,
+        elite_count: filteredStats.elite,
+        legend_count: filteredStats.legend,
+      };
+
   function formatSignalsSummary(trend) {
     if (!trend) return '';
     let signals = [];
@@ -1923,34 +1939,34 @@
 
         <div class="filter-stats-spacer"></div>
 
-        <div class="filter-stats-badge" class:has-data={globalSummary.total_count > 0}>
+        <div class="filter-stats-badge" class:has-data={displayedSummary.total_count > 0}>
           <div class="stats-icon">✅</div>
           <div class="stats-content">
             <span class="stats-label">
               {statsLabel}
             </span>
-            <span class="stats-value">{globalSummary.total_count} 筆</span>
+            <span class="stats-value">{displayedSummary.total_count} 筆</span>
             <span class="stats-sep">/</span>
             <span class="stats-label">勝率</span>
             <span class="stats-value win-rate"
-              >{((globalSummary.win_count * 100) / (globalSummary.total_count || 1)).toFixed(
+              >{((displayedSummary.win_count * 100) / (displayedSummary.total_count || 1)).toFixed(
                 1
               )}%</span
             >
 
             <div class="stats-color-groups">
               <span class="stats-color-dot green"></span>
-              <span class="stats-color-count">{globalSummary.green_count}</span>
+              <span class="stats-color-count">{displayedSummary.green_count}</span>
               <span class="stats-color-dot yellow"></span>
-              <span class="stats-color-count">{globalSummary.yellow_count}</span>
+              <span class="stats-color-count">{displayedSummary.yellow_count}</span>
               <span class="stats-color-dot red"></span>
-              <span class="stats-color-count">{globalSummary.red_count}</span>
+              <span class="stats-color-count">{displayedSummary.red_count}</span>
             </div>
 
             <div class="stats-strategy-groups">
-              <span class="strat-tag expert">達 {globalSummary.expert_count}</span>
-              <span class="strat-tag elite">菁 {globalSummary.elite_count}</span>
-              <span class="strat-tag legend">傳 {globalSummary.legend_count}</span>
+              <span class="strat-tag expert">達 {displayedSummary.expert_count}</span>
+              <span class="strat-tag elite">菁 {displayedSummary.elite_count}</span>
+              <span class="strat-tag legend">傳 {displayedSummary.legend_count}</span>
             </div>
           </div>
         </div>
