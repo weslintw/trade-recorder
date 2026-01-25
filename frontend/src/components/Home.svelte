@@ -634,15 +634,37 @@
 
       // 如果 cache 有效，直接使用
       if (isCacheValid && dataCache.trades.length > 0) {
-        console.log(
-          `[${INSTANCE_ID}] Using cached data (${dataCache.trades.length} trades, ${dataCache.plans.length} plans)`
-        );
-        plans = dataCache.plans;
-        trades = dataCache.trades;
-        globalSummaryData = dataCache.summary;
+        let cachedTrades = dataCache.trades;
+        let cachedPlans = dataCache.plans;
 
-        // 即使使用 cache，也要更新 pagination（因為可能有 filter 改變）
-        // 但這裡我們先簡單處理，後續可以優化
+        // 如果是範圍命中 (Superset) 且 key 不完全一致，代表我們用「全部」的資料來應付「特定日期」的請求
+        // 這時候必須在客戶端進行日期過濾
+        if (isSupersetMatch && !isExactMatch) {
+          console.log(`[${INSTANCE_ID}] Performing client-side date filtering...`);
+          // 確保 date string 格式正確，這裡簡單補上時間
+          const startTs = customStartDate ? new Date(customStartDate + 'T00:00:00').getTime() : 0;
+          const endTs = customEndDate ? new Date(customEndDate + 'T23:59:59').getTime() : Infinity;
+
+          cachedTrades = cachedTrades.filter(t => {
+            if (!t.entry_time) return false;
+            const time = new Date(t.entry_time).getTime();
+            return time >= startTs && time <= endTs;
+          });
+
+          cachedPlans = cachedPlans.filter(p => {
+            if (!p.date) return false;
+            // Plan 的 date 格式通常是 YYYY-MM-DD
+            const time = new Date(p.date + 'T00:00:00').getTime();
+            return time >= startTs && time <= endTs;
+          });
+        }
+
+        console.log(
+          `[${INSTANCE_ID}] Using cached data (Selected: ${cachedTrades.length}/${dataCache.trades.length} trades, scope=${dataCache.scope})`
+        );
+        plans = cachedPlans;
+        trades = cachedTrades;
+        globalSummaryData = dataCache.summary;
       } else {
         // Cache 無效，需要請求 API
         console.log(`[${INSTANCE_ID}] Cache invalid or empty, starting progressive fetch...`);
