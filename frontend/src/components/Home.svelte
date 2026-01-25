@@ -214,21 +214,25 @@
 
   // Client-side Pagination Logic
   // 我們基於「天」數進行分頁，每頁顯示 7 天的數據，避免一次渲染過多
-  const DAYS_PER_PAGE = 7;
+  // Client-side Pagination Logic
+  // 動態調整每頁天數：如果總交易數很少 (<50)，則增加每頁顯示的天數 (30天)，避免「才幾筆資料還要翻頁」的尷尬
+  // 否則維持每頁 7 天，避免渲染過重
+  $: daysPerPage = filteredStats.total < 50 ? 30 : 7;
+
   $: totalPages =
-    Math.ceil((filteredGroupedData ? filteredGroupedData.length : 0) / DAYS_PER_PAGE) || 1;
+    Math.ceil((filteredGroupedData ? filteredGroupedData.length : 0) / daysPerPage) || 1;
 
   $: paginatedGroupedData = (() => {
     if (!filteredGroupedData) return [];
     // console.log(`[Pagination] Recalculating page ${pagination.page}, total items: ${filteredGroupedData.length}`);
-    const start = (pagination.page - 1) * DAYS_PER_PAGE;
+    const start = (pagination.page - 1) * daysPerPage;
     // 確保 page 不會超過範圍 (例如從很多頁的 filter 切換到很少頁的 filter)
     if (start >= filteredGroupedData.length && pagination.page > 1) {
       // 異步將頁碼重置為 1，避免在 render 過程中修改 state 導致錯誤
       setTimeout(() => (pagination.page = 1), 0);
-      return filteredGroupedData.slice(0, DAYS_PER_PAGE);
+      return filteredGroupedData.slice(0, daysPerPage);
     }
-    return filteredGroupedData.slice(start, start + DAYS_PER_PAGE);
+    return filteredGroupedData.slice(start, start + daysPerPage);
   })();
 
   $: filteredStats = (() => {
