@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { tradesAPI, dailyPlansAPI, imagesAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { selectedAccountId, accounts, selectedSymbol } from '../lib/stores';
+  import { selectedAccountId, accounts, selectedSymbol, tradeDataCache } from '../lib/stores';
   import RichTextEditor from './RichTextEditor.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
   import WatchlistSelectionModal from './WatchlistSelectionModal.svelte';
@@ -1182,9 +1182,11 @@
         } else {
           await tradesAPI.update(id, submitData);
         }
+        tradeDataCache.update(c => ({ ...c, stale: true }));
         alert('交易紀錄更新成功！');
       } else {
         await tradesAPI.create(submitData);
+        tradeDataCache.update(c => ({ ...c, stale: true }));
         alert('交易紀錄建立成功！');
       }
 

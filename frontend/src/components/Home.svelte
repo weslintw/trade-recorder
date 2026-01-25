@@ -3,7 +3,7 @@
   import { fade } from 'svelte/transition';
   import { navigate, Link } from 'svelte-routing';
   import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
-  import { selectedSymbol, selectedAccountId, accounts } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId, accounts, tradeDataCache } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import {
     determineMarketSession,
@@ -71,14 +71,24 @@
   };
 
   // 智能快取系統
+  // 智能快取系統 (改為使用 Global Store)
   let dataCache = {
-    key: null, // Cache key: `${accountId}_${symbol}_${startDate}_${endDate}`
-    scope: 'partial', // 'all' or 'partial'
+    key: null,
+    scope: 'partial',
     plans: [],
     trades: [],
     summary: null,
     timestamp: null,
+    stale: false,
   };
+
+  const unsubscribeCache = tradeDataCache.subscribe(value => {
+    if (value) dataCache = value;
+  });
+
+  onDestroy(() => {
+    unsubscribeCache();
+  });
 
   const EXPERT_SIGNALS = [
     '向下蘇美',
@@ -693,6 +703,15 @@
         plans = cachedPlans;
         trades = cachedTrades;
         globalSummaryData = dataCache.summary;
+
+        // 立即隱藏 Loading，顯示快取內容
+        loading = false;
+
+        if (!dataCache.stale) {
+          console.log(`[${INSTANCE_ID}] Cache is fresh, skipping fetch.`);
+          return;
+        }
+        console.log(`[${INSTANCE_ID}] Cache is stale, triggering silent background refresh...`);
       } else {
         // Cache 無效，需要請求 API
         console.log(`[${INSTANCE_ID}] Cache invalid or empty, starting progressive fetch...`);
@@ -793,14 +812,15 @@
                 // 只有在完整數據抓回來後，才更新 Cache
                 const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
 
-                dataCache = {
+                tradeDataCache.set({
                   key: cacheKey,
                   scope: scope,
                   plans: plans,
                   trades: fullTrades,
                   summary: globalSummaryData,
                   timestamp: Date.now(),
-                };
+                  stale: false,
+                });
               })
               .catch(err => {
                 if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
@@ -811,14 +831,15 @@
             // 如果數據少於 100 筆，那第一階段就是完整的了
             const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
 
-            dataCache = {
+            tradeDataCache.set({
               key: cacheKey,
               scope: scope,
               plans: plans,
               trades: fastTrades,
               summary: globalSummaryData,
               timestamp: Date.now(),
-            };
+              stale: false,
+            });
           }
         } catch (apiErr) {
           if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
