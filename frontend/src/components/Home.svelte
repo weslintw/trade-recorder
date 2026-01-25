@@ -31,7 +31,7 @@
     total: 0,
   };
   let loadingMessage = '正在啟動時光機...';
-  $: totalPages = Math.ceil(pagination.total / pagination.page_size);
+
   let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
   let selectedImage = null;
   let modalTitle = '';
@@ -68,6 +68,15 @@
     green_count: 0,
     yellow_count: 0,
     red_count: 0,
+  };
+
+  // 智能快取系統
+  let dataCache = {
+    key: null, // Cache key: `${accountId}_${symbol}_${startDate}_${endDate}`
+    plans: [],
+    trades: [],
+    summary: null,
+    timestamp: null,
   };
 
   const EXPERT_SIGNALS = [
@@ -155,9 +164,9 @@
       activeFilterType = type;
       activeSubFilter = null;
     }
-    // 切換篩選時，重置回第一頁並重新載入資料 (後端篩選)
+    // 客戶端篩選：不需要重新載入資料，reactive statement 會自動更新顯示
     pagination.page = 1;
-    loadData();
+    console.log(`[Filter] Strategy filter changed to: ${activeFilterType}`);
   }
 
   function toggleSubFilter(value) {
@@ -166,9 +175,9 @@
     } else {
       activeSubFilter = value;
     }
-    // 切換子項目時，重置回第一頁並重新載入資料 (後端篩選)
+    // 客戶端篩選：不需要重新載入資料，reactive statement 會自動更新顯示
     pagination.page = 1;
-    loadData();
+    console.log(`[Filter] Sub-filter changed to: ${activeSubFilter}`);
   }
 
   function selectColorFilter(color) {
@@ -201,6 +210,24 @@
   $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
+
+  // Client-side Pagination Logic
+  // 我們基於「天」數進行分頁，每頁顯示 7 天的數據，避免一次渲染過多
+  const DAYS_PER_PAGE = 7;
+  $: totalPages =
+    Math.ceil((filteredGroupedData ? filteredGroupedData.length : 0) / DAYS_PER_PAGE) || 1;
+
+  $: paginatedGroupedData = (() => {
+    if (!filteredGroupedData) return [];
+    const start = (pagination.page - 1) * DAYS_PER_PAGE;
+    // 確保 page 不會超過範圍 (例如從很多頁的 filter 切換到很少頁的 filter)
+    if (start >= filteredGroupedData.length && pagination.page > 1) {
+      // 異步將頁碼重置為 1，避免在 render 過程中修改 state 導致錯誤
+      setTimeout(() => (pagination.page = 1), 0);
+      return filteredGroupedData.slice(0, DAYS_PER_PAGE);
+    }
+    return filteredGroupedData.slice(start, start + DAYS_PER_PAGE);
+  })();
 
   $: filteredStats = (() => {
     let stats = {
@@ -387,6 +414,12 @@
                 tStrat === fType;
 
               if (!stratMatch) return false;
+
+              // Color Tag Filter (新增)
+              if (color) {
+                if (trade.color_tag !== color) return false;
+              }
+
               if (!cleanSub) return true;
 
               // 2. 終極修正：全物件透視搜尋 (JSON String Search)
@@ -567,60 +600,96 @@
       const symbol = $selectedSymbol;
       todayString = new Date().toISOString().slice(0, 10);
 
+      // 生成 cache key（基於 account, symbol, date range）
+      const cacheKey = `${$selectedAccountId}_${symbol}_${customStartDate || 'all'}_${customEndDate || 'all'}`;
+      const isCacheValid =
+        dataCache.key === cacheKey &&
+        dataCache.timestamp &&
+        Date.now() - dataCache.timestamp < 300000; // 5分鐘有效期
+
+      console.log(
+        `[${INSTANCE_ID}] Cache check: key=${cacheKey}, valid=${isCacheValid}, hasData=${dataCache.trades.length > 0}`
+      );
+
       let globalSummaryData = null;
 
-      // API 請求區塊
-      try {
-        loadingMessage = `正在讀取盤面規劃資料...`;
-        const plansRes = await dailyPlansAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: pagination.page_size,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            start_date: activeDateRange === 'all' ? undefined : customStartDate,
-            end_date:
-              activeDateRange === 'all'
-                ? undefined
-                : customEndDate
-                  ? customEndDate + ' 23:59:59'
-                  : undefined,
-          },
-          signal
-        );
-        plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
-
-        loadingMessage = `正在抓取交易紀錄...`;
-        const tradesRes = await tradesAPI.getAll(
-          {
-            account_id: $selectedAccountId,
-            symbol,
-            page_size: pagination.page_size,
-            page: activeDateRange === 'all' ? pagination.page : 1,
-            strategy: activeFilterType === 'all' ? undefined : activeFilterType,
-            keyword: activeSubFilter || undefined,
-            color_tag: activeColorFilter || undefined,
-          },
-          signal
-        );
-        trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
-        globalSummaryData = tradesRes.data?.summary || null;
-
-        if (tradesRes.data?.pagination) {
-          pagination.total = tradesRes.data.pagination.total;
-        }
+      // 如果 cache 有效，直接使用
+      if (isCacheValid && dataCache.trades.length > 0) {
         console.log(
-          `[${INSTANCE_ID}] loadData #${callId} API calls success. Plans: ${plans.length}, Trades: ${trades.length}`
+          `[${INSTANCE_ID}] Using cached data (${dataCache.trades.length} trades, ${dataCache.plans.length} plans)`
         );
-      } catch (apiErr) {
-        if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
-          console.error(`[${INSTANCE_ID}] API Error in loadData #${callId}:`, apiErr);
-          // 如果 API 真的報錯，也讓使用者知道
-          if (activeLoadCallId === callId) {
-            loadError = {
-              message: '讀取資料失敗',
-              detail: `API Error: ${apiErr.message || 'Unknown'}`,
-            };
+        plans = dataCache.plans;
+        trades = dataCache.trades;
+        globalSummaryData = dataCache.summary;
+
+        // 即使使用 cache，也要更新 pagination（因為可能有 filter 改變）
+        // 但這裡我們先簡單處理，後續可以優化
+      } else {
+        // Cache 無效，需要請求 API
+        console.log(`[${INSTANCE_ID}] Cache invalid or empty, fetching from API...`);
+
+        // API 請求區塊
+        try {
+          loadingMessage = `正在讀取盤面規劃資料...`;
+          const plansRes = await dailyPlansAPI.getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 10000, // 獲取所有數據
+              page: 1,
+              start_date: activeDateRange === 'all' ? undefined : customStartDate,
+              end_date:
+                activeDateRange === 'all'
+                  ? undefined
+                  : customEndDate
+                    ? customEndDate + ' 23:59:59'
+                    : undefined,
+            },
+            signal
+          );
+          plans = (Array.isArray(plansRes.data) ? plansRes.data : plansRes.data?.data) || [];
+
+          loadingMessage = `正在抓取交易紀錄...`;
+          const tradesRes = await tradesAPI.getAll(
+            {
+              account_id: $selectedAccountId,
+              symbol,
+              page_size: 10000, // 獲取所有數據以支持完整的客戶端篩選與分頁
+              page: 1, // 始終抓取第一頁（全部）
+              // 移除 strategy 和 keyword 參數，獲取完整數據集以支持客戶端篩選
+              color_tag: activeColorFilter || undefined,
+            },
+            signal
+          );
+          trades = (Array.isArray(tradesRes.data) ? tradesRes.data : tradesRes.data?.data) || [];
+          globalSummaryData = tradesRes.data?.summary || null;
+
+          if (tradesRes.data?.pagination) {
+            pagination.total = tradesRes.data.pagination.total;
+          }
+
+          // 更新 cache
+          dataCache = {
+            key: cacheKey,
+            plans: plans,
+            trades: trades,
+            summary: globalSummaryData,
+            timestamp: Date.now(),
+          };
+
+          console.log(
+            `[${INSTANCE_ID}] loadData #${callId} API calls success. Plans: ${plans.length}, Trades: ${trades.length}. Cache updated.`
+          );
+        } catch (apiErr) {
+          if (apiErr.name !== 'CanceledError' && apiErr.name !== 'AbortError') {
+            console.error(`[${INSTANCE_ID}] API Error in loadData #${callId}:`, apiErr);
+            // 如果 API 真的報錯，也讓使用者知道
+            if (activeLoadCallId === callId) {
+              loadError = {
+                message: '讀取資料失敗',
+                detail: `API Error: ${apiErr.message || 'Unknown'}`,
+              };
+            }
           }
         }
       }
@@ -801,11 +870,15 @@
 
         if (msg.type === 'TRADE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
-            console.log('🚀 [Realtime] Trade update detected');
+            console.log('🚀 [Realtime] Trade update detected, invalidating cache...');
             if (isDocumentHidden) {
               console.log('[Realtime] Tab hidden, deferring reload until visible.');
+              // 標記 cache 為過期，這樣切換回來時會自動重載
+              if (dataCache) dataCache.timestamp = 0;
               return;
             }
+            // 強制讓 cache 失效並重新載入
+            if (dataCache) dataCache.timestamp = 0;
             loadData(true);
             refreshAccounts();
           }
@@ -1052,7 +1125,8 @@
     if (newPage < 1 || newPage > totalPages) return;
     pagination.page = newPage;
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    loadData();
+    // Client-side pagination: no need to reload data
+    console.log(`[Pagination] Switched to page ${newPage}`);
   }
 
   function formatDate(dateString) {
@@ -1958,7 +2032,7 @@
     </div>
   {:else}
     <div class="timeline">
-      {#each filteredGroupedData as group}
+      {#each paginatedGroupedData as group}
         {@const dailyStats = calculateDailyStats(group)}
         <div class="day-wrapper">
           <div class="day-marker">
@@ -2536,10 +2610,7 @@
     {#if totalPages > 1}
       <div class="pagination-container">
         <div class="pagination-info">
-          顯示第 {(pagination.page - 1) * pagination.page_size + 1} 至 {Math.min(
-            pagination.page * pagination.page_size,
-            pagination.total
-          )} 筆，共 {pagination.total} 筆
+          第 {pagination.page} / {totalPages} 頁 (共 {filteredStats.total} 筆交易)
         </div>
         <div class="pagination-controls">
           <button
