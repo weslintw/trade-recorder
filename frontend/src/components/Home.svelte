@@ -664,6 +664,8 @@
         dataCache.timestamp &&
         Date.now() - dataCache.timestamp < 300000; // 5分鐘有效期
 
+      let needsFetch = !isCacheValid; // 核心控制變數：決定是否需要發起網路請求
+
       console.log(
         `[${INSTANCE_ID}] Cache check: key=${cacheKey}, valid=${isCacheValid}, scope=${dataCache.scope}, isSuperset=${isSupersetMatch}`
       );
@@ -709,10 +711,14 @@
 
         if (!dataCache.stale) {
           console.log(`[${INSTANCE_ID}] Cache is fresh, skipping fetch.`);
-          return;
+          needsFetch = false;
+        } else {
+          console.log(`[${INSTANCE_ID}] Cache is stale, triggering silent background refresh...`);
+          needsFetch = true;
         }
-        console.log(`[${INSTANCE_ID}] Cache is stale, triggering silent background refresh...`);
-      } else {
+      }
+
+      if (needsFetch) {
         // Cache 無效，需要請求 API
         console.log(`[${INSTANCE_ID}] Cache invalid or empty, starting progressive fetch...`);
 
