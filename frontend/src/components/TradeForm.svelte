@@ -3266,10 +3266,12 @@
       background: rgba(14, 165, 233, 0.2);
     }
     :global(body.dark-mode) .session-info-line {
-      color: #94a3b8;
+      color: #cbd5e1; /* 淺灰白，提高可讀性 */
     }
     :global(body.dark-mode) .session-time-text {
-      color: #f1f5f9; /* Slate-100 更亮 */
+      color: #ffffff; /* 純白 */
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
       cursor: pointer;
       padding: 2px 8px;
