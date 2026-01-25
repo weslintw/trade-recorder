@@ -586,6 +586,14 @@
 
   async function loadData(silent = false) {
     const callId = ++loadDataCallCount;
+    // 安全檢查：確保我們確實在首頁
+    // 解決 svelte-routing 前綴匹配導致 /edit/:id 依舊渲染 Home 的問題
+    if (window.location.pathname !== '/') {
+      console.log(
+        `[${INSTANCE_ID}] Not on home page (${window.location.pathname}), skipping loadData.`
+      );
+      return;
+    }
     const now = Date.now();
     console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
 
