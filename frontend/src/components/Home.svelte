@@ -73,6 +73,7 @@
   // 智能快取系統
   let dataCache = {
     key: null, // Cache key: `${accountId}_${symbol}_${startDate}_${endDate}`
+    scope: 'partial', // 'all' or 'partial'
     plans: [],
     trades: [],
     summary: null,
@@ -611,14 +612,22 @@
       todayString = new Date().toISOString().slice(0, 10);
 
       // 生成 cache key（基於 account, symbol, date range）
+      // 生成 cache key（基於 account, symbol, date range）
       const cacheKey = `${$selectedAccountId}_${symbol}_${customStartDate || 'all'}_${customEndDate || 'all'}`;
+
+      // 智能緩存檢查：
+      // 1. 完全命中：Key 一致且未過期
+      // 2. 範圍命中：如果 Cache 中已經有 'all' (全部) 的資料，那無論現在選什麼日期範圍，都直接用 Cache
+      const isExactMatch = dataCache.key === cacheKey;
+      const isSupersetMatch = dataCache.scope === 'all' && dataCache.trades.length > 0;
+
       const isCacheValid =
-        dataCache.key === cacheKey &&
+        (isExactMatch || isSupersetMatch) &&
         dataCache.timestamp &&
         Date.now() - dataCache.timestamp < 300000; // 5分鐘有效期
 
       console.log(
-        `[${INSTANCE_ID}] Cache check: key=${cacheKey}, valid=${isCacheValid}, hasData=${dataCache.trades.length > 0}`
+        `[${INSTANCE_ID}] Cache check: key=${cacheKey}, valid=${isCacheValid}, scope=${dataCache.scope}, isSuperset=${isSupersetMatch}`
       );
 
       let globalSummaryData = null;
@@ -732,8 +741,11 @@
                 }
 
                 // 只有在完整數據抓回來後，才更新 Cache
+                const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
+
                 dataCache = {
                   key: cacheKey,
+                  scope: scope,
                   plans: plans,
                   trades: fullTrades,
                   summary: globalSummaryData,
@@ -747,8 +759,11 @@
               });
           } else {
             // 如果數據少於 100 筆，那第一階段就是完整的了
+            const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
+
             dataCache = {
               key: cacheKey,
+              scope: scope,
               plans: plans,
               trades: fastTrades,
               summary: globalSummaryData,
