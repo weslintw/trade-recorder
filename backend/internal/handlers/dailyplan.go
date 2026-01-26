@@ -274,10 +274,6 @@ func CreateDailyPlan(db *sql.DB) gin.HandlerFunc {
 		id, _ := result.LastInsertId()
 		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "規劃建立成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
-
-		// 增量更新儲存空間
-		planSize := database.CalculateTradeSize(req)
-		database.AddToAccountStorageUsage(db, req.AccountID, planSize)
 	}
 }
 
@@ -347,14 +343,9 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 刪除前紀錄大小以便扣除
-		var planSize int64
-		_ = db.QueryRow("SELECT LENGTH(COALESCE(notes, '')) + LENGTH(COALESCE(trend_analysis, '')) FROM daily_plans WHERE id = ?", id).Scan(&planSize)
-
 		c.JSON(http.StatusOK, gin.H{"message": "規劃刪除成功"})
 		if accountID > 0 {
 			ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
-			database.AddToAccountStorageUsage(db, accountID, -planSize)
 		} else {
 			ws.GlobalHub.BroadcastUpdate(0, "TRADE_UPDATE")
 		}

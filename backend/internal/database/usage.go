@@ -11,8 +11,8 @@ var (
 	usageUpdateMu sync.Map // map[int64]*sync.Mutex
 )
 
-// CalculateImagesSize 計算一組圖片的總大小
-func CalculateImagesSize(images []models.Image) int64 {
+// CalculateImagesSize 計算上傳圖片的總大小
+func CalculateImagesSize(images []models.ImageUpload) int64 {
 	var total int64
 	for _, img := range images {
 		total += img.FileSize

@@ -419,9 +419,9 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, gin.H{"id": tradeID, "message": "交易紀錄建立成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
 
-		// 增量更新儲存空間 (計算新交易估計大小)
-		tradeSize := database.CalculateTradeSize(req)
-		database.AddToAccountStorageUsage(db, req.AccountID, tradeSize)
+		// 增量更新儲存空間 (計算新圖片總大小)
+		imagesSize := database.CalculateImagesSize(req.Images)
+		database.AddToAccountStorageUsage(db, req.AccountID, imagesSize)
 	}
 }
 
@@ -565,43 +565,20 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 在刪除前，先計算這筆交易佔用的空間以便增量扣除
-		var tradeSize int64
-		_ = db.QueryRow(`
-			SELECT (
-				LENGTH(COALESCE(notes, '')) +
-				LENGTH(COALESCE(entry_reason, '')) +
-				LENGTH(COALESCE(exit_reason, '')) +
-				LENGTH(COALESCE(entry_signals, '')) +
-				LENGTH(COALESCE(entry_checklist, '')) +
-				LENGTH(COALESCE(trend_analysis, '')) +
-				LENGTH(COALESCE(journal, '')) +
-				LENGTH(COALESCE(entry_pattern, '')) +
-				LENGTH(COALESCE(legend_images, '')) +
-				LENGTH(COALESCE(expert_images, '')) +
-				LENGTH(COALESCE(elite_images, '')) +
-				LENGTH(COALESCE(legend_king_image, '')) +
-				LENGTH(COALESCE(legend_htf_image, '')) +
-				LENGTH(COALESCE(sl_history, '')) +
-				LENGTH(COALESCE(pnl_series, ''))
-			) FROM trades WHERE id = ?
-		`, id).Scan(&tradeSize)
-
+		// 在刪除前，先計算這筆交易佔用的圖片空間以便增量扣除
 		var imagesSize int64
-		_ = db.QueryRow("SELECT SUM(file_size) FROM trade_images WHERE trade_id = ?", id).Scan(&imagesSize)
-
-		totalSize := tradeSize + imagesSize
+		_ = db.QueryRow("SELECT COALESCE(SUM(file_size), 0) FROM trade_images WHERE trade_id = ?", id).Scan(&imagesSize)
 
 		if err := tx.Commit(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "事務提交失敗"})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "交易紀錄刪除成功"})
 		ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 
-		// 增量扣除儲存空間
-		database.AddToAccountStorageUsage(db, accountID, -totalSize)
+		// 增量扣除儲存空間 (僅圖片)
+		database.AddToAccountStorageUsage(db, accountID, -imagesSize)
 	}
 }
 
