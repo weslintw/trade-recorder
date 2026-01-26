@@ -953,98 +953,94 @@
         }
       }
 
+      // 數據過濾與去重
+      const seenTickets = new Set();
+      const uniqueTrades = [];
+      trades.forEach(t => {
+        if (t.ticket && seenTickets.has(t.ticket)) return;
+        if (t.ticket) seenTickets.add(t.ticket);
+        uniqueTrades.push(t);
+      });
+
+      // 數據分組邏輯
+      loadingMessage = `正在分組並解析數據...`;
+      const dateMap = {};
+      dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
+
+      plans.forEach(plan => {
+        plan.trendData = parseJSONSafe(plan.trend_analysis, {});
+        if (!plan.plan_date) return;
+        try {
+          const d = new Date(plan.plan_date);
+          if (isNaN(d.getTime())) return;
+          const ds = d.toISOString().slice(0, 10);
+          if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
+          dateMap[ds].plans.push(plan);
+        } catch (e) {}
+      });
+
+      uniqueTrades.forEach(trade => {
+        if (!trade.entry_time) return;
+        try {
+          const d = new Date(trade.entry_time);
+          if (isNaN(d.getTime())) return;
+          const ds = d.toISOString().slice(0, 10);
+          if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
+
+          const entryTimeKey = trade.entry_time;
+          let timeGroup = dateMap[ds].groupedTrades.find(g => g.entry_time === entryTimeKey);
+          if (!timeGroup) {
+            timeGroup = {
+              entry_time: entryTimeKey,
+              trades: [],
+              summary: {
+                totalPnl: 0,
+                totalLot: 0,
+                symbol: trade.symbol,
+                entry_price: trade.entry_price,
+                side: trade.side,
+              },
+            };
+            dateMap[ds].groupedTrades.push(timeGroup);
+          }
+          timeGroup.trades.push(trade);
+          timeGroup.summary.totalPnl += trade.pnl || 0;
+          timeGroup.summary.totalLot += trade.lot_size || 0;
+        } catch (e) {}
+      });
+
+      // 排序與更新顯示
+      const sortedResult = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
+      sortedResult.forEach(day => {
+        day.groupedTrades.sort((a, b) => {
+          const getT = g =>
+            g.trades.some(t => !t.exit_time)
+              ? Infinity
+              : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
+          return getT(b) - getT(a);
+        });
+      });
+
+      if (activeLoadCallId === callId) {
+        groupedData = sortedResult;
+        if (globalSummaryData) {
+          globalSummary = globalSummaryData;
+        }
+      }
+    } catch (globalErr) {
+      if (globalErr.name !== 'CanceledError' && globalErr.name !== 'AbortError') {
+        console.error('Fatal loadData error:', globalErr);
+        if (activeLoadCallId === callId) {
+          loadError = { message: '系統錯誤', detail: globalErr.message };
+        }
+      }
+    } finally {
+      if (activeLoadCallId === callId) {
+        loading = false;
+        loadController = null;
       }
     }
-
-    // 封裝數據處理邏輯以便重用
-    function processAndGroupData(currentPlans, currentTrades, currentCallId) {
-       if (activeLoadCallId !== currentCallId) return;
-
-       // 數據過濾與去重
-       const seenTickets = new Set();
-       const uniqueTrades = [];
-       currentTrades.forEach(t => {
-         if (t.ticket && seenTickets.has(t.ticket)) return;
-         if (t.ticket) seenTickets.add(t.ticket);
-         uniqueTrades.push(t);
-       });
- 
-       // 數據分組邏輯
-       if (loading) loadingMessage = `正在分組並解析數據...`;
-       
-       const dateMap = {};
-       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
- 
-       currentPlans.forEach(plan => {
-         plan.trendData = parseJSONSafe(plan.trend_analysis, {});
-         if (!plan.plan_date) return;
-         try {
-           const d = new Date(plan.plan_date);
-           if (isNaN(d.getTime())) return;
-           const ds = d.toISOString().slice(0, 10);
-           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
-           dateMap[ds].plans.push(plan);
-         } catch (e) {}
-       });
- 
-       uniqueTrades.forEach(trade => {
-         if (!trade.entry_time) return;
-         try {
-           const d = new Date(trade.entry_time);
-           if (isNaN(d.getTime())) return;
-           const ds = d.toISOString().slice(0, 10);
-           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
- 
-           const entryTimeKey = trade.entry_time;
-           let timeGroup = dateMap[ds].groupedTrades.find(g => g.entry_time === entryTimeKey);
-           if (!timeGroup) {
-             timeGroup = {
-               entry_time: entryTimeKey,
-               trades: [],
-               summary: {
-                 totalPnl: 0,
-                 totalLot: 0,
-                 symbol: trade.symbol,
-                 entry_price: trade.entry_price,
-                 side: trade.side,
-               },
-             };
-             dateMap[ds].groupedTrades.push(timeGroup);
-           }
-           timeGroup.trades.push(trade);
-           timeGroup.summary.totalPnl += trade.pnl || 0;
-           timeGroup.summary.totalLot += trade.lot_size || 0;
-         } catch (e) {}
-       });
- 
-       // 排序與更新顯示
-       const sortedResult = Object.values(dateMap).sort((a, b) => b.date.localeCompare(a.date));
-       sortedResult.forEach(day => {
-         day.groupedTrades.sort((a, b) => {
-           const getT = g =>
-             g.trades.some(t => !t.exit_time)
-               ? Infinity
-               : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
-           return getT(b) - getT(a);
-         });
-       });
- 
-       if (activeLoadCallId === currentCallId) {
-         groupedData = sortedResult;
-         if (globalSummaryData) {
-           globalSummary = globalSummaryData;
-         }
-       }
-    }
-
-    try {
-        // ... (API requests logic omitted, handled by existing code above) ...
-        // 我們需要在 API 請結束後調用 processAndGroupData
-        // 為了最小化修改，我們直接在上面的代碼塊中呼叫這個函數
-    } catch (err) {
-        // ...
-    }
-  } // End of loadData (Wait, I cannot restructure the whole function easily with replace_file_content)
+  }
 
   // 獨立更新帳號狀態 (不觸發 loading UI)
   let lastAccountsData = null;
