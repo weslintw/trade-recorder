@@ -707,6 +707,7 @@
                   <img
                     src={imagesAPI.getUrl(image.image_path)}
                     alt={image.image_type}
+                    loading="lazy"
                     on:error={e => {
                       console.error('圖片載入失敗:', image.image_path);
                       e.target.src =
@@ -744,6 +745,7 @@
                       <img
                         src={signal.image}
                         alt={signal.name}
+                        loading="lazy"
                         on:error={e => {
                           console.error('訊號圖片載入失敗:', signal.name);
                           e.target.src =
@@ -773,6 +775,7 @@
                         <img
                           src={pattern.image}
                           alt={pattern.name}
+                          loading="lazy"
                           on:error={e => {
                             console.error('樣態圖片載入失敗:', pattern.name);
                             e.target.src =
@@ -796,6 +799,7 @@
                     <img
                       src={trade.entry_strategy_image}
                       alt="進場樣態"
+                      loading="lazy"
                       on:error={e => {
                         console.error('樣態圖片載入失敗');
                         e.target.src =
@@ -820,7 +824,7 @@
                       }}
                       title="點擊查看訊號圖片 ({sig.name || sig})"
                     >
-                      <img src={imagesAPI.getUrl(img.image)} alt="訊號圖" />
+                      <img src={imagesAPI.getUrl(img.image)} alt="訊號圖" loading="lazy" />
                       <span class="image-label">⚡ {sig.name || sig} {#if sigImages.length > 1}({idx + 1}){/if}</span>
                     </button>
                   {/if}
@@ -840,7 +844,7 @@
                       }}
                       title="點擊查看進場樣態圖 ({pat.name || pat})"
                     >
-                      <img src={imagesAPI.getUrl(img.image)} alt="樣態圖" />
+                      <img src={imagesAPI.getUrl(img.image)} alt="樣態圖" loading="lazy" />
                       <span class="image-label">🧩 {pat.name || pat} {#if patImages.length > 1}({idx + 1}){/if}</span>
                     </button>
                   {/if}
@@ -859,7 +863,7 @@
                       }}
                       title="點擊查看傳奇觀察圖 {idx + 1}"
                     >
-                      <img src={imagesAPI.getUrl(img.image)} alt="傳奇觀察圖" />
+                      <img src={imagesAPI.getUrl(img.image)} alt="傳奇觀察圖" loading="lazy" />
                       <span class="image-label">👑 傳奇圖 {idx + 1}</span>
                     </button>
                   {/if}

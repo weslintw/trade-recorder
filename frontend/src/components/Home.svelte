@@ -2593,7 +2593,7 @@
                                     }
                                   )}
                               >
-                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />
                               </div>
                             {/each}
                             {#if allImages.length > 3}
@@ -2794,7 +2794,7 @@
                                     { tradeId: trade.id, type: 'general', index: idx }
                                   )}
                               >
-                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />
                               </div>
                             {/each}
                             {#if trade.images.length > 3}<div class="more-imgs">

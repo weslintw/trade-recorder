@@ -861,7 +861,7 @@
                                         trade.symbol + ' 交易圖表'
                                       )}
                                   >
-                                    <img src={imagesAPI.getUrl(img.image_path)} alt="trade" />
+                                    <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />
                                   </div>
                                 {/each}
                                 {#if trade.images.length > 3}<div class="more-imgs">
