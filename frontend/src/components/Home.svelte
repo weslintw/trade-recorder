@@ -2660,6 +2660,14 @@
                                 /></svg
                               >
                             </button>
+                            <button
+                              class="icon-btn edit-notes"
+                              on:click|stopPropagation={() => toggleEditNotes(timeGroup.trades[0].id)}
+                              title="編輯筆記"
+                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;" 
+                            >
+                              📝
+                            </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                               <button
                                 class="icon-btn delete"
@@ -2752,6 +2760,53 @@
                             {/each}
                             {#if allImages.length > 3}
                               <div class="more-imgs">+{allImages.length - 3}</div>
+                            {/if}
+                          </div>
+                        {/if}
+
+                        {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].journal || timeGroup.trades[0].exit_reason || timeGroup.trades[0].notes}
+                          <div class="card-notes-section" on:click|stopPropagation>
+                            {#if editingTradeId === timeGroup.trades[0].id}
+                                <div class="card-notes-header">
+                                    <span style="font-size:0.8rem; font-weight:bold; color:var(--primary)">編輯模式</span>
+                                    <button class="save-notes-btn" on:click={() => saveCardNotes(timeGroup.trades[0])}>💾 儲存</button>
+                                </div>
+                            {/if}
+
+                            <!-- 復盤日記 (對應 DB: notes) -->
+                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].notes}
+                              <div class="note-block">
+                                <div class="note-label">📝 復盤日記</div>
+                                <div 
+                                    id="note-notes-{timeGroup.trades[0].id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >{@html timeGroup.trades[0].notes || ''}</div>
+                              </div>
+                            {/if}
+
+                            <!-- 平倉理由 (對應 DB: exit_reason) -->
+                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].exit_reason}
+                              <div class="note-block">
+                                <div class="note-label">🚪 平倉理由</div>
+                                <div 
+                                    id="note-exit-{timeGroup.trades[0].id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >{@html timeGroup.trades[0].exit_reason || ''}</div>
+                              </div>
+                            {/if}
+                            
+                            <!-- 記事備註 (對應 DB: journal) -->
+                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].journal}
+                              <div class="note-block">
+                                <div class="note-label">📌 記事備註</div>
+                                <div 
+                                    id="note-journal-{timeGroup.trades[0].id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >{@html timeGroup.trades[0].journal || ''}</div>
+                              </div>
                             {/if}
                           </div>
                         {/if}
