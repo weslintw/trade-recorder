@@ -28,16 +28,32 @@
   <div class="form-group">
     <label>🎯 進場種類</label>
     <div class="strategy-options mini">
-      <label class="strategy-option" class:active={formData.entry_strategy === 'expert'}>
-        <input type="radio" bind:group={formData.entry_strategy} value="expert" />
+      <!-- svelte-ignore a11y-click-events-have-key-events (Radio input handles a11y, but we intercept click for toggle) -->
+      <label 
+        class="strategy-option" 
+        class:active={formData.entry_strategy === 'expert'}
+        on:click|preventDefault={() => {
+            formData.entry_strategy = formData.entry_strategy === 'expert' ? '' : 'expert';
+        }}
+      >
         <span class="strategy-name">達人</span>
       </label>
-      <label class="strategy-option" class:active={formData.entry_strategy === 'elite'}>
-        <input type="radio" bind:group={formData.entry_strategy} value="elite" />
+      <label 
+        class="strategy-option" 
+        class:active={formData.entry_strategy === 'elite'}
+        on:click|preventDefault={() => {
+            formData.entry_strategy = formData.entry_strategy === 'elite' ? '' : 'elite';
+        }}
+      >
         <span class="strategy-name">菁英</span>
       </label>
-      <label class="strategy-option" class:active={formData.entry_strategy === 'legend'}>
-        <input type="radio" bind:group={formData.entry_strategy} value="legend" />
+      <label 
+        class="strategy-option" 
+        class:active={formData.entry_strategy === 'legend'}
+        on:click|preventDefault={() => {
+            formData.entry_strategy = formData.entry_strategy === 'legend' ? '' : 'legend';
+        }}
+      >
         <span class="strategy-name">傳奇</span>
       </label>
     </div>
