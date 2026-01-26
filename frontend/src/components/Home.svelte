@@ -1710,16 +1710,23 @@
     trades = trades;
 
     try {
-        await tradesAPI.update(trade.id, {
+        // 必須傳送完整的 trade 物件，因為後端 UpdateTrade API 有必填欄位校驗 (binding:"required")
+        // 使用展開運算符複製所有欄位，並覆蓋筆記欄位
+        const payload = { 
+            ...trade,
             journal: newJournal,
             notes: newNotes,
-            exit_reason: newExitReason
-        });
+            exit_reason: newExitReason,
+            // 確保 images 是一個陣列，避免 null 導致後端錯誤
+            images: trade.images || []
+        };
+
+        await tradesAPI.update(trade.id, payload);
         // alert('筆記已儲存！'); // 不打擾使用者
         editingTradeId = null; 
     } catch (err) {
         console.error('Save notes failed:', err);
-        alert('儲存失敗');
+        alert('儲存失敗：' + (err.response?.data?.error || err.message));
     }
   }
 
