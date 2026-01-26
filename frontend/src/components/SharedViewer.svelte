@@ -12,7 +12,8 @@
   import Sparkline from './Sparkline.svelte';
   import SharedTradeDetail from './SharedTradeDetail.svelte';
   import SharedPlanDetail from './SharedPlanDetail.svelte';
-  import ImageAnnotator from './ImageAnnotator.svelte';
+  import PlanSummaryTable from './PlanSummaryTable.svelte';
+import ImageAnnotator from './ImageAnnotator.svelte';
 
   export let token = '';
 
@@ -736,32 +737,7 @@
                             <span class="symbol-inline-tag">{plan.symbol}</span>
                           </div>
 
-                          <div class="mini-progression">
-                            {#each ['M5', 'M15', 'H1', 'H4'] as tf}
-                              {@const asianTrend = trendData.asian?.trends?.[tf]}
-                              {@const europeanTrend = trendData.european?.trends?.[tf]}
-                              {@const usTrend = trendData.us?.trends?.[tf]}
-                              {#if asianTrend?.direction || europeanTrend?.direction || usTrend?.direction}
-                                <div class="tf-row">
-                                  <span class="tf-name">{tf}:</span>
-                                  <div class="tf-steps">
-                                    {#each [{ v: 'asian', l: '亞' }, { v: 'european', l: '歐' }, { v: 'us', l: '美' }] as session, i}
-                                      {@const trend = trendData[session.v]?.trends?.[tf]}
-                                      <span class="mini-step {trend?.direction || 'na'}">
-                                        {session.l}
-                                        {trend?.direction === 'long'
-                                          ? '多'
-                                          : trend?.direction === 'short'
-                                            ? '空'
-                                            : 'NA'}
-                                      </span>
-                                      {#if i < 2}<span class="step-arrow">=></span>{/if}
-                                    {/each}
-                                  </div>
-                                </div>
-                              {/if}
-                            {/each}
-                          </div>
+                          <PlanSummaryTable {trendData} detailed={false} />
 
                           {#if trendData.asian?.notes || trendData.european?.notes || trendData.us?.notes}
                             <div class="mini-notes">
@@ -1865,56 +1841,6 @@
     line-height: 1;
   }
 
-  /* Plan Mini */
-  .mini-progression {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    margin-bottom: 0.75rem;
-  }
-  .tf-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
-  }
-  .tf-name {
-    font-weight: 700;
-    color: var(--text-muted);
-    width: 30px;
-  }
-  .tf-steps {
-    display: flex;
-    gap: 3px;
-    align-items: center;
-  }
-  .mini-step {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    line-height: 1;
-  }
-  .mini-step.long {
-    background: #fef2f2;
-    color: #991b1b;
-  }
-  .mini-step.short {
-    background: #f0fdf4;
-    color: #166534;
-  }
-  .mini-step.na {
-    background: #f8fafc;
-    color: #94a3b8;
-  }
-  .step-arrow {
-    color: #cbd5e1;
-    font-weight: 800;
-    font-size: 0.7rem;
-  }
 
   .mini-notes {
     margin-top: 0.75rem;
