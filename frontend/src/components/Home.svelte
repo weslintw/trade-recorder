@@ -1217,10 +1217,10 @@
         console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
         selectedAccountId.set($accounts[0].id);
       } else {
-        console.log(`[onMount] Account ${$selectedAccountId} is valid, reactive watcher will trigger loadData()`);
-        // 這裡不再主動呼叫 loadData()，因為上面的 selectedAccountId 檢查或
-        // 頂層的 $: reactive block 會在 mount 後自動偵測到目前的 ID 並觸發一次負載
-        // 這樣可以避免 loadData #1 (mount) 與 loadData #2 (reactive) 的雙重負載
+        console.log(`[onMount] Account ${$selectedAccountId} is valid, triggering initial loadData()`);
+        // 修正：不再依賴 reactive watcher 自動觸發，因為有時會失效導致空等 15 秒
+        // loadData 內部已有 1 秒防抖機制，所以這裡主動呼叫是安全的
+        loadData();
       }
     } else {
       console.warn('[onMount] NO ACCOUNTS FOUND! User needs to create an account first.');

@@ -27,7 +27,9 @@ func InitDB() (*sql.DB, error) {
 	absPath, _ := filepath.Abs(dbPath)
 	log.Printf("[DB] 資料庫路徑: %s (Absolute: %s)", dbPath, absPath)
 
-	db, err := sql.Open("sqlite", dbPath)
+	// 強制啟用 WAL 模式與繁忙超時設定
+	dsn := dbPath + "?_journal_mode=WAL&_busy_timeout=10000&_synchronous=NORMAL"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
