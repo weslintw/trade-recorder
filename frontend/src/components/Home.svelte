@@ -1722,25 +1722,7 @@
         alert('儲存失敗');
     }
   }
-        if (payload.elite_images && typeof payload.elite_images === 'string') {
-          const elts = parseJSONSafe(payload.elite_images, []);
-          elts.forEach(elt => {
-            if (elt.image === originalPath) elt.image = serverPath;
-          });
-          payload.elite_images = JSON.stringify(elts);
-        }
-      }
 
-      await tradesAPI.update(tradeId, payload);
-
-      selectedImage = imagesAPI.getUrl(serverPath);
-      showAnnotator = false;
-      loadData(false);
-    } catch (e) {
-      console.error('Failed to save annotated image', e);
-      alert('儲存標註圖片失敗');
-    }
-  }
 
   function closeImageModal() {
     selectedImage = null;
