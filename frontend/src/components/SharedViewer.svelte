@@ -14,6 +14,7 @@
   import SharedPlanDetail from './SharedPlanDetail.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
 import ImageAnnotator from './ImageAnnotator.svelte';
+  import { isDarkMode } from '../lib/stores';
 
   export let token = '';
 
@@ -146,6 +147,10 @@ import ImageAnnotator from './ImageAnnotator.svelte';
       loading = false;
     }
   });
+
+  function toggleDarkMode() {
+    isDarkMode.update(v => !v);
+  }
 
   function getTimeRange(trades) {
     if (!trades || trades.length === 0) return '';
@@ -460,7 +465,29 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     </div>
   {:else if sharedData}
     <div class="shared-content">
-      <div class="public-badge">👁️ 唯讀分享模式</div>
+      <div class="shared-top-bar">
+        <div class="logo-area">
+          <div class="logo-image-container">
+            {#if $isDarkMode}
+              <img
+                src="/logo-dark.png"
+                alt="Trade Time Machine Logo"
+                class="brand-logo-img dark"
+              />
+            {:else}
+              <img src="/logo.png" alt="Trade Time Machine Logo" class="brand-logo-img" />
+            {/if}
+          </div>
+          <div class="public-badge-small">👁️ 唯讀分享模式</div>
+        </div>
+        <button
+          class="theme-toggle-btn"
+          on:click={toggleDarkMode}
+          title={$isDarkMode ? '切換至淺色模式' : '切換至深色模式'}
+        >
+          {$isDarkMode ? '🌙' : '☀️'}
+        </button>
+      </div>
 
       {#if selectedItem}
         <div class="detail-overlay-header">
@@ -1973,8 +2000,8 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    border: 1px solid #eee;
-    background: #fff;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
   }
   .color-dot.active.green {
     background: #22c55e;
@@ -2023,14 +2050,13 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     align-items: center;
     gap: 0.5rem;
     font-size: 0.85rem;
-    color: #64748b;
+    color: var(--text-muted);
   }
   .info-group strong {
-    color: #1e293b;
-    color: #334155;
+    color: var(--text-main);
   }
   .info-group .bullet {
-    color: #6366f1;
+    color: var(--primary);
     font-weight: 800;
   }
   .info-group .rr.profit {
@@ -2090,10 +2116,10 @@ import ImageAnnotator from './ImageAnnotator.svelte';
   .empty-placeholder-shared {
     text-align: center;
     padding: 2rem;
-    background: #fafafa;
-    border: 1px dashed #eee;
+    background: var(--nav-group-bg);
+    border: 1px dashed var(--border-color);
     border-radius: 12px;
-    color: #999;
+    color: var(--text-muted);
     font-size: 0.85rem;
   }
 
@@ -2254,5 +2280,67 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     max-width: 100%;
     border-radius: 4px;
     margin-top: 0.5rem;
+  }
+
+  .shared-top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .logo-image-container {
+    height: 60px;
+    width: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .brand-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 48%;
+    pointer-events: none;
+    transform: scale(1.1);
+  }
+
+  .public-badge-small {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    background: var(--nav-group-bg);
+    padding: 0.35rem 0.75rem;
+    border-radius: 99px;
+    border: 1px solid var(--border-color);
+  }
+
+  .theme-toggle-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+  .theme-toggle-btn:hover {
+    transform: rotate(15deg);
+    background: var(--nav-group-bg);
   }
 </style>

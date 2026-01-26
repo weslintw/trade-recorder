@@ -13,7 +13,7 @@
   import AdminDashboard from './components/AdminDashboard.svelte';
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
-  import { selectedSymbol } from './lib/stores';
+  import { selectedSymbol, isDarkMode } from './lib/stores';
   import { auth, logout, checkAuth } from './lib/auth';
   import Login from './components/Login.svelte';
   import ChangePasswordModal from './components/ChangePasswordModal.svelte';
@@ -24,28 +24,12 @@
   let showChangePassword = false;
   const buildTime = __BUILD_TIME__;
 
-  // Dark Mode Support
-  let isDarkMode =
-    localStorage.getItem('theme') === 'dark' ||
-    (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
   function toggleDarkMode() {
-    isDarkMode = !isDarkMode;
-    if (isDarkMode) {
-      document.body.classList.add('dark-mode');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.body.classList.remove('dark-mode');
-      localStorage.setItem('theme', 'light');
-    }
+    isDarkMode.update(v => !v);
   }
 
   onMount(async () => {
     console.log('🚀 [App] System Initialized (Cache Bust: WAL-FIX-2)');
-    // Initial theme apply
-    if (isDarkMode) {
-      document.body.classList.add('dark-mode');
-    }
     await checkAuth();
     timer = setInterval(() => {
       currentTime = new Date();
@@ -87,7 +71,7 @@
         <div class="navbar-content">
           <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
             <div class="logo-image-container">
-              {#if isDarkMode}
+              {#if $isDarkMode}
                 <img
                   src="/logo-dark.png"
                   alt="Trade Time Machine Logo"
@@ -173,9 +157,9 @@
                   <button
                     class="theme-toggle-btn"
                     on:click={toggleDarkMode}
-                    title={isDarkMode ? '切換至淺色模式' : '切換至深色模式'}
+                    title={$isDarkMode ? '切換至淺色模式' : '切換至深色模式'}
                   >
-                    {isDarkMode ? '🌙' : '☀️'}
+                    {$isDarkMode ? '🌙' : '☀️'}
                   </button>
                   <span
                     class="username"

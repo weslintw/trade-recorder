@@ -44,3 +44,27 @@ export const tradeDataCache = writable({
   timestamp: null,
   stale: false, // 如果為 true，代表數據可能過期（例如剛執行過編輯），需要背景更新
 });
+
+// 深色模式 Store
+const storedTheme = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : null;
+const initialDarkMode =
+  storedTheme === 'dark' ||
+  (!storedTheme &&
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+export const isDarkMode = writable(initialDarkMode);
+
+// 訂閱 Store 變化並應用到 body 與 localStorage
+isDarkMode.subscribe(value => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('theme', value ? 'dark' : 'light');
+  }
+  if (typeof document !== 'undefined') {
+    if (value) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }
+});
