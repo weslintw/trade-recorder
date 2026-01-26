@@ -315,7 +315,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 				// Only insert if we have a valid price, or use a default if it's still 0 but we want to see it
 				_, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl)
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-					accountID, symbol, side, entryPrice, vol, time.UnixMilli(entryTS), "actual", "cTrader Push: Initial Sync", ticket, 0)
+					accountID, symbol, side, entryPrice, vol, time.UnixMilli(entryTS), "actual", "", ticket, 0)
 				if err != nil {
 					log.Printf("[cTrader Manager] FAILED to insert position %d: %v", pos.PositionID, err)
 				} else {
@@ -581,8 +581,9 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 			seriesVal := existingSeries.String
 			// Use preserved notes if available, otherwise use default
 			finalNotes := notes.String
-			if finalNotes == "" || finalNotes == "cTrader Push: Initial Sync" {
-				finalNotes = "cTrader Push: Closed Position"
+			// Clean up old automated messages
+			if finalNotes == "cTrader Push: Initial Sync" || finalNotes == "cTrader Push: Open Position" {
+				finalNotes = ""
 			}
 
 			res, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
@@ -657,7 +658,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 
 			_, err := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, lot_size, entry_time, trade_type, notes, ticket, initial_sl)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				accountID, symbol, side, deal.ExecutionPrice, vol, time.UnixMilli(entryMilli), "actual", "cTrader Push: Open Position", ticket, event.Position.StopLoss)
+				accountID, symbol, side, deal.ExecutionPrice, vol, time.UnixMilli(entryMilli), "actual", "", ticket, event.Position.StopLoss)
 			if err != nil {
 				log.Printf("[cTrader Manager] Failed to insert Push Open trade: %v", err)
 			} else {
@@ -756,7 +757,7 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 					"price": ask,
 					"time":  time.Now().UnixMilli(),
 				}
-				
+
 				msg := ws.WSMessage{
 					Type:      "PRICE_UPDATE",
 					AccountID: accountID,
@@ -1133,8 +1134,8 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 								&preservedSL, &preservedSeries)
 
 							finalNotes := notes.String
-							if finalNotes == "" || finalNotes == "cTrader Push: Initial Sync" {
-								finalNotes = "cTrader Sync: Recovered Closed Position"
+							if finalNotes == "cTrader Push: Initial Sync" || finalNotes == "cTrader Push: Open Position" || finalNotes == "cTrader Sync: Recovered Closed Position" {
+								finalNotes = ""
 							}
 
 							bullet, rr := 0.0, 0.0
