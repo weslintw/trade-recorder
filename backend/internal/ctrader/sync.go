@@ -716,8 +716,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				&oldTradeID, &journal, &entryReason, &entryStrategy, &entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern, &trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &oldNotes,
 				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL)
 
-			finalNotes := "cTrader Sync"
-			if oldNotes.Valid && oldNotes.String != "" && !strings.Contains(oldNotes.String, "cTrader Push") && oldNotes.String != "cTrader Sync" {
+			finalNotes := ""
+			// 只有當原有筆記不包含自動生成的字串，且不是空的時候，才保留原有筆記 (即保留使用者手動輸入的內容)
+			if oldNotes.Valid && oldNotes.String != "" &&
+				!strings.Contains(oldNotes.String, "cTrader Push") &&
+				oldNotes.String != "cTrader Sync" &&
+				oldNotes.String != "cTrader Open" &&
+				oldNotes.String != "cTrader Sync: Recovered Closed Position" {
 				finalNotes = oldNotes.String
 			}
 
@@ -904,7 +909,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 						exit_sl = excluded.exit_sl,
 						updated_at = CURRENT_TIMESTAMP
 					WHERE ticket LIKE 'ctrader-pos-%'`,
-					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.OpenTimestamp), "actual", "cTrader Open", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
+					accountID, symbol, side, pos.Price, vol, time.UnixMilli(pos.TradeData.OpenTimestamp), "actual", "", ticket, initialSL, pos.StopLoss, bullet, string(slHistoryJSON), pnlSeries)
 
 				// Identify which tickets are still open (even if upsert failed, we don't want to delete them)
 				currentOpenTickets[ticket] = true
