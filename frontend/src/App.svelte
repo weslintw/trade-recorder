@@ -41,6 +41,7 @@
   }
 
   onMount(async () => {
+    console.log('🚀 [App] System Initialized (Cache Bust: WAL-FIX-2)');
     // Initial theme apply
     if (isDarkMode) {
       document.body.classList.add('dark-mode');
