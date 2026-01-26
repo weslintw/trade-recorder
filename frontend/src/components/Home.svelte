@@ -2899,6 +2899,29 @@
                               </div>{/if}
                           </div>
                         {/if}
+                        
+                        {#if trade.journal || trade.exit_reason || trade.notes}
+                          <div class="card-notes-section" on:click|stopPropagation>
+                            {#if trade.journal}
+                              <div class="note-block">
+                                <div class="note-label">📝 復盤日記</div>
+                                <div class="note-content">{@html trade.journal}</div>
+                              </div>
+                            {/if}
+                            {#if trade.exit_reason}
+                              <div class="note-block">
+                                <div class="note-label">🚪 平倉理由</div>
+                                <div class="note-content">{@html trade.exit_reason}</div>
+                              </div>
+                            {/if}
+                            {#if trade.notes}
+                              <div class="note-block">
+                                <div class="note-label">📌 記事備註</div>
+                                <div class="note-content">{@html trade.notes}</div>
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
                       </div>
                     {/if}
                   {/each}
@@ -3026,6 +3049,54 @@
 <style>
   .timeline-container {
     padding-bottom: 5rem;
+  }
+
+  /* Card Notes Styling */
+  .card-notes-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    cursor: text; /* 讓使用者知道可以選取文字 */
+  }
+
+  .note-block {
+    font-size: 0.9rem;
+    color: var(--text-main);
+  }
+
+  .note-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+    opacity: 0.8;
+  }
+
+  .note-content {
+    line-height: 1.5;
+    background: var(--nav-group-bg);
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    /* 處理 RichTextEditor 產生的默認 margin */
+  }
+
+  .note-content :global(p) {
+    margin: 0.25rem 0;
+  }
+  .note-content :global(p:first-child) {
+    margin-top: 0;
+  }
+  .note-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .note-content :global(img) {
+    max-width: 100%;
+    border-radius: 4px;
+    margin-top: 0.5rem;
   }
 
   /* Pagination Styling */
