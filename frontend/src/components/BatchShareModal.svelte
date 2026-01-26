@@ -25,8 +25,17 @@
   }
 
   async function handleFullShare() {
-    if (!$selectedAccountId) return;
+    if (!$selectedAccountId || loading) return;
     loading = true;
+    
+    // 安全機制：如果 API 請求超過 30 秒沒回應，強制關閉載入狀態
+    const timeout = setTimeout(() => {
+      if (loading) {
+        loading = false;
+        alert('建立分享連結超時，請檢查網路連線或稍後再試');
+      }
+    }, 30000);
+
     try {
       const res = await sharesAPI.create({
         resource_type: 'account',
@@ -36,8 +45,9 @@
       shareToken = res.data.token;
     } catch (e) {
       console.error(e);
-      alert('建立分享失敗');
+      alert('建立分享失敗: ' + (e.response?.data?.error || e.message || '未知錯誤'));
     } finally {
+      clearTimeout(timeout);
       loading = false;
     }
   }

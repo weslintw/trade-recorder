@@ -28,15 +28,25 @@
   let customStartDate = '';
   let customEndDate = '';
   let activeExitFilter = 'all'; // 'all', 'tp', 'sl'
+  let activeSideFilter = 'all'; // 'all', 'long', 'short'
 
-  const EXPERT_SIGNALS = ['向下蘇美', '起漲靠山', '雙柱', '夾縫'];
-  const ELITE_CHECKLIST = [
-    { id: 'ma_trend', label: 'MA趨勢方向' },
-    { id: 'structure', label: '結構位置' },
-    { id: 'signal_bar', label: '訊號K/盤整突破' },
-    { id: 'm15_interaction', label: 'M15 互動' },
-    { id: 'risk_reward', label: '風報比 OK' },
+  const EXPERT_SIGNALS = [
+    '向下蘇美',
+    '起漲靠山',
+    '雙柱',
+    '夾縫',
+    '喇叭-上',
+    '喇叭-中',
+    '喇叭-下',
+    '倚天',
+    '攻城池上',
+    '起跌靠山',
+    '君臨城下',
+    '雙塔',
+    '向上蘇美',
+    '雷霆',
   ];
+  const ELITE_PATTERNS = ['甲', '乙', '丙', '丁', '大Leading', '小Leading'];
   const LEGEND_CHECKLIST = [
     { id: 'item_618_786', label: '王者回調' },
     { id: 'item_che', label: '大時區破測破' },
@@ -46,7 +56,7 @@
 
   const subFilters = {
     expert: EXPERT_SIGNALS.map(s => ({ value: s, label: s })),
-    elite: ELITE_CHECKLIST.map(e => ({ value: e.id, label: e.label })),
+    elite: ELITE_PATTERNS.map(p => ({ value: p, label: p })),
     legend: LEGEND_CHECKLIST.map(l => ({ value: l.id, label: l.label })),
   };
 
@@ -298,20 +308,33 @@
       if (activeColorFilter && t.color_tag !== activeColorFilter) return false;
 
       // Strategy Type Filter
-      if (activeFilterType !== 'all') {
-        if (t.entry_strategy !== activeFilterType) return false;
+      const tStrat = String(t.entry_strategy || '').toLowerCase();
+      const stratMatch =
+        activeFilterType === 'all' ||
+        (activeFilterType === 'expert' && (tStrat === 'expert' || tStrat === '達人')) ||
+        (activeFilterType === 'elite' && (tStrat === 'elite' || tStrat === '菁英')) ||
+        (activeFilterType === 'legend' && (tStrat === 'legend' || tStrat === '傳奇')) ||
+        tStrat === activeFilterType;
 
-        // Sub Filter
-        if (activeSubFilter) {
-          if (activeFilterType === 'expert') {
-            const signals = parseJSON(t.entry_signals, []);
-            if (!signals.includes(activeSubFilter)) return false;
-          } else if (activeFilterType === 'elite' || activeFilterType === 'legend') {
-            const checklist = parseJSON(t.entry_checklist, {});
-            if (!checklist[activeSubFilter]) return false;
-          }
+      if (!stratMatch) return false;
+
+      // Sub Filter (JSON String Search like Home.svelte)
+      if (activeSubFilter) {
+        try {
+          const tradeStr = JSON.stringify(t);
+          if (!tradeStr.includes(String(activeSubFilter))) return false;
+        } catch (e) {
+          return false;
         }
       }
+
+      // Side Filter
+      if (activeSideFilter === 'long') {
+        if (t.side !== 'long' && t.side !== 'buy') return false;
+      } else if (activeSideFilter === 'short') {
+        if (t.side !== 'short' && t.side !== 'sell') return false;
+      }
+
       return true;
     });
   })();
@@ -340,6 +363,9 @@
       green: 0,
       yellow: 0,
       red: 0,
+      expert: 0,
+      elite: 0,
+      legend: 0,
       hasTrades: false,
     };
     if (!filteredTrades) return stats;
@@ -348,6 +374,11 @@
       if (t.color_tag === 'green') stats.green++;
       else if (t.color_tag === 'yellow') stats.yellow++;
       else if (t.color_tag === 'red') stats.red++;
+
+      const strat = String(t.entry_strategy || '').toLowerCase();
+      if (strat === 'expert' || strat === '達人') stats.expert++;
+      else if (strat === 'elite' || strat === '菁英') stats.elite++;
+      else if (strat === 'legend' || strat === '傳奇') stats.legend++;
 
       if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null) {
         stats.total++;
@@ -570,6 +601,12 @@
                         <span class="stats-color-dot red"></span>
                         <span class="stats-color-count">{filteredStats.red}</span>
                       </div>
+
+                      <div class="stats-strategy-groups">
+                        <span class="strat-tag expert">達 {filteredStats.expert}</span>
+                        <span class="strat-tag elite">菁 {filteredStats.elite}</span>
+                        <span class="strat-tag legend">傳 {filteredStats.legend}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -643,6 +680,23 @@
                     on:click={() => (activeExitFilter = activeExitFilter === 'sl' ? 'all' : 'sl')}
                   >
                     🛑 SL
+                  </button>
+
+                  <div class="divider"></div>
+
+                  <button
+                    class="filter-type-btn {activeSideFilter === 'long' ? 'active' : ''}"
+                    on:click={() =>
+                      (activeSideFilter = activeSideFilter === 'long' ? 'all' : 'long')}
+                  >
+                    📈 做多
+                  </button>
+                  <button
+                    class="filter-type-btn {activeSideFilter === 'short' ? 'active' : ''}"
+                    on:click={() =>
+                      (activeSideFilter = activeSideFilter === 'short' ? 'all' : 'short')}
+                  >
+                    📉 做空
                   </button>
                 </div>
 
@@ -1152,6 +1206,37 @@
     background: #eab308;
   }
   .color-dot.red {
+    background: #ef4444;
+  }
+
+  .stats-strategy-groups {
+    display: flex;
+    gap: 0.4rem;
+    margin-left: 0.6rem;
+    padding-left: 0.6rem;
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+  }
+
+  :global(body.dark-mode) .stats-strategy-groups {
+    border-left-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .strat-tag {
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .strat-tag.expert {
+    background: #6366f1;
+  }
+  .strat-tag.elite {
+    background: #f59e0b;
+  }
+  .strat-tag.legend {
     background: #ef4444;
   }
 

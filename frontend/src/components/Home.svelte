@@ -536,12 +536,18 @@
 
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        console.log(
-          `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}, pageVisible=${isPageVisible}`
-        );
-        // 重設分頁
-        pagination.page = 1;
-        loadData();
+        // 只有在頁面可見時才執行響應式載入，避免背景標籤頁浪費資源
+        if (!document.hidden) {
+          console.log(
+            `🏠 [Reactive] Account/Symbol changed: acc=${$selectedAccountId}, sym=${$selectedSymbol}`
+          );
+          // 重設分頁
+          pagination.page = 1;
+          loadData();
+        } else {
+          console.log(`🏠 [Reactive] Tab is hidden, deferring load for: sym=${$selectedSymbol}`);
+          if (dataCache) dataCache.timestamp = 0; // 標記為過期，切換回來會觸發
+        }
       }, 500); // 500ms 防抖
     }
   } else {
@@ -607,6 +613,15 @@
     const now = Date.now();
     console.log(`🔵 [${INSTANCE_ID}] loadData #${callId} called, silent: ${silent}`);
 
+    const lastKey = window._lastLoadKey || '';
+    const currentKey = `acc_${$selectedAccountId}_sym_${$selectedSymbol}`;
+    
+    // 如果短時間(1秒內)載入同一個帳號/品種，且不是強制作動，則跳過
+    if (!silent && now - (window._lastLoadDataTime || 0) < 1000 && lastKey === currentKey) {
+      console.log(`[${INSTANCE_ID}] loadData #${callId} skipped: identical request within 1s.`);
+      return;
+    }
+
     if (silent && loading && now - (window._lastLoadDataTime || 0) < 500) {
       return;
     }
@@ -616,6 +631,7 @@
     }
 
     window._lastLoadDataTime = now;
+    window._lastLoadKey = currentKey;
     activeLoadCallId = callId;
     loadController = new AbortController();
     const { signal } = loadController;
@@ -782,57 +798,61 @@
           // 階段二：背景完整同步 (Background Full Sync)
           // 如果總數大於 100，或者為了確保 Cache 完整性，我們再抓一次全量
           if (pagination.total > 100 || fastTrades.length === 100) {
-            console.log(`[${INSTANCE_ID}] Starting background fetch for full dataset...`);
+            console.log(`[${INSTANCE_ID}] Starting background fetch for full dataset in 1.5s...`);
 
-            // 使用 Promise chain 進行背景處理，不阻塞當前執行
-            tradesAPI
-              .getAll(
-                {
-                  account_id: $selectedAccountId,
-                  symbol,
-                  page_size: 10000, // 抓所有
-                  page: 1,
-                  color_tag: activeColorFilter || undefined,
-                },
-                signal
-              )
-              .then(tradesFullRes => {
-                if (signal.aborted) return;
+            // 延遲執行階段二，給階段一的渲染與網路留點空間
+            setTimeout(() => {
+              if (signal.aborted || activeLoadCallId !== callId) return;
 
-                const fullTrades =
-                  (Array.isArray(tradesFullRes.data)
-                    ? tradesFullRes.data
-                    : tradesFullRes.data?.data) || [];
-                console.log(
-                  `[${INSTANCE_ID}] Background fetch complete. Full Trades: ${fullTrades.length}`
-                );
+              tradesAPI
+                .getAll(
+                  {
+                    account_id: $selectedAccountId,
+                    symbol,
+                    page_size: 10000, // 抓所有
+                    page: 1,
+                    color_tag: activeColorFilter || undefined,
+                  },
+                  signal
+                )
+                .then(tradesFullRes => {
+                  if (signal.aborted) return;
 
-                // 更新數據 (Svelte 會自動處理 Diff 無縫更新)
-                trades = fullTrades;
+                  const fullTrades =
+                    (Array.isArray(tradesFullRes.data)
+                      ? tradesFullRes.data
+                      : tradesFullRes.data?.data) || [];
+                  console.log(
+                    `[${INSTANCE_ID}] Background fetch complete. Full Trades: ${fullTrades.length}`
+                  );
 
-                // 如果後端有更準確的 summary，也可以更新
-                if (tradesFullRes.data?.summary) {
-                  globalSummaryData = tradesFullRes.data.summary;
-                }
+                  // 更新數據 (Svelte 會自動處理 Diff 無縫更新)
+                  trades = fullTrades;
 
-                // 只有在完整數據抓回來後，才更新 Cache
-                const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
+                  // 如果後端有更準確的 summary，也可以更新
+                  if (tradesFullRes.data?.summary) {
+                    globalSummaryData = tradesFullRes.data.summary;
+                  }
 
-                tradeDataCache.set({
-                  key: cacheKey,
-                  scope: scope,
-                  plans: plans,
-                  trades: fullTrades,
-                  summary: globalSummaryData,
-                  timestamp: Date.now(),
-                  stale: false,
+                  // 只有在完整數據抓回來後，才更新 Cache
+                  const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
+
+                  tradeDataCache.set({
+                    key: cacheKey,
+                    scope: scope,
+                    plans: plans,
+                    trades: fullTrades,
+                    summary: globalSummaryData,
+                    timestamp: Date.now(),
+                    stale: false,
+                  });
+                })
+                .catch(err => {
+                  if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+                    console.error('Background sync failed', err);
+                  }
                 });
-              })
-              .catch(err => {
-                if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
-                  console.error('Background sync failed', err);
-                }
-              });
+            }, 1500);
           } else {
             // 如果數據少於 100 筆，那第一階段就是完整的了
             const scope = !customStartDate && !customEndDate ? 'all' : 'partial';
@@ -1197,9 +1217,10 @@
         console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
         selectedAccountId.set($accounts[0].id);
       } else {
-        console.log(`[onMount] Account ${$selectedAccountId} is valid, keeping selection`);
-        // 主動觸發一次載入，確保即使 Store 值沒變也能載入資料
-        loadData();
+        console.log(`[onMount] Account ${$selectedAccountId} is valid, reactive watcher will trigger loadData()`);
+        // 這裡不再主動呼叫 loadData()，因為上面的 selectedAccountId 檢查或
+        // 頂層的 $: reactive block 會在 mount 後自動偵測到目前的 ID 並觸發一次負載
+        // 這樣可以避免 loadData #1 (mount) 與 loadData #2 (reactive) 的雙重負載
       }
     } else {
       console.warn('[onMount] NO ACCOUNTS FOUND! User needs to create an account first.');

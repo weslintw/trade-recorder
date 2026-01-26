@@ -335,8 +335,37 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	skippedDeleted := 0
 	updateInterval := 25 // 減少 DB 寫入壓力
 
+	// 開始交易：分批處理提高性能並減少鎖定
+	var tx *sql.Tx
+	startTX := func() {
+		if tx == nil {
+			var err error
+			tx, err = db.Begin()
+			if err != nil {
+				log.Printf("[cTrader Sync] Failed to start transaction: %v", err)
+			}
+		}
+	}
+	commitTX := func() {
+		if tx != nil {
+			if err := tx.Commit(); err != nil {
+				log.Printf("[cTrader Sync] Failed to commit transaction: %v", err)
+			}
+			tx = nil
+		}
+	}
+
+	startTX()
+
 	for pid, deals := range posGroups {
 		count++
+
+		// 每 100 筆資料提交一次交易，避免單個交易過大，也給其他請求喘息空間
+		if count%100 == 0 {
+			commitTX()
+			time.Sleep(100 * time.Millisecond) // 給其他 API 請求留一點空隙
+			startTX()
+		}
 
 		// === BREATHING SPACE FOR DATABASE ===
 		// Every batch of positions, sleep briefly to allow other web requests to use the DB
@@ -607,13 +636,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				var currentInitialSL, currentExitSL float64
 				db.QueryRow("SELECT pnl_series, initial_sl, exit_sl FROM trades WHERE account_id = ? AND ticket = ?", accountID, ticket).Scan(&currentPnL, &currentInitialSL, &currentExitSL)
 
-					// Decide if we should refresh this trade
-					shouldRefresh := currentPnL == "" || currentPnL == "[]" || currentPnL == "null" || len(currentPnL) < 50
-					// Also refresh if we found better SL data than what we currently have
-					betterSL := (currentInitialSL == 0 && initialSL > 0) || (currentExitSL == 0 && exitSL > 0)
+				// Decide if we should refresh this trade
+				shouldRefresh := currentPnL == "" || currentPnL == "[]" || currentPnL == "null" || len(currentPnL) < 50
+				// Also refresh if we found better SL data than what we currently have
+				betterSL := (currentInitialSL == 0 && initialSL > 0) || (currentExitSL == 0 && exitSL > 0)
 
-					if shouldRefresh || betterSL {
-						// log.Printf("[cTrader Sync] Refreshing/Repairing existing trade %s (pnl_refresh=%v, better_sl=%v)", ticket, shouldRefresh, betterSL)
+				if shouldRefresh || betterSL {
+					// log.Printf("[cTrader Sync] Refreshing/Repairing existing trade %s (pnl_refresh=%v, better_sl=%v)", ticket, shouldRefresh, betterSL)
 
 					posSide := 1 // Buy/Long
 					if d.TradeSide == 1 {
@@ -677,9 +706,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
 			var oldInitialSL sql.NullFloat64
 
-			db.QueryRow(`SELECT id, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
+			// 使用交易事務進行查詢
+			targetQuery := `SELECT id, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
 				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, initial_sl
-				FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`, accountID, posTicket, legacyTicket).Scan(
+				FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`
+
+			row := tx.QueryRow(targetQuery, accountID, posTicket, legacyTicket)
+			row.Scan(
 				&oldTradeID, &journal, &entryReason, &entryStrategy, &entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern, &trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &oldNotes,
 				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL)
 
@@ -693,10 +726,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				initialSL = oldInitialSL.Float64
 			}
 
-			res, err := db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
+			insertSQL := `INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
 				journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag,
 				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+			res, err := tx.Exec(insertSQL,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries,
 				journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag,
 				legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
@@ -710,13 +745,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				if oldTradeID > 0 && newID > 0 {
 					log.Printf("[cTrader Sync] Migrating associations from %d to %d (Position %d)", oldTradeID, newID, d.PositionID)
 					// Copy images (from trade_images table)
-					db.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, oldTradeID)
+					tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, description) SELECT ?, image_type, image_path, file_size, description FROM trade_images WHERE trade_id = ?", newID, oldTradeID)
 					// Copy tags
-					db.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, oldTradeID)
+					tx.Exec("INSERT INTO trade_tags (trade_id, tag_id) SELECT ?, tag_id FROM trade_tags WHERE trade_id = ?", newID, oldTradeID)
 
 					// Delete old record ONLY if it's NOT still open (to prevent "blanking" ongoing trades)
 					if !openPositionsMap[d.PositionID] {
-						db.Exec("DELETE FROM trades WHERE id = ?", oldTradeID)
+						tx.Exec("DELETE FROM trades WHERE id = ?", oldTradeID)
 					} else {
 						log.Printf("[cTrader Sync] Position %d is still open, preserving POS record", d.PositionID)
 					}
@@ -724,6 +759,8 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			}
 		}
 	}
+
+	commitTX() // 最後提交一次
 
 	// 4. Open Positions Sync
 	log.Printf("[cTrader Sync] Step 4: Open Positions (Refined - Non-destructive)...")
