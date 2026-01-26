@@ -928,7 +928,7 @@
                               <div class="card-notes-section">
                                 {#if trade.journal}
                                   <div class="note-block">
-                                    <div class="note-label">📝 復盤日記</div>
+                                    <div class="note-label">📌 記事備註</div>
                                     <div class="note-content">{@html trade.journal}</div>
                                   </div>
                                 {/if}
@@ -940,7 +940,7 @@
                                 {/if}
                                 {#if trade.notes}
                                   <div class="note-block">
-                                    <div class="note-label">📌 記事備註</div>
+                                    <div class="note-label">📝 復盤日記</div>
                                     <div class="note-content">{@html trade.notes}</div>
                                   </div>
                                 {/if}

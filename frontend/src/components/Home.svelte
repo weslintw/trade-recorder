@@ -1659,6 +1659,78 @@
         }
       }
 
+      await tradesAPI.update(tradeData.tradeId, payload);
+      
+      // Update local state
+      // ... (existing code omitted for brevity if any) ...
+    } catch (e) {
+      console.error('Update image failed:', e);
+      alert('更新圖片路徑失敗');
+    }
+  }
+
+  // --------------------------------------------------------
+  // Inline Note Editing Logic
+  // --------------------------------------------------------
+  let editingTradeId = null;
+
+  function toggleEditNotes(tradeId) {
+    if (editingTradeId === tradeId) {
+        editingTradeId = null;
+    } else {
+        editingTradeId = tradeId;
+    }
+  }
+
+  async function saveCardNotes(trade) {
+    // 獲取 DOM 元素內容
+    const journalEl = document.getElementById(`note-journal-${trade.id}`);
+    const notesEl = document.getElementById(`note-notes-${trade.id}`);
+    const exitReasonEl = document.getElementById(`note-exit-${trade.id}`);
+
+    // UI Label Swap Mapping:
+    // UI: "記事備註" -> save to DB: journal
+    // UI: "復盤日記" -> save to DB: notes
+    
+    // 這裡我們讀取的時候要小心，因為 HTML ID 是根據資料庫欄位命名的，還是根據 UI 命名的？
+    // 建議 HTML ID 根據資料庫欄位命名，這樣比較不會亂。
+    // 即：編輯 "📌 記事備註" 的 div id="note-journal-..."
+    //    編輯 "📝 復盤日記" 的 div id="note-notes-..."
+
+    const newJournal = journalEl ? journalEl.innerHTML : (trade.journal || '');
+    const newNotes = notesEl ? notesEl.innerHTML : (trade.notes || ''); 
+    const newExitReason = exitReasonEl ? exitReasonEl.innerHTML : (trade.exit_reason || '');
+
+    // 更新 trade 物件（本地樂觀更新）
+    trade.journal = newJournal;
+    trade.notes = newNotes;
+    trade.exit_reason = newExitReason;
+    
+    // 強制 Svelte 更新
+    trades = trades;
+
+    try {
+        await tradesAPI.update(trade.id, {
+            journal: newJournal,
+            notes: newNotes,
+            exit_reason: newExitReason
+        });
+        // alert('筆記已儲存！'); // 不打擾使用者
+        editingTradeId = null; 
+    } catch (err) {
+        console.error('Save notes failed:', err);
+        alert('儲存失敗');
+    }
+  }
+        if (payload.elite_images && typeof payload.elite_images === 'string') {
+          const elts = parseJSONSafe(payload.elite_images, []);
+          elts.forEach(elt => {
+            if (elt.image === originalPath) elt.image = serverPath;
+          });
+          payload.elite_images = JSON.stringify(elts);
+        }
+      }
+
       await tradesAPI.update(tradeId, payload);
 
       selectedImage = imagesAPI.getUrl(serverPath);
@@ -2808,6 +2880,14 @@
                                 /></svg
                               >
                             </button>
+                            <button
+                              class="icon-btn edit-notes"
+                              on:click|stopPropagation={() => toggleEditNotes(trade.id)}
+                              title="編輯筆記"
+                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;" 
+                            >
+                              📝
+                            </button>
                             {#if !timeGroup.trades[0]?.ticket?.startsWith('ctrader-')}
                               <button
                                 class="icon-btn delete"
@@ -2896,24 +2976,48 @@
                           </div>
                         {/if}
                         
-                        {#if trade.journal || trade.exit_reason || trade.notes}
+                        {#if editingTradeId === trade.id || trade.journal || trade.exit_reason || trade.notes}
                           <div class="card-notes-section" on:click|stopPropagation>
-                            {#if trade.journal}
+                            {#if editingTradeId === trade.id}
+                                <div class="card-notes-header">
+                                    <span style="font-size:0.8rem; font-weight:bold; color:var(--primary)">編輯模式</span>
+                                    <button class="save-notes-btn" on:click={() => saveCardNotes(trade)}>💾 儲存</button>
+                                </div>
+                            {/if}
+
+                            <!-- 復盤日記 (對應 DB: notes) -->
+                            {#if editingTradeId === trade.id || trade.notes}
                               <div class="note-block">
-                                <div class="note-label">📝 復盤日記</div>
-                                <div class="note-content">{@html trade.journal}</div>
+                                <div class="note-label">📝 復盤日記</div> <!-- Swapped Label -->
+                                <div 
+                                    id="note-notes-{trade.id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === trade.id}
+                                >{@html trade.notes || ''}</div>
                               </div>
                             {/if}
-                            {#if trade.exit_reason}
+
+                            <!-- 平倉理由 (對應 DB: exit_reason) -->
+                            {#if editingTradeId === trade.id || trade.exit_reason}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
-                                <div class="note-content">{@html trade.exit_reason}</div>
+                                <div 
+                                    id="note-exit-{trade.id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === trade.id}
+                                >{@html trade.exit_reason || ''}</div>
                               </div>
                             {/if}
-                            {#if trade.notes}
+                            
+                            <!-- 記事備註 (對應 DB: journal) -->
+                            {#if editingTradeId === trade.id || trade.journal}
                               <div class="note-block">
-                                <div class="note-label">📌 記事備註</div>
-                                <div class="note-content">{@html trade.notes}</div>
+                                <div class="note-label">📌 記事備註</div> <!-- Swapped Label -->
+                                <div 
+                                    id="note-journal-{trade.id}"
+                                    class="note-content" 
+                                    contenteditable={editingTradeId === trade.id}
+                                >{@html trade.journal || ''}</div>
                               </div>
                             {/if}
                           </div>
@@ -3088,6 +3192,30 @@
 
   .note-content :global(p) {
     margin: 0.25rem 0;
+  }
+  
+  .note-content[contenteditable="true"] {
+    background: var(--bg-main);
+    border: 1px solid var(--primary);
+    outline: none;
+    min-height: 2rem;
+  }
+
+  .card-notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+  }
+  
+  .save-notes-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.8rem;
+      cursor: pointer;
   }
   .note-content :global(p:first-child) {
     margin-top: 0;
