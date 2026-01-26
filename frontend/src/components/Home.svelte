@@ -1817,7 +1817,7 @@
           <div class="account-details-inline">
             <div class="storage-info-chip">
               <span class="chip-icon">📊</span>
-              <span class="label">圖文佔用</span>
+              <span class="label">圖片占用</span>
               <span class="value">{formatBytes(currentAccount.storage_usage)}</span>
             </div>
             {#if currentAccount.type === 'ctrader'}

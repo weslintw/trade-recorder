@@ -58,8 +58,11 @@ func InitDB() (*sql.DB, error) {
 
 	log.Println("資料庫初始化成功")
 
-	// 啟動時校準一次所有空間佔用（背景執行）
-	go UpdateAllAccountsStorageUsage(db)
+	// 啟動時延遲一會再校準所有空間佔用，避免卡住剛啟動時的登入操作
+	go func() {
+		time.Sleep(30 * time.Second)
+		UpdateAllAccountsStorageUsage(db)
+	}()
 
 	return db, nil
 }

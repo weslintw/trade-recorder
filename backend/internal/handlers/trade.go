@@ -418,7 +418,10 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusCreated, gin.H{"id": tradeID, "message": "交易紀錄建立成功"})
 		ws.GlobalHub.BroadcastUpdate(req.AccountID, "TRADE_UPDATE")
-		go database.UpdateAccountStorageUsage(db, req.AccountID)
+
+		// 增量更新儲存空間 (計算新交易估計大小)
+		tradeSize := database.CalculateTradeSize(req)
+		database.AddToAccountStorageUsage(db, req.AccountID, tradeSize)
 	}
 }
 
@@ -562,6 +565,33 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		// 在刪除前，先計算這筆交易佔用的空間以便增量扣除
+		var tradeSize int64
+		_ = db.QueryRow(`
+			SELECT (
+				LENGTH(COALESCE(notes, '')) +
+				LENGTH(COALESCE(entry_reason, '')) +
+				LENGTH(COALESCE(exit_reason, '')) +
+				LENGTH(COALESCE(entry_signals, '')) +
+				LENGTH(COALESCE(entry_checklist, '')) +
+				LENGTH(COALESCE(trend_analysis, '')) +
+				LENGTH(COALESCE(journal, '')) +
+				LENGTH(COALESCE(entry_pattern, '')) +
+				LENGTH(COALESCE(legend_images, '')) +
+				LENGTH(COALESCE(expert_images, '')) +
+				LENGTH(COALESCE(elite_images, '')) +
+				LENGTH(COALESCE(legend_king_image, '')) +
+				LENGTH(COALESCE(legend_htf_image, '')) +
+				LENGTH(COALESCE(sl_history, '')) +
+				LENGTH(COALESCE(pnl_series, ''))
+			) FROM trades WHERE id = ?
+		`, id).Scan(&tradeSize)
+
+		var imagesSize int64
+		_ = db.QueryRow("SELECT SUM(file_size) FROM trade_images WHERE trade_id = ?", id).Scan(&imagesSize)
+
+		totalSize := tradeSize + imagesSize
+
 		if err := tx.Commit(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -569,7 +599,9 @@ func DeleteTrade(db *sql.DB) gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{"message": "交易紀錄刪除成功"})
 		ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
-		go database.UpdateAccountStorageUsage(db, accountID)
+
+		// 增量扣除儲存空間
+		database.AddToAccountStorageUsage(db, accountID, -totalSize)
 	}
 }
 

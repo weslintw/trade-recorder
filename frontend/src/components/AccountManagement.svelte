@@ -272,8 +272,7 @@
               >
             </div>
             <div class="storage-usage-info">
-              <span class="icon">📊</span> 圖文佔用：<strong
-                >{formatBytes(acc.storage_usage)}</strong
+              <span class="icon">📊</span> 圖片占用：<strong>{formatBytes(acc.storage_usage)}</strong
               >
             </div>
             {#if acc.type === 'myfxbook'}
