@@ -49,7 +49,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		SELECT DISTINCT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, 
 			   t.lot_size, t.pnl, t.pnl_points, t.entry_strategy, t.entry_timeframe, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, 
 			   COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl, t.entry_signals, t.entry_checklist, t.entry_pattern,
-			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal
+			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal, t.notes, t.exit_reason
 		FROM trades t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN trade_tags tt ON t.id = tt.trade_id
@@ -139,7 +139,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.EntryStrategy, &trade.EntryTimeframe, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio,
 				&trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern,
-				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal,
+				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal, &trade.Notes, &trade.ExitReason,
 			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

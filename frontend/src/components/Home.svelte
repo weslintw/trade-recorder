@@ -3077,7 +3077,13 @@
     padding: 0.5rem 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    /* 處理 RichTextEditor 產生的默認 margin */
+    /* 強制文字顏色，避免編輯器的 inline style (如 color: white) 在淺色背景看不見 */
+    color: var(--text-main) !important;
+  }
+
+  .note-content :global(*) {
+    color: var(--text-main) !important;
+    background-color: transparent !important;
   }
 
   .note-content :global(p) {

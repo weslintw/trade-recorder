@@ -2307,6 +2307,12 @@
     padding: 0.5rem 0.75rem;
     border-radius: 8px;
     border: 1px solid var(--border-color);
+    color: var(--text-main) !important;
+  }
+  
+  .note-content :global(*) {
+    color: var(--text-main) !important;
+    background-color: transparent !important;
   }
 
   .note-content :global(p) {
