@@ -237,6 +237,14 @@
           <span class="icon">📊</span>
           <span class="label">統計</span>
         </Link>
+        <Link
+          to="/accounts"
+          class={activeNav === 'accounts' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+          on:click={() => (activeNav = 'accounts')}
+        >
+          <span class="icon">⚙️</span>
+          <span class="label">設定</span>
+        </Link>
       </nav>
     {/if}
   </div>
@@ -862,7 +870,10 @@
       padding: 0.5rem 0;
     }
     .nav-links .nav-secondary-group {
-      display: none; /* Hide dashboard/account icons, moved to bottom nav */
+      display: flex;
+    }
+    .username {
+      display: none;
     }
     .logo-image-container {
       width: 140px;
@@ -937,6 +948,12 @@
     }
     .symbol-selector select {
       font-size: 0.9rem;
+    }
+  }
+
+  @media (max-width: 550px) {
+    .nav-links .nav-secondary-group {
+      display: none;
     }
   }
 

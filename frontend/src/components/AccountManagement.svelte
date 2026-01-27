@@ -2,9 +2,11 @@
   import { navigate } from 'svelte-routing';
   import { onMount } from 'svelte';
   import { accountsAPI } from '../lib/api';
-  import { accounts, selectedAccountId } from '../lib/stores';
+  import { accounts, selectedAccountId, isDarkMode } from '../lib/stores';
+  import { logout, auth } from '../lib/auth';
   import AccountModal from './AccountModal.svelte';
   import SyncOptionsModal from './SyncOptionsModal.svelte';
+  import ChangePasswordModal from './ChangePasswordModal.svelte';
 
   let loading = true;
   let showAddModal = false;
@@ -181,14 +183,47 @@
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
+  let showChangePassword = false;
+
+  function toggleDarkMode() {
+    isDarkMode.update(v => !v);
+  }
+
+  function handleLogout() {
+    if (confirm('確定要登出嗎？')) {
+      logout();
+    }
+  }
 </script>
 
 <div class="account-mgmt">
   <div class="header">
-    <h1 data-testid="accounts-header">交易帳號管理</h1>
+    <h1 data-testid="accounts-header">系統與帳號設定</h1>
     <button class="btn btn-primary" data-testid="add-account-btn" on:click={openAddModal}
       >+ 新增交易帳號</button
     >
+  </div>
+
+  <div class="general-settings card mobile-only">
+    <h3>系統設定</h3>
+    <div class="settings-grid">
+      <button class="setting-item" on:click={toggleDarkMode}>
+        <span class="s-icon">{$isDarkMode ? '🌙' : '☀️'}</span>
+        <span class="s-label">{$isDarkMode ? '深色模式' : '淺色模式'}</span>
+      </button>
+      <button class="setting-item" on:click={() => (showChangePassword = true)}>
+        <span class="s-icon">👤</span>
+        <span class="s-label">修改密碼</span>
+      </button>
+      <button class="setting-item logout" on:click={handleLogout}>
+        <span class="s-icon">🚪</span>
+        <span class="s-label">登出系統</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <h2>交易帳號管理</h2>
   </div>
 
   {#if loading}
@@ -822,4 +857,36 @@
   .ticket-section.error h4 {
     color: #dc2626;
   }
+  .section-title {
+    margin: 2rem 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .general-settings {
+    margin-bottom: 2rem;
+    padding: 1.5rem !important;
+  }
+  .settings-grid {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .setting-item {
+    flex: 1;
+    min-width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: var(--nav-group-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  .setting-item.logout { color: #ef4444; }
+  .s-icon { font-size: 1.5rem; }
+  .s-label { font-size: 0.85rem; font-weight: 600; }
+  @media (min-width: 769px) { .mobile-only { display: none; } }
 </style>
+
+<ChangePasswordModal show={showChangePassword} onClose={() => (showChangePassword = false)} />
