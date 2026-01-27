@@ -1659,12 +1659,37 @@
         }
       }
 
-      await tradesAPI.update(tradeData.tradeId, payload);
+      await tradesAPI.update(tradeId, payload);
       
-      // Update local state
-      // ... (existing code omitted for brevity if any) ...
+      // 更新局部狀態
+      selectedImage = imagesAPI.getUrl(serverPath); // 立即更新 modal 顯示
+      
+      // 更新 groupedData 裡的資料，讓背景的卡片也同步更新
+      groupedData = groupedData.map(day => {
+        return {
+          ...day,
+          groupedTrades: day.groupedTrades.map(group => {
+            return {
+              ...group,
+              trades: group.trades.map(t => {
+                if (t.id === tradeId) {
+                  // 把更新後的 payload 套用到本地物件
+                  return { ...t, ...payload };
+                }
+                return t;
+              })
+            };
+          })
+        };
+      });
+      
+      // 同時更新 tradeDataCache，避免重新進入時看到舊圖
+      if (dataCache && dataCache.trades) {
+        dataCache.trades = dataCache.trades.map(t => t.id === tradeId ? { ...t, ...payload } : t);
+        tradeDataCache.set(dataCache);
+      }
     } catch (e) {
-      console.error('Update image failed:', e);
+      console.error('Update Image Failed:', e);
       alert('更新圖片路徑失敗');
     }
   }
@@ -4920,6 +4945,20 @@
   @media (max-width: 1024px) {
     .day-card-container {
       grid-template-columns: 1fr;
+      margin-top: 1.5rem;
+    }
+    .day-marker {
+      position: relative;
+      left: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .daily-stats-badge {
+      margin-left: 0;
+      padding: 0.4rem 0.8rem;
     }
     .plan-column {
       border-right: none;
@@ -4938,10 +4977,10 @@
       padding: 0.5rem 0.8rem;
       font-size: 0.85rem;
     }
-    .day-header {
+    .day-marker {
       flex-direction: column;
       align-items: flex-start;
-      gap: 0.5rem;
+      gap: 0.6rem;
     }
   }
   .trade-item-card {
