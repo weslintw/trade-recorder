@@ -218,7 +218,7 @@
       return [];
     }
   })();
-  $: isAllMode = activeFilterType === 'all' && !activeSubFilter;
+  $: isAllMode = activeFilterType === 'all' && !activeSubFilter && activeDateRange === 'all' && !activeColorFilter && activeExitFilter === 'all' && activeSideFilter === 'all';
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
 
@@ -768,6 +768,15 @@
                 page_size: 100, // 🚀 快速載入：只抓前 100 筆
                 page: 1,
                 color_tag: activeColorFilter || undefined,
+                start_date: activeDateRange === 'all' ? undefined : customStartDate,
+                end_date:
+                  activeDateRange === 'all'
+                    ? undefined
+                    : customEndDate
+                      ? customEndDate + ' 23:59:59'
+                      : undefined,
+                strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+                side: activeSideFilter === 'all' ? undefined : activeSideFilter,
               },
               signal
             ),
@@ -812,6 +821,15 @@
                     page_size: 10000, // 抓所有
                     page: 1,
                     color_tag: activeColorFilter || undefined,
+                    start_date: activeDateRange === 'all' ? undefined : customStartDate,
+                    end_date:
+                      activeDateRange === 'all'
+                        ? undefined
+                        : customEndDate
+                          ? customEndDate + ' 23:59:59'
+                          : undefined,
+                    strategy: activeFilterType === 'all' ? undefined : activeFilterType,
+                    side: activeSideFilter === 'all' ? undefined : activeSideFilter,
                   },
                   signal
                 )
@@ -2465,15 +2483,15 @@
                     <span class="strat-tag legend">傳 {dailyStats.legend}</span>
                   </div>
 
-                  {#if Math.abs(dailyStats.realizedPnl) > 0.001}
+                  {#if dailyStats.total > 0}
                     <span class="stats-sep">|</span>
                     <span class="stats-label">已實現</span>
                     <span
                       class="stats-value pnl"
-                      class:profit={dailyStats.realizedPnl > 0}
-                      class:loss={dailyStats.realizedPnl < 0}
+                      class:profit={dailyStats.realizedPnl > 0.001}
+                      class:loss={dailyStats.realizedPnl < -0.001}
                     >
-                      {dailyStats.realizedPnl >= 0 ? '+' : ''}{dailyStats.realizedPnl.toFixed(2)}
+                      {Math.abs(dailyStats.realizedPnl) < 0.001 ? '0' : (dailyStats.realizedPnl > 0 ? '+' : '') + dailyStats.realizedPnl.toFixed(2)}
                     </span>
                   {/if}
                 </div>
