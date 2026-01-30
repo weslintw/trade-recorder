@@ -1162,7 +1162,7 @@
         } else if (msg.type === 'PRICE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
             // 優化：直接更新記憶體中的盈虧，不要重新執行 loadData()
-            const updatedTradesCount = updatePnLInMemory(msg.prices);
+            const updatedTradesCount = updatePnLInMemory(msg.data || msg.prices);
             if (updatedTradesCount > 0) {
               // 觸發 Svelte 響應式刷新
               groupedData = groupedData;
@@ -2995,8 +2995,8 @@
                                 <span class="label">進場</span>
                                 <strong>{trade.entry_price}</strong>
                                 <span class="arrow">→</span>
-                                <span class="label">平倉</span>
-                                <strong>{trade.exit_price || '-'}</strong>
+                                <span class="label">{trade.exit_time ? '平倉' : '現價'}</span>
+                                <strong>{trade.exit_price || trade.current_price || '-'}</strong>
                               </div>
 
                               <div class="info-group">

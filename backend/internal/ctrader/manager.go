@@ -735,39 +735,52 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 		multiplier = multiplier / 100.0
 	}
 
+	prices := make(map[string]interface{})
+	prices[symbol] = map[string]interface{}{
+		"bid":  bid,
+		"ask":  ask,
+		"time": time.Now().UnixMilli(),
+	}
+
 	if bid > 0 {
-		res, err := m.db.Exec(`UPDATE trades SET pnl = (? - entry_price) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
+		m.db.Exec(`UPDATE trades SET pnl = (? - entry_price) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
 			WHERE account_id = ? AND symbol = ? AND side = 'long' AND exit_price IS NULL`,
 			bid, multiplier, accountID, symbol)
-		if err == nil && res != nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				// Updated
-			}
-		}
 	}
 
 	if ask > 0 {
-		res, err := m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
+		m.db.Exec(`UPDATE trades SET pnl = (entry_price - ?) * lot_size * ?, updated_at = CURRENT_TIMESTAMP 
 			WHERE account_id = ? AND symbol = ? AND side = 'short' AND exit_price IS NULL`,
 			ask, multiplier, accountID, symbol)
-		if err == nil && res != nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				prices := make(map[string]interface{})
-				prices[symbol] = map[string]interface{}{
-					"price": ask,
-					"time":  time.Now().UnixMilli(),
-				}
+	}
 
-				msg := ws.WSMessage{
-					Type:      "PRICE_UPDATE",
-					AccountID: accountID,
-					Data:      prices,
+	// Fetch updated PnLs to send to frontend for immediate display
+	rows, err := m.db.Query("SELECT ticket, pnl, side FROM trades WHERE account_id = ? AND symbol = ? AND exit_price IS NULL", accountID, symbol)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var ticket, side string
+			var pnl float64
+			if rows.Scan(&ticket, &pnl, &side) == nil {
+				price := bid
+				if side == "short" {
+					price = ask
 				}
-				data, _ := json.Marshal(msg)
-				ws.GlobalHub.Broadcast(data)
+				prices[ticket] = map[string]interface{}{
+					"pnl":   pnl,
+					"price": price,
+				}
 			}
 		}
 	}
+
+	msg := ws.WSMessage{
+		Type:      "PRICE_UPDATE",
+		AccountID: accountID,
+		Data:      prices,
+	}
+	data, _ := json.Marshal(msg)
+	ws.GlobalHub.Broadcast(data)
 
 	// === PERFORMANCE OPTIMIZATION ===
 	// We no longer update pnl_series in DB every 5 seconds to reduce write pressure.
