@@ -21,6 +21,7 @@
     getSymbolMultiplier,
     getSymbolPointValue,
     calculateBulletSize,
+    toLocalDateString,
   } from '../lib/utils';
 
   export let id = null;
@@ -479,9 +480,9 @@
     if (!formData.entry_time || !formData.market_session || allPlans.length === 0) return null;
 
     try {
-      const tradeDate = new Date(formData.entry_time).toISOString().slice(0, 10);
+      const tradeDate = toLocalDateString(new Date(formData.entry_time));
       return allPlans.find(plan => {
-        const planDate = new Date(plan.plan_date).toISOString().slice(0, 10);
+        const planDate = toLocalDateString(new Date(plan.plan_date));
         if (planDate !== tradeDate) return false;
 
         // 同時匹配品種 (如果有 symbol 欄位的話，舊資料預設 XAUUSD)
@@ -1712,7 +1713,7 @@
                   <span
                     class="status-no"
                     on:click={() => {
-                      const date = new Date(formData.entry_time).toISOString().slice(0, 10);
+                      const date = toLocalDateString(new Date(formData.entry_time));
                       navigate(
                         `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
                       );

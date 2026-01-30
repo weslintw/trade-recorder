@@ -188,3 +188,17 @@ export function calculateBulletSize(trade) {
     return Math.round(riskPoints * pointValue * lots * 100) / 100;
 }
 
+/**
+ * 將日期轉換為在地時區的 YYYY-MM-DD 格式
+ * 避免 toISOString() 導致的 UTC 時差問題 (例如台灣早上的單被歸類到前一天)
+ */
+export function toLocalDateString(date) {
+    if (!date) return '';
+    const d = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(d.getTime())) return '';
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}

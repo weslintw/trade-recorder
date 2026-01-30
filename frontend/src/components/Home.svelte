@@ -10,6 +10,7 @@
     getStrategyLabel,
     parseJSONSafe,
     calculateBulletSize,
+    toLocalDateString,
   } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -675,7 +676,7 @@
       console.log(`[${INSTANCE_ID}] loadData #${callId} started for symbol:`, $selectedSymbol);
 
       const symbol = $selectedSymbol;
-      todayString = new Date().toISOString().slice(0, 10);
+      todayString = toLocalDateString(new Date());
 
       // 生成 cache key（基於 account, symbol, date range）
       // 生成 cache key（基於 account, symbol, date range）
@@ -880,7 +881,7 @@
                         try {
                         const d = new Date(plan.plan_date);
                         if (isNaN(d.getTime())) return;
-                        const ds = d.toISOString().slice(0, 10);
+                        const ds = toLocalDateString(d);
                         if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
                         bgDateMap[ds].plans.push(plan);
                         } catch (e) {}
@@ -891,7 +892,7 @@
                         try {
                         const d = new Date(trade.entry_time);
                         if (isNaN(d.getTime())) return;
-                        const ds = d.toISOString().slice(0, 10);
+                        const ds = toLocalDateString(d);
                         if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
                         const entryTimeKey = trade.entry_time;
@@ -1003,7 +1004,7 @@
         try {
           const d = new Date(plan.plan_date);
           if (isNaN(d.getTime())) return;
-          const ds = d.toISOString().slice(0, 10);
+          const ds = toLocalDateString(d);
           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
           dateMap[ds].plans.push(plan);
         } catch (e) {}
@@ -1014,7 +1015,7 @@
         try {
           const d = new Date(trade.entry_time);
           if (isNaN(d.getTime())) return;
-          const ds = d.toISOString().slice(0, 10);
+          const ds = toLocalDateString(d);
           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
           const entryTimeKey = trade.entry_time;

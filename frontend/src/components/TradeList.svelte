@@ -4,7 +4,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize, toLocalDateString } from '../lib/utils';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   let showAnnotator = false;
@@ -64,9 +64,9 @@
     if (!trade.entry_time || !trade.market_session || allPlans.length === 0) return null;
 
     try {
-      const tradeDate = new Date(trade.entry_time).toISOString().slice(0, 10);
+      const tradeDate = toLocalDateString(new Date(trade.entry_time));
       return allPlans.find(plan => {
-        const planDate = new Date(plan.plan_date).toISOString().slice(0, 10);
+        const planDate = toLocalDateString(new Date(plan.plan_date));
         if (planDate !== tradeDate) return false;
 
         // 同時匹配品種 (舊資料預設 XAUUSD)
@@ -631,7 +631,7 @@
                 <button
                   class="btn btn-sm btn-outline-primary"
                   on:click|stopPropagation={() => {
-                    const date = new Date(trade.entry_time).toISOString().slice(0, 10);
+                    const date = toLocalDateString(new Date(trade.entry_time));
                     navigate(
                       `/plans/new?date=${date}&session=${trade.market_session}&symbol=${trade.symbol}`
                     );

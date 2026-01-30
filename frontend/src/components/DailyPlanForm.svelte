@@ -9,7 +9,7 @@
   import ShareModal from './ShareModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
 
-  import { determineMarketSession } from '../lib/utils';
+  import { determineMarketSession, toLocalDateString } from '../lib/utils';
 
   export let id = null;
 
@@ -65,7 +65,7 @@
 
   let formData = {
     account_id: $selectedAccountId,
-    plan_date: new Date().toISOString().slice(0, 10),
+    plan_date: toLocalDateString(new Date()),
     symbol: SYMBOLS[0],
     sessions: {
       asian: createInitialSessionData(),
@@ -290,7 +290,7 @@
       const data = response.data;
       const trendAnalysis = data.trend_analysis ? JSON.parse(data.trend_analysis) : null;
 
-      formData.plan_date = new Date(data.plan_date).toLocaleDateString('en-CA');
+      formData.plan_date = toLocalDateString(new Date(data.plan_date));
       formData.symbol = data.symbol || SYMBOLS[0];
 
       if (trendAnalysis && trendAnalysis.asian) {
