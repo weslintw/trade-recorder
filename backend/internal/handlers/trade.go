@@ -213,7 +213,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			SELECT 
 				COUNT(*) as total_count,
 				COUNT(CASE WHEN pnl > 0 AND trade_type = 'actual' AND exit_time IS NOT NULL THEN 1 END) as win_count,
-				SUM(CASE WHEN trade_type = 'actual' AND exit_time IS NOT NULL THEN COALESCE(pnl, 0) ELSE 0 END) as total_pnl,
+				SUM(CASE WHEN trade_type = 'actual' AND exit_time IS NOT NULL THEN COALESCE(pnl, 0) ELSE 0 END) as realized_pnl,
+				SUM(CASE WHEN trade_type = 'actual' AND exit_time IS NULL THEN COALESCE(pnl, 0) ELSE 0 END) as floating_pnl,
 				COUNT(CASE WHEN entry_strategy IN ('expert', '達人') THEN 1 END) as expert_count,
 				COUNT(CASE WHEN entry_strategy IN ('elite', '菁英') THEN 1 END) as elite_count,
 				COUNT(CASE WHEN entry_strategy IN ('legend', '傳奇') THEN 1 END) as legend_count,
@@ -263,6 +264,8 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			TotalCount  int     `json:"total_count"`
 			WinCount    int     `json:"win_count"`
 			TotalPnL    float64 `json:"total_pnl"`
+			RealizedPnL float64 `json:"realized_pnl"`
+			FloatingPnL float64 `json:"floating_pnl"`
 			ExpertCount int     `json:"expert_count"`
 			EliteCount  int     `json:"elite_count"`
 			LegendCount int     `json:"legend_count"`
@@ -271,10 +274,11 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			RedCount    int     `json:"red_count"`
 		}
 		db.QueryRow(summaryQuery, summaryArgs...).Scan(
-			&summary.TotalCount, &summary.WinCount, &summary.TotalPnL,
+			&summary.TotalCount, &summary.WinCount, &summary.RealizedPnL, &summary.FloatingPnL,
 			&summary.ExpertCount, &summary.EliteCount, &summary.LegendCount,
 			&summary.GreenCount, &summary.YellowCount, &summary.RedCount,
 		)
+		summary.TotalPnL = summary.RealizedPnL + summary.FloatingPnL
 
 		total := summary.TotalCount
 		// Estimate size

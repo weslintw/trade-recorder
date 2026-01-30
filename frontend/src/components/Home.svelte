@@ -250,8 +250,10 @@
       total: 0,
       wins: 0,
       winRate: '0.0',
+      realizedPnl: '0.00',
+      floatingPnl: '0.00',
       totalPnl: '0.00',
-      hasTrades: false,
+      hasFloating: false,
       green: 0,
       yellow: 0,
       red: 0,
@@ -278,7 +280,8 @@
 
     let total = 0;
     let wins = 0;
-    let totalPnlValue = 0;
+    let realizedPnlValue = 0;
+    let floatingPnlValue = 0;
 
     for (let i = 0; i < allTrades.length; i++) {
       const t = allTrades[i];
@@ -291,18 +294,24 @@
       else if (strat === 'elite' || strat === '菁英') stats.elite++;
       else if (strat === 'legend' || strat === '傳奇') stats.legend++;
 
-      if (t.trade_type === 'actual' && t.exit_time && t.pnl !== null && t.pnl !== undefined) {
-        total++;
-        if (t.pnl > 0) wins++;
-        totalPnlValue += t.pnl || 0;
+      if (t.trade_type === 'actual' && t.pnl !== null && t.pnl !== undefined) {
+        if (t.exit_time) {
+          total++;
+          if (t.pnl > 0) wins++;
+          realizedPnlValue += t.pnl || 0;
+        } else {
+          floatingPnlValue += t.pnl || 0;
+          stats.hasFloating = true;
+        }
       }
     }
 
     stats.total = total;
     stats.wins = wins;
-    stats.hasTrades = allTrades.length > 0;
+    stats.realizedPnl = realizedPnlValue.toFixed(2);
+    stats.floatingPnl = floatingPnlValue.toFixed(2);
+    stats.totalPnl = (realizedPnlValue + floatingPnlValue).toFixed(2);
     if (total > 0) stats.winRate = ((wins * 100) / total).toFixed(1);
-    stats.totalPnl = totalPnlValue.toFixed(2);
     return stats;
   })();
 
@@ -314,6 +323,9 @@
         total_count: filteredStats.total,
         win_count: filteredStats.wins,
         total_pnl: parseFloat(filteredStats.totalPnl),
+        realized_pnl: parseFloat(filteredStats.realizedPnl),
+        floating_pnl: parseFloat(filteredStats.floatingPnl),
+        has_floating: filteredStats.hasFloating,
         green_count: filteredStats.green,
         yellow_count: filteredStats.yellow,
         red_count: filteredStats.red,
@@ -2186,6 +2198,20 @@
               )}%</span
             >
 
+            {#if displayedSummary.has_floating || displayedSummary.floating_pnl !== 0}
+              <span class="stats-sep">|</span>
+              <span class="stats-label">浮動</span>
+              <span class="stats-value pnl" class:profit={displayedSummary.floating_pnl > 0.001} class:loss={displayedSummary.floating_pnl < -0.001}>
+                {(displayedSummary.floating_pnl > 0 ? '+' : '') + (displayedSummary.floating_pnl || 0).toFixed(2)}
+              </span>
+            {/if}
+
+            <span class="stats-sep">|</span>
+            <span class="stats-label">已實現</span>
+            <span class="stats-value pnl" class:profit={(displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0.001} class:loss={(displayedSummary.realized_pnl || displayedSummary.total_pnl) < -0.001}>
+              {((displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0 ? '+' : '') + (displayedSummary.realized_pnl || displayedSummary.total_pnl || 0).toFixed(2)}
+            </span>
+
             <div class="stats-color-groups">
               <span class="stats-color-dot green"></span>
               <span class="stats-color-count">{displayedSummary.green_count}</span>
@@ -2482,6 +2508,18 @@
                     <span class="strat-tag elite">菁 {dailyStats.elite}</span>
                     <span class="strat-tag legend">傳 {dailyStats.legend}</span>
                   </div>
+
+                  {#if dailyStats.hasFloating}
+                    <span class="stats-sep">|</span>
+                    <span class="stats-label">浮動</span>
+                    <span
+                      class="stats-value pnl"
+                      class:profit={dailyStats.floatingPnl > 0.001}
+                      class:loss={dailyStats.floatingPnl < -0.001}
+                    >
+                      {(dailyStats.floatingPnl > 0 ? '+' : '') + dailyStats.floatingPnl.toFixed(2)}
+                    </span>
+                  {/if}
 
                   {#if dailyStats.total > 0}
                     <span class="stats-sep">|</span>
