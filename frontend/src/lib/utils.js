@@ -189,16 +189,47 @@ export function calculateBulletSize(trade) {
 }
 
 /**
- * 將日期轉換為在地時區的 YYYY-MM-DD 格式
- * 避免 toISOString() 導致的 UTC 時差問題 (例如台灣早上的單被歸類到前一天)
+ * 將日期轉換為「交易日」格式 (YYYY-MM-DD)
+ * 邏輯：處理美盤跨日，凌晨 00:00 - 06:00 (冬令) 或 05:00 (夏令) 算前一天的交易日
+ * 符合使用者需求：冬令 6-7 點暫停，暫停之前的時間都是前一天，之後就是今天。
  */
-export function toLocalDateString(date) {
+export function toTradingDateString(date) {
     if (!date) return '';
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return '';
+    // 使用 Intl.DateTimeFormat 取台北時間 (GMT+8)
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        hour12: false
+    }).formatToParts(d);
 
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const map = {};
+    for (const p of parts) {
+        map[p.type] = p.value;
+    }
+
+    let year = parseInt(map.year);
+    let month = parseInt(map.month);
+    let day = parseInt(map.day);
+    let hour = parseInt(map.hour);
+
+    if (hour === 24) hour = 0;
+
+    const isDST = month >= 3 && month <= 11;
+    const cutoffHour = isDST ? 5 : 6;
+
+    if (hour < cutoffHour) {
+        const temp = new Date(Date.UTC(year, month - 1, day));
+        temp.setUTCDate(temp.getUTCDate() - 1);
+        year = temp.getUTCFullYear();
+        month = temp.getUTCMonth() + 1;
+        day = temp.getUTCDate();
+    }
+
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
+

@@ -7,6 +7,7 @@
     getMarketSessionLabel,
     calculateDuration,
     calculateBulletSize,
+    toTradingDateString,
   } from '../lib/utils';
   import 'quill/dist/quill.snow.css';
   import Sparkline from './Sparkline.svelte';
@@ -212,53 +213,13 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     return html.replace(/<img /g, '<img loading="lazy" ');
   }
 
-  function getTradingDate(isoString) {
-    if (!isoString) return 'unknown';
-    try {
-      const date = new Date(isoString);
-      // Format to parts in NY time to handle DST correctly
-      const options = {
-        timeZone: 'America/New_York',
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        hour12: false,
-      };
-      const formatter = new Intl.DateTimeFormat('en-US', options);
-      const parts = formatter.formatToParts(date);
-
-      const p = {};
-      parts.forEach(({ type, value }) => (p[type] = value));
-
-      let nyYear = parseInt(p.year);
-      let nyMonth = parseInt(p.month);
-      let nyDay = parseInt(p.day);
-      let nyHour = parseInt(p.hour);
-      if (isNaN(nyHour)) nyHour = 0;
-
-      // Logic: If Hour >= 17 (5 PM), belongs to next trading day
-      if (nyHour >= 17) {
-        const d = new Date(nyYear, nyMonth - 1, nyDay);
-        d.setDate(d.getDate() + 1);
-        nyYear = d.getFullYear();
-        nyMonth = d.getMonth() + 1;
-        nyDay = d.getDate();
-      }
-
-      return `${nyYear}-${String(nyMonth).padStart(2, '0')}-${String(nyDay).padStart(2, '0')}`;
-    } catch (e) {
-      console.warn('Date parse error', e);
-      return isoString.slice(0, 10);
-    }
-  }
 
   function groupDataByDate(trades, plans) {
     const groups = {};
 
     trades.forEach(t => {
       // Use trading date logic
-      const date = t.entry_time ? getTradingDate(t.entry_time) : 'unknown';
+      const date = t.entry_time ? toTradingDateString(t.entry_time) : 'unknown';
       if (!groups[date]) groups[date] = { date, trades: [], plans: [] };
       groups[date].trades.push(t);
     });
@@ -297,7 +258,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     return sharedData.data.trades.filter(t => {
       // Date Filter
       if (activeDateRange !== 'all') {
-        const entryDate = t.entry_time ? getTradingDate(t.entry_time) : 'unknown';
+        const entryDate = t.entry_time ? toTradingDateString(t.entry_time) : 'unknown';
         if (entryDate === 'unknown') return false;
         if (customStartDate && entryDate < customStartDate) return false;
         if (customEndDate && entryDate > customEndDate) return false;
@@ -414,7 +375,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     } else {
       activeDateRange = range;
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = toTradingDateString(now);
 
       if (range === '1D') {
         customStartDate = todayStr;
@@ -422,12 +383,12 @@ import ImageAnnotator from './ImageAnnotator.svelte';
       } else if (range === '1W') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        customStartDate = d.toISOString().split('T')[0];
+        customStartDate = toTradingDateString(d);
         customEndDate = todayStr;
       } else if (range === '1M') {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
-        customStartDate = d.toISOString().split('T')[0];
+        customStartDate = toTradingDateString(d);
         customEndDate = todayStr;
       }
     }
@@ -591,8 +552,8 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                           if (!customStartDate) {
                             const d = new Date();
                             d.setDate(d.getDate() - 7);
-                            customStartDate = d.toISOString().split('T')[0];
-                            customEndDate = new Date().toISOString().split('T')[0];
+                            customStartDate = toTradingDateString(d);
+                            customEndDate = toTradingDateString(new Date());
                           }
                         }
                       }}

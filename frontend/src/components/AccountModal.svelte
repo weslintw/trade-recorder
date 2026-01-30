@@ -1,6 +1,7 @@
 <script>
   import { createEventDispatcher } from 'svelte';
   import { accountsAPI } from '../lib/api';
+  import { toTradingDateString } from '../lib/utils';
 
   export let show = false;
   export let account = null;
@@ -26,7 +27,7 @@
   };
   
   let syncOption = 'default'; // 'default', 'all', 'date'
-  let syncStartDate = new Date().toISOString().split('T')[0];
+  let syncStartDate = toTradingDateString(new Date());
 
   $: if (syncOption === 'all') {
     newAccount.sync_all = true;

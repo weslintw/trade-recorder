@@ -1,11 +1,12 @@
 <script>
   import { createEventDispatcher } from 'svelte';
+  import { toTradingDateString } from '../lib/utils';
   const dispatch = createEventDispatcher();
 
   export let show = false;
   
   let syncOption = 'default'; // 'default', 'all', 'date'
-  let syncStartDate = new Date().toISOString().split('T')[0];
+  let syncStartDate = toTradingDateString(new Date());
 
   function handleSync() {
     let options = {};

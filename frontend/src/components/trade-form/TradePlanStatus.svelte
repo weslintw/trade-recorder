@@ -1,12 +1,12 @@
 <script>
   import { navigate } from 'svelte-routing';
-  import { toLocalDateString } from '../../lib/utils';
+  import { toTradingDateString } from '../../lib/utils';
 
   export let matchedPlan = null;
   export let formData = {};
 
   function handleCreatePlan() {
-    const date = toLocalDateString(new Date(formData.entry_time));
+    const date = toTradingDateString(new Date(formData.entry_time));
     navigate(
       `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
     );

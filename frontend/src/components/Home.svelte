@@ -10,7 +10,7 @@
     getStrategyLabel,
     parseJSONSafe,
     calculateBulletSize,
-    toLocalDateString,
+    toTradingDateString,
   } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -33,7 +33,7 @@
   };
   let loadingMessage = '正在啟動時光機...';
 
-  let todayString = new Date().toLocaleDateString('en-CA'); // 使用 YYYY-MM-DD 格式的本地日期
+  let todayString = toTradingDateString(new Date());
   let selectedImage = null;
   let modalTitle = '';
   let isSyncing = false;
@@ -144,7 +144,7 @@
     } else {
       activeDateRange = range;
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0];
+      const todayStr = toTradingDateString(now);
 
       if (range === '1D') {
         customStartDate = todayStr;
@@ -152,12 +152,12 @@
       } else if (range === '1W') {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        customStartDate = d.toISOString().split('T')[0];
+        customStartDate = toTradingDateString(d);
         customEndDate = todayStr;
       } else if (range === '1M') {
         const d = new Date();
         d.setMonth(d.getMonth() - 1);
-        customStartDate = d.toISOString().split('T')[0];
+        customStartDate = toTradingDateString(d);
         customEndDate = todayStr;
       }
       // For 'custom', we check in the button click handler, usually sets activeDateRange directly
@@ -676,7 +676,7 @@
       console.log(`[${INSTANCE_ID}] loadData #${callId} started for symbol:`, $selectedSymbol);
 
       const symbol = $selectedSymbol;
-      todayString = toLocalDateString(new Date());
+      todayString = toTradingDateString(new Date());
 
       // 生成 cache key（基於 account, symbol, date range）
       // 生成 cache key（基於 account, symbol, date range）
@@ -881,7 +881,7 @@
                         try {
                         const d = new Date(plan.plan_date);
                         if (isNaN(d.getTime())) return;
-                        const ds = toLocalDateString(d);
+                        const ds = toTradingDateString(d);
                         if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
                         bgDateMap[ds].plans.push(plan);
                         } catch (e) {}
@@ -892,7 +892,7 @@
                         try {
                         const d = new Date(trade.entry_time);
                         if (isNaN(d.getTime())) return;
-                        const ds = toLocalDateString(d);
+                        const ds = toTradingDateString(d);
                         if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
                         const entryTimeKey = trade.entry_time;
@@ -1004,7 +1004,7 @@
         try {
           const d = new Date(plan.plan_date);
           if (isNaN(d.getTime())) return;
-          const ds = toLocalDateString(d);
+          const ds = toTradingDateString(d);
           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
           dateMap[ds].plans.push(plan);
         } catch (e) {}
@@ -1015,7 +1015,7 @@
         try {
           const d = new Date(trade.entry_time);
           if (isNaN(d.getTime())) return;
-          const ds = toLocalDateString(d);
+          const ds = toTradingDateString(d);
           if (!dateMap[ds]) dateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
           const entryTimeKey = trade.entry_time;
@@ -2150,12 +2150,12 @@
               } else {
                 activeDateRange = 'custom';
                 // Set default custom range if empty
-                if (!customStartDate) {
-                  const d = new Date();
-                  d.setDate(d.getDate() - 7);
-                  customStartDate = d.toISOString().split('T')[0];
-                  customEndDate = new Date().toISOString().split('T')[0];
-                }
+                  if (!customStartDate) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 7);
+                    customStartDate = toTradingDateString(d);
+                    customEndDate = toTradingDateString(new Date());
+                  }
                 // Don't auto-load, let user pick dates
               }
             }}

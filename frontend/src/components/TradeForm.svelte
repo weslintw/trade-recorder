@@ -21,7 +21,7 @@
     getSymbolMultiplier,
     getSymbolPointValue,
     calculateBulletSize,
-    toLocalDateString,
+    toTradingDateString,
   } from '../lib/utils';
 
   export let id = null;
@@ -289,25 +289,6 @@
 
   // 市場時段判別已由 utils.js 的 determineMarketSession 處理
 
-  // 取得交易日（處理美盤跨日：凌晨的時間算前一天的交易日）
-  function getTradingDate(entryTime) {
-    if (!entryTime) return '';
-    const date = new Date(entryTime);
-
-    // 轉換為 GMT+8 用於判斷
-    const utcHour = date.getUTCHours();
-    const gmt8Hour = (utcHour + 8 + 24) % 24;
-
-    // 如果是凌晨 00:00 - 06:00 且不是亞盤時間，通常屬於前一天的美盤
-    // 這裡我們簡化處理：如果是 00:00 - 06:00，我們回傳前一天的日期字串
-    if (gmt8Hour >= 0 && gmt8Hour < 6) {
-      const prevDay = new Date(date);
-      prevDay.setDate(date.getDate() - 1);
-      return prevDay.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    }
-
-    return date.toLocaleDateString('en-CA'); // YYYY-MM-DD
-  }
 
   // 盈虧點數與風險指標自動計算
   $: {
@@ -480,9 +461,9 @@
     if (!formData.entry_time || !formData.market_session || allPlans.length === 0) return null;
 
     try {
-      const tradeDate = toLocalDateString(new Date(formData.entry_time));
+      const tradeDate = toTradingDateString(new Date(formData.entry_time));
       return allPlans.find(plan => {
-        const planDate = toLocalDateString(new Date(plan.plan_date));
+        const planDate = toTradingDateString(new Date(plan.plan_date));
         if (planDate !== tradeDate) return false;
 
         // 同時匹配品種 (如果有 symbol 欄位的話，舊資料預設 XAUUSD)
@@ -1713,7 +1694,7 @@
                   <span
                     class="status-no"
                     on:click={() => {
-                      const date = toLocalDateString(new Date(formData.entry_time));
+                      const date = toTradingDateString(new Date(formData.entry_time));
                       navigate(
                         `/plans/new?date=${date}&session=${formData.market_session}&symbol=${formData.symbol}`
                       );
