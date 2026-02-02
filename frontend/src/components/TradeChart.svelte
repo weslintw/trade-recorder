@@ -23,6 +23,7 @@
   let previewLine = null;
   let draggingPoint = null; // { lineIndex, pointIndex (0 or 1) }
   let selectedLineIndex = null;
+  let rafId = null;
 
   onMount(function() {
     initChart();
@@ -33,8 +34,10 @@
     document.addEventListener('mozfullscreenchange', handleFullscreenChange);
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     window.addEventListener('keydown', handleKeydown);
-    
     return function() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
       if (chart) {
         chart.remove();
       }
@@ -311,35 +314,42 @@
 
   function handleCrosshairMove(param) {
     if (!param || !param.point || !param.time) return;
-    const price = candlestickSeries.coordinateToPrice(param.point.y);
-    if (!price) return;
+    
+    // Use requestAnimationFrame to avoid "Maximum call stack size exceeded"
+    // which can happen if setData triggers a layout change that triggers crosshairMove.
+    if (rafId) cancelAnimationFrame(rafId);
+    
+    rafId = requestAnimationFrame(function() {
+      const price = candlestickSeries.coordinateToPrice(param.point.y);
+      if (!price) return;
 
-    // Drawing preview
-    if (drawingActive && firstPoint && previewLine) {
-      const lineData = [
-        { time: firstPoint.time, value: firstPoint.price },
-        { time: param.time, value: price }
-      ];
-      lineData.sort(function(a, b) { return a.time - b.time; });
-      previewLine.setData(lineData);
-    }
-
-    // Dragging update
-    if (draggingPoint) {
-      const line = drawnLines[draggingPoint.lineIndex];
-      if (draggingPoint.pointIndex === 0) {
-        line.p1 = { time: param.time, price: price };
-      } else {
-        line.p2 = { time: param.time, price: price };
+      // Drawing preview
+      if (drawingActive && firstPoint && previewLine) {
+        const lineData = [
+          { time: firstPoint.time, value: firstPoint.price },
+          { time: param.time, value: price }
+        ];
+        lineData.sort(function(a, b) { return a.time - b.time; });
+        previewLine.setData(lineData);
       }
-      
-      const lineData = [
-        { time: line.p1.time, value: line.p1.price },
-        { time: line.p2.time, value: line.p2.price }
-      ];
-      lineData.sort(function(a, b) { return a.time - b.time; });
-      line.series.setData(lineData);
-    }
+
+      // Dragging update
+      if (draggingPoint) {
+        const line = drawnLines[draggingPoint.lineIndex];
+        if (draggingPoint.pointIndex === 0) {
+          line.p1 = { time: param.time, price: price };
+        } else {
+          line.p2 = { time: param.time, price: price };
+        }
+        
+        const lineData = [
+          { time: line.p1.time, value: line.p1.price },
+          { time: line.p2.time, value: line.p2.price }
+        ];
+        lineData.sort(function(a, b) { return a.time - b.time; });
+        line.series.setData(lineData);
+      }
+    });
   }
 
   function addTrendline(p1, p2) {
