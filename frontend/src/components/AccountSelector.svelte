@@ -54,7 +54,6 @@
           {#each $accounts as account}
             <option value={account.id}>
               {account.name}
-              {account.type === 'ctrader' ? '(cTrader)' : '(本地)'}
             </option>
           {/each}
         {/if}
