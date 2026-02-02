@@ -282,6 +282,7 @@
         <span class="icon">📸</span> 複製截圖
       {/if}
     </button>
+    </div>
   </div>
 
   {#if loading}
