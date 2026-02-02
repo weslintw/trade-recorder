@@ -12,6 +12,7 @@
   let loading = true;
   let error = null;
   let timeframe = '';
+  let copying = false;
 
   onMount(function() {
     initChart();
@@ -167,13 +168,50 @@
       loading = false;
     }
   }
+
+  async function copyChartImage() {
+    if (!chart || copying) return;
+    try {
+      copying = true;
+      const canvas = chart.takeScreenshot();
+      canvas.toBlob(function(blob) {
+        if (!blob) {
+          copying = false;
+          return;
+        }
+        
+        const data = [new ClipboardItem({ 'image/png': blob })];
+        navigator.clipboard.write(data).then(function() {
+          setTimeout(function() {
+            copying = false;
+          }, 2000);
+        }).catch(function(err) {
+          console.error('Clipboard error:', err);
+          copying = false;
+        });
+      });
+    } catch (e) {
+      console.error('Screenshot error:', e);
+      copying = false;
+    }
+  }
 </script>
 
 <div class="chart-wrapper">
   <div class="chart-info-overlay">
-    <span class="symbol-tag">{trade?.symbol || ''}</span>
-    <span class="timeframe-tag">{timeframe}</span>
-    <span class="timezone-tag">時區: UTC+8 (Local)</span>
+    <div class="tags-group">
+      <span class="symbol-tag">{trade?.symbol || ''}</span>
+      <span class="timeframe-tag">{timeframe}</span>
+      <span class="timezone-tag">時區: UTC+8 (Local)</span>
+    </div>
+    
+    <button class="copy-button" on:click={copyChartImage} disabled={copying}>
+      {#if copying}
+        <span class="icon">✅</span> 已複製
+      {:else}
+        <span class="icon">📸</span> 複製截圖
+      {/if}
+    </button>
   </div>
 
   {#if loading}
@@ -217,10 +255,47 @@
     position: absolute;
     top: 16px;
     left: 16px;
+    right: 16px;
     z-index: 5;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .tags-group {
     display: flex;
     gap: 8px;
     pointer-events: none;
+  }
+
+  .copy-button {
+    pointer-events: auto;
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #cbd5e1;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .copy-button:hover {
+    background: rgba(51, 65, 85, 0.95);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  }
+
+  .copy-button:active {
+    transform: translateY(0) scale(0.96);
   }
 
   .symbol-tag, .timeframe-tag, .timezone-tag {
