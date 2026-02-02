@@ -331,8 +331,14 @@
         </button>
       {/if}
       
-      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具 (點擊圖表兩次成實)">
-        <span class="icon">📏</span>
+      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具 (點擊圖表兩次成成線)">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="19" cy="5" r="3"/>
+            <circle cx="5" cy="19" r="3"/>
+            <line x1="7.1" y1="16.9" x2="16.9" y2="7.1"/>
+          </svg>
+        </span>
         {drawingActive ? (firstPoint ? '請點第二點' : '畫線中...') : '趨勢線'}
       </button>
 
@@ -340,12 +346,21 @@
         {#if copying}
           <span class="icon">✅</span>
         {:else}
-          <span class="icon">📸</span>
+          <span class="icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          </span>
         {/if}
       </button>
 
       <button class="tool-button fullscreen-button" on:click={toggleFullscreen} title={isFullscreen ? "退出全螢幕" : "全螢幕檢視"}>
-        <span class="icon">{isFullscreen ? '↙️' : '↗️'}</span>
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        </span>
       </button>
     </div>
   </div>
