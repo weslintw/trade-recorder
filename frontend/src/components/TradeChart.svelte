@@ -297,12 +297,15 @@
     } else {
       const secondPoint = { time: param.time, price: price };
       addTrendline(firstPoint, secondPoint);
+      
+      // Explicitly exit drawing mode
+      drawingActive = false;
       if (previewLine) {
         chart.removeSeries(previewLine);
         previewLine = null;
       }
       firstPoint = null;
-      toggleDrawing(); // 畫完自動結束繪製模式
+      chart.applyOptions({ handleScroll: true, handleScale: true });
     }
   }
 
