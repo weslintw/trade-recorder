@@ -8,7 +8,7 @@ export const selectedAccountId = writable(
   storedAccount && storedAccount !== 'NaN' ? parseInt(storedAccount) : null
 );
 
-// 當帳號改變時存入 localStorage
+// 當帳號改變時存入 localStorage 並清空快取
 selectedAccountId.subscribe(value => {
   if (typeof localStorage !== 'undefined') {
     if (value !== null && !isNaN(value)) {
@@ -17,6 +17,16 @@ selectedAccountId.subscribe(value => {
       localStorage.removeItem('selectedAccountId');
     }
   }
+  // 重要：切換帳號時立即清空快取，防止舊帳號資料殘留
+  tradeDataCache.set({
+    key: null,
+    scope: null,
+    plans: [],
+    trades: [],
+    summary: null,
+    timestamp: null,
+    stale: false,
+  });
 });
 
 // 預設品種從 localStorage 讀取

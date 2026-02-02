@@ -684,19 +684,25 @@
 
       // 智能緩存檢查：
       // 1. 完全命中：Key 一致且未過期
-      // 2. 範圍命中：如果 Cache 中已經有 'all' (全部) 的資料，那無論現在選什麼日期範圍，都直接用 Cache
+      // 2. 範圍命中：如果 Cache 中已經有該帳號、該品種 'all' (全部) 的資料，那無論現在選什麼日期範圍，都直接用 Cache
       const isExactMatch = dataCache.key === cacheKey;
-      const isSupersetMatch = dataCache.scope === 'all' && dataCache.trades.length > 0;
+      
+      // 修復：必須檢查 ID 與 Symbol 是否匹配，否則切換帳號時會誤用上一個帳號的快取
+      const prefix = `${$selectedAccountId}_${symbol}_`;
+      const isSupersetMatch = dataCache.scope === 'all' && 
+                             dataCache.trades.length > 0 && 
+                             dataCache.key && 
+                             dataCache.key.startsWith(prefix);
 
       const isCacheValid =
         (isExactMatch || isSupersetMatch) &&
         dataCache.timestamp &&
         Date.now() - dataCache.timestamp < 300000; // 5分鐘有效期
 
-      let needsFetch = !isCacheValid; // 核心控制變數：決定是否需要發起網路請求
+      let needsFetch = !isCacheValid; 
 
       console.log(
-        `[${INSTANCE_ID}] Cache check: key=${cacheKey}, valid=${isCacheValid}, scope=${dataCache.scope}, isSuperset=${isSupersetMatch}`
+        `[${INSTANCE_ID}] Cache check: key=${cacheKey}, curKey=${dataCache.key}, valid=${isCacheValid}, scope=${dataCache.scope}, isSuperset=${isSupersetMatch}`
       );
 
       let globalSummaryData = null;
