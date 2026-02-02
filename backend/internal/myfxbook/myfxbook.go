@@ -140,7 +140,7 @@ func SyncMyfxbookHistory(db *sql.DB, accountID int64, email, password, myfxbookA
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`, accountID, tx.Symbol, side, float64(tx.OpenPrice), float64(tx.ClosePrice), float64(tx.Sizing.Value),
 			totalPnL, float64(tx.Pips), openTime, closeTime, "actual",
-			"Myfxbook 同步: "+tx.Comment, 8, marketSession, ticket, float64(tx.SL))
+			tx.Comment, 8, marketSession, ticket, float64(tx.SL))
 
 		if err == nil {
 			count++

@@ -30,6 +30,16 @@
       loading = false;
       firstLoad = false;
     }
+
+    // 當帳號改變時，如果 accounts store 已經有資料但不包含目前的 ID，
+    // 可能需要重新抓取帳號列表（例如在後台新增了帳號）
+    const unsubscribe = selectedAccountId.subscribe(id => {
+      if (id && $accounts.length > 0) {
+        const exists = $accounts.some(a => a.id == id);
+        if (!exists) fetchAccounts();
+      }
+    });
+    return unsubscribe;
   });
 </script>
 

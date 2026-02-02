@@ -415,7 +415,7 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 				swapStr = row[10]
 				commissionStr = row[11]
 				profitStr = row[12]
-				comment = "FTMO CSV 匯入: Ticket " + ticket
+				comment = ticket // 既然不想要額外文字，就只存 Ticket ID
 			} else if source == "myfxbook" {
 				if len(row) < 15 {
 					errorTickets = append(errorTickets, "Unknown (Row "+strconv.Itoa(i)+")")
@@ -441,10 +441,10 @@ func ImportTradesCSV(db *sql.DB) gin.HandlerFunc {
 					comment = row[16]
 				}
 				if comment == "" {
-					comment = "Myfxbook CSV 匯入"
+					comment = ""
 				}
 				if ticket != "" {
-					comment += " (Ticket: " + ticket + ")"
+					comment = ticket
 				}
 			}
 
