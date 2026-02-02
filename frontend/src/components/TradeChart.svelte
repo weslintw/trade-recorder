@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import * as LightweightCharts from 'lightweight-charts';
+  import { createChart, CandlestickSeries, createSeriesMarkers } from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -26,15 +26,7 @@
   function initChart() {
     if (!chartContainer) return;
     
-    // Ensure we use the correct createChart function
-    const createChartFunc = LightweightCharts.createChart;
-    if (typeof createChartFunc !== 'function') {
-      console.error('LightweightCharts.createChart is not a function', LightweightCharts);
-      error = "圖表套件載入錯誤";
-      return;
-    }
-
-    chart = createChartFunc(chartContainer, {
+    chart = createChart(chartContainer, {
       layout: {
         background: { color: 'transparent' },
         textColor: '#94a3b8',
@@ -60,7 +52,7 @@
       },
     });
 
-    candlestickSeries = chart.addCandlestickSeries({
+    candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#10b981',
       downColor: '#ef4444',
       borderVisible: false,
@@ -150,7 +142,7 @@
       }
       
       markers.sort(function(a, b) { return a.time - b.time; });
-      candlestickSeries.setMarkers(markers);
+      candlestickSeries.attach(createSeriesMarkers, markers);
       
       chart.timeScale().fitContent();
 
