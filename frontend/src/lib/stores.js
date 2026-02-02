@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store';
 import { SYMBOLS } from './constants';
 
+// --- 1. 定義所有 Store ---
+
 // 預設帳號 ID 為 1
 const storedAccount =
   typeof localStorage !== 'undefined' ? localStorage.getItem('selectedAccountId') : null;
@@ -8,38 +10,10 @@ export const selectedAccountId = writable(
   storedAccount && storedAccount !== 'NaN' ? parseInt(storedAccount) : null
 );
 
-// 當帳號改變時存入 localStorage 並清空快取
-selectedAccountId.subscribe(value => {
-  if (typeof localStorage !== 'undefined') {
-    if (value !== null && !isNaN(value)) {
-      localStorage.setItem('selectedAccountId', value.toString());
-    } else {
-      localStorage.removeItem('selectedAccountId');
-    }
-  }
-  // 重要：切換帳號時立即清空快取，防止舊帳號資料殘留
-  tradeDataCache.set({
-    key: null,
-    scope: null,
-    plans: [],
-    trades: [],
-    summary: null,
-    timestamp: null,
-    stale: false,
-  });
-});
-
 // 預設品種從 localStorage 讀取
 const storedSymbol =
   typeof localStorage !== 'undefined' ? localStorage.getItem('selectedSymbol') : null;
 export const selectedSymbol = writable(storedSymbol || SYMBOLS[0] || 'XAUUSD');
-
-// 當品種改變時存入 localStorage
-selectedSymbol.subscribe(value => {
-  if (typeof localStorage !== 'undefined' && value) {
-    localStorage.setItem('selectedSymbol', value);
-  }
-});
 
 export const accounts = writable([]);
 
@@ -64,6 +38,40 @@ const initialDarkMode =
     window.matchMedia('(prefers-color-scheme: dark)').matches);
 
 export const isDarkMode = writable(initialDarkMode);
+
+// --- 2. 訂閱邏輯 ---
+
+// 當帳號改變時存入 localStorage 並清空快取
+selectedAccountId.subscribe(value => {
+  if (typeof localStorage !== 'undefined') {
+    if (value !== null && !isNaN(value)) {
+      localStorage.setItem('selectedAccountId', value.toString());
+    } else {
+      localStorage.removeItem('selectedAccountId');
+    }
+  }
+
+  // 重要：切換帳號時立即清空快取，防止舊帳號資料殘留
+  // 之所以放在最後是因為 tradeDataCache 必須先初始化
+  if (tradeDataCache) {
+    tradeDataCache.set({
+      key: null,
+      scope: null,
+      plans: [],
+      trades: [],
+      summary: null,
+      timestamp: null,
+      stale: false,
+    });
+  }
+});
+
+// 當品種改變時存入 localStorage
+selectedSymbol.subscribe(value => {
+  if (typeof localStorage !== 'undefined' && value) {
+    localStorage.setItem('selectedSymbol', value);
+  }
+});
 
 // 訂閱 Store 變化並應用到 body 與 localStorage
 isDarkMode.subscribe(value => {
