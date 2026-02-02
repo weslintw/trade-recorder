@@ -11,6 +11,7 @@
   let candlestickSeries;
   let loading = true;
   let error = null;
+  let timeframe = '';
 
   onMount(function() {
     initChart();
@@ -83,6 +84,7 @@
       const resData = res.data;
       const data = resData.data;
       const digits = resData.digits || 2;
+      timeframe = resData.timeframe || '';
 
       if (!data || !data.trendbar || data.trendbar.length === 0) {
         error = "無法獲取 K 線數據 (數據可能已過期或伺服器暫時無法連接)";
@@ -170,6 +172,7 @@
 <div class="chart-wrapper">
   <div class="chart-info-overlay">
     <span class="symbol-tag">{trade?.symbol || ''}</span>
+    <span class="timeframe-tag">{timeframe}</span>
     <span class="timezone-tag">時區: UTC+8 (Local)</span>
   </div>
 
@@ -220,7 +223,7 @@
     pointer-events: none;
   }
 
-  .symbol-tag, .timezone-tag {
+  .symbol-tag, .timeframe-tag, .timezone-tag {
     background: rgba(30, 41, 59, 0.7);
     backdrop-filter: blur(4px);
     padding: 4px 10px;
@@ -233,6 +236,11 @@
 
   .symbol-tag {
     color: #3b82f6;
+    font-weight: 600;
+  }
+
+  .timeframe-tag {
+    color: #f59e0b; /* Amber/Orange color */
     font-weight: 600;
   }
 

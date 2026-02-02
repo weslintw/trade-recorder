@@ -829,8 +829,9 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"data":   tbRes,
-			"digits": digits,
+			"data":      tbRes,
+			"digits":    digits,
+			"timeframe": tf,
 		})
 	}
 }
