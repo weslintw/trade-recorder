@@ -22,16 +22,28 @@
   // Interactive drawing states
   let previewLine = null;
   let draggingPoint = null; // { lineIndex, pointIndex (0 or 1) }
+  let selectedLineIndex = null;
 
   onMount(function() {
     initChart();
     loadData();
-  });
 
-  onDestroy(function() {
-    if (chart) {
-      chart.remove();
-    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeydown);
+    
+    return function() {
+      if (chart) {
+        chart.remove();
+      }
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeydown);
+    };
   });
 
   function initChart() {
@@ -150,7 +162,7 @@
         // 修正：確保標記的價格也符合縮放
         markers.push({
           time: entryTs,
-          position: trade.side === 'long' ? 'belowBar' : 'aboveBar',
+          position: 'belowBar', // 始終放在下方避免擋到 K 線
           color: trade.side === 'long' ? '#10b981' : '#ef4444',
           shape: trade.side === 'long' ? 'arrowUp' : 'arrowDown',
           text: 'Entry @ ' + trade.entry_price,
@@ -159,7 +171,7 @@
         if (exitTs) {
           markers.push({
             time: exitTs,
-            position: trade.side === 'long' ? 'aboveBar' : 'belowBar',
+            position: 'aboveBar', // 始終放在上方
             color: '#3b82f6',
             shape: 'balloon',
             text: 'Exit @ ' + trade.exit_price,
@@ -197,10 +209,9 @@
     const price = candlestickSeries.coordinateToPrice(param.point.y);
     if (!price) return;
 
-    // --- Dragging Logic (Outside drawing mode) ---
+    // --- Dragging & Selection Logic (Outside drawing mode) ---
     if (!drawingActive) {
       if (draggingPoint) {
-        // Drop point
         draggingPoint = null;
         chart.applyOptions({ handleScroll: true, handleScale: true });
         return;
@@ -219,13 +230,54 @@
         
         if (dist1 < 15) {
           draggingPoint = { lineIndex: i, pointIndex: 0 };
+          selectedLineIndex = i;
+          updateSelectedStyles();
           chart.applyOptions({ handleScroll: false, handleScale: false });
           return;
         } else if (dist2 < 15) {
           draggingPoint = { lineIndex: i, pointIndex: 1 };
+          selectedLineIndex = i;
+          updateSelectedStyles();
           chart.applyOptions({ handleScroll: false, handleScale: false });
           return;
         }
+      }
+
+      // Try to select a line (click detection on the segment)
+      for (let i = 0; i < drawnLines.length; i++) {
+        const line = drawnLines[i];
+        const p1Y = candlestickSeries.priceToCoordinate(line.p1.price);
+        const p1X = chart.timeScale().timeToCoordinate(line.p1.time);
+        const p2Y = candlestickSeries.priceToCoordinate(line.p2.price);
+        const p2X = chart.timeScale().timeToCoordinate(line.p2.time);
+
+        // Distance from point to segment
+        const A = param.point.x - p1X;
+        const B = param.point.y - p1Y;
+        const C = p2X - p1X;
+        const D = p2Y - p1Y;
+        const dot = A * C + B * D;
+        const len_sq = C * C + D * D;
+        let param_t = -1;
+        if (len_sq !== 0) param_t = dot / len_sq;
+        let xx, yy;
+        if (param_t < 0) { xx = p1X; yy = p1Y; }
+        else if (param_t > 1) { xx = p2X; yy = p2Y; }
+        else { xx = p1X + param_t * C; yy = p1Y + param_t * D; }
+        const dx = param.point.x - xx;
+        const dy = param.point.y - yy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 10) {
+          selectedLineIndex = i;
+          updateSelectedStyles();
+          return;
+        }
+      }
+
+      if (selectedLineIndex !== null) {
+        selectedLineIndex = null;
+        updateSelectedStyles();
       }
       return;
     }
@@ -250,6 +302,7 @@
         previewLine = null;
       }
       firstPoint = null;
+      toggleDrawing(); // 畫完自動結束繪製模式
     }
   }
 
@@ -304,11 +357,33 @@
     
     drawnLines.push({ series: series, p1: p1, p2: p2 });
     drawnLines = drawnLines;
+    selectedLineIndex = drawnLines.length - 1;
+    updateSelectedStyles();
+  }
+
+  function updateSelectedStyles() {
+    for (let i = 0; i < drawnLines.length; i++) {
+      drawnLines[i].series.applyOptions({
+        color: i === selectedLineIndex ? '#3b82f6' : '#f59e0b',
+        lineWidth: i === selectedLineIndex ? 3 : 2,
+      });
+    }
+  }
+
+  function deleteSelectedLine() {
+    if (selectedLineIndex === null) return;
+    chart.removeSeries(drawnLines[selectedLineIndex].series);
+    drawnLines.splice(selectedLineIndex, 1);
+    drawnLines = drawnLines;
+    selectedLineIndex = null;
   }
 
   function toggleDrawing() {
     drawingActive = !drawingActive;
-    if (!drawingActive) {
+    if (drawingActive) {
+      selectedLineIndex = null;
+      updateSelectedStyles();
+    } else {
       if (previewLine) {
         chart.removeSeries(previewLine);
         previewLine = null;
@@ -331,6 +406,7 @@
     firstPoint = null;
     drawingActive = false;
     draggingPoint = null;
+    selectedLineIndex = null;
     chart.applyOptions({ handleScroll: true, handleScale: true });
   }
 
@@ -396,19 +472,14 @@
     }, 100);
   }
 
-  onMount(function() {
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    
-    return function() {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  });
+  function handleKeydown(e) {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedLineIndex !== null && !drawingActive) {
+        deleteSelectedLine();
+      }
+    }
+  }
+
 </script>
 
 <div bind:this={chartWrapper} class="chart-wrapper" class:is-fullscreen={isFullscreen}>
@@ -420,13 +491,17 @@
     </div>
 
     <div class="tools-group">
-      {#if drawnLines.length > 0}
+      {#if selectedLineIndex !== null}
+        <button class="tool-button clear-button" on:click={deleteSelectedLine} title="刪除選中線條">
+          <span class="icon">🗑️</span>
+        </button>
+      {:else if drawnLines.length > 0}
         <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
           <span class="icon">🗑️</span>
         </button>
       {/if}
       
-      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具 (點擊圖表兩次成成線)">
+      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具">
         <span class="icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="19" cy="5" r="3"/>
@@ -434,7 +509,6 @@
             <line x1="7.1" y1="16.9" x2="16.9" y2="7.1"/>
           </svg>
         </span>
-        {drawingActive ? (firstPoint ? '請點第二點' : '畫線中...') : '趨勢線'}
       </button>
 
       <button class="copy-button" on:click={copyChartImage} disabled={copying} title="複製圖表截圖">
@@ -555,10 +629,12 @@
   }
 
   .tool-button.active {
-    background: #f59e0b; /* Amber */
-    color: #000;
-    border-color: transparent;
-    font-weight: 600;
+    background: rgba(59, 130, 246, 0.2);
+    border-color: #3b82f6;
+  }
+
+  .tool-button.active .icon {
+    color: #3b82f6;
   }
 
   .tool-button.clear-button {
