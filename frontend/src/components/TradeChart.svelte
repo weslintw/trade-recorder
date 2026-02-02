@@ -301,14 +301,9 @@
       const secondPoint = { time: param.time, price: price };
       addTrendline(firstPoint, secondPoint);
       
-      // Explicitly exit drawing mode
-      drawingActive = false;
-      if (previewLine) {
-        chart.removeSeries(previewLine);
-        previewLine = null;
-      }
-      firstPoint = null;
-      chart.applyOptions({ handleScroll: true, handleScale: true });
+      console.log('[Chart] Line completed, exiting drawing mode');
+      // Use the central toggle function to ensure all states are reset properly
+      toggleDrawing(); 
     }
   }
 
