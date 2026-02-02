@@ -163,7 +163,17 @@
       markers.sort(function(a, b) { return a.time - b.time; });
       createSeriesMarkers(candlestickSeries, markers);
       
-      chart.timeScale().fitContent();
+      // 視野管理：獲取了 1200 根，但初始視野只顯示中間的 400 根
+      const totalLen = uniqueData.length;
+      if (totalLen > 400) {
+        const midIdx = Math.floor(totalLen / 2);
+        chart.timeScale().setVisibleLogicalRange({
+          from: midIdx - 200,
+          to: midIdx + 200,
+        });
+      } else {
+        chart.timeScale().fitContent();
+      }
 
     } catch (e) {
       console.error('[Chart Error]', e);
