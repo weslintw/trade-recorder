@@ -82,14 +82,15 @@
       
       const resData = res.data;
       const data = resData.data;
-      const digits = resData.digits;
+      const digits = resData.digits || 2;
 
       if (!data || !data.trendbar || data.trendbar.length === 0) {
         error = "無法獲取 K 線數據 (數據可能已過期或伺服器暫時無法連接)";
         return;
       }
 
-      const scale = Math.pow(10, digits);
+      // cTrader 價格數據在 protobuf 中統一縮放 10^5
+      const scale = 100000;
       const chartData = [];
       for (let i = 0; i < data.trendbar.length; i++) {
         const bar = data.trendbar[i];
@@ -101,6 +102,15 @@
           close: (bar.low + bar.deltaClose) / scale,
         });
       }
+
+      // 設置價格精細度
+      candlestickSeries.applyOptions({
+        priceFormat: {
+          type: 'price',
+          precision: digits,
+          minMove: 1 / Math.pow(10, digits),
+        },
+      });
 
       // 排序並過濾重複時間點
       chartData.sort(function(a, b) { return a.time - b.time; });
@@ -122,6 +132,7 @@
         const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000);
         const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) : null;
         
+        // 修正：確保標記的價格也符合縮放
         markers.push({
           time: entryTs,
           position: trade.side === 'long' ? 'belowBar' : 'aboveBar',
@@ -157,6 +168,11 @@
 </script>
 
 <div class="chart-wrapper">
+  <div class="chart-info-overlay">
+    <span class="symbol-tag">{trade?.symbol || ''}</span>
+    <span class="timezone-tag">時區: UTC+8 (Local)</span>
+  </div>
+
   {#if loading}
     <div class="status-overlay">
       <div class="spinner"></div>
@@ -192,6 +208,32 @@
   .chart-container {
     width: 100%;
     height: 100%;
+  }
+
+  .chart-info-overlay {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    z-index: 5;
+    display: flex;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .symbol-tag, .timezone-tag {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .symbol-tag {
+    color: #3b82f6;
+    font-weight: 600;
   }
 
   .status-overlay {
