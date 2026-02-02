@@ -8,11 +8,10 @@
   let firstLoad = true;
 
   async function fetchAccounts() {
-    console.log('🟣 AccountSelector.fetchAccounts called');
     if (!$auth.isAuthenticated) return;
-
     try {
-      loading = true;
+      // 只有第一次載入才顯示 loading
+      if ($accounts.length === 0) loading = true;
       const res = await accountsAPI.getAll();
       const data = res.data || [];
       accounts.set(data);
@@ -32,18 +31,13 @@
       firstLoad = false;
     }
   });
-
-  function handleAccountChange(e) {
-    const newId = parseInt(e.target.value);
-    selectedAccountId.set(newId);
-  }
 </script>
 
 <div class="account-selector">
-  {#if !loading || !firstLoad}
+  {#if !firstLoad}
     <div class="selector-wrapper">
       <span class="label">切換帳號:</span>
-      <select value={$selectedAccountId} on:change={handleAccountChange}>
+      <select bind:value={$selectedAccountId}>
         {#if $accounts.length === 0}
           <option value={null} disabled>尚未建立交易帳號</option>
         {:else}

@@ -1314,15 +1314,13 @@
     console.log(
       `[onMount] Current state: accounts=${$accounts.length}, selectedAccountId=${$selectedAccountId}, selectedSymbol=${$selectedSymbol}`
     );
-    const accountExists = $accounts.some(a => a.id === $selectedAccountId);
+    const accountExists = $accounts.some(a => a.id == $selectedAccountId);
     if ($accounts.length > 0) {
-      if (!$selectedAccountId || !accountExists) {
+      if (($selectedAccountId === null || $selectedAccountId === undefined) || !accountExists) {
         console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
         selectedAccountId.set($accounts[0].id);
       } else {
         console.log(`[onMount] Account ${$selectedAccountId} is valid, triggering initial loadData()`);
-        // 修正：不再依賴 reactive watcher 自動觸發，因為有時會失效導致空等 15 秒
-        // loadData 內部已有 1 秒防抖機制，所以這裡主動呼叫是安全的
         loadData();
       }
     } else {
