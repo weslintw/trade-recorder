@@ -16,6 +16,7 @@ const storedSymbol =
 export const selectedSymbol = writable(storedSymbol || SYMBOLS[0] || 'XAUUSD');
 
 export const accounts = writable([]);
+export const tradedSymbols = writable(SYMBOLS);
 
 // 全局數據緩存，用於在頁面切換（如進入編輯頁再返回）時保留數據
 // 這能解決「返回首頁時速度很慢」的問題

@@ -685,3 +685,44 @@ func GetTags(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, tags)
 	}
 }
+
+// GetUsedSymbols 取得使用者有交易過的所有品種
+func GetUsedSymbols(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetInt64("user_id")
+		accountIDStr := c.Query("account_id")
+
+		query := `
+			SELECT DISTINCT symbol 
+			FROM trades t
+			JOIN accounts a ON t.account_id = a.id
+			WHERE a.user_id = ?
+		`
+		args := []interface{}{userID}
+
+		if accountIDStr != "" {
+			query += " AND t.account_id = ?"
+			args = append(args, accountIDStr)
+		}
+
+		query += " ORDER BY symbol ASC"
+
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "查詢品種失敗: " + err.Error()})
+			return
+		}
+		defer rows.Close()
+
+		symbols := []string{}
+		for rows.Next() {
+			var symbol string
+			if err := rows.Scan(&symbol); err != nil {
+				continue
+			}
+			symbols = append(symbols, symbol)
+		}
+
+		c.JSON(http.StatusOK, symbols)
+	}
+}

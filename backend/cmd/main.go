@@ -132,6 +132,7 @@ func main() {
 				trades.PUT("/:id", handlers.UpdateTrade(db))
 				trades.POST("/:id/sync", handlers.SyncSingleTrade(db))
 				trades.DELETE("/:id", handlers.DeleteTrade(db))
+				trades.GET("/symbols", handlers.GetUsedSymbols(db))
 			}
 
 			// 統計資料

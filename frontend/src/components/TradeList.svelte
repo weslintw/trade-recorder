@@ -10,7 +10,7 @@
   let showAnnotator = false;
   let enlargedOriginalImage = null;
   let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
-  import { selectedSymbol, selectedAccountId } from '../lib/stores';
+  import { selectedSymbol, selectedAccountId, tradedSymbols } from '../lib/stores';
 
   export let isCompact = false;
 
@@ -427,7 +427,7 @@
         <label>品種</label>
         <select bind:value={filters.symbol} class="form-control">
           <option value="">全部品種</option>
-          {#each SYMBOLS as sym}
+          {#each $tradedSymbols as sym}
             <option value={sym}>{sym}</option>
           {/each}
         </select>

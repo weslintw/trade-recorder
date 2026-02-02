@@ -13,8 +13,9 @@
   import AdminDashboard from './components/AdminDashboard.svelte';
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
-  import { selectedSymbol, isDarkMode } from './lib/stores';
+  import { selectedSymbol, isDarkMode, selectedAccountId, tradedSymbols } from './lib/stores';
   import { auth, logout, checkAuth } from './lib/auth';
+  import { tradesAPI } from './lib/api';
   import Login from './components/Login.svelte';
   import ChangePasswordModal from './components/ChangePasswordModal.svelte';
 
@@ -23,6 +24,30 @@
   let timer;
   let showChangePassword = false;
   const buildTime = __BUILD_TIME__;
+  
+  async function loadTradedSymbols() {
+    if (!$auth.isAuthenticated) return;
+    try {
+      const res = await tradesAPI.getUsedSymbols();
+      if (res.data && res.data.length > 0) {
+        const list = res.data;
+        tradedSymbols.set(list);
+        if (!list.includes($selectedSymbol)) {
+          selectedSymbol.set(list[0]);
+        }
+      } else {
+        tradedSymbols.set(['XAUUSD']);
+      }
+    } catch (e) {
+      console.error('Failed to load traded symbols:', e);
+    }
+  }
+
+  $: if ($selectedAccountId && $auth.isAuthenticated) {
+    loadTradedSymbols();
+  }
+  
+
 
   function toggleDarkMode() {
     isDarkMode.update(v => !v);
@@ -31,6 +56,9 @@
   onMount(async () => {
     console.log('🚀 [App] System Initialized (Cache Bust: WAL-FIX-2)');
     await checkAuth();
+    if ($auth.isAuthenticated) {
+      loadTradedSymbols();
+    }
     timer = setInterval(() => {
       currentTime = new Date();
     }, 1000); // 1秒更新一次秒針，或60000更新分
@@ -93,7 +121,7 @@
                 <div class="symbol-selector">
                   <span class="selector-icon">📊</span>
                   <select bind:value={$selectedSymbol}>
-                    {#each SYMBOLS as sym}
+                    {#each $tradedSymbols as sym}
                       <option value={sym}>{sym}</option>
                     {/each}
                   </select>

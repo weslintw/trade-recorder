@@ -21,7 +21,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // 針對 GET 請求加上隨機參數，強制繞過可能堵塞的舊連線
     if (config.method === 'get') {
       const separator = config.url.includes('?') ? '&' : '?';
@@ -50,18 +50,18 @@ api.interceptors.response.use(
 
 // 包裝特定 API 實現真正去重
 const originalGet = api.get;
-api.get = function(url, config) {
+api.get = function (url, config) {
   // 只針對特定的高頻資源進行去重 (如 /accounts)
   if (url === '/accounts' || url.startsWith('/accounts?')) {
     if (pendingRequests.has(url)) {
       console.log(`🛡️ [Dedupe] Sharing existing request for ${url}`);
       return pendingRequests.get(url);
     }
-    
+
     const request = originalGet.call(this, url, config).finally(() => {
       pendingRequests.delete(url);
     });
-    
+
     pendingRequests.set(url, request);
     return request;
   }
@@ -81,6 +81,7 @@ export const tradesAPI = {
   update: (id, data) => api.put(`/trades/${id}`, data),
   delete: id => api.delete(`/trades/${id}`),
   sync: id => api.post(`/trades/${id}/sync`),
+  getUsedSymbols: (params, signal) => api.get('/trades/symbols', { params, signal }),
 };
 
 // 圖片相關
