@@ -16,6 +16,8 @@
   let drawingActive = false;
   let firstPoint = null;
   let drawnLines = [];
+  let isFullscreen = false;
+  let chartWrapper;
 
   onMount(function() {
     initChart();
@@ -263,9 +265,58 @@
       copying = false;
     }
   }
+
+  function toggleFullscreen() {
+    if (!chartWrapper) return;
+    
+    if (!isFullscreen) {
+      if (chartWrapper.requestFullscreen) {
+        chartWrapper.requestFullscreen();
+      } else if (chartWrapper.webkitRequestFullscreen) {
+        chartWrapper.webkitRequestFullscreen();
+      } else if (chartWrapper.msRequestFullscreen) {
+        chartWrapper.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  }
+
+  function handleFullscreenChange() {
+    isFullscreen = !!document.fullscreenElement;
+    // 重置圖表大小以填滿全螢幕
+    setTimeout(function() {
+      if (chart && chartContainer) {
+        chart.applyOptions({ 
+          width: chartContainer.clientWidth,
+          height: chartContainer.clientHeight 
+        });
+      }
+    }, 100);
+  }
+
+  onMount(function() {
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
+    return function() {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  });
 </script>
 
-<div class="chart-wrapper">
+<div bind:this={chartWrapper} class="chart-wrapper" class:is-fullscreen={isFullscreen}>
   <div class="chart-info-overlay">
     <div class="tags-group">
       <span class="symbol-tag">{trade?.symbol || ''}</span>
@@ -285,13 +336,17 @@
         {drawingActive ? (firstPoint ? '請點第二點' : '畫線中...') : '趨勢線'}
       </button>
 
-      <button class="copy-button" on:click={copyChartImage} disabled={copying}>
-      {#if copying}
-        <span class="icon">✅</span> 已複製
-      {:else}
-        <span class="icon">📸</span> 複製截圖
-      {/if}
-    </button>
+      <button class="copy-button" on:click={copyChartImage} disabled={copying} title="複製圖表截圖">
+        {#if copying}
+          <span class="icon">✅</span>
+        {:else}
+          <span class="icon">📸</span>
+        {/if}
+      </button>
+
+      <button class="tool-button fullscreen-button" on:click={toggleFullscreen} title={isFullscreen ? "退出全螢幕" : "全螢幕檢視"}>
+        <span class="icon">{isFullscreen ? '↙️' : '↗️'}</span>
+      </button>
     </div>
   </div>
 
@@ -325,6 +380,16 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     margin: 1rem 0;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  }
+
+  .chart-wrapper.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    border-radius: 0;
+    z-index: 9999;
   }
 
   .chart-container {
