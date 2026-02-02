@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, CandlestickSeries, createSeriesMarkers } from 'lightweight-charts';
+  import { createChart, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -13,6 +13,9 @@
   let error = null;
   let timeframe = '';
   let copying = false;
+  let drawingActive = false;
+  let firstPoint = null;
+  let drawnLines = [];
 
   onMount(function() {
     initChart();
@@ -53,6 +56,8 @@
         mode: 0,
       },
     });
+
+    chart.subscribeClick(handleChartClick);
 
     candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#ef4444',
@@ -169,6 +174,59 @@
     }
   }
 
+  function handleChartClick(param) {
+    if (!drawingActive || !param || !param.point || !param.time) return;
+    
+    const price = candlestickSeries.coordinateToPrice(param.point.y);
+    if (!price) return;
+
+    if (!firstPoint) {
+      firstPoint = { time: param.time, price: price };
+    } else {
+      const secondPoint = { time: param.time, price: price };
+      addTrendline(firstPoint, secondPoint);
+      firstPoint = null;
+    }
+  }
+
+  function addTrendline(p1, p2) {
+    const lineSeries = chart.addSeries(LineSeries, {
+      color: '#f59e0b',
+      lineWidth: 2,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    
+    const lineData = [
+      { time: p1.time, value: p1.price },
+      { time: p2.time, value: p2.price }
+    ];
+    // Ensure chronological order for line data
+    lineData.sort(function(a, b) { return a.time - b.time; });
+    
+    lineSeries.setData(lineData);
+    drawnLines.push(lineSeries);
+    // Trigger update for UI if needed
+    drawnLines = drawnLines;
+  }
+
+  function toggleDrawing() {
+    drawingActive = !drawingActive;
+    if (!drawingActive) {
+      firstPoint = null;
+    }
+  }
+
+  function clearDrawings() {
+    for (let i = 0; i < drawnLines.length; i++) {
+       chart.removeSeries(drawnLines[i]);
+    }
+    drawnLines = [];
+    firstPoint = null;
+    drawingActive = false;
+  }
+
   async function copyChartImage() {
     if (!chart || copying) return;
     try {
@@ -204,8 +262,20 @@
       <span class="timeframe-tag">{timeframe}</span>
       <span class="timezone-tag">時區: UTC+8 (Local)</span>
     </div>
-    
-    <button class="copy-button" on:click={copyChartImage} disabled={copying}>
+
+    <div class="tools-group">
+      {#if drawnLines.length > 0}
+        <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
+          <span class="icon">🗑️</span>
+        </button>
+      {/if}
+      
+      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具 (點擊圖表兩次成實)">
+        <span class="icon">📏</span>
+        {drawingActive ? (firstPoint ? '請點第二點' : '畫線中...') : '趨勢線'}
+      </button>
+
+      <button class="copy-button" on:click={copyChartImage} disabled={copying}>
       {#if copying}
         <span class="icon">✅</span> 已複製
       {:else}
@@ -263,13 +333,13 @@
     pointer-events: none;
   }
 
-  .tags-group {
+  .tags-group, .tools-group {
     display: flex;
     gap: 8px;
     pointer-events: none;
   }
 
-  .copy-button {
+  .copy-button, .tool-button {
     pointer-events: auto;
     background: rgba(30, 41, 59, 0.8);
     backdrop-filter: blur(8px);
@@ -294,8 +364,25 @@
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
   }
 
-  .copy-button:active {
+  .copy-button:active, .tool-button:active {
     transform: translateY(0) scale(0.96);
+  }
+
+  .tool-button.active {
+    background: #f59e0b; /* Amber */
+    color: #000;
+    border-color: transparent;
+    font-weight: 600;
+  }
+
+  .tool-button.clear-button {
+    padding: 6px 10px;
+    color: #fca5a5;
+  }
+  
+  .tool-button.clear-button:hover {
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.4);
   }
 
   .symbol-tag, .timeframe-tag, .timezone-tag {
