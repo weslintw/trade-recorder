@@ -25,7 +25,12 @@
   }
 
   onMount(() => {
-    // 移除重複的抓取，統一交由 Home 組件負責
+    if ($accounts.length === 0 && $auth.isAuthenticated) {
+      fetchAccounts();
+    } else {
+      loading = false;
+      firstLoad = false;
+    }
   });
 
   function handleAccountChange(e) {
