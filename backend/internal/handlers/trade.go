@@ -756,11 +756,11 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 識別品種 ID
+		// 判斷是否可用該帳號自己的 cTrader 連線
 		sid, err := ctrader.GlobalManager.GetSymbolID(t.AccountID, t.Symbol)
+		useGeneric := false
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "無法識別品種 ID: " + err.Error()})
-			return
+			useGeneric = true
 		}
 
 		exitTime := time.Now()
@@ -807,25 +807,33 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()
 		toTS := exitTime.Add(time.Duration(paddingMin) * time.Minute).UnixMilli()
 
-		log.Printf("[Chart] Fetching %s %s from %d to %d (period %d)", t.Symbol, tf, fromTS, toTS, period)
+		var payload json.RawMessage
+		var digits int = 2
 
-		payload, err := ctrader.GlobalManager.GetTrendbars(t.AccountID, sid, period, fromTS, toTS)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "cTrader 請求失敗: " + err.Error()})
-			return
+		if useGeneric {
+			log.Printf("[Chart] Using generic fallback for symbol %s (trade ID %s)", t.Symbol, tradeID)
+			payload, digits, err = ctrader.GlobalManager.GetTrendbarsGeneric(t.Symbol, period, fromTS, toTS)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "目前無法顯示圖表：品種 '" + t.Symbol + "' 不在您的任何活躍 cTrader 帳號中"})
+				return
+			}
+		} else {
+			log.Printf("[Chart] Fetching %s %s from %d to %d (period %d)", t.Symbol, tf, fromTS, toTS, period)
+			payload, err = ctrader.GlobalManager.GetTrendbars(t.AccountID, sid, period, fromTS, toTS)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "cTrader 請求失敗: " + err.Error()})
+				return
+			}
+			if d, err := ctrader.GlobalManager.GetSymbolDigits(sid); err == nil {
+				digits = d
+			}
 		}
 
-		// 解析 payload 以獲取 trendbars 並加上 digits
+		// 解析 payload 以獲取 trendbars
 		var tbRes json.RawMessage
 		if err := json.Unmarshal(payload, &tbRes); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析 cTrader 響應失敗"})
 			return
-		}
-
-		digits := 2
-		// 這裡可以從 Manager 獲取正確的 digits
-		if d, err := ctrader.GlobalManager.GetSymbolDigits(sid); err == nil {
-			digits = d
 		}
 
 		c.JSON(http.StatusOK, gin.H{

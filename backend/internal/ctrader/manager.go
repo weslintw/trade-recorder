@@ -894,6 +894,45 @@ func (m *Manager) GetTrendbars(accountID int64, symbolID int64, period int, from
 	return resp.Payload, nil
 }
 
+// GetTrendbarsGeneric 嘗試使用任何可用的連線來獲取特定品種的 K 線數據
+func (m *Manager) GetTrendbarsGeneric(symbolName string, period int, from, to int64) (json.RawMessage, int, error) {
+	var targetAccountID int64
+	var targetSymbolID int64
+	found := false
+
+	m.mu.RLock()
+	for accID, ac := range m.connections {
+		if ac == nil {
+			continue
+		}
+		ac.Mu.RLock()
+		for id, name := range ac.SymbolMap {
+			if name == symbolName {
+				targetSymbolID = id
+				targetAccountID = accID
+				found = true
+				break
+			}
+		}
+		ac.Mu.RUnlock()
+		if found {
+			break
+		}
+	}
+	m.mu.RUnlock()
+
+	if !found {
+		return nil, 0, fmt.Errorf("目前沒有活躍的 cTrader 連線支援品種 %s", symbolName)
+	}
+
+	payload, err := m.GetTrendbars(targetAccountID, targetSymbolID, period, from, to)
+	if err != nil {
+		return nil, 0, err
+	}
+	digits, _ := m.GetSymbolDigits(targetSymbolID)
+	return payload, digits, nil
+}
+
 func (m *Manager) GetSymbolID(accountID int64, symbolName string) (int64, error) {
 	m.mu.RLock()
 	ac, ok := m.connections[accountID]
