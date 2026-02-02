@@ -773,28 +773,28 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 		// 時區選擇邏輯 (180根K棒限制)
 		period := 1 // M1
 		var m_min int64 = 1
-		tf := "M1"
+		tf := "1分"
 
 		if durationMin > 180*240 {
 			period = 11 // D1
 			m_min = 1440
-			tf = "D1"
+			tf = "天"
 		} else if durationMin > 180*60 {
 			period = 10 // H4
 			m_min = 240
-			tf = "H4"
+			tf = "4小時"
 		} else if durationMin > 180*15 {
 			period = 9 // H1
 			m_min = 60
-			tf = "H1"
+			tf = "1小時"
 		} else if durationMin > 180*5 {
 			period = 7 // M15
 			m_min = 15
-			tf = "M15"
+			tf = "15分"
 		} else if durationMin > 180 {
 			period = 5 // M5
 			m_min = 5
-			tf = "M5"
+			tf = "5分"
 		}
 
 		// 計算範圍：顯示約 400 根 K 棒，將交易置中
