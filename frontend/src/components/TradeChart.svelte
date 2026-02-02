@@ -142,7 +142,7 @@
       }
       
       markers.sort(function(a, b) { return a.time - b.time; });
-      candlestickSeries.attach(createSeriesMarkers, markers);
+      createSeriesMarkers(candlestickSeries, markers);
       
       chart.timeScale().fitContent();
 
