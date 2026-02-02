@@ -15,9 +15,13 @@
   let copying = false;
   let drawingActive = false;
   let firstPoint = null;
-  let drawnLines = [];
+  let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price} }
   let isFullscreen = false;
   let chartWrapper;
+  
+  // Interactive drawing states
+  let previewLine = null;
+  let draggingPoint = null; // { lineIndex, pointIndex (0 or 1) }
 
   onMount(function() {
     initChart();
@@ -60,6 +64,7 @@
     });
 
     chart.subscribeClick(handleChartClick);
+    chart.subscribeCrosshairMove(handleCrosshairMove);
 
     candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#ef4444',
@@ -187,22 +192,102 @@
   }
 
   function handleChartClick(param) {
-    if (!drawingActive || !param || !param.point || !param.time) return;
+    if (!param || !param.point || !param.time) return;
     
     const price = candlestickSeries.coordinateToPrice(param.point.y);
     if (!price) return;
 
+    // --- Dragging Logic (Outside drawing mode) ---
+    if (!drawingActive) {
+      if (draggingPoint) {
+        // Drop point
+        draggingPoint = null;
+        chart.applyOptions({ handleScroll: true, handleScale: true });
+        return;
+      }
+      
+      // Try to pick up a point (15px threshold)
+      for (let i = 0; i < drawnLines.length; i++) {
+        const line = drawnLines[i];
+        const p1Coord = candlestickSeries.priceToCoordinate(line.p1.price);
+        const p1TimeCoord = chart.timeScale().timeToCoordinate(line.p1.time);
+        const p2Coord = candlestickSeries.priceToCoordinate(line.p2.price);
+        const p2TimeCoord = chart.timeScale().timeToCoordinate(line.p2.time);
+        
+        const dist1 = Math.sqrt(Math.pow(param.point.x - p1TimeCoord, 2) + Math.pow(param.point.y - p1Coord, 2));
+        const dist2 = Math.sqrt(Math.pow(param.point.x - p2TimeCoord, 2) + Math.pow(param.point.y - p2Coord, 2));
+        
+        if (dist1 < 15) {
+          draggingPoint = { lineIndex: i, pointIndex: 0 };
+          chart.applyOptions({ handleScroll: false, handleScale: false });
+          return;
+        } else if (dist2 < 15) {
+          draggingPoint = { lineIndex: i, pointIndex: 1 };
+          chart.applyOptions({ handleScroll: false, handleScale: false });
+          return;
+        }
+      }
+      return;
+    }
+    
+    // --- Drawing Logic ---
     if (!firstPoint) {
       firstPoint = { time: param.time, price: price };
+      // Create preview line
+      previewLine = chart.addSeries(LineSeries, {
+        color: 'rgba(245, 158, 11, 0.5)',
+        lineWidth: 1,
+        lineStyle: 2, // Dashed
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      });
     } else {
       const secondPoint = { time: param.time, price: price };
       addTrendline(firstPoint, secondPoint);
+      if (previewLine) {
+        chart.removeSeries(previewLine);
+        previewLine = null;
+      }
       firstPoint = null;
     }
   }
 
+  function handleCrosshairMove(param) {
+    if (!param || !param.point || !param.time) return;
+    const price = candlestickSeries.coordinateToPrice(param.point.y);
+    if (!price) return;
+
+    // Drawing preview
+    if (drawingActive && firstPoint && previewLine) {
+      const lineData = [
+        { time: firstPoint.time, value: firstPoint.price },
+        { time: param.time, value: price }
+      ];
+      lineData.sort(function(a, b) { return a.time - b.time; });
+      previewLine.setData(lineData);
+    }
+
+    // Dragging update
+    if (draggingPoint) {
+      const line = drawnLines[draggingPoint.lineIndex];
+      if (draggingPoint.pointIndex === 0) {
+        line.p1 = { time: param.time, price: price };
+      } else {
+        line.p2 = { time: param.time, price: price };
+      }
+      
+      const lineData = [
+        { time: line.p1.time, value: line.p1.price },
+        { time: line.p2.time, value: line.p2.price }
+      ];
+      lineData.sort(function(a, b) { return a.time - b.time; });
+      line.series.setData(lineData);
+    }
+  }
+
   function addTrendline(p1, p2) {
-    const lineSeries = chart.addSeries(LineSeries, {
+    const series = chart.addSeries(LineSeries, {
       color: '#f59e0b',
       lineWidth: 2,
       lastValueVisible: false,
@@ -214,29 +299,39 @@
       { time: p1.time, value: p1.price },
       { time: p2.time, value: p2.price }
     ];
-    // Ensure chronological order for line data
     lineData.sort(function(a, b) { return a.time - b.time; });
+    series.setData(lineData);
     
-    lineSeries.setData(lineData);
-    drawnLines.push(lineSeries);
-    // Trigger update for UI if needed
+    drawnLines.push({ series: series, p1: p1, p2: p2 });
     drawnLines = drawnLines;
   }
 
   function toggleDrawing() {
     drawingActive = !drawingActive;
     if (!drawingActive) {
+      if (previewLine) {
+        chart.removeSeries(previewLine);
+        previewLine = null;
+      }
       firstPoint = null;
     }
+    draggingPoint = null;
+    chart.applyOptions({ handleScroll: true, handleScale: true });
   }
 
   function clearDrawings() {
     for (let i = 0; i < drawnLines.length; i++) {
-       chart.removeSeries(drawnLines[i]);
+       chart.removeSeries(drawnLines[i].series);
+    }
+    if (previewLine) {
+      chart.removeSeries(previewLine);
+      previewLine = null;
     }
     drawnLines = [];
     firstPoint = null;
     drawingActive = false;
+    draggingPoint = null;
+    chart.applyOptions({ handleScroll: true, handleScale: true });
   }
 
   async function copyChartImage() {
