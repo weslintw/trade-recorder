@@ -770,35 +770,35 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 		duration := exitTime.Sub(t.EntryTime)
 		durationMin := int64(duration.Minutes())
 
-		// 時區選擇邏輯 (180根K棒限制)
+		// 時區選擇邏輯 (基於 1200 根 K 棒視野優化)
 		period := 1 // M1
 		var m_min int64 = 1
 		tf := "1分"
 
-		if durationMin > 180*240 {
+		if durationMin > 1200*240 { // > 200天
 			period = 11 // D1
 			m_min = 1440
 			tf = "天"
-		} else if durationMin > 180*60 {
+		} else if durationMin > 1200*60 { // > 50天
 			period = 10 // H4
 			m_min = 240
 			tf = "4小時"
-		} else if durationMin > 180*15 {
+		} else if durationMin > 1200*15 { // > 12.5天
 			period = 9 // H1
 			m_min = 60
 			tf = "1小時"
-		} else if durationMin > 180*5 {
+		} else if durationMin > 1200*5 { // > 4天
 			period = 7 // M15
 			m_min = 15
 			tf = "15分"
-		} else if durationMin > 180 {
+		} else if durationMin > 600 { // > 10小時
 			period = 5 // M5
 			m_min = 5
 			tf = "5分"
 		}
 
-		// 計算範圍：顯示約 400 根 K 棒，將交易置中
-		totalVisibleMin := 400 * m_min
+		// 計算範圍：顯示約 1200 根 K 棒，將交易置中
+		totalVisibleMin := 1200 * m_min
 		paddingMin := (totalVisibleMin - durationMin) / 2
 		if paddingMin < 20*m_min {
 			paddingMin = 20 * m_min
