@@ -726,3 +726,111 @@ func GetUsedSymbols(db *sql.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, symbols)
 	}
 }
+
+// GetTradeChart 取得交易圖表數據
+func GetTradeChart(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tradeID := c.Param("id")
+		userID := c.GetInt64("user_id")
+
+		var t struct {
+			AccountID int64
+			Symbol    string
+			EntryTime time.Time
+			ExitTime  sql.NullTime
+		}
+
+		err := db.QueryRow(`
+			SELECT t.account_id, t.symbol, t.entry_time, t.exit_time
+			FROM trades t
+			JOIN accounts a ON t.account_id = a.id
+			WHERE t.id = ? AND a.user_id = ?
+		`, tradeID, userID).Scan(&t.AccountID, &t.Symbol, &t.EntryTime, &t.ExitTime)
+
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+			return
+		}
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		// 識別品種 ID
+		sid, err := ctrader.GlobalManager.GetSymbolID(t.AccountID, t.Symbol)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "無法識別品種 ID: " + err.Error()})
+			return
+		}
+
+		exitTime := time.Now()
+		if t.ExitTime.Valid {
+			exitTime = t.ExitTime.Time
+		}
+		duration := exitTime.Sub(t.EntryTime)
+		durationMin := int64(duration.Minutes())
+
+		// 時區選擇邏輯 (180根K棒限制)
+		period := 1 // M1
+		var m_min int64 = 1
+		tf := "M1"
+
+		if durationMin > 180*240 {
+			period = 11 // D1
+			m_min = 1440
+			tf = "D1"
+		} else if durationMin > 180*60 {
+			period = 10 // H4
+			m_min = 240
+			tf = "H4"
+		} else if durationMin > 180*15 {
+			period = 9 // H1
+			m_min = 60
+			tf = "H1"
+		} else if durationMin > 180*5 {
+			period = 7 // M15
+			m_min = 15
+			tf = "M15"
+		} else if durationMin > 180 {
+			period = 5 // M5
+			m_min = 5
+			tf = "M5"
+		}
+
+		// 計算範圍：顯示約 400 根 K 棒，將交易置中
+		totalVisibleMin := 400 * m_min
+		paddingMin := (totalVisibleMin - durationMin) / 2
+		if paddingMin < 20*m_min {
+			paddingMin = 20 * m_min
+		}
+
+		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()
+		toTS := exitTime.Add(time.Duration(paddingMin) * time.Minute).UnixMilli()
+
+		log.Printf("[Chart] Fetching %s %s from %d to %d (period %d)", t.Symbol, tf, fromTS, toTS, period)
+
+		payload, err := ctrader.GlobalManager.GetTrendbars(t.AccountID, sid, period, fromTS, toTS)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "cTrader 請求失敗: " + err.Error()})
+			return
+		}
+
+		// 解析 payload 以獲取 trendbars 並加上 digits
+		var tbRes json.RawMessage
+		if err := json.Unmarshal(payload, &tbRes); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析 cTrader 響應失敗"})
+			return
+		}
+
+		digits := 2
+		// 這裡可以從 Manager 獲取正確的 digits
+		if d, err := ctrader.GlobalManager.GetSymbolDigits(sid); err == nil {
+			digits = d
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data":   tbRes,
+			"digits": digits,
+		})
+	}
+}

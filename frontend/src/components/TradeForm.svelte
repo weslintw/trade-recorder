@@ -14,6 +14,7 @@
   import EliteStrategy from './trade-form/EliteStrategy.svelte';
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
   import Sparkline from './Sparkline.svelte';
+  import TradeChart from './TradeChart.svelte';
   import {
     determineMarketSession,
     getStrategyLabel,
@@ -1323,6 +1324,12 @@
         </div>
       </div>
     </div>
+
+    {#if id && formData.trade_type === 'actual'}
+      <div class="chart-section">
+        <TradeChart tradeId={id} trade={formData} />
+      </div>
+    {/if}
 
     <form on:submit|preventDefault={handleSubmit}>
       <!-- 交易類型選擇 -->

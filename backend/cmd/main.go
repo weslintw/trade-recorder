@@ -131,6 +131,7 @@ func main() {
 				trades.POST("", handlers.CreateTrade(db))
 				trades.PUT("/:id", handlers.UpdateTrade(db))
 				trades.POST("/:id/sync", handlers.SyncSingleTrade(db))
+				trades.GET("/:id/chart", handlers.GetTradeChart(db))
 				trades.DELETE("/:id", handlers.DeleteTrade(db))
 				trades.GET("/symbols", handlers.GetUsedSymbols(db))
 			}

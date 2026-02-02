@@ -26,6 +26,7 @@ type Manager struct {
 
 type AccountConn struct {
 	AccountID        int64
+	CTID             int64
 	Conn             *websocket.Conn
 	StopChan         chan struct{}
 	Waiters          map[string]chan *CTraderMessage
@@ -137,9 +138,11 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 	}
 	defer conn.Close()
 
+	ctid, _ := strconv.ParseInt(ctidStr, 10, 64)
 	m.mu.Lock()
 	if ac, ok := m.connections[accountID]; ok {
 		ac.Conn = conn
+		ac.CTID = ctid
 	}
 	m.mu.Unlock()
 	defer func() {
@@ -153,7 +156,6 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 	if err := sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": cid, "clientSecret": secret}, PayloadAppAuthRes); err != nil {
 		return err
 	}
-	ctid, _ := strconv.ParseInt(ctidStr, 10, 64)
 	if err := sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": ctid, "accessToken": token}, PayloadAccountAuthRes); err != nil {
 		return err
 	}
@@ -868,6 +870,55 @@ func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, sta
 		}
 	}
 }
+func (m *Manager) GetTrendbars(accountID int64, symbolID int64, period int, from, to int64) (json.RawMessage, error) {
+	m.mu.RLock()
+	ac, ok := m.connections[accountID]
+	m.mu.RUnlock()
+	if !ok || ac == nil {
+		return nil, fmt.Errorf("account connection not found")
+	}
+
+	clientMsgID := fmt.Sprintf("chart-%d", time.Now().UnixNano())
+	payloadJSON, _ := json.Marshal(map[string]interface{}{
+		"ctidTraderAccountId": ac.CTID,
+		"symbolId":            symbolID,
+		"period":              period,
+		"fromTimestamp":       from,
+		"toTimestamp":         to,
+	})
+	msg := CTraderMessage{ClientMsgID: clientMsgID, PayloadType: PayloadGetTrendbarsReq, Payload: payloadJSON}
+	resp, err := ac.SendRequest(msg)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Payload, nil
+}
+
+func (m *Manager) GetSymbolID(accountID int64, symbolName string) (int64, error) {
+	m.mu.RLock()
+	ac, ok := m.connections[accountID]
+	m.mu.RUnlock()
+	if !ok || ac == nil {
+		return 0, fmt.Errorf("account connection not found")
+	}
+
+	ac.Mu.RLock()
+	defer ac.Mu.RUnlock()
+	for id, name := range ac.SymbolMap {
+		if name == symbolName {
+			return id, nil
+		}
+	}
+	return 0, fmt.Errorf("symbol not found in metadata")
+}
+
+func (m *Manager) GetSymbolDigits(symbolID int64) (int, error) {
+	if d, ok := m.symbolDigitsMap.Load(symbolID); ok {
+		return d.(int), nil
+	}
+	return 2, fmt.Errorf("digits not found")
+}
+
 func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 	log.Printf("[cTrader Manager] Manual sync requested for %s (Acc: %d)", ticket, accID)
 
