@@ -33,7 +33,7 @@
     
     chart = createChart(chartContainer, {
       layout: {
-        background: { color: 'transparent' },
+        background: { color: '#0f172a' },
         textColor: '#94a3b8',
       },
       grid: {
