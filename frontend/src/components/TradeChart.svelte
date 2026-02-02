@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createChart } from 'lightweight-charts';
+  import * as LightweightCharts from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -12,12 +12,12 @@
   let loading = true;
   let error = null;
 
-  onMount(() => {
+  onMount(function() {
     initChart();
     loadData();
   });
 
-  onDestroy(() => {
+  onDestroy(function() {
     if (chart) {
       chart.remove();
     }
@@ -26,7 +26,15 @@
   function initChart() {
     if (!chartContainer) return;
     
-    chart = createChart(chartContainer, {
+    // Ensure we use the correct createChart function
+    const createChartFunc = LightweightCharts.createChart;
+    if (typeof createChartFunc !== 'function') {
+      console.error('LightweightCharts.createChart is not a function', LightweightCharts);
+      error = "圖表套件載入錯誤";
+      return;
+    }
+
+    chart = createChartFunc(chartContainer, {
       layout: {
         background: { color: 'transparent' },
         textColor: '#94a3b8',
@@ -60,14 +68,15 @@
       wickDownColor: '#ef4444',
     });
 
-    const handleResize = () => {
+    function handleResize() {
       if (chart && chartContainer) {
         chart.applyOptions({ width: chartContainer.clientWidth });
       }
-    };
+    }
+    
     window.addEventListener('resize', handleResize);
     
-    return () => {
+    return function() {
       window.removeEventListener('resize', handleResize);
     };
   }
@@ -79,26 +88,34 @@
       error = null;
       const res = await tradesAPI.getChartData(tradeId);
       
-      const { data, digits } = res.data;
+      const resData = res.data;
+      const data = resData.data;
+      const digits = resData.digits;
+
       if (!data || !data.trendbar || data.trendbar.length === 0) {
         error = "無法獲取 K 線數據 (數據可能已過期或伺服器暫時無法連接)";
         return;
       }
 
       const scale = Math.pow(10, digits);
-      const chartData = data.trendbar.map(bar => ({
-        time: bar.utcTimestampInMinutes * 60,
-        open: (bar.low + bar.deltaOpen) / scale,
-        high: (bar.low + bar.deltaHigh) / scale,
-        low: bar.low / scale,
-        close: (bar.low + bar.deltaClose) / scale,
-      }));
+      const chartData = [];
+      for (let i = 0; i < data.trendbar.length; i++) {
+        const bar = data.trendbar[i];
+        chartData.push({
+          time: bar.utcTimestampInMinutes * 60,
+          open: (bar.low + bar.deltaOpen) / scale,
+          high: (bar.low + bar.deltaHigh) / scale,
+          low: bar.low / scale,
+          close: (bar.low + bar.deltaClose) / scale,
+        });
+      }
 
       // 排序並過濾重複時間點
-      chartData.sort((a, b) => a.time - b.time);
+      chartData.sort(function(a, b) { return a.time - b.time; });
       const uniqueData = [];
       let lastTime = 0;
-      for (const d of chartData) {
+      for (let j = 0; j < chartData.length; j++) {
+        const d = chartData[j];
         if (d.time > lastTime) {
           uniqueData.push(d);
           lastTime = d.time;
@@ -113,13 +130,12 @@
         const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000);
         const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) : null;
         
-        // 尋找最接近 Entry 時間的 K 棒
         markers.push({
           time: entryTs,
           position: trade.side === 'long' ? 'belowBar' : 'aboveBar',
           color: trade.side === 'long' ? '#10b981' : '#ef4444',
           shape: trade.side === 'long' ? 'arrowUp' : 'arrowDown',
-          text: `Entry @ ${trade.entry_price}`,
+          text: 'Entry @ ' + trade.entry_price,
         });
 
         if (exitTs) {
@@ -128,19 +144,20 @@
             position: trade.side === 'long' ? 'aboveBar' : 'belowBar',
             color: '#3b82f6',
             shape: 'balloon',
-            text: `Exit @ ${trade.exit_price}`,
+            text: 'Exit @ ' + trade.exit_price,
           });
         }
       }
       
-      // 注意：Lightweight charts 的 markers 時間必須存在於數據序列中，或者它會自動對齊
-      candlestickSeries.setMarkers(markers.sort((a, b) => a.time - b.time));
+      markers.sort(function(a, b) { return a.time - b.time; });
+      candlestickSeries.setMarkers(markers);
       
       chart.timeScale().fitContent();
 
     } catch (e) {
       console.error('[Chart Error]', e);
-      error = "載入失敗: " + (e.response?.data?.error || e.message);
+      const errorMsg = e.response && e.response.data && e.response.data.error ? e.response.data.error : e.message;
+      error = "載入失敗: " + errorMsg;
     } finally {
       loading = false;
     }
