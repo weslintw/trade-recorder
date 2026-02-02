@@ -54,11 +54,11 @@
     });
 
     candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#10b981',
-      downColor: '#ef4444',
+      upColor: '#ef4444',
+      downColor: '#ffffff',
       borderVisible: false,
-      wickUpColor: '#10b981',
-      wickDownColor: '#ef4444',
+      wickUpColor: '#ef4444',
+      wickDownColor: '#ffffff',
     });
 
     function handleResize() {
