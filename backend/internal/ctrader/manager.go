@@ -384,7 +384,8 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 								digits = d.(int)
 							}
 							log.Printf("[cTrader Manager] Initial Sparkline Fetch for %s (Digits: %d, Vol: %d)", tStr, digits, vol)
-							newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
+							symbolName := ac.SymbolMap[sid]
+							newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
 							if newSeriesStr != "" {
 								m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 							}
@@ -665,7 +666,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 				log.Printf("[cTrader Manager] Successfully inserted Push Open trade: %s", ticket)
 				ws.GlobalHub.BroadcastUpdate(accountID, "TRADE_UPDATE")
 				// TRIGGER IMMEDIATE SPARKLINE SYNC FOR NEW OPEN POSITION
-				go m.triggerSyncForTrade(accountID, ticket, deal.ExecutionPrice, entryMilli, time.Now().UnixMilli(), deal.SymbolID, side, deal.Volume)
+				go m.triggerSyncForTrade(accountID, ticket, deal.ExecutionPrice, entryMilli, time.Now().UnixMilli(), deal.SymbolID, symbol, side, deal.Volume)
 			}
 		}
 	}
@@ -731,7 +732,7 @@ func (m *Manager) updatePnLFromPrices(accountID, symbolID int64, bid, ask float6
 
 	multiplier := float64(lotSize)
 	// cTrader quirk: Commodities (Gold/Silver) lotSize in ProtoOA is often contract size * 100.
-	if strings.Contains(symbol, "XAU") || strings.Contains(symbol, "GOLD") || strings.Contains(symbol, "XAG") || strings.Contains(symbol, "SILVER") {
+	if strings.Contains(symbol, "XAU") || strings.Contains(symbol, "GOLD") || strings.Contains(symbol, "XAG") || strings.Contains(symbol, "SILVER") || strings.Contains(symbol, "BTC") || strings.Contains(symbol, "ETH") {
 		multiplier = multiplier / 100.0
 	}
 
@@ -846,7 +847,7 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 }
 
 // triggerSyncForTrade fetches historical sparkline data in the background and updates the DB.
-func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, startMilli, endMilli int64, sid int64, sStr string, v int64) {
+func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, startMilli, endMilli int64, sid int64, symbol string, sStr string, v int64) {
 	time.Sleep(3 * time.Second) // Small delay to ensure DB transaction is finalized
 	m.mu.RLock()
 	ac, ok := m.connections[accID]
@@ -861,7 +862,7 @@ func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, sta
 			digits = d.(int)
 		}
 
-		newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, startMilli, endMilli, ent, v, sInt, digits)
+		newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, symbol, startMilli, endMilli, ent, v, sInt, digits)
 		if newSeriesStr != "" {
 			m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 		}
@@ -1214,7 +1215,8 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 
 	// Adjust vol (lotSize) - Gold multiplier consideration
 	vol := int64(lotSize * 100000)
-	if strings.Contains(strings.ToUpper(symbol), "XAU") || strings.Contains(strings.ToUpper(symbol), "GOLD") {
+	upperSymbol := strings.ToUpper(symbol)
+	if strings.Contains(upperSymbol, "XAU") || strings.Contains(upperSymbol, "GOLD") || strings.Contains(upperSymbol, "BTC") || strings.Contains(upperSymbol, "ETH") {
 		vol = int64(lotSize * 100)
 	}
 
@@ -1231,7 +1233,7 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 			if d, ok := m.symbolDigitsMap.Load(symbolID); ok {
 				digits = d.(int)
 			}
-			newSeriesStr := fetchPnLSeries(ac, ac.Conn, ctid, symbolID, startMilli, endMilli, entryPrice, vol, sInt, digits)
+			newSeriesStr := fetchPnLSeries(ac, ac.Conn, ctid, symbolID, symbol, startMilli, endMilli, entryPrice, vol, sInt, digits)
 			if newSeriesStr != "" {
 				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, ticket)
 			}

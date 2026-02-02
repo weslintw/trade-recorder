@@ -650,7 +650,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 
 					digits := getDigits(symbol)
-					pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, digits)
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, digits)
 
 					if pnlSeries != "" || betterSL {
 						db.Exec(`UPDATE trades SET 
@@ -695,7 +695,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			if d.TradeSide == 1 {
 				posSide = 2 // Sell/Short (Closing Buy means original was Short)
 			}
-			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
+			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
 
 			// Check for existing open position record to migrate context/images/tags
 			posTicket := fmt.Sprintf("ctrader-pos-%d", d.PositionID)
@@ -994,7 +994,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 
 					log.Printf("[cTrader Sync] Repairing ancient PnL for trade %d (%s)", t.ID, t.Ticket)
-					pnlSeries := fetchPnLSeries(nil, conn, cTID, sid, t.EntryTime.UnixMilli(), t.ExitTime.Time.UnixMilli(), t.EntryPrice, rawVolume, posSide, getDigits(t.Symbol))
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, sid, t.Symbol, t.EntryTime.UnixMilli(), t.ExitTime.Time.UnixMilli(), t.EntryPrice, rawVolume, posSide, getDigits(t.Symbol))
 					if pnlSeries != "" {
 						db.Exec("UPDATE trades SET pnl_series = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", pnlSeries, t.ID)
 						time.Sleep(50 * time.Millisecond) // Throttle repairs
@@ -1075,7 +1075,7 @@ func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}
 	return nil
 }
 
-func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId int64, from, to int64, entryPrice float64, volume int64, side int, digits int) string {
+func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId int64, symbol string, from, to int64, entryPrice float64, volume int64, side int, digits int) string {
 	duration := to - from
 	if duration <= 0 {
 		return ""
@@ -1179,6 +1179,11 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 		// If volume passed is already adjusted (e.g. lotSize * 100 for gold), then:
 		// pnl = priceDiff * adjusted_volume
 		pnl := priceDiff * float64(volume)
+		// Correction for scaling quirk (see manager.go)
+		upperSym := strings.ToUpper(symbol)
+		if strings.Contains(upperSym, "XAU") || strings.Contains(upperSym, "GOLD") || strings.Contains(upperSym, "XAG") || strings.Contains(upperSym, "SILVER") || strings.Contains(upperSym, "BTC") || strings.Contains(upperSym, "ETH") {
+			pnl = pnl / 100.0
+		}
 
 		series = append(series, pnl)
 	}

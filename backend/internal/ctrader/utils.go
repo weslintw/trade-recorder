@@ -16,6 +16,10 @@ func getMultiplier(symbol string) float64 {
 	} // Indices: 1.0 = 1 point
 	// Forex pairs: 4 decimals = 10000 points (Pips)
 	if len(symbol) >= 6 && (strings.Contains(symbol, "USD") || strings.Contains(symbol, "EUR") || strings.Contains(symbol, "GBP")) {
+		// Exclude Cryptos
+		if strings.Contains(symbol, "BTC") || strings.Contains(symbol, "ETH") {
+			return 1.0
+		}
 		return 10000.0
 	}
 	return 1.0
@@ -34,6 +38,10 @@ func getPointValue(symbol string) float64 {
 	}
 	// Forex pairs
 	if len(symbol) >= 6 && (strings.Contains(symbol, "USD") || strings.Contains(symbol, "EUR") || strings.Contains(symbol, "GBP") || strings.Contains(symbol, "AUD")) {
+		// Exclude Cryptos
+		if strings.Contains(symbol, "BTC") || strings.Contains(symbol, "ETH") {
+			return 1.0
+		}
 		return 10.0 // 1 pip = 10 USD per lot
 	}
 	return 1.0
