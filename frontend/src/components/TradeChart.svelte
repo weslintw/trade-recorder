@@ -109,7 +109,7 @@
       rightPriceScale: {
         borderColor: 'rgba(255, 255, 255, 0.1)',
         scaleMargins: {
-          top: 0.05,
+          top: 0.2,
           bottom: 0.05,
         },
       },
@@ -1224,7 +1224,7 @@
       
       <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'trendline'} on:click={() => toggleDrawing('trendline')} title="趨勢線工具">
         <span class="icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="19" cy="5" r="3"/>
             <circle cx="5" cy="19" r="3"/>
             <line x1="7.1" y1="16.9" x2="16.9" y2="7.1"/>
@@ -1234,7 +1234,7 @@
 
       <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'arrow'} on:click={() => toggleDrawing('arrow')} title="箭頭工具">
         <span class="icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="5" cy="19" r="3"/>
             <path d="M19 5l-7 7"/>
             <path d="M14 5h5v5"/>
@@ -1244,7 +1244,7 @@
 
       <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'fib'} on:click={() => toggleDrawing('fib')} title="斐波那契工具">
         <span class="icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
             <line x1="4" y1="12" x2="20" y2="12"/>
             <line x1="4" y1="18" x2="20" y2="18"/>
@@ -1259,7 +1259,7 @@
           <span class="icon">✅</span>
         {:else}
           <span class="icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
@@ -1269,7 +1269,7 @@
 
       <button class="tool-button fullscreen-button" on:click={toggleFullscreen} title={isFullscreen ? "退出全螢幕" : "全螢幕檢視"}>
         <span class="icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
           </svg>
         </span>
@@ -1376,13 +1376,13 @@
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.15);
     color: #cbd5e1;
-    padding: 6px 14px;
-    border-radius: 8px;
-    font-size: 0.8rem;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
