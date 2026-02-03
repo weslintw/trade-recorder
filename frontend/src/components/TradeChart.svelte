@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, createSeriesMarkers } from 'lightweight-charts';
+  import { createChart, CandlestickSeries, LineSeries } from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -94,7 +94,7 @@
     chart.subscribeClick(handleChartClick);
     chart.subscribeCrosshairMove(handleCrosshairMove);
 
-    candlestickSeries = chart.addCandlestickSeries({
+    candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#ef4444',
       downColor: '#ffffff',
       borderVisible: false,
@@ -202,7 +202,7 @@
       }
       
       markers.sort(function(a, b) { return a.time - b.time; });
-      createSeriesMarkers(candlestickSeries, markers);
+      candlestickSeries.setMarkers(markers);
       
       // 視野管理：獲取了 1200 根，但初始視野只顯示中間的 400 根
       const totalLen = uniqueData.length;
@@ -276,7 +276,7 @@
     if (!firstPoint) {
       firstPoint = { time: param.time, price: price };
       // Create preview line
-      previewLine = chart.addLineSeries({
+      previewLine = chart.addSeries(LineSeries, {
         color: 'rgba(245, 158, 11, 0.5)',
         lineWidth: 1,
         lineStyle: 2, // Dashed
@@ -318,7 +318,7 @@
   }
 
   function addTrendline(p1, p2) {
-    const series = chart.addLineSeries({
+    const series = chart.addSeries(LineSeries, {
       color: '#f59e0b',
       lineWidth: 2,
       lastValueVisible: false,
