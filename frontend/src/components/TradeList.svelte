@@ -689,7 +689,7 @@
                     e.stopPropagation();
                     openImageModal(
                       image.image_path,
-                      `${image.image_type === 'entry' ? '進場' : image.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                      image.description || `${image.image_type === 'entry' ? '進場' : image.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
                       { tradeId: trade.id, type: 'general', index }
                     );
                   }}

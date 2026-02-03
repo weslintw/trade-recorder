@@ -862,7 +862,7 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                                     on:click|stopPropagation={() =>
                                       openModal(
                                         imagesAPI.getUrl(img.image_path),
-                                        trade.symbol + ' 交易圖表'
+                                        img.description || trade.symbol + ' 交易圖表'
                                       )}
                                   >
                                     <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />

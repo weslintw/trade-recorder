@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
+  import { createChart, createSeriesMarkers } from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -25,6 +25,12 @@
   let selectedLineIndex = null;
   let rafId = null;
 
+  // New interactive handles
+  let cp1 = { x: -1000, y: -1000 };
+  let cp2 = { x: -1000, y: -1000 };
+  let isDraggingCP = false;
+  let activeCPIndex = null; // 0 or 1
+
   onMount(function() {
     initChart();
     loadData();
@@ -46,6 +52,8 @@
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
       window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('mousemove', handleCPMouseMove);
+      window.removeEventListener('mouseup', handleCPMouseUp);
     };
   });
 
@@ -81,10 +89,12 @@
       },
     });
 
+    chart.timeScale().subscribeVisibleLogicalRangeChange(updateControlPoints);
+
     chart.subscribeClick(handleChartClick);
     chart.subscribeCrosshairMove(handleCrosshairMove);
 
-    candlestickSeries = chart.addSeries(CandlestickSeries, {
+    candlestickSeries = chart.addCandlestickSeries({
       upColor: '#ef4444',
       downColor: '#ffffff',
       borderVisible: false,
@@ -223,38 +233,6 @@
 
     // --- Dragging & Selection Logic (Outside drawing mode) ---
     if (!drawingActive) {
-      if (draggingPoint) {
-        draggingPoint = null;
-        chart.applyOptions({ handleScroll: true, handleScale: true });
-        return;
-      }
-      
-      // Try to pick up a point (15px threshold)
-      for (let i = 0; i < drawnLines.length; i++) {
-        const line = drawnLines[i];
-        const p1Coord = candlestickSeries.priceToCoordinate(line.p1.price);
-        const p1TimeCoord = chart.timeScale().timeToCoordinate(line.p1.time);
-        const p2Coord = candlestickSeries.priceToCoordinate(line.p2.price);
-        const p2TimeCoord = chart.timeScale().timeToCoordinate(line.p2.time);
-        
-        const dist1 = Math.sqrt(Math.pow(param.point.x - p1TimeCoord, 2) + Math.pow(param.point.y - p1Coord, 2));
-        const dist2 = Math.sqrt(Math.pow(param.point.x - p2TimeCoord, 2) + Math.pow(param.point.y - p2Coord, 2));
-        
-        if (dist1 < 15) {
-          draggingPoint = { lineIndex: i, pointIndex: 0 };
-          selectedLineIndex = i;
-          updateSelectedStyles();
-          chart.applyOptions({ handleScroll: false, handleScale: false });
-          return;
-        } else if (dist2 < 15) {
-          draggingPoint = { lineIndex: i, pointIndex: 1 };
-          selectedLineIndex = i;
-          updateSelectedStyles();
-          chart.applyOptions({ handleScroll: false, handleScale: false });
-          return;
-        }
-      }
-
       // Try to select a line (click detection on the segment)
       for (let i = 0; i < drawnLines.length; i++) {
         const line = drawnLines[i];
@@ -298,7 +276,7 @@
     if (!firstPoint) {
       firstPoint = { time: param.time, price: price };
       // Create preview line
-      previewLine = chart.addSeries(LineSeries, {
+      previewLine = chart.addLineSeries({
         color: 'rgba(245, 158, 11, 0.5)',
         lineWidth: 1,
         lineStyle: 2, // Dashed
@@ -336,28 +314,11 @@
         lineData.sort(function(a, b) { return a.time - b.time; });
         previewLine.setData(lineData);
       }
-
-      // Dragging update
-      if (draggingPoint) {
-        const line = drawnLines[draggingPoint.lineIndex];
-        if (draggingPoint.pointIndex === 0) {
-          line.p1 = { time: param.time, price: price };
-        } else {
-          line.p2 = { time: param.time, price: price };
-        }
-        
-        const lineData = [
-          { time: line.p1.time, value: line.p1.price },
-          { time: line.p2.time, value: line.p2.price }
-        ];
-        lineData.sort(function(a, b) { return a.time - b.time; });
-        line.series.setData(lineData);
-      }
     });
   }
 
   function addTrendline(p1, p2) {
-    const series = chart.addSeries(LineSeries, {
+    const series = chart.addLineSeries({
       color: '#f59e0b',
       lineWidth: 2,
       lastValueVisible: false,
@@ -381,11 +342,82 @@
   function updateSelectedStyles() {
     for (let i = 0; i < drawnLines.length; i++) {
       drawnLines[i].series.applyOptions({
-        color: i === selectedLineIndex ? '#3b82f6' : '#f59e0b',
-        lineWidth: i === selectedLineIndex ? 3 : 2,
+        color: '#f59e0b',
+        lineWidth: i === selectedLineIndex ? 4 : 2, // 選中時稍微加粗，但不換色
       });
     }
+    updateControlPoints();
   }
+
+  function updateControlPoints() {
+    if (selectedLineIndex === null || !drawnLines[selectedLineIndex] || !candlestickSeries) {
+      cp1 = { x: -1000, y: -1000 };
+      cp2 = { x: -1000, y: -1000 };
+      return;
+    }
+    const line = drawnLines[selectedLineIndex];
+    const x1 = chart.timeScale().timeToCoordinate(line.p1.time);
+    const y1 = candlestickSeries.priceToCoordinate(line.p1.price);
+    const x2 = chart.timeScale().timeToCoordinate(line.p2.time);
+    const y2 = candlestickSeries.priceToCoordinate(line.p2.price);
+
+    cp1 = { x: x1 != null ? x1 : -1000, y: y1 != null ? y1 : -1000 };
+    cp2 = { x: x2 != null ? x2 : -1000, y: y2 != null ? y2 : -1000 };
+  }
+
+  function startDragCP(e, index) {
+    if (drawingActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingCP = true;
+    activeCPIndex = index;
+    chart.applyOptions({ handleScroll: false, handleScale: false });
+    window.addEventListener('mousemove', handleCPMouseMove);
+    window.addEventListener('mouseup', handleCPMouseUp);
+  }
+
+  function handleCPMouseMove(e) {
+    if (!isDraggingCP || selectedLineIndex === null || !chartContainer) return;
+    
+    // 使用 requestAnimationFrame 優化效能
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(function() {
+      const rect = chartContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const time = chart.timeScale().coordinateToTime(x);
+      const price = candlestickSeries.coordinateToPrice(y);
+      
+      if (time && price) {
+        const line = drawnLines[selectedLineIndex];
+        if (activeCPIndex === 0) {
+          line.p1 = { time, price };
+        } else {
+          line.p2 = { time, price };
+        }
+        
+        const lineData = [
+          { time: line.p1.time, value: line.p1.price },
+          { time: line.p2.time, value: line.p2.price }
+        ];
+        lineData.sort(function(a, b) { return a.time - b.time; });
+        line.series.setData(lineData);
+        updateControlPoints();
+      }
+    });
+  }
+
+  function handleCPMouseUp() {
+    isDraggingCP = false;
+    activeCPIndex = null;
+    chart.applyOptions({ handleScroll: true, handleScale: true });
+    window.removeEventListener('mousemove', handleCPMouseMove);
+    window.removeEventListener('mouseup', handleCPMouseUp);
+  }
+
+  function handleMouseDownCP0(e) { startDragCP(e, 0); }
+  function handleMouseDownCP1(e) { startDragCP(e, 1); }
 
   function deleteSelectedLine() {
     if (selectedLineIndex === null) return;
@@ -568,6 +600,21 @@
   {/if}
 
   <div bind:this={chartContainer} class="chart-container"></div>
+
+  {#if selectedLineIndex !== null}
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div 
+      class="control-point-handle" 
+      style="left: {cp1.x}px; top: {cp1.y}px;"
+      on:mousedown={handleMouseDownCP0}
+    ></div>
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div 
+      class="control-point-handle" 
+      style="left: {cp2.x}px; top: {cp2.y}px;"
+      on:mousedown={handleMouseDownCP1}
+    ></div>
+  {/if}
 </div>
 
 <style>
@@ -736,5 +783,25 @@
 
   :global(.tv-lightweight-charts) {
     border-radius: 16px;
+  }
+
+  .control-point-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: transparent;
+    border: 3px solid #3b82f6;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    z-index: 20;
+    cursor: move;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+    transition: transform 0.1s;
+  }
+
+  .control-point-handle:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+    background: rgba(59, 130, 246, 0.1);
   }
 </style>

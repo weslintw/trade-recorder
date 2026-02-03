@@ -2815,7 +2815,7 @@
                                 on:click|stopPropagation={() =>
                                   openImageModal(
                                     img.image_path,
-                                    `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    img.description || `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
                                     {
                                       tradeId:
                                         timeGroup.trades.find(t => (t.images || []).includes(img))
@@ -3080,7 +3080,7 @@
                                 on:click|stopPropagation={() =>
                                   openImageModal(
                                     img.image_path,
-                                    `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    img.description || `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
                                     { tradeId: trade.id, type: 'general', index: idx }
                                   )}
                               >

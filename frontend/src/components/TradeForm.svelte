@@ -1860,7 +1860,7 @@
                     src={getImageUrl(img.image_path)}
                     alt="Trade Screenshot"
                     class="trade-thumb"
-                    on:click={() => enlargeImage(img.image_path, '交易截圖', { type: 'general' })}
+                    on:click={() => enlargeImage(img.image_path, img.description || '交易截圖', { type: 'general' })}
                   />
                   <button
                     type="button"
