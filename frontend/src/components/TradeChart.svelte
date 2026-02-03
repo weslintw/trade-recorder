@@ -15,7 +15,8 @@
   let error = null;
   let timeframe = '';
   let copying = false;
-  let drawingActive = false;
+  let drawingMode = null; // null, 'trendline', 'arrow'
+  let drawingActive = false; // keep for backward compatibility in some logic or replace it
   let firstPoint = null;
   let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, color, lineWidth }
   let isFullscreen = false;
@@ -113,6 +114,11 @@
     });
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateControlPoints);
+    chart.timeScale().subscribeVisibleTimeRangeChange(function() {
+      drawnLines.forEach(function(line) {
+        if (line.type === 'arrow') updateLineWings(line);
+      });
+    });
 
     chart.subscribeClick(handleChartClick);
     chart.subscribeCrosshairMove(handleCrosshairMove);
@@ -387,11 +393,15 @@
       });
     } else {
       const secondPoint = { time: param.time, price: price };
-      addTrendline(firstPoint, secondPoint);
+      if (drawingMode === 'arrow') {
+        addArrow(firstPoint, secondPoint);
+      } else {
+        addTrendline(firstPoint, secondPoint);
+      }
       
       console.log('[Chart] Line completed, exiting drawing mode');
       // Use the central toggle function to ensure all states are reset properly
-      toggleDrawing(); 
+      toggleDrawing(drawingMode); 
     }
   }
 
@@ -423,6 +433,7 @@
         ];
         lineData.sort(function(a, b) { return a.time - b.time; });
         line.series.setData(lineData);
+        if (line.type === 'arrow') updateLineWings(line);
         
         dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
         updateControlPoints();
@@ -437,11 +448,95 @@
         ];
         lineData.sort(function(a, b) { return a.time - b.time; });
         previewLine.setData(lineData);
+
+        // Update arrow preview wings
+        if (drawingMode === 'arrow') {
+          updateArrowPreviewWings(firstPoint, { time: param.time, price: price });
+        } else {
+          hideArrowPreviewWings();
+        }
       }
     });
   }
 
+  let arrowPreviewWings = [];
+
+  function updateArrowPreviewWings(p1, p2) {
+    if (!candlestickSeries || !chart) return;
+    
+    // Calculate wings in screen coordinates
+    const x1 = chart.timeScale().timeToCoordinate(p1.time);
+    const y1 = candlestickSeries.priceToCoordinate(p1.price);
+    const x2 = chart.timeScale().timeToCoordinate(p2.time);
+    const y2 = candlestickSeries.priceToCoordinate(p2.price);
+    
+    if (x1 === null || y1 === null || x2 === null || y2 === null) return;
+    
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const angle = Math.atan2(dy, dx);
+    const length = 15; // Wing length in pixels
+    const wingAngle = Math.PI / 7; // About 25 degrees
+    
+    const x3 = x2 - length * Math.cos(angle - wingAngle);
+    const y3 = y2 - length * Math.sin(angle - wingAngle);
+    const x4 = x2 - length * Math.cos(angle + wingAngle);
+    const y4 = y2 - length * Math.sin(angle + wingAngle);
+    
+    const t3 = chart.timeScale().coordinateToTime(x3);
+    const v3 = candlestickSeries.coordinateToPrice(y3);
+    const t4 = chart.timeScale().coordinateToTime(x4);
+    const v4 = candlestickSeries.coordinateToPrice(y4);
+    
+    if (t3 && v3 && t4 && v4) {
+      if (arrowPreviewWings.length === 0) {
+        const wingOptions = {
+          color: selectedColor,
+          lineWidth: selectedLineWidth,
+          lineStyle: 2, // Dashed
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        };
+        arrowPreviewWings = [
+          chart.addSeries(LineSeries, wingOptions),
+          chart.addSeries(LineSeries, wingOptions)
+        ];
+      } else {
+        // Update styles if they changed
+        arrowPreviewWings[0].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
+        arrowPreviewWings[1].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
+      }
+      
+      const d1 = [{ time: p2.time, value: p2.price }, { time: t3, value: v3 }];
+      const d2 = [{ time: p2.time, value: p2.price }, { time: t4, value: v4 }];
+      d1.sort((a,b) => a.time - b.time);
+      d2.sort((a,b) => a.time - b.time);
+      arrowPreviewWings[0].setData(d1);
+      arrowPreviewWings[1].setData(d2);
+    }
+  }
+
+  function hideArrowPreviewWings() {
+    if (arrowPreviewWings.length > 0) {
+      chart.removeSeries(arrowPreviewWings[0]);
+      chart.removeSeries(arrowPreviewWings[1]);
+      arrowPreviewWings = [];
+    }
+  }
+
+  function addArrow(p1, p2) {
+    const lineObj = addLineObject(p1, p2, 'arrow');
+    updateLineWings(lineObj);
+    saveTrendlines();
+  }
+
   function addTrendline(p1, p2) {
+    addLineObject(p1, p2, 'trendline');
+    saveTrendlines();
+  }
+
+  function addLineObject(p1, p2, type = 'trendline') {
     const series = chart.addSeries(LineSeries, {
       color: selectedColor,
       lineWidth: selectedLineWidth,
@@ -457,28 +552,100 @@
     lineData.sort(function(a, b) { return a.time - b.time; });
     series.setData(lineData);
     
-    drawnLines.push({ 
+    const lineObj = { 
       series: series, 
       p1: p1, 
       p2: p2,
+      type: type,
       color: selectedColor,
-      lineWidth: selectedLineWidth
-    });
+      lineWidth: selectedLineWidth,
+      wings: [] // For arrow type
+    };
+    
+    drawnLines.push(lineObj);
     drawnLines = drawnLines;
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
-    if (!useSharedAPI) { // Only save if not in shared mode
-      saveTrendlines();
+    return lineObj;
+  }
+
+  function updateLineWings(line) {
+    if (line.type !== 'arrow') return;
+    
+    // Calculate wings
+    const x1 = chart.timeScale().timeToCoordinate(line.p1.time);
+    const y1 = candlestickSeries.priceToCoordinate(line.p1.price);
+    const x2 = chart.timeScale().timeToCoordinate(line.p2.time);
+    const y2 = candlestickSeries.priceToCoordinate(line.p2.price);
+    
+    if (x1 === null || y1 === null || x2 === null || y2 === null) return;
+    
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const angle = Math.atan2(dy, dx);
+    const length = 15;
+    const wingAngle = Math.PI / 7;
+    
+    const x3 = x2 - length * Math.cos(angle - wingAngle);
+    const y3 = y2 - length * Math.sin(angle - wingAngle);
+    const x4 = x2 - length * Math.cos(angle + wingAngle);
+    const y4 = y2 - length * Math.sin(angle + wingAngle);
+    
+    const t3 = chart.timeScale().coordinateToTime(x3);
+    const v3 = candlestickSeries.coordinateToPrice(y3);
+    const t4 = chart.timeScale().coordinateToTime(x4);
+    const v4 = candlestickSeries.coordinateToPrice(y4);
+    
+    if (t3 && v3 && t4 && v4) {
+      if (line.wings.length === 0) {
+        line.wings = [
+          chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false }),
+          chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
+        ];
+      }
+      
+      const d1 = [{ time: line.p2.time, value: line.p2.price }, { time: t3, value: v3 }];
+      const d2 = [{ time: line.p2.time, value: line.p2.price }, { time: t4, value: v4 }];
+      d1.sort((a,b) => a.time - b.time);
+      d2.sort((a,b) => a.time - b.time);
+      line.wings[0].setData(d1);
+      line.wings[1].setData(d2);
+      
+      // Sync wing styles
+      const wingOptions = {
+        color: line.color,
+        lineWidth: selectedLineIndex !== null && drawnLines[selectedLineIndex] === line ? line.lineWidth + 2 : line.lineWidth
+      };
+      line.wings[0].applyOptions(wingOptions);
+      line.wings[1].applyOptions(wingOptions);
     }
+  }
+
+  function updateActiveLineStyle() {
+    if (selectedLineIndex === null || !drawnLines[selectedLineIndex]) return;
+    const line = drawnLines[selectedLineIndex];
+    line.color = selectedColor;
+    line.lineWidth = selectedLineWidth;
+    if (line.type === 'arrow') updateLineWings(line);
+    updateSelectedStyles();
+    saveTrendlines();
   }
 
   function updateSelectedStyles() {
     for (let i = 0; i < drawnLines.length; i++) {
       const line = drawnLines[i];
+      const isSelected = i === selectedLineIndex;
+      const effectiveLineWidth = isSelected ? (line.lineWidth || 2) + 2 : (line.lineWidth || 2);
+      
       line.series.applyOptions({
         color: line.color || '#f59e0b',
-        lineWidth: i === selectedLineIndex ? (line.lineWidth || 2) + 2 : (line.lineWidth || 2),
+        lineWidth: effectiveLineWidth,
       });
+
+      if (line.type === 'arrow' && line.wings && line.wings.length === 2) {
+        line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+        line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+      }
     }
     updateControlPoints();
   }
@@ -562,6 +729,7 @@
         ];
         lineData.sort(function(a, b) { return a.time - b.time; });
         line.series.setData(lineData);
+        if (line.type === 'arrow') updateLineWings(line);
         updateControlPoints();
       }
     });
@@ -583,20 +751,42 @@
 
   function deleteSelectedLine() {
     if (selectedLineIndex === null || useSharedAPI) return; // Disable for shared mode
-    chart.removeSeries(drawnLines[selectedLineIndex].series);
+    const line = drawnLines[selectedLineIndex];
+    chart.removeSeries(line.series);
+    if (line.wings) {
+      line.wings.forEach(s => chart.removeSeries(s));
+    }
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
     selectedLineIndex = null;
     saveTrendlines();
   }
 
-  function toggleDrawing() {
+  function toggleDrawing(mode = 'trendline') {
     if (useSharedAPI) return; // Disable for shared mode
-    drawingActive = !drawingActive;
-    if (drawingActive) {
+    
+    if (drawingActive && drawingMode === mode) {
+      // Toggle off if same mode
+      drawingActive = false;
+      drawingMode = null;
+    } else if (drawingActive && drawingMode !== mode) {
+      // Switch mode
+      drawingMode = mode;
+      // Reset firstPoint if switching tools? Probably safer.
+      if (previewLine) {
+        chart.removeSeries(previewLine);
+        previewLine = null;
+      }
+      firstPoint = null;
+    } else {
+      // Toggle on
+      drawingActive = true;
+      drawingMode = mode;
       selectedLineIndex = null;
       updateSelectedStyles();
-    } else {
+    }
+
+    if (!drawingActive) {
       if (previewLine) {
         chart.removeSeries(previewLine);
         previewLine = null;
@@ -610,7 +800,9 @@
   function clearDrawings() {
     if (useSharedAPI) return; // Disable for shared mode
     for (let i = 0; i < drawnLines.length; i++) {
-       chart.removeSeries(drawnLines[i].series);
+        const line = drawnLines[i];
+        chart.removeSeries(line.series);
+        if (line.wings) line.wings.forEach(s => chart.removeSeries(s));
     }
     if (previewLine) {
       chart.removeSeries(previewLine);
@@ -631,6 +823,7 @@
       const linesData = drawnLines.map(line => ({
         p1: { time: line.p1.time, price: line.p1.price },
         p2: { time: line.p2.time, price: line.p2.price },
+        type: line.type || 'trendline',
         color: line.color,
         lineWidth: line.lineWidth
       }));
@@ -654,6 +847,7 @@
       if (!linesData || linesData.length === 0) return;
       
       for (const lineData of linesData) {
+        const type = lineData.type || 'trendline';
         const series = chart.addSeries(LineSeries, {
           color: lineData.color || '#f59e0b',
           lineWidth: lineData.lineWidth || 2,
@@ -669,13 +863,18 @@
         data.sort((a, b) => a.time - b.time);
         series.setData(data);
         
-        drawnLines.push({
+        const lineObj = {
           series: series,
           p1: lineData.p1,
           p2: lineData.p2,
-          color: lineData.color,
-          lineWidth: lineData.lineWidth
-        });
+          type: type,
+          color: lineData.color || '#f59e0b',
+          lineWidth: lineData.lineWidth || 2,
+          wings: []
+        };
+        
+        drawnLines.push(lineObj);
+        if (type === 'arrow') updateLineWings(lineObj);
       }
       drawnLines = drawnLines;
     } catch (e) {
@@ -849,7 +1048,7 @@
                     class="color-btn" 
                     class:active={selectedColor === color}
                     style="background: {color}"
-                    on:click={() => { selectedColor = color; showStyleMenu = false; }}
+                    on:click={() => { selectedColor = color; updateActiveLineStyle(); showStyleMenu = false; }}
                   ></button>
                 {/each}
               </div>
@@ -861,7 +1060,7 @@
                   <button 
                     class="width-btn" 
                     class:active={selectedLineWidth === width}
-                    on:click={() => { selectedLineWidth = width; showStyleMenu = false; }}
+                    on:click={() => { selectedLineWidth = width; updateActiveLineStyle(); showStyleMenu = false; }}
                   >
                     {width}px
                   </button>
@@ -872,12 +1071,22 @@
         {/if}
       </div>
       
-      <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具">
+      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'trendline'} on:click={() => toggleDrawing('trendline')} title="趨勢線工具">
         <span class="icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="19" cy="5" r="3"/>
             <circle cx="5" cy="19" r="3"/>
             <line x1="7.1" y1="16.9" x2="16.9" y2="7.1"/>
+          </svg>
+        </span>
+      </button>
+
+      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'arrow'} on:click={() => toggleDrawing('arrow')} title="箭頭工具">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="5" cy="19" r="3"/>
+            <path d="M19 5l-7 7"/>
+            <path d="M14 5h5v5"/>
           </svg>
         </span>
       </button>
