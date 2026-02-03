@@ -126,6 +126,7 @@ func createTables(db *sql.DB) error {
 		legend_htf_image_original TEXT,
 		legend_de_htf VARCHAR(20),
 		journal TEXT,
+		chart_config TEXT,
 		entry_time DATETIME NOT NULL,
 		exit_time DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -380,6 +381,7 @@ func createTables(db *sql.DB) error {
 	db.Exec("ALTER TABLE trades ADD COLUMN legend_images TEXT;") // 傳奇觀察圖 (JSON array)
 	db.Exec("ALTER TABLE trades ADD COLUMN expert_images TEXT;") // 達人觀察圖 (JSON array)
 	db.Exec("ALTER TABLE trades ADD COLUMN elite_images TEXT;")  // 菁英觀察圖 (JSON array)
+	db.Exec("ALTER TABLE trades ADD COLUMN chart_config TEXT;")  // 圖表配置
 
 	// 進階分享：添加 resource_ids 欄位
 	db.Exec("ALTER TABLE shares ADD COLUMN resource_ids TEXT;")

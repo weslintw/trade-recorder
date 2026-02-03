@@ -47,8 +47,9 @@ type Trade struct {
 	EntryTime                  time.Time  `json:"entry_time"`
 	ColorTag                   *string    `json:"color_tag,omitempty"` // "red", "yellow", "green"
 	ExitTime                   *time.Time `json:"exit_time,omitempty"`
-	SLHistory                  *string    `json:"sl_history,omitempty"` // 所有曾經設定過的 SL 紀錄 (JSON array)
-	PnLSeries                  *string    `json:"pnl_series,omitempty"` // 持倉期間的盈虧序列 (JSON array)
+	SLHistory                  *string    `json:"sl_history,omitempty"`   // 所有曾經設定過的 SL 紀錄 (JSON array)
+	PnLSeries                  *string    `json:"pnl_series,omitempty"`   // 持倉期間的盈虧序列 (JSON array)
+	ChartConfig                *string    `json:"chart_config,omitempty"` // 圖表配置 (JSON string: {period, range})
 	CreatedAt                  time.Time  `json:"created_at"`
 	UpdatedAt                  time.Time  `json:"updated_at"`
 	Images                     []Image    `json:"images,omitempty"`
@@ -113,7 +114,8 @@ type TradeCreate struct {
 	LegendImages               string        `json:"legend_images"` // JSON array of {image, originalImage}
 	ExpertImages               string        `json:"expert_images"`
 	EliteImages                string        `json:"elite_images"`
-	Journal                    string        `json:"journal"` // 紀事
+	Journal                    string        `json:"journal"`      // 紀事
+	ChartConfig                string        `json:"chart_config"` // 圖表配置
 	EntryTime                  time.Time     `json:"entry_time" binding:"required"`
 	ColorTag                   string        `json:"color_tag"`
 	ExitTime                   *time.Time    `json:"exit_time"`

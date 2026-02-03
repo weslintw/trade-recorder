@@ -12,6 +12,7 @@
     calculateBulletSize,
     toTradingDateString,
     formatDate,
+    isHTMLNoteEmpty,
   } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -2837,7 +2838,7 @@
                           </div>
                         {/if}
 
-                        {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].journal && timeGroup.trades[0].journal.trim()) || (timeGroup.trades[0].exit_reason && timeGroup.trades[0].exit_reason.trim()) || (timeGroup.trades[0].notes && timeGroup.trades[0].notes.trim())}
+                        {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].journal) || !isHTMLNoteEmpty(timeGroup.trades[0].exit_reason) || !isHTMLNoteEmpty(timeGroup.trades[0].notes)}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === timeGroup.trades[0].id}
                                 <div class="card-notes-header">
@@ -2847,7 +2848,7 @@
                             {/if}
 
                             <!-- 復盤日記 (對應 DB: notes) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].notes && timeGroup.trades[0].notes.trim())}
+                            {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].notes)}
                               <div class="note-block">
                                 <div class="note-label">📝 復盤日記</div>
                                 <div 
@@ -2859,7 +2860,7 @@
                             {/if}
 
                             <!-- 平倉理由 (對應 DB: exit_reason) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].exit_reason && timeGroup.trades[0].exit_reason.trim())}
+                            {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].exit_reason)}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
                                 <div 
@@ -2871,7 +2872,7 @@
                             {/if}
                             
                             <!-- 記事備註 (對應 DB: journal) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].journal && timeGroup.trades[0].journal.trim())}
+                            {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].journal)}
                               <div class="note-block">
                                 <div class="note-label">📌 記事備註</div>
                                 <div 
@@ -3094,7 +3095,7 @@
                         {/if}
                         
                         <!-- 只在編輯模式或有任何內容時才顯示筆記區塊 -->
-                        {#if editingTradeId === trade.id || (trade.journal && trade.journal.trim()) || (trade.exit_reason && trade.exit_reason.trim()) || (trade.notes && trade.notes.trim())}
+                        {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.journal) || !isHTMLNoteEmpty(trade.exit_reason) || !isHTMLNoteEmpty(trade.notes)}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === trade.id}
                                 <div class="card-notes-header">
@@ -3104,7 +3105,7 @@
                             {/if}
 
                             <!-- 復盤日記 (對應 DB: notes) - 只在編輯模式或有內容時顯示 -->
-                            {#if editingTradeId === trade.id || (trade.notes && trade.notes.trim())}
+                            {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.notes)}
                               <div class="note-block">
                                 <div class="note-label">📝 復盤日記</div>
                                 <div 
@@ -3116,7 +3117,7 @@
                             {/if}
 
                             <!-- 平倉理由 (對應 DB: exit_reason) - 只在編輯模式或有內容時顯示 -->
-                            {#if editingTradeId === trade.id || (trade.exit_reason && trade.exit_reason.trim())}
+                            {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.exit_reason)}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
                                 <div 
@@ -3128,7 +3129,7 @@
                             {/if}
                             
                             <!-- 記事備註 (對應 DB: journal) - 只在編輯模式或有內容時顯示 -->
-                            {#if editingTradeId === trade.id || (trade.journal && trade.journal.trim())}
+                            {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.journal)}
                               <div class="note-block">
                                 <div class="note-label">📌 記事備註</div>
                                 <div 

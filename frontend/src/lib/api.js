@@ -85,6 +85,7 @@ export const tradesAPI = {
   getChartData: (id, period, signal) => api.get(`/trades/${id}/chart`, { params: { period }, signal }),
   saveTrendlines: (id, data) => api.put(`/trades/${id}/trendlines`, data),
   getTrendlines: (id, signal) => api.get(`/trades/${id}/trendlines`, { signal }),
+  saveChartConfig: (id, data) => api.put(`/trades/${id}/chart-config`, data),
 };
 
 // 圖片相關

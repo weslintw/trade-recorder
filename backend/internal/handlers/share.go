@@ -250,14 +250,14 @@ func GetTradeInternal(db *sql.DB, id int64) (*models.Trade, error) {
 			   t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist, t.entry_pattern, t.trend_analysis, 
 			   t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, t.timezone_offset, t.ticket, t.exit_sl,
 			   t.legend_king_htf, t.legend_king_image, t.legend_king_image_original, t.legend_htf, t.legend_htf_image, t.legend_htf_image_original, t.legend_de_htf, t.legend_images,
-			   t.entry_time, t.exit_time, t.created_at, t.updated_at, t.color_tag, t.pnl_series, t.sl_history
+			   t.entry_time, t.exit_time, t.created_at, t.updated_at, t.color_tag, t.pnl_series, t.sl_history, t.journal, t.chart_config
 		FROM trades t WHERE t.id = ?`, id).Scan(
 		&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 		&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.Notes, &trade.EntryReason, &trade.ExitReason,
 		&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 		&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio, &trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
 		&trade.LegendKingHTF, &trade.LegendKingImage, &trade.LegendKingImageOriginal, &trade.LegendHTF, &trade.LegendHTFImage, &trade.LegendHTFImageOriginal, &trade.LegendDeHTF, &trade.LegendImages,
-		&trade.EntryTime, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.ColorTag, &trade.PnLSeries, &trade.SLHistory,
+		&trade.EntryTime, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.ColorTag, &trade.PnLSeries, &trade.SLHistory, &trade.Journal, &trade.ChartConfig,
 	)
 	if err != nil {
 		return nil, err

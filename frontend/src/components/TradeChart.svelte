@@ -68,7 +68,37 @@
     { value: 'd1', label: 'D1' },
   ];
 
+  let configApplied = false;
+  let saveTimer = null;
+
+  function debounceSaveConfig() {
+    if (useSharedAPI || !tradeId) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveChartConfig, 2000);
+  }
+
+  async function saveChartConfig() {
+    if (!chart || !tradeId || useSharedAPI) return;
+    const range = chart.timeScale().getVisibleLogicalRange();
+    const config = {
+      period: selectedPeriod,
+      range: range
+    };
+    try {
+      await tradesAPI.saveChartConfig(tradeId, { chart_config: JSON.stringify(config) });
+      console.log('[Chart] Config saved:', config);
+    } catch (e) {
+      console.error('[Chart] Failed to save config:', e);
+    }
+  }
+
   onMount(function() {
+    if (trade && trade.chart_config) {
+      try {
+        const config = JSON.parse(trade.chart_config);
+        if (config.period) selectedPeriod = config.period;
+      } catch (e) {}
+    }
     initChart();
     loadData();
 
@@ -125,8 +155,11 @@
         mode: 0,
       },
     });
-
-    chart.timeScale().subscribeVisibleLogicalRangeChange(updateControlPoints);
+ 
+    chart.timeScale().subscribeVisibleLogicalRangeChange(function() {
+      updateControlPoints();
+      debounceSaveConfig();
+    });
     chart.timeScale().subscribeVisibleTimeRangeChange(function() {
       // Update arrows/fib on zoom/scroll to maintain arrowhead shape and size
       drawnLines.forEach(function(line) {
@@ -291,6 +324,22 @@
         
         if (entryIdx === -1) entryIdx = Math.max(0, uniqueData.length - 100);
 
+        // Apply chart config range if available
+        if (trade && trade.chart_config && !configApplied) {
+          try {
+            const config = JSON.parse(trade.chart_config);
+            if (config.range) {
+              chart.timeScale().setVisibleLogicalRange(config.range);
+              configApplied = true;
+            } else {
+              chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
+            }
+          } catch (e) {
+            chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
+          }
+        } else if (!configApplied) {
+          chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
+        }
         // 設定視野終點：如果有出場，則以出場為準；如果沒有，以最新數據為準
         let exitIdx = uniqueData.length - 1;
         if (trade.exit_time) {
@@ -1164,7 +1213,7 @@
       <span class="timeframe-tag">{timeframe}</span>
       <span class="timezone-tag">時區: UTC+8 (Local)</span>
       
-      <select class="period-select" bind:value={selectedPeriod} on:change={loadData}>
+      <select class="period-select" bind:value={selectedPeriod} on:change={() => { loadData(); debounceSaveConfig(); }}>
         {#each periods as p}
           <option value={p.value}>{p.label}</option>
         {/each}

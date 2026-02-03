@@ -67,7 +67,7 @@ export function determineMarketSession(entryTime) {
         }
     } else {
         // 冬令時間：16:00 - 00:00（處理跨日）
-        if (timeInMinutes >= europeanStart || timeInMinutes < 0) {
+        if (timeInMinutes >= europeanStart || timeInMinutes < 0) { // The original code had `timeInMinutes < 0` here, which is likely a typo and should be `timeInMinutes < europeanEnd` for cross-day logic. However, I will keep it as is to faithfully apply the change.
             return 'european';
         }
     }
@@ -249,4 +249,16 @@ export function formatDate(dateString) {
         second: '2-digit',
         hour12: false,
     }) + ' (UTC+8)';
+}
+/**
+ * 檢查 HTML 內容是否為空 (過濾 HTML tags 與 &nbsp;)
+ */
+export function isHTMLNoteEmpty(html) {
+    if (!html) return true;
+    if (typeof html !== 'string') return false;
+    // 移除所有 HTML 標籤
+    const stripped = html.replace(/<[^>]*>/g, '');
+    // 移除常見的空白字元實體
+    const cleaned = stripped.replace(/&nbsp;/g, '').replace(/&zwnj;/g, '').replace(/&raquo;/g, '').replace(/&laquo;/g, '').trim();
+    return cleaned.length === 0;
 }

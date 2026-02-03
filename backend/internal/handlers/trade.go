@@ -49,7 +49,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 		SELECT DISTINCT t.id, t.account_id, COALESCE(t.trade_type, 'actual'), t.symbol, t.side, t.entry_price, t.exit_price, 
 			   t.lot_size, t.pnl, t.pnl_points, t.entry_strategy, t.entry_timeframe, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, 
 			   COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl, t.entry_signals, t.entry_checklist, t.entry_pattern,
-			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal, t.notes, t.exit_reason
+			   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal, t.notes, t.exit_reason, t.chart_config
 		FROM trades t
 		LEFT JOIN accounts a ON t.account_id = a.id
 		LEFT JOIN trade_tags tt ON t.id = tt.trade_id
@@ -139,7 +139,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				&trade.ID, &trade.AccountID, &trade.TradeType, &trade.Symbol, &trade.Side, &trade.EntryPrice, &trade.ExitPrice,
 				&trade.LotSize, &trade.PnL, &trade.PnLPoints, &trade.EntryStrategy, &trade.EntryTimeframe, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio,
 				&trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern,
-				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal, &trade.Notes, &trade.ExitReason,
+				&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal, &trade.Notes, &trade.ExitReason, &trade.ChartConfig,
 			)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -316,7 +316,7 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 				   COALESCE(t.notes, ''), t.entry_reason, t.exit_reason, t.entry_strategy, t.entry_strategy_image, t.entry_strategy_image_original, t.entry_signals, t.entry_checklist,
 				   t.entry_pattern, t.trend_analysis, t.entry_timeframe, t.trend_type, t.market_session, t.initial_sl, t.bullet_size, t.rr_ratio, COALESCE(a.timezone_offset, t.timezone_offset, 8), t.ticket, t.exit_sl,
 				   t.legend_king_htf, t.legend_king_image, t.legend_king_image_original, t.legend_htf, t.legend_htf_image, t.legend_htf_image_original, t.legend_de_htf, t.legend_images, t.expert_images, t.elite_images,
-				   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal
+				   t.entry_time, t.color_tag, t.exit_time, t.created_at, t.updated_at, t.sl_history, t.pnl_series, t.journal, t.chart_config
 			FROM trades t
 			LEFT JOIN accounts a ON t.account_id = a.id
 			WHERE t.id = ? AND a.user_id = ?
@@ -326,7 +326,7 @@ func GetTrade(db *sql.DB) gin.HandlerFunc {
 			&trade.EntryStrategy, &trade.EntryStrategyImage, &trade.EntryStrategyImageOriginal, &trade.EntrySignals, &trade.EntryChecklist, &trade.EntryPattern, &trade.TrendAnalysis,
 			&trade.EntryTimeframe, &trade.TrendType, &trade.MarketSession, &trade.InitialSL, &trade.BulletSize, &trade.RRRatio, &trade.TimezoneOffset, &trade.Ticket, &trade.ExitSL,
 			&trade.LegendKingHTF, &trade.LegendKingImage, &trade.LegendKingImageOriginal, &trade.LegendHTF, &trade.LegendHTFImage, &trade.LegendHTFImageOriginal, &trade.LegendDeHTF, &trade.LegendImages, &trade.ExpertImages, &trade.EliteImages,
-			&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal,
+			&trade.EntryTime, &trade.ColorTag, &trade.ExitTime, &trade.CreatedAt, &trade.UpdatedAt, &trade.SLHistory, &trade.PnLSeries, &trade.Journal, &trade.ChartConfig,
 		)
 
 		if err == sql.ErrNoRows {
@@ -388,9 +388,9 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		// 插入交易紀錄
 		result, err := tx.Exec(`
-			INSERT INTO trades (account_id, trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, initial_sl, bullet_size, rr_ratio, timezone_offset, exit_sl, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, expert_images, elite_images, entry_time, color_tag, exit_time, journal)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, req.AccountID, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.InitialSL, req.BulletSize, req.RRRatio, req.TimezoneOffset, req.ExitSL, req.LegendKingHTF, req.LegendKingImage, req.LegendKingImageOriginal, req.LegendHTF, req.LegendHTFImage, req.LegendHTFImageOriginal, req.LegendDeHTF, req.LegendImages, req.ExpertImages, req.EliteImages, req.EntryTime, req.ColorTag, req.ExitTime, req.Journal)
+			INSERT INTO trades (account_id, trade_type, symbol, side, entry_price, exit_price, lot_size, pnl, pnl_points, notes, entry_reason, exit_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, initial_sl, bullet_size, rr_ratio, timezone_offset, exit_sl, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, expert_images, elite_images, entry_time, color_tag, exit_time, journal, chart_config)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, req.AccountID, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL, req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist, req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.InitialSL, req.BulletSize, req.RRRatio, req.TimezoneOffset, req.ExitSL, req.LegendKingHTF, req.LegendKingImage, req.LegendKingImageOriginal, req.LegendHTF, req.LegendHTFImage, req.LegendHTFImageOriginal, req.LegendDeHTF, req.LegendImages, req.ExpertImages, req.EliteImages, req.EntryTime, req.ColorTag, req.ExitTime, req.Journal, req.ChartConfig)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -484,13 +484,13 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 				   pnl=?, pnl_points=?, notes=?, entry_reason=?, exit_reason=?, entry_strategy=?, entry_strategy_image=?, entry_strategy_image_original=?, entry_signals=?, entry_checklist=?,
 				   entry_pattern=?, trend_analysis=?, entry_timeframe=?, trend_type=?, market_session=?, initial_sl=?, bullet_size=?, rr_ratio=?, timezone_offset=?, exit_sl=?,
 				   legend_king_htf=?, legend_king_image=?, legend_king_image_original=?, legend_htf=?, legend_htf_image=?, legend_htf_image_original=?, legend_de_htf=?, legend_images=?, expert_images=?, elite_images=?,
-				   entry_time=?, color_tag=?, exit_time=?, journal=?, updated_at=CURRENT_TIMESTAMP
+				   entry_time=?, color_tag=?, exit_time=?, journal=?, chart_config=?, updated_at=CURRENT_TIMESTAMP
 			WHERE id=?
 		`, req.AccountID, req.TradeType, req.Symbol, req.Side, req.EntryPrice, req.ExitPrice, req.LotSize, req.PnL,
 			req.PnLPoints, req.Notes, req.EntryReason, req.ExitReason, req.EntryStrategy, req.EntryStrategyImage, req.EntryStrategyImageOriginal, req.EntrySignals, req.EntryChecklist,
 			req.EntryPattern, req.TrendAnalysis, req.EntryTimeframe, req.TrendType, req.MarketSession, req.InitialSL, req.BulletSize, req.RRRatio, req.TimezoneOffset, req.ExitSL,
 			req.LegendKingHTF, req.LegendKingImage, req.LegendKingImageOriginal, req.LegendHTF, req.LegendHTFImage, req.LegendHTFImageOriginal, req.LegendDeHTF, req.LegendImages, req.ExpertImages, req.EliteImages,
-			req.EntryTime, req.ColorTag, req.ExitTime, req.Journal, id)
+			req.EntryTime, req.ColorTag, req.ExitTime, req.Journal, req.ChartConfig, id)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -887,5 +887,37 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 			"digits":    digits,
 			"timeframe": tf,
 		})
+	}
+}
+
+// SaveChartConfig 儲存圖表配置（時間週期、縮放位置）
+func SaveChartConfig(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		userID := c.GetInt64("user_id")
+
+		var req struct {
+			ChartConfig string `json:"chart_config"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "無效的圖表配置"})
+			return
+		}
+
+		// 權限檢查
+		var exists int
+		err := db.QueryRow("SELECT 1 FROM trades t JOIN accounts a ON t.account_id = a.id WHERE t.id = ? AND a.user_id = ?", id, userID).Scan(&exists)
+		if err != nil || exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限修改此交易"})
+			return
+		}
+
+		_, err = db.Exec("UPDATE trades SET chart_config = ?, updated_at = updated_at WHERE id = ?", req.ChartConfig, id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "儲存圖表配置失敗"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "圖表配置已儲存"})
 	}
 }

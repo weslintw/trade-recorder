@@ -9,6 +9,7 @@
     calculateBulletSize,
     toTradingDateString,
     formatDate,
+    isHTMLNoteEmpty,
   } from '../lib/utils';
   import 'quill/dist/quill.snow.css';
   import Sparkline from './Sparkline.svelte';
@@ -874,21 +875,21 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                               </div>
                             {/if}
 
-                            {#if (trade.journal && trade.journal.trim()) || (trade.exit_reason && trade.exit_reason.trim()) || (trade.notes && trade.notes.trim())}
+                            {#if !isHTMLNoteEmpty(trade.journal) || !isHTMLNoteEmpty(trade.exit_reason) || !isHTMLNoteEmpty(trade.notes)}
                               <div class="card-notes-section">
-                                {#if trade.journal && trade.journal.trim()}
+                                {#if !isHTMLNoteEmpty(trade.journal)}
                                   <div class="note-block">
                                     <div class="note-label">📌 記事備註</div>
                                     <div class="note-content">{@html trade.journal}</div>
                                   </div>
                                 {/if}
-                                {#if trade.exit_reason && trade.exit_reason.trim()}
+                                {#if !isHTMLNoteEmpty(trade.exit_reason)}
                                   <div class="note-block">
                                     <div class="note-label">🚪 平倉理由</div>
                                     <div class="note-content">{@html trade.exit_reason}</div>
                                   </div>
                                 {/if}
-                                {#if trade.notes && trade.notes.trim()}
+                                {#if !isHTMLNoteEmpty(trade.notes)}
                                   <div class="note-block">
                                     <div class="note-label">📝 復盤日記</div>
                                     <div class="note-content">{@html trade.notes}</div>
