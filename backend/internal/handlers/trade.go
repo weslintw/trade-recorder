@@ -845,9 +845,17 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 
 		// 計算範圍：顯示約 1200 根 K 棒，將交易置中
 		totalVisibleMin := 1200 * m_min
+		// 對於 Tick 數據 (10T, 20T)，範圍必須大幅縮小以防止 cTrader 超時
+		if period >= 100 {
+			totalVisibleMin = 180 // Tick 數據只顯示 3 小時範圍，約可容納充足的 K 棒
+		}
+
 		paddingMin := (totalVisibleMin - durationMin) / 2
 		if paddingMin < 20*m_min {
 			paddingMin = 20 * m_min
+		}
+		if period >= 100 && paddingMin > 60 {
+			paddingMin = 60 // Tick 數據的 padding 也不宜過大
 		}
 
 		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()

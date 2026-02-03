@@ -475,9 +475,15 @@ func GetSharedChart(db *sql.DB) gin.HandlerFunc {
 
 		// 計算範圍
 		totalVisibleMin := 1200 * m_min
+		if period >= 100 {
+			totalVisibleMin = 180
+		}
 		paddingMin := (totalVisibleMin - durationMin) / 2
 		if paddingMin < 20*m_min {
 			paddingMin = 20 * m_min
+		}
+		if period >= 100 && paddingMin > 60 {
+			paddingMin = 60
 		}
 
 		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()

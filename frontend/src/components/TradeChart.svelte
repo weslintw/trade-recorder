@@ -57,10 +57,10 @@
   let selectedPeriod = '';
   const periods = [
     { value: '', label: 'Auto' },
-    { value: 'm1', label: '1m' },
-    { value: 'm5', label: '5m' },
     { value: 't10', label: '10T' },
     { value: 't20', label: '20T' },
+    { value: 'm1', label: '1m' },
+    { value: 'm5', label: '5m' },
     { value: 'm15', label: '15m' },
     { value: 'm30', label: '30m' },
     { value: 'h1', label: '1h' },
@@ -70,6 +70,10 @@
 
   let configApplied = false;
   let saveTimer = null;
+
+  $: if (tradeId) {
+    configApplied = false; // Reset when trade changes
+  }
 
   function debounceSaveConfig() {
     if (useSharedAPI || !tradeId) return;
@@ -322,24 +326,6 @@
           }
         }
         
-        if (entryIdx === -1) entryIdx = Math.max(0, uniqueData.length - 100);
-
-        // Apply chart config range if available
-        if (trade && trade.chart_config && !configApplied) {
-          try {
-            const config = JSON.parse(trade.chart_config);
-            if (config.range) {
-              chart.timeScale().setVisibleLogicalRange(config.range);
-              configApplied = true;
-            } else {
-              chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
-            }
-          } catch (e) {
-            chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
-          }
-        } else if (!configApplied) {
-          chart.timeScale().setVisibleRange({ from: uniqueData[Math.max(0, entryIdx - 50)].time, to: uniqueData[Math.min(uniqueData.length - 1, exitIdx + 50)].time });
-        }
         // 設定視野終點：如果有出場，則以出場為準；如果沒有，以最新數據為準
         let exitIdx = uniqueData.length - 1;
         if (trade.exit_time) {
@@ -359,26 +345,47 @@
               }
             }
         }
-        
-        // 計算顯示範圍
-        // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
-        const rightOffset = 80;
-        
-        // 最小顯示根數，確保視野不會縮太小
-        const minVisibleBars = 400;
-        
-        let to = exitIdx + rightOffset;
-        let from = entryIdx - 30; // 左側預設留白 30 根
 
-        // 如果區間太小，向左擴展以滿足最小顯示根數
-        if ((to - from) < minVisibleBars) {
-          from = to - minVisibleBars;
+        // Apply chart config range if available
+        if (trade && trade.chart_config && !configApplied) {
+          try {
+            const config = JSON.parse(trade.chart_config);
+            if (config.range) {
+              console.log('[Chart] Applying saved range:', config.range);
+              chart.timeScale().setVisibleLogicalRange(config.range);
+              configApplied = true;
+            } else {
+              applyDefaultFocus();
+            }
+          } catch (e) {
+            console.error('[Chart] Failed to apply config range:', e);
+            applyDefaultFocus();
+          }
+        } else if (!configApplied) {
+          applyDefaultFocus();
         }
 
-        chart.timeScale().setVisibleLogicalRange({
-          from: from,
-          to: to,
-        });
+        function applyDefaultFocus() {
+          // 計算顯示範圍
+          // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
+          const rightOffset = 80;
+          
+          // 最小顯示根數，確保視野不會縮太小
+          const minVisibleBars = 400;
+          
+          let to = exitIdx + rightOffset;
+          let from = entryIdx - 30; // 左側預設留白 30 根
+
+          // 如果區間太小，向左擴展以滿足最小顯示根數
+          if ((to - from) < minVisibleBars) {
+            from = to - minVisibleBars;
+          }
+
+          chart.timeScale().setVisibleLogicalRange({
+            from: from,
+            to: to
+          });
+        }
       } else {
         // 無交易數據時的 Fallback：顯示最後 100 根
         const totalLen = uniqueData.length;
