@@ -15,7 +15,7 @@
   let copying = false;
   let drawingActive = false;
   let firstPoint = null;
-  let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price} }
+  let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, color, lineWidth }
   let isFullscreen = false;
   let chartWrapper;
   
@@ -30,6 +30,15 @@
   let cp2 = { x: -1000, y: -1000 };
   let isDraggingCP = false;
   let activeCPIndex = null; // 0 or 1
+  let isDraggingLine = false;
+  let dragStartPoint = null;
+
+  // Drawing style options
+  let selectedColor = '#f59e0b';
+  let selectedLineWidth = 2;
+  const colorOptions = ['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#ec4899'];
+  const lineWidthOptions = [1, 2, 3, 4];
+  let showStyleMenu = false;
 
   onMount(function() {
     initChart();
@@ -222,6 +231,7 @@
       error = "載入失敗: " + errorMsg;
     } finally {
       loading = false;
+      loadTrendlines();
     }
   }
 
@@ -261,6 +271,10 @@
         if (dist < 10) {
           selectedLineIndex = i;
           updateSelectedStyles();
+          // 開始拖曳整條線
+          isDraggingLine = true;
+          dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
+          chart.applyOptions({ handleScroll: false, handleScale: false });
           return;
         }
       }
@@ -305,6 +319,29 @@
       const price = candlestickSeries.coordinateToPrice(param.point.y);
       if (!price) return;
 
+      // 拖曳整條線
+      if (isDraggingLine && dragStartPoint && selectedLineIndex !== null) {
+        const line = drawnLines[selectedLineIndex];
+        const deltaTime = param.time - dragStartPoint.time;
+        const deltaPrice = price - dragStartPoint.price;
+        
+        line.p1.time += deltaTime;
+        line.p1.price += deltaPrice;
+        line.p2.time += deltaTime;
+        line.p2.price += deltaPrice;
+        
+        const lineData = [
+          { time: line.p1.time, value: line.p1.price },
+          { time: line.p2.time, value: line.p2.price }
+        ];
+        lineData.sort(function(a, b) { return a.time - b.time; });
+        line.series.setData(lineData);
+        
+        dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
+        updateControlPoints();
+        return;
+      }
+
       // Drawing preview
       if (drawingActive && firstPoint && previewLine) {
         const lineData = [
@@ -319,8 +356,8 @@
 
   function addTrendline(p1, p2) {
     const series = chart.addSeries(LineSeries, {
-      color: '#f59e0b',
-      lineWidth: 2,
+      color: selectedColor,
+      lineWidth: selectedLineWidth,
       lastValueVisible: false,
       priceLineVisible: false,
       crosshairMarkerVisible: false,
@@ -333,17 +370,25 @@
     lineData.sort(function(a, b) { return a.time - b.time; });
     series.setData(lineData);
     
-    drawnLines.push({ series: series, p1: p1, p2: p2 });
+    drawnLines.push({ 
+      series: series, 
+      p1: p1, 
+      p2: p2,
+      color: selectedColor,
+      lineWidth: selectedLineWidth
+    });
     drawnLines = drawnLines;
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
+    saveTrendlines();
   }
 
   function updateSelectedStyles() {
     for (let i = 0; i < drawnLines.length; i++) {
-      drawnLines[i].series.applyOptions({
-        color: '#f59e0b',
-        lineWidth: i === selectedLineIndex ? 4 : 2, // 選中時稍微加粗，但不換色
+      const line = drawnLines[i];
+      line.series.applyOptions({
+        color: line.color || '#f59e0b',
+        lineWidth: i === selectedLineIndex ? (line.lineWidth || 2) + 2 : (line.lineWidth || 2),
       });
     }
     updateControlPoints();
@@ -361,8 +406,33 @@
     const x2 = chart.timeScale().timeToCoordinate(line.p2.time);
     const y2 = candlestickSeries.priceToCoordinate(line.p2.price);
 
-    cp1 = { x: x1 != null ? x1 : -1000, y: y1 != null ? y1 : -1000 };
-    cp2 = { x: x2 != null ? x2 : -1000, y: y2 != null ? y2 : -1000 };
+    // 計算線條角度並將控制點放在線條外側
+    if (x1 != null && y1 != null && x2 != null && y2 != null) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const offsetDistance = 12; // 控制點偏移距離
+      
+      if (length > 0) {
+        const unitX = dx / length;
+        const unitY = dy / length;
+        
+        cp1 = { 
+          x: x1 - unitX * offsetDistance, 
+          y: y1 - unitY * offsetDistance 
+        };
+        cp2 = { 
+          x: x2 + unitX * offsetDistance, 
+          y: y2 + unitY * offsetDistance 
+        };
+      } else {
+        cp1 = { x: x1, y: y1 };
+        cp2 = { x: x2, y: y2 };
+      }
+    } else {
+      cp1 = { x: -1000, y: -1000 };
+      cp2 = { x: -1000, y: -1000 };
+    }
   }
 
   function startDragCP(e, index) {
@@ -425,6 +495,7 @@
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
     selectedLineIndex = null;
+    saveTrendlines();
   }
 
   function toggleDrawing() {
@@ -457,7 +528,69 @@
     draggingPoint = null;
     selectedLineIndex = null;
     chart.applyOptions({ handleScroll: true, handleScale: true });
+    saveTrendlines();
   }
+
+  async function saveTrendlines() {
+    if (!tradeId || drawnLines.length === 0) return;
+    try {
+      const linesData = drawnLines.map(line => ({
+        p1: { time: line.p1.time, price: line.p1.price },
+        p2: { time: line.p2.time, price: line.p2.price },
+        color: line.color,
+        lineWidth: line.lineWidth
+      }));
+      await tradesAPI.saveTrendlines(tradeId, linesData);
+    } catch (e) {
+      console.error('[Chart] Failed to save trendlines:', e);
+    }
+  }
+
+  async function loadTrendlines() {
+    if (!tradeId || !chart || !candlestickSeries) return;
+    try {
+      const linesData = await tradesAPI.getTrendlines(tradeId);
+      if (!linesData || linesData.length === 0) return;
+      
+      for (const lineData of linesData) {
+        const series = chart.addSeries(LineSeries, {
+          color: lineData.color || '#f59e0b',
+          lineWidth: lineData.lineWidth || 2,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        
+        const data = [
+          { time: lineData.p1.time, value: lineData.p1.price },
+          { time: lineData.p2.time, value: lineData.p2.price }
+        ];
+        data.sort((a, b) => a.time - b.time);
+        series.setData(data);
+        
+        drawnLines.push({
+          series: series,
+          p1: lineData.p1,
+          p2: lineData.p2,
+          color: lineData.color,
+          lineWidth: lineData.lineWidth
+        });
+      }
+      drawnLines = drawnLines;
+    } catch (e) {
+      console.error('[Chart] Failed to load trendlines:', e);
+    }
+  }
+
+  function handleChartMouseUp() {
+    if (isDraggingLine) {
+      isDraggingLine = false;
+      dragStartPoint = null;
+      chart.applyOptions({ handleScroll: true, handleScale: true });
+      saveTrendlines();
+    }
+  }
+
 
   async function copyChartImage() {
     if (!chart || copying) return;
@@ -550,6 +683,44 @@
         </button>
       {/if}
       
+      <!-- 樣式選擇器 -->
+      <div class="style-selector">
+        <button class="tool-button style-button" on:click={() => showStyleMenu = !showStyleMenu} title="線條樣式">
+          <span class="icon">🎨</span>
+        </button>
+        {#if showStyleMenu}
+          <div class="style-menu">
+            <div class="style-section">
+              <label>顏色</label>
+              <div class="color-options">
+                {#each colorOptions as color}
+                  <button 
+                    class="color-btn" 
+                    class:active={selectedColor === color}
+                    style="background: {color}"
+                    on:click={() => { selectedColor = color; showStyleMenu = false; }}
+                  ></button>
+                {/each}
+              </div>
+            </div>
+            <div class="style-section">
+              <label>粗細</label>
+              <div class="width-options">
+                {#each lineWidthOptions as width}
+                  <button 
+                    class="width-btn" 
+                    class:active={selectedLineWidth === width}
+                    on:click={() => { selectedLineWidth = width; showStyleMenu = false; }}
+                  >
+                    {width}px
+                  </button>
+                {/each}
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+      
       <button class="tool-button draw-button" class:active={drawingActive} on:click={toggleDrawing} title="趨勢線工具">
         <span class="icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -599,7 +770,8 @@
     </div>
   {/if}
 
-  <div bind:this={chartContainer} class="chart-container"></div>
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div bind:this={chartContainer} class="chart-container" on:mouseup={handleChartMouseUp}></div>
 
   {#if selectedLineIndex !== null}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -803,5 +975,96 @@
   .control-point-handle:hover {
     transform: translate(-50%, -50%) scale(1.2);
     background: rgba(59, 130, 246, 0.1);
+  }
+
+  .style-selector {
+    position: relative;
+    pointer-events: auto;
+  }
+
+  .style-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 12px;
+    min-width: 200px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+  }
+
+  .style-section {
+    margin-bottom: 12px;
+  }
+
+  .style-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .style-section label {
+    display: block;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .color-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .color-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .color-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .color-btn.active {
+    border-color: #fff;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+  }
+
+  .width-options {
+    display: flex;
+    gap: 6px;
+  }
+
+  .width-btn {
+    flex: 1;
+    padding: 6px 12px;
+    background: rgba(51, 65, 85, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .width-btn:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+
+  .width-btn.active {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: #3b82f6;
+    color: #fff;
   }
 </style>

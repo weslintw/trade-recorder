@@ -3093,6 +3093,7 @@
                           </div>
                         {/if}
                         
+                        <!-- 只在編輯模式或有任何內容時才顯示筆記區塊 -->
                         {#if editingTradeId === trade.id || trade.journal || trade.exit_reason || trade.notes}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === trade.id}
@@ -3102,10 +3103,10 @@
                                 </div>
                             {/if}
 
-                            <!-- 復盤日記 (對應 DB: notes) -->
-                            {#if editingTradeId === trade.id || trade.notes}
+                            <!-- 復盤日記 (對應 DB: notes) - 只在編輯模式或有內容時顯示 -->
+                            {#if editingTradeId === trade.id || (trade.notes && trade.notes.trim())}
                               <div class="note-block">
-                                <div class="note-label">📝 復盤日記</div> <!-- Swapped Label -->
+                                <div class="note-label">📝 復盤日記</div>
                                 <div 
                                     id="note-notes-{trade.id}"
                                     class="note-content" 
@@ -3114,8 +3115,8 @@
                               </div>
                             {/if}
 
-                            <!-- 平倉理由 (對應 DB: exit_reason) -->
-                            {#if editingTradeId === trade.id || trade.exit_reason}
+                            <!-- 平倉理由 (對應 DB: exit_reason) - 只在編輯模式或有內容時顯示 -->
+                            {#if editingTradeId === trade.id || (trade.exit_reason && trade.exit_reason.trim())}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
                                 <div 
@@ -3126,10 +3127,10 @@
                               </div>
                             {/if}
                             
-                            <!-- 記事備註 (對應 DB: journal) -->
-                            {#if editingTradeId === trade.id || trade.journal}
+                            <!-- 記事備註 (對應 DB: journal) - 只在編輯模式或有內容時顯示 -->
+                            {#if editingTradeId === trade.id || (trade.journal && trade.journal.trim())}
                               <div class="note-block">
-                                <div class="note-label">📌 記事備註</div> <!-- Swapped Label -->
+                                <div class="note-label">📌 記事備註</div>
                                 <div 
                                     id="note-journal-{trade.id}"
                                     class="note-content" 

@@ -83,6 +83,8 @@ export const tradesAPI = {
   sync: id => api.post(`/trades/${id}/sync`),
   getUsedSymbols: (params, signal) => api.get('/trades/symbols', { params, signal }),
   getChartData: (id, signal) => api.get(`/trades/${id}/chart`, { signal }),
+  saveTrendlines: (id, data) => api.put(`/trades/${id}/trendlines`, data),
+  getTrendlines: (id, signal) => api.get(`/trades/${id}/trendlines`, { signal }),
 };
 
 // 圖片相關
