@@ -82,7 +82,7 @@ export const tradesAPI = {
   delete: id => api.delete(`/trades/${id}`),
   sync: id => api.post(`/trades/${id}/sync`),
   getUsedSymbols: (params, signal) => api.get('/trades/symbols', { params, signal }),
-  getChartData: (id, signal) => api.get(`/trades/${id}/chart`, { signal }),
+  getChartData: (id, period, signal) => api.get(`/trades/${id}/chart`, { params: { period }, signal }),
   saveTrendlines: (id, data) => api.put(`/trades/${id}/trendlines`, data),
   getTrendlines: (id, signal) => api.get(`/trades/${id}/trendlines`, { signal }),
 };

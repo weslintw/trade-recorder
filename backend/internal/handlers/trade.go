@@ -772,31 +772,67 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 		duration := exitTime.Sub(t.EntryTime)
 		durationMin := int64(duration.Minutes())
 
-		// 時區選擇邏輯 (基於 1200 根 K 棒視野優化)
+		// 時區選擇邏輯 (基於 1200 根 K 棒視野優化，或使用用戶指定)
 		period := 1 // M1
 		var m_min int64 = 1
 		tf := "1分"
 
-		if durationMin > 1200*240 { // > 200天
-			period = 11 // D1
-			m_min = 1440
-			tf = "天"
-		} else if durationMin > 1200*60 { // > 50天
-			period = 10 // H4
-			m_min = 240
-			tf = "4小時"
-		} else if durationMin > 1200*15 { // > 12.5天
-			period = 9 // H1
-			m_min = 60
-			tf = "1小時"
-		} else if durationMin > 1200*5 { // > 4天
-			period = 7 // M15
-			m_min = 15
-			tf = "15分"
-		} else if durationMin > 600 { // > 10小時
-			period = 5 // M5
-			m_min = 5
-			tf = "5分"
+		// 檢查是否有指定 period
+		userPeriod := c.Query("period")
+		if userPeriod != "" {
+			switch userPeriod {
+			case "m1":
+				period = 1
+				m_min = 1
+				tf = "1分"
+			case "m5":
+				period = 4
+				m_min = 5
+				tf = "5分"
+			case "m15":
+				period = 5
+				m_min = 15
+				tf = "15分"
+			case "m30":
+				period = 6
+				m_min = 30
+				tf = "30分"
+			case "h1":
+				period = 7
+				m_min = 60
+				tf = "1小時"
+			case "h4":
+				period = 8
+				m_min = 240
+				tf = "4小時"
+			case "d1":
+				period = 9
+				m_min = 1440
+				tf = "天"
+			}
+		} else {
+			// 自動判斷邏輯
+			if durationMin > 1200*240 { // > 200天
+				period = 9 // D1
+				m_min = 1440
+				tf = "天"
+			} else if durationMin > 1200*60 { // > 50天
+				period = 8 // H4
+				m_min = 240
+				tf = "4小時"
+			} else if durationMin > 1200*15 { // > 12.5天
+				period = 7 // H1
+				m_min = 60
+				tf = "1小時"
+			} else if durationMin > 1200*5 { // > 4天
+				period = 5 // M15
+				m_min = 15
+				tf = "15分"
+			} else if durationMin > 600 { // > 10小時
+				period = 4 // M5
+				m_min = 5
+				tf = "5分"
+			}
 		}
 
 		// 計算範圍：顯示約 1200 根 K 棒，將交易置中

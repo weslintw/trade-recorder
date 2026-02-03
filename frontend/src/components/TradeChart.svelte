@@ -40,6 +40,18 @@
   const lineWidthOptions = [1, 2, 3, 4];
   let showStyleMenu = false;
 
+  let selectedPeriod = '';
+  const periods = [
+    { value: '', label: 'Auto' },
+    { value: 'm1', label: '1m' },
+    { value: 'm5', label: '5m' },
+    { value: 'm15', label: '15m' },
+    { value: 'm30', label: '30m' },
+    { value: 'h1', label: '1h' },
+    { value: 'h4', label: '4h' },
+    { value: 'd1', label: 'D1' },
+  ];
+
   onMount(function() {
     initChart();
     loadData();
@@ -141,7 +153,7 @@
     try {
       loading = true;
       error = null;
-      const res = await tradesAPI.getChartData(tradeId);
+      const res = await tradesAPI.getChartData(tradeId, selectedPeriod);
       
       const resData = res.data;
       const data = resData.data;
@@ -778,6 +790,12 @@
       <span class="symbol-tag">{trade?.symbol || ''}</span>
       <span class="timeframe-tag">{timeframe}</span>
       <span class="timezone-tag">時區: UTC+8 (Local)</span>
+      
+      <select class="period-select" bind:value={selectedPeriod} on:change={loadData}>
+        {#each periods as p}
+          <option value={p.value}>{p.label}</option>
+        {/each}
+      </select>
     </div>
 
     <div class="tools-group">
@@ -1011,6 +1029,31 @@
   .timeframe-tag {
     color: #f59e0b; /* Amber/Orange color */
     font-weight: 600;
+  }
+
+  .period-select {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(4px);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    outline: none;
+    margin-left: 8px;
+  }
+
+  .period-select:hover {
+    background: rgba(51, 65, 85, 0.9);
+    border-color: rgba(59, 130, 246, 0.4);
+    color: #fff;
+  }
+  
+  .period-select option {
+    background: #1e293b;
+    color: #cbd5e1;
   }
 
   .status-overlay {
