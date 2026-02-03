@@ -142,7 +142,7 @@
   </div>
 
   <div class="chart-container-shared">
-    <TradeChart tradeId={trade.id} shareToken={token} useSharedAPI={true} />
+    <TradeChart {trade} tradeId={trade.id} shareToken={token} useSharedAPI={true} />
   </div>
 
   <div class="info-grid extended">
