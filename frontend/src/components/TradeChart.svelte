@@ -398,7 +398,7 @@
       firstPoint = { time: param.time, price: price };
       // Create preview line
       previewLine = chart.addSeries(LineSeries, {
-        color: 'rgba(245, 158, 11, 0.5)',
+        color: drawingMode === 'fib' ? 'rgba(0, 0, 0, 0)' : 'rgba(245, 158, 11, 0.5)',
         lineWidth: 1,
         lineStyle: 2, // Dashed
         lastValueVisible: false,
@@ -611,7 +611,7 @@
 
   function addLineObject(p1, p2, type = 'trendline') {
     const series = chart.addSeries(LineSeries, {
-      color: type === 'fib' ? 'rgba(255, 255, 255, 0.2)' : selectedColor,
+      color: type === 'fib' ? 'rgba(0, 0, 0, 0)' : selectedColor,
       lineWidth: type === 'fib' ? 1 : selectedLineWidth,
       lineStyle: type === 'fib' ? 2 : 0,
       lastValueVisible: false,
@@ -654,6 +654,7 @@
         const series = chart.addSeries(LineSeries, {
           color: level.color,
           lineWidth: 1,
+          lineStyle: 2, // Dashed
           lastValueVisible: false,
           priceLineVisible: false,
           crosshairMarkerVisible: false,
@@ -740,7 +741,7 @@
       const effectiveLineWidth = isSelected ? (line.lineWidth || 2) + 2 : (line.lineWidth || 2);
       
       line.series.applyOptions({
-        color: line.color || '#f59e0b',
+        color: line.type === 'fib' ? 'rgba(0, 0, 0, 0)' : (line.color || '#f59e0b'),
         lineWidth: effectiveLineWidth,
       });
 
@@ -978,7 +979,7 @@
       for (const lineData of linesData) {
         const type = lineData.type || 'trendline';
         const series = chart.addSeries(LineSeries, {
-          color: type === 'fib' ? 'rgba(255, 255, 255, 0.2)' : (lineData.color || '#f59e0b'),
+          color: type === 'fib' ? 'rgba(0, 0, 0, 0)' : (lineData.color || '#f59e0b'),
           lineWidth: type === 'fib' ? 1 : (lineData.lineWidth || 2),
           lineStyle: type === 'fib' ? 2 : 0,
           lastValueVisible: false,
