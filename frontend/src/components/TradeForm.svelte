@@ -1812,9 +1812,41 @@
           />
         {/if}
 
-        <!-- 一般截圖區塊 -->
         <div class="form-group general-images-section">
-          <label>📸 進場與平倉截圖 (General Images)</label>
+          <div class="general-section-header">
+            <label>📸 進場與平倉截圖 (General Images)</label>
+            <div class="general-upload-actions">
+              <!-- 獨立的上傳按鈕 -->
+              <button
+                type="button"
+                class="action-btn-square"
+                on:click={triggerGeneralUpload}
+                title="從電腦上傳圖片"
+              >
+                <span class="icon">📸</span>
+              </button>
+
+              <!-- 獨立的點擊貼上區域 -->
+              <div
+                class="action-btn-square paste-area"
+                on:paste={handleGeneralImagePaste}
+                tabindex="0"
+                title="點擊後按 Ctrl+V 貼上截圖"
+              >
+                <span class="icon">📋</span>
+              </div>
+
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                style="display: none;"
+                bind:this={generalFileInput}
+                on:change={handleGeneralFileSelect}
+              />
+            </div>
+          </div>
+
           <div
             class="general-images-grid"
             use:dndzone={{ items: formData.images, flipDurationMs: 300, dragDisabled: false }}
@@ -1846,38 +1878,6 @@
                 />
               </div>
             {/each}
-            <div class="general-upload-container">
-              <!-- 獨立的上傳按鈕 -->
-              <button
-                type="button"
-                class="upload-trigger-btn"
-                on:click={triggerGeneralUpload}
-                title="點擊從電腦上傳圖片"
-              >
-                <span class="icon">📸</span>
-                <span class="text">上傳圖片</span>
-              </button>
-
-              <!-- 獨立的點擊貼上區域 -->
-              <div
-                class="image-paste-area"
-                on:paste={handleGeneralImagePaste}
-                tabindex="0"
-                title="點擊後按 Ctrl+V 貼上截圖"
-              >
-                <span class="icon">📋</span>
-                <span class="text">點擊此處後 Ctrl+V 貼上</span>
-              </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                style="display: none;"
-                bind:this={generalFileInput}
-                on:change={handleGeneralFileSelect}
-              />
-            </div>
           </div>
         </div>
       </div>
@@ -2396,74 +2396,52 @@
       transform: scale(1.1);
     }
 
-    .general-upload-container {
+    .general-section-header {
       display: flex;
-      gap: 0.75rem;
-      align-items: stretch;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
     }
 
-    .upload-trigger-btn {
-      flex: 0 0 100px;
+    .general-section-header label {
+      margin-bottom: 0;
+    }
+
+    .general-upload-actions {
       display: flex;
-      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .action-btn-square {
+      width: 40px;
+      height: 40px;
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
       background: var(--card-bg);
       border: 2px dashed var(--border-color);
       border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s;
+      color: var(--text-main);
+      padding: 0;
     }
 
-    .upload-trigger-btn:hover {
-      border-color: #ef4444;
-      background: rgba(239, 68, 68, 0.05);
+    .action-btn-square:hover {
+      border-color: var(--primary);
+      background: var(--bg-main);
       transform: translateY(-2px);
     }
 
-    .upload-trigger-btn .icon {
-      font-size: 1.5rem;
-    }
-
-    .upload-trigger-btn .text {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .image-paste-area {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      background: var(--nav-group-bg);
-      border: 2px dashed var(--border-color);
-      border-radius: 8px;
-      padding: 1rem;
-      cursor: pointer;
-      transition: all 0.2s;
+    .action-btn-square:focus {
       outline: none;
-    }
-
-    .image-paste-area:hover,
-    .image-paste-area:focus {
       border-color: var(--primary);
-      background: var(--bg-main);
+      border-style: solid;
     }
 
-    .image-paste-area .icon {
-      font-size: 1.2rem;
-      opacity: 0.6;
+    .action-btn-square .icon {
+      font-size: 1.25rem;
     }
-
-    .image-paste-area .text {
-      font-size: 0.85rem;
-      font-weight: 500;
-      color: var(--text-muted);
-    }
-
     /* 進場分析區塊 */
     .highlight-label {
       margin-bottom: 1rem;
