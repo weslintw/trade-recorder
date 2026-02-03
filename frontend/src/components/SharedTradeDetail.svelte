@@ -2,9 +2,11 @@
   import { getStrategyLabel, determineMarketSession, calculateBulletSize, formatDate } from '../lib/utils';
   import Sparkline from './Sparkline.svelte';
   import { imagesAPI } from '../lib/api';
+  import TradeChart from './TradeChart.svelte';
 
   export let trade;
   export let openModal = () => {};
+  export let token = '';
 
   function parseJSON(str, defaultValue = null) {
     if (!str) return defaultValue;
@@ -137,6 +139,10 @@
         <span class="journal-detail-badge">📓 紀錄 / 記事</span>
       {/if}
     </div>
+  </div>
+
+  <div class="chart-container-shared">
+    <TradeChart tradeId={trade.id} shareToken={token} useSharedAPI={true} />
   </div>
 
   <div class="info-grid extended">
@@ -822,10 +828,19 @@
     background: #00b4ff;
   }
   .session-time-text {
-    font-size: 0.85rem;
+    display: block;
+    font-size: 0.75rem;
     color: #475569;
     font-weight: 600;
     white-space: nowrap;
+  }
+  
+  .chart-container-shared {
+    height: 500px;
+    margin-bottom: 2rem;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
   }
 
   .rocket-header {

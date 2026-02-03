@@ -456,12 +456,12 @@ import ImageAnnotator from './ImageAnnotator.svelte';
           </button>
         </div>
         {#if selectedItem.type === 'trade'}
-          <SharedTradeDetail trade={selectedItem.data} {openModal} />
+          <SharedTradeDetail trade={selectedItem.data} {openModal} {token} />
         {:else if selectedItem.type === 'plan'}
           <SharedPlanDetail plan={selectedItem.data} {openModal} />
         {/if}
       {:else if sharedData.type === 'trade' && sharedData.data}
-        <SharedTradeDetail trade={sharedData.data} {openModal} />
+        <SharedTradeDetail trade={sharedData.data} {openModal} {token} />
       {:else if sharedData.type === 'plan' && sharedData.data}
         <SharedPlanDetail plan={sharedData.data} {openModal} />
       {:else if (sharedData.type === 'account' || sharedData.type === 'batch') && sharedData.data}

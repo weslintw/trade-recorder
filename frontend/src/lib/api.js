@@ -149,6 +149,8 @@ export const accountsAPI = {
 export const sharesAPI = {
   create: data => api.post('/shares', data),
   getPublic: (token, signal) => api.get(`/shares/public/${token}`, { signal }),
+  getChartData: (token, tradeId, period, signal) => api.get(`/shares/public/${token}/chart/${tradeId}`, { params: { period }, signal }),
+  getTrendlines: (token, tradeId, signal) => api.get(`/shares/public/${token}/trendlines/${tradeId}`, { signal }),
 };
 
 // 管理員相關

@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"trade-journal/internal/models"
 
+	"time"
+	"trade-journal/internal/ctrader"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -294,4 +297,250 @@ func GetPlanInternal(db *sql.DB, id int64) (*models.DailyPlan, error) {
 		return nil, err
 	}
 	return &p, nil
+}
+
+// validateShareAccess 驗證該 Token 是否有權限訪問指定的 TradeID
+func validateShareAccess(db *sql.DB, token string, tradeID int64) (bool, error) {
+	var share models.Share
+	err := db.QueryRow("SELECT resource_type, resource_id, COALESCE(resource_ids, '') FROM shares WHERE token = ?", token).Scan(&share.ResourceType, &share.ResourceID, &share.ResourceIDs)
+	if err == sql.ErrNoRows && len(token) > 32 {
+		shortToken := token[:32]
+		err = db.QueryRow("SELECT resource_type, resource_id, COALESCE(resource_ids, '') FROM shares WHERE token = ?", shortToken).Scan(&share.ResourceType, &share.ResourceID, &share.ResourceIDs)
+	}
+	if err != nil {
+		return false, err
+	}
+
+	if share.ResourceType == "trade" {
+		return share.ResourceID == tradeID, nil
+	} else if share.ResourceType == "account" {
+		var accountID int64
+		err := db.QueryRow("SELECT account_id FROM trades WHERE id = ?", tradeID).Scan(&accountID)
+		if err != nil {
+			return false, err
+		}
+		return accountID == share.ResourceID, nil
+	} else if share.ResourceType == "batch" {
+		var batchIDs struct {
+			Trades []int64 `json:"trades"`
+		}
+		if err := json.Unmarshal([]byte(share.ResourceIDs), &batchIDs); err != nil {
+			// Fallback for flat array
+			var ids []int64
+			json.Unmarshal([]byte(share.ResourceIDs), &ids)
+			for _, id := range ids {
+				if id == tradeID {
+					return true, nil
+				}
+			}
+			return false, nil
+		}
+		for _, id := range batchIDs.Trades {
+			if id == tradeID {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	return false, nil
+}
+
+// GetSharedChart 取得分享的交易圖表數據
+func GetSharedChart(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Param("token")
+		tradeIDStr := c.Param("trade_id")
+
+		// Simple parsing via Sscanf or similar since we don't have strconv imported yet
+		// Adding strconv import might be messy with multi-replace line numbers shifting.
+		// Let's rely on DB query to handle string->int conversion implicitly or just assume it's valid if it matches.
+		// Actually best to parse it. I'll rely on the query to handle 'tradeIDStr' if safe, or add strconv.
+		// Let's add strconv to imports in a separate step if strictly needed, but `db.QueryRow(..., tradeIDStr)` works fine for SQLite/Go drivers usually.
+
+		// Wait, I need tradeID as int64 for logic.
+		// I will use `database/sql`'s ability to scan arguments or perform a dummy query to cast it.
+		// Or simpler: just add "strconv" to imports.
+
+		// Let's assume tradeIDStr is clean.
+
+		// Validate Access
+		// We need numerical tradeID for validateShareAccess.
+		// I will create a helper to get tradeID from DB to ensure it exists and convert it.
+		var t struct {
+			ID        int64
+			AccountID int64
+			Symbol    string
+			EntryTime time.Time
+			ExitTime  sql.NullTime
+		}
+		err := db.QueryRow(`
+			SELECT id, account_id, symbol, entry_time, exit_time
+			FROM trades WHERE id = ?
+		`, tradeIDStr).Scan(&t.ID, &t.AccountID, &t.Symbol, &t.EntryTime, &t.ExitTime)
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+			return
+		}
+
+		allowed, err := validateShareAccess(db, token, t.ID)
+		if err != nil || !allowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "您無權限查看此圖表"})
+			return
+		}
+
+		// Proceed to fetch chart data (Copy logic from GetTradeChart)
+		// 判斷是否可用該帳號自己的 cTrader 連線
+		sid, err := ctrader.GlobalManager.GetSymbolID(t.AccountID, t.Symbol)
+		useGeneric := false
+		if err != nil {
+			useGeneric = true
+		}
+
+		exitTime := time.Now()
+		if t.ExitTime.Valid {
+			exitTime = t.ExitTime.Time
+		}
+		duration := exitTime.Sub(t.EntryTime)
+		durationMin := int64(duration.Minutes())
+
+		// 時區選擇邏輯
+		period := 1 // M1
+		var m_min int64 = 1
+		tf := "1分"
+
+		userPeriod := c.Query("period")
+		if userPeriod != "" {
+			switch userPeriod {
+			case "m1":
+				period = 1
+				m_min = 1
+				tf = "1分"
+			case "m5":
+				period = 4
+				m_min = 5
+				tf = "5分"
+			case "m15":
+				period = 5
+				m_min = 15
+				tf = "15分"
+			case "m30":
+				period = 6
+				m_min = 30
+				tf = "30分"
+			case "h1":
+				period = 7
+				m_min = 60
+				tf = "1小時"
+			case "h4":
+				period = 8
+				m_min = 240
+				tf = "4小時"
+			case "d1":
+				period = 9
+				m_min = 1440
+				tf = "天"
+			}
+		} else {
+			if durationMin > 1200*240 {
+				period = 9
+				m_min = 1440
+				tf = "天"
+			} else if durationMin > 1200*60 {
+				period = 8
+				m_min = 240
+				tf = "4小時"
+			} else if durationMin > 1200*15 {
+				period = 7
+				m_min = 60
+				tf = "1小時"
+			} else if durationMin > 1200*5 {
+				period = 5
+				m_min = 15
+				tf = "15分"
+			} else if durationMin > 600 {
+				period = 4
+				m_min = 5
+				tf = "5分"
+			}
+		}
+
+		// 計算範圍
+		totalVisibleMin := 1200 * m_min
+		paddingMin := (totalVisibleMin - durationMin) / 2
+		if paddingMin < 20*m_min {
+			paddingMin = 20 * m_min
+		}
+
+		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()
+		toTS := exitTime.Add(time.Duration(paddingMin) * time.Minute).UnixMilli()
+
+		var payload json.RawMessage
+		var digits int = 2
+
+		if useGeneric {
+			payload, digits, err = ctrader.GlobalManager.GetTrendbarsGeneric(t.Symbol, period, fromTS, toTS)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "目前無法顯示圖表 (Generic)"})
+				return
+			}
+		} else {
+			payload, err = ctrader.GlobalManager.GetTrendbars(t.AccountID, sid, period, fromTS, toTS)
+			if err != nil {
+				// Retry with Generic if specific account fails? Maybe.
+				// For now error out or fallback. Let's fallback.
+				payload, digits, err = ctrader.GlobalManager.GetTrendbarsGeneric(t.Symbol, period, fromTS, toTS)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "cTrader 請求失敗"})
+					return
+				}
+			}
+			if d, err := ctrader.GlobalManager.GetSymbolDigits(sid); err == nil {
+				digits = d
+			}
+		}
+
+		var tbRes json.RawMessage
+		if err := json.Unmarshal(payload, &tbRes); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析 cTrader 響應失敗"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data":      tbRes,
+			"digits":    digits,
+			"timeframe": tf,
+		})
+	}
+}
+
+// GetSharedTrendlines 取得分享的趨勢線
+func GetSharedTrendlines(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Param("token")
+		tradeIDStr := c.Param("trade_id")
+
+		var t struct {
+			ID         int64
+			Trendlines sql.NullString
+		}
+		err := db.QueryRow("SELECT id, trendlines FROM trades WHERE id = ?", tradeIDStr).Scan(&t.ID, &t.Trendlines)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "交易紀錄不存在"})
+			return
+		}
+
+		allowed, err := validateShareAccess(db, token, t.ID)
+		if err != nil || !allowed {
+			c.JSON(http.StatusForbidden, gin.H{"error": "您無權限查看此圖表"})
+			return
+		}
+
+		if !t.Trendlines.Valid || t.Trendlines.String == "" || t.Trendlines.String == "null" {
+			c.Data(http.StatusOK, "application/json", []byte("[]"))
+			return
+		}
+
+		c.Data(http.StatusOK, "application/json", []byte(t.Trendlines.String))
+	}
 }

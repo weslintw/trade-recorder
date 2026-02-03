@@ -193,6 +193,8 @@ func main() {
 
 		// 公開路由
 		api.GET("/shares/public/:token", handlers.GetSharedResource(db))
+		api.GET("/shares/public/:token/chart/:trade_id", handlers.GetSharedChart(db))
+		api.GET("/shares/public/:token/trendlines/:trade_id", handlers.GetSharedTrendlines(db))
 		// cTrader OAuth 回調 (公開路由)
 		api.GET("/auth/ctrader/callback", handlers.CTraderCallback(db))
 

@@ -1,10 +1,12 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { createChart, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
-  import { tradesAPI } from '../lib/api';
+  import { tradesAPI, sharesAPI } from '../lib/api';
 
   export let tradeId;
   export let trade = null; 
+  export let useSharedAPI = false;
+  export let shareToken = null;
 
   let chartContainer;
   let chart;
@@ -153,7 +155,13 @@
     try {
       loading = true;
       error = null;
-      const res = await tradesAPI.getChartData(tradeId, selectedPeriod);
+      
+      let res;
+      if (useSharedAPI && shareToken) {
+        res = await sharesAPI.getChartData(shareToken, tradeId, selectedPeriod);
+      } else {
+        res = await tradesAPI.getChartData(tradeId, selectedPeriod);
+      }
       
       const resData = res.data;
       const data = resData.data;
@@ -459,7 +467,9 @@
     drawnLines = drawnLines;
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
-    saveTrendlines();
+    if (!useSharedAPI) { // Only save if not in shared mode
+      saveTrendlines();
+    }
   }
 
   function updateSelectedStyles() {
@@ -515,7 +525,7 @@
   }
 
   function startDragCP(e, index) {
-    if (drawingActive) return;
+    if (drawingActive || useSharedAPI) return; // Disable for shared mode
     e.preventDefault();
     e.stopPropagation();
     isDraggingCP = true;
@@ -563,13 +573,16 @@
     chart.applyOptions({ handleScroll: true, handleScale: true });
     window.removeEventListener('mousemove', handleCPMouseMove);
     window.removeEventListener('mouseup', handleCPMouseUp);
+    if (!useSharedAPI) { // Only save if not in shared mode
+      saveTrendlines();
+    }
   }
 
   function handleMouseDownCP0(e) { startDragCP(e, 0); }
   function handleMouseDownCP1(e) { startDragCP(e, 1); }
 
   function deleteSelectedLine() {
-    if (selectedLineIndex === null) return;
+    if (selectedLineIndex === null || useSharedAPI) return; // Disable for shared mode
     chart.removeSeries(drawnLines[selectedLineIndex].series);
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
@@ -578,6 +591,7 @@
   }
 
   function toggleDrawing() {
+    if (useSharedAPI) return; // Disable for shared mode
     drawingActive = !drawingActive;
     if (drawingActive) {
       selectedLineIndex = null;
@@ -594,6 +608,7 @@
   }
 
   function clearDrawings() {
+    if (useSharedAPI) return; // Disable for shared mode
     for (let i = 0; i < drawnLines.length; i++) {
        chart.removeSeries(drawnLines[i].series);
     }
@@ -611,7 +626,7 @@
   }
 
   async function saveTrendlines() {
-    if (!tradeId || drawnLines.length === 0) return;
+    if (!tradeId || drawnLines.length === 0 || useSharedAPI) return; // Disable for shared mode
     try {
       const linesData = drawnLines.map(line => ({
         p1: { time: line.p1.time, price: line.p1.price },
@@ -628,7 +643,13 @@
   async function loadTrendlines() {
     if (!tradeId || !chart || !candlestickSeries) return;
     try {
-      const res = await tradesAPI.getTrendlines(tradeId);
+      let res;
+      if (useSharedAPI && shareToken) {
+        res = await sharesAPI.getTrendlines(shareToken, tradeId);
+      } else {
+        res = await tradesAPI.getTrendlines(tradeId);
+      }
+      
       const linesData = res.data;
       if (!linesData || linesData.length === 0) return;
       
@@ -667,12 +688,14 @@
       isDraggingLine = false;
       dragStartPoint = null;
       chart.applyOptions({ handleScroll: true, handleScale: true });
-      saveTrendlines();
+      if (!useSharedAPI) { // Only save if not in shared mode
+        saveTrendlines();
+      }
     }
   }
 
   function handleChartMouseDown(param) {
-    if (!param || !param.point || !param.time || drawingActive) return;
+    if (!param || !param.point || !param.time || drawingActive || useSharedAPI) return; // Disable for shared mode
     
     const price = candlestickSeries.coordinateToPrice(param.point.y);
     if (!price) return;
@@ -776,7 +799,7 @@
 
   function handleKeydown(e) {
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (selectedLineIndex !== null && !drawingActive) {
+      if (selectedLineIndex !== null && !drawingActive && !useSharedAPI) { // Disable for shared mode
         deleteSelectedLine();
       }
     }
@@ -798,6 +821,7 @@
       </select>
     </div>
 
+    {#if !useSharedAPI}
     <div class="tools-group">
       {#if selectedLineIndex !== null}
         <button class="tool-button clear-button" on:click={deleteSelectedLine} title="刪除選中線條">
@@ -879,6 +903,12 @@
         </span>
       </button>
     </div>
+    {:else}
+      <!-- Shared Mode: Only show Read Only badge -->
+      <div class="tools-group">
+        <span class="readonly-badge">唯讀模式</span>
+      </div>
+    {/if}
   </div>
 
   {#if loading}
@@ -900,7 +930,7 @@
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div bind:this={chartContainer} class="chart-container" on:mouseup={handleChartMouseUp}></div>
 
-  {#if selectedLineIndex !== null}
+  {#if selectedLineIndex !== null && !useSharedAPI}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div 
       class="control-point-handle" 
