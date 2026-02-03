@@ -73,6 +73,9 @@
         timeVisible: true,
         secondsVisible: false,
       },
+      localization: {
+        locale: 'zh-TW',
+      },
       crosshair: {
         mode: 0,
       },
@@ -122,10 +125,12 @@
       // cTrader 價格數據在 protobuf 中統一縮放 10^5
       const scale = 100000;
       const chartData = [];
+      const TZ_OFFSET = 8 * 3600; // UTC+8 偏移 (秒)
+
       for (let i = 0; i < data.trendbar.length; i++) {
         const bar = data.trendbar[i];
         chartData.push({
-          time: bar.utcTimestampInMinutes * 60,
+          time: bar.utcTimestampInMinutes * 60 + TZ_OFFSET,
           open: (bar.low + bar.deltaOpen) / scale,
           high: (bar.low + bar.deltaHigh) / scale,
           low: bar.low / scale,
@@ -134,13 +139,15 @@
       }
 
       // 設置價格精細度
-      candlestickSeries.applyOptions({
-        priceFormat: {
-          type: 'price',
-          precision: digits,
-          minMove: 1 / Math.pow(10, digits),
-        },
-      });
+      if (candlestickSeries) {
+        candlestickSeries.applyOptions({
+          priceFormat: {
+            type: 'price',
+            precision: digits,
+            minMove: 1 / Math.pow(10, digits),
+          },
+        });
+      }
 
       // 排序並過濾重複時間點
       chartData.sort(function(a, b) { return a.time - b.time; });
@@ -154,13 +161,15 @@
         }
       }
       
-      candlestickSeries.setData(uniqueData);
+      if (candlestickSeries) {
+        candlestickSeries.setData(uniqueData);
+      }
 
       // 設置標註 (Markers)
       const markers = [];
       if (trade) {
-        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000);
-        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) : null;
+        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
+        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET : null;
         
         // 修正：確保標記的價格也符合縮放
         markers.push({
