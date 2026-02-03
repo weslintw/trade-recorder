@@ -41,6 +41,7 @@
   let fibLabels = []; // { x, y, text, color }
   let cp1 = { x: -1000, y: -1000 };
   let cp2 = { x: -1000, y: -1000 };
+  let lastFibPreviewPoints = null; // Store preview points for label sync
   let isDraggingCP = false;
   let activeCPIndex = null; // 0 or 1
   let isDraggingLine = false;
@@ -566,40 +567,71 @@
       });
     }
 
-    fibLabels = [];
     const tMin = Math.min(p1.time, p2.time);
     const tMax = Math.max(p1.time, p2.time);
-    const xMax = chart.timeScale().timeToCoordinate(tMax);
     
-    const containerWidth = chartContainer.clientWidth;
     FIB_LEVELS.forEach((level, i) => {
       const price = p2.price + diff * level.level;
       const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
       fibPreviewLines[i].setData(data);
-
-      let xPos = xMax !== null ? xMax + 5 : containerWidth - 50;
-      if (xPos > containerWidth - 50) xPos = containerWidth - 50;
-
-      const y = candlestickSeries.priceToCoordinate(price);
-      if (y !== null) {
-        fibLabels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
-      }
     });
-    fibLabels = fibLabels;
+
+    lastFibPreviewPoints = { p1, p2 };
+    syncFibLabels();
   }
 
   function hideFibPreview() {
-    if (fibPreviewLines.length > 0) {
-      fibPreviewLines.forEach(s => chart.removeSeries(s));
-      fibPreviewLines = [];
-    }
-    fibLabels = [];
+    fibPreviewLines.forEach(s => s.setData([]));
+    lastFibPreviewPoints = null;
+    syncFibLabels();
   }
+
+  function syncFibLabels() {
+    if (!chart || !candlestickSeries || !chartContainer) {
+      fibLabels = [];
+      return;
+    }
+    
+    const containerWidth = chartContainer.clientWidth;
+    const labels = [];
+
+    const addLineLabels = (p1, p2) => {
+      const diff = p1.price - p2.price;
+      const tMax = Math.max(p1.time, p2.time);
+      const xMax = chart.timeScale().timeToCoordinate(tMax);
+      
+      let xPos = xMax !== null ? xMax + 5 : containerWidth - 50;
+      if (xPos > containerWidth - 50) xPos = containerWidth - 50;
+      if (xPos < 5) xPos = 5;
+
+      FIB_LEVELS.forEach(level => {
+        const price = p2.price + diff * level.level;
+        const y = candlestickSeries.priceToCoordinate(price);
+        if (y !== null) {
+          labels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
+        }
+      });
+    };
+
+    // 1. Existing drawings
+    drawnLines.forEach(line => {
+      if (line.type === 'fib') addLineLabels(line.p1, line.p2);
+    });
+
+    // 2. Preview
+    if (drawingActive && drawingMode === 'fib' && lastFibPreviewPoints) {
+      addLineLabels(lastFibPreviewPoints.p1, lastFibPreviewPoints.p2);
+    }
+    
+    fibLabels = labels;
+  }
+
 
   function addFib(p1, p2) {
     const lineObj = addLineObject(p1, p2, 'fib');
     updateFibLevels(lineObj);
     saveTrendlines();
+    syncFibLabels();
   }
 
   function addArrow(p1, p2) {
@@ -795,33 +827,12 @@
         cp1 = { x: x1, y: y1 };
         cp2 = { x: x2, y: y2 };
       }
-
-      // Handle Fibonacci Labels
-      if (line.type === 'fib') {
-        const diff = line.p1.price - line.p2.price;
-        const tMax = Math.max(line.p1.time, line.p2.time);
-        const xMax = chart.timeScale().timeToCoordinate(tMax);
-        
-        const containerWidth = chartContainer.clientWidth;
-        let xPos = xMax !== null ? xMax + 5 : containerWidth - 50;
-        if (xPos > containerWidth - 50) xPos = containerWidth - 50;
-
-        const labels = [];
-        FIB_LEVELS.forEach(level => {
-          const price = line.p2.price + diff * level.level;
-          const y = candlestickSeries.priceToCoordinate(price);
-          if (y !== null) {
-            labels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
-          }
-        });
-        fibLabels = labels;
-      } else {
-        fibLabels = [];
-      }
     } else {
       cp1 = { x: -1000, y: -1000 };
       cp2 = { x: -1000, y: -1000 };
     }
+
+    syncFibLabels();
   }
 
   function startDragCP(e, index) {
@@ -1015,6 +1026,7 @@
         if (type === 'fib') updateFibLevels(lineObj);
       }
       drawnLines = drawnLines;
+      syncFibLabels();
     } catch (e) {
       console.error('[Chart] Failed to load trendlines:', e);
     }
@@ -1130,6 +1142,7 @@
           width: chartContainer.clientWidth,
           height: chartContainer.clientHeight 
         });
+        syncFibLabels();
       }
     }, 100);
   }
