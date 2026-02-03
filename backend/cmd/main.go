@@ -134,6 +134,8 @@ func main() {
 				trades.GET("/:id/chart", handlers.GetTradeChart(db))
 				trades.DELETE("/:id", handlers.DeleteTrade(db))
 				trades.GET("/symbols", handlers.GetUsedSymbols(db))
+				trades.PUT("/:id/trendlines", handlers.SaveTrendlines(db))
+				trades.GET("/:id/trendlines", handlers.GetTrendlines(db))
 			}
 
 			// 統計資料

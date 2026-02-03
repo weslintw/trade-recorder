@@ -384,6 +384,9 @@ func createTables(db *sql.DB) error {
 	// 進階分享：添加 resource_ids 欄位
 	db.Exec("ALTER TABLE shares ADD COLUMN resource_ids TEXT;")
 
+	// 趨勢線繪圖：添加 trendlines 欄位
+	db.Exec("ALTER TABLE trades ADD COLUMN trendlines TEXT;")
+
 	// 確保 trade_images 有 file_size
 	db.Exec("ALTER TABLE trade_images ADD COLUMN file_size INTEGER DEFAULT 0;")
 

@@ -243,7 +243,7 @@
       error = "載入失敗: " + errorMsg;
     } finally {
       loading = false;
-      // loadTrendlines(); // 暫時註解，等後端API實作
+      loadTrendlines();
     }
   }
 
@@ -388,7 +388,7 @@
     drawnLines = drawnLines;
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
-    // saveTrendlines(); // 暫時註解，等後端API實作
+    saveTrendlines();
   }
 
   function updateSelectedStyles() {
@@ -503,7 +503,7 @@
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
     selectedLineIndex = null;
-    // saveTrendlines(); // 暫時註解，等後端API實作
+    saveTrendlines();
   }
 
   function toggleDrawing() {
@@ -536,7 +536,7 @@
     draggingPoint = null;
     selectedLineIndex = null;
     chart.applyOptions({ handleScroll: true, handleScale: true });
-    // saveTrendlines(); // 暫時註解，等後端API實作
+    saveTrendlines();
   }
 
   async function saveTrendlines() {
@@ -595,7 +595,7 @@
       isDraggingLine = false;
       dragStartPoint = null;
       chart.applyOptions({ handleScroll: true, handleScale: true });
-      // saveTrendlines(); // 暫時註解，等後端API實作
+      saveTrendlines();
     }
   }
 
