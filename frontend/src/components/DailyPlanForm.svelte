@@ -9,7 +9,7 @@
   import ShareModal from './ShareModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
 
-  import { determineMarketSession, toTradingDateString } from '../lib/utils';
+  import { determineMarketSession, toTradingDateString, formatDate } from '../lib/utils';
 
   export let id = null;
 
@@ -700,7 +700,7 @@
       activeSession = targetSession;
 
       alert(
-        `已成功將 ${new Date(lastPlan.plan_date).toLocaleDateString()} 的內容複製到 ${targetSession} 時段！`
+        `已成功將 ${formatDate(lastPlan.plan_date)} 的內容複製到 ${targetSession} 時段！`
       );
     } else {
       alert('該筆規劃沒有詳細內容可複製。');
