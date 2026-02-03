@@ -789,6 +789,14 @@ func GetTradeChart(db *sql.DB) gin.HandlerFunc {
 				period = 4
 				m_min = 5
 				tf = "5分"
+			case "t10":
+				period = 105
+				m_min = 1
+				tf = "10T"
+			case "t20":
+				period = 106
+				m_min = 1
+				tf = "20T"
 			case "m15":
 				period = 5
 				m_min = 15

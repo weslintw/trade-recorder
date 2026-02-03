@@ -58,6 +58,8 @@
     { value: '', label: 'Auto' },
     { value: 'm1', label: '1m' },
     { value: 'm5', label: '5m' },
+    { value: 't10', label: '10T' },
+    { value: 't20', label: '20T' },
     { value: 'm15', label: '15m' },
     { value: 'm30', label: '30m' },
     { value: 'h1', label: '1h' },
