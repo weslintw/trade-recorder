@@ -72,8 +72,16 @@ func GetTrendlines(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		if !lines.Valid || lines.String == "" {
-			c.JSON(http.StatusOK, []interface{}{})
+		if !lines.Valid || lines.String == "" || lines.String == "null" {
+			c.Data(http.StatusOK, "application/json", []byte("[]"))
+			return
+		}
+
+		// 驗證JSON格式
+		var test interface{}
+		if err := json.Unmarshal([]byte(lines.String), &test); err != nil {
+			// JSON無效，返回空陣列
+			c.Data(http.StatusOK, "application/json", []byte("[]"))
 			return
 		}
 
