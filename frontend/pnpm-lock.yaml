@@ -23,6 +23,9 @@ importers:
       quill:
         specifier: ^2.0.3
         version: 2.0.3
+      svelte-dnd-action:
+        specifier: ^0.9.69
+        version: 0.9.69(svelte@4.2.20)
       svelte-routing:
         specifier: ^2.12.0
         version: 2.13.0
@@ -596,6 +599,11 @@ packages:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
 
+  svelte-dnd-action@0.9.69:
+    resolution: {integrity: sha512-NAmSOH7htJoYraTQvr+q5whlIuVoq88vEuHr4NcFgscDRUxfWPPxgie2OoxepBCQCikrXZV4pqV86aun60wVyw==}
+    peerDependencies:
+      svelte: '>=3.23.0 || ^5.0.0-next.0'
+
   svelte-hmr@0.16.0:
     resolution: {integrity: sha512-Gyc7cOS3VJzLlfj7wKS0ZnzDVdv3Pn2IuVeJPk9m2skfhcu5bq3wtIZyQGggr7/Iim5rH5cncyQft/kRLupcnA==}
     engines: {node: ^12.20 || ^14.13.1 || >= 16}
@@ -1115,6 +1123,10 @@ snapshots:
       fsevents: 2.3.3
 
   source-map-js@1.2.1: {}
+
+  svelte-dnd-action@0.9.69(svelte@4.2.20):
+    dependencies:
+      svelte: 4.2.20
 
   svelte-hmr@0.16.0(svelte@4.2.20):
     dependencies:
