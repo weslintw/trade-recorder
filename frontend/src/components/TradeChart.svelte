@@ -225,16 +225,75 @@
       markers.sort(function(a, b) { return a.time - b.time; });
       createSeriesMarkers(candlestickSeries, markers);
       
-      // 視野管理：獲取了 1200 根，但初始視野只顯示中間的 400 根
-      const totalLen = uniqueData.length;
-      if (totalLen > 400) {
-        const midIdx = Math.floor(totalLen / 2);
+      // 視野管理：智慧聚焦交易區間
+      if (trade && uniqueData.length > 0) {
+        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
+        
+        // 尋找進場點的索引
+        let entryIdx = -1;
+        // 先嘗試精確匹配 (誤差 5 分鐘內)
+        entryIdx = uniqueData.findIndex(d => Math.abs(d.time - entryTs) < 300);
+        
+        // 如果找不到，找最接近的
+        if (entryIdx === -1) {
+          let minDiff = Infinity;
+          for(let i=0; i<uniqueData.length; i++) {
+            const diff = Math.abs(uniqueData[i].time - entryTs);
+            if (diff < minDiff) {
+              minDiff = diff;
+              entryIdx = i;
+            }
+          }
+        }
+        
+        if (entryIdx === -1) entryIdx = Math.max(0, uniqueData.length - 100);
+
+        // 設定視野終點：如果有出場，則以出場為準；如果沒有，以最新數據為準
+        let exitIdx = uniqueData.length - 1;
+        if (trade.exit_time) {
+            const exitTs = Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET;
+            let foundExit = uniqueData.findIndex(d => Math.abs(d.time - exitTs) < 300);
+            if(foundExit !== -1) {
+              exitIdx = foundExit;
+            } else {
+              // 同樣找最接近的
+              let minDiff = Infinity;
+              for(let i=0; i<uniqueData.length; i++) {
+                const diff = Math.abs(uniqueData[i].time - exitTs);
+                if (diff < minDiff) {
+                  minDiff = diff;
+                  exitIdx = i;
+                }
+              }
+            }
+        }
+        
+        // 計算顯示範圍
+        // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
+        const rightOffset = trade.exit_time ? 15 : 30;
+        
+        // 最小顯示根數，確保視野不會縮太小
+        const minVisibleBars = 120;
+        
+        let to = exitIdx + rightOffset;
+        let from = entryIdx - 30; // 左側預設留白 30 根
+
+        // 如果區間太小，向左擴展以滿足最小顯示根數
+        if ((to - from) < minVisibleBars) {
+          from = to - minVisibleBars;
+        }
+
         chart.timeScale().setVisibleLogicalRange({
-          from: midIdx - 200,
-          to: midIdx + 200,
+          from: from,
+          to: to,
         });
       } else {
-        chart.timeScale().fitContent();
+        // 無交易數據時的 Fallback：顯示最後 100 根
+        const totalLen = uniqueData.length;
+        chart.timeScale().setVisibleLogicalRange({
+          from: totalLen - 100,
+          to: totalLen + 10,
+        });
       }
 
     } catch (e) {
