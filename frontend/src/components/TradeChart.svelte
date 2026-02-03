@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createChart, CandlestickSeries, LineSeries } from 'lightweight-charts';
+  import { createChart, CandlestickSeries, LineSeries, createSeriesMarkers } from 'lightweight-charts';
   import { tradesAPI } from '../lib/api';
 
   export let tradeId;
@@ -202,7 +202,7 @@
       }
       
       markers.sort(function(a, b) { return a.time - b.time; });
-      candlestickSeries.setMarkers(markers);
+      createSeriesMarkers(candlestickSeries, markers);
       
       // 視野管理：獲取了 1200 根，但初始視野只顯示中間的 400 根
       const totalLen = uniqueData.length;
