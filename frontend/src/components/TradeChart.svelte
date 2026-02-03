@@ -557,7 +557,8 @@
   async function loadTrendlines() {
     if (!tradeId || !chart || !candlestickSeries) return;
     try {
-      const linesData = await tradesAPI.getTrendlines(tradeId);
+      const res = await tradesAPI.getTrendlines(tradeId);
+      const linesData = res.data;
       if (!linesData || linesData.length === 0) return;
       
       for (const lineData of linesData) {
