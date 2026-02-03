@@ -1073,6 +1073,7 @@
     cursor: pointer;
     outline: none;
     margin-left: 8px;
+    pointer-events: auto;
   }
 
   .period-select:hover {
