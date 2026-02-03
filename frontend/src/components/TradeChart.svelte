@@ -102,6 +102,18 @@
 
     chart.subscribeClick(handleChartClick);
     chart.subscribeCrosshairMove(handleCrosshairMove);
+    
+    // 添加mousedown事件以支援按住拖曳
+    chartContainer.addEventListener('mousedown', function(e) {
+      const rect = chartContainer.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const time = chart.timeScale().coordinateToTime(x);
+      const price = candlestickSeries.coordinateToPrice(y);
+      if (time && price) {
+        handleChartMouseDown({ point: { x, y }, time });
+      }
+    });
 
     candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#ef4444',
@@ -231,7 +243,7 @@
       error = "載入失敗: " + errorMsg;
     } finally {
       loading = false;
-      loadTrendlines();
+      // loadTrendlines(); // 暫時註解，等後端API實作
     }
   }
 
@@ -271,10 +283,6 @@
         if (dist < 10) {
           selectedLineIndex = i;
           updateSelectedStyles();
-          // 開始拖曳整條線
-          isDraggingLine = true;
-          dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
-          chart.applyOptions({ handleScroll: false, handleScale: false });
           return;
         }
       }
@@ -319,7 +327,7 @@
       const price = candlestickSeries.coordinateToPrice(param.point.y);
       if (!price) return;
 
-      // 拖曳整條線
+      // 拖曳整條線（只在按住時才拖動）
       if (isDraggingLine && dragStartPoint && selectedLineIndex !== null) {
         const line = drawnLines[selectedLineIndex];
         const deltaTime = param.time - dragStartPoint.time;
@@ -380,7 +388,7 @@
     drawnLines = drawnLines;
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
-    saveTrendlines();
+    // saveTrendlines(); // 暫時註解，等後端API實作
   }
 
   function updateSelectedStyles() {
@@ -411,7 +419,7 @@
       const dx = x2 - x1;
       const dy = y2 - y1;
       const length = Math.sqrt(dx * dx + dy * dy);
-      const offsetDistance = 12; // 控制點偏移距離
+      const offsetDistance = 6; // 控制點偏移距離（減少以更靠近線條）
       
       if (length > 0) {
         const unitX = dx / length;
@@ -495,7 +503,7 @@
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
     selectedLineIndex = null;
-    saveTrendlines();
+    // saveTrendlines(); // 暫時註解，等後端API實作
   }
 
   function toggleDrawing() {
@@ -528,7 +536,7 @@
     draggingPoint = null;
     selectedLineIndex = null;
     chart.applyOptions({ handleScroll: true, handleScale: true });
-    saveTrendlines();
+    // saveTrendlines(); // 暫時註解，等後端API實作
   }
 
   async function saveTrendlines() {
@@ -587,7 +595,47 @@
       isDraggingLine = false;
       dragStartPoint = null;
       chart.applyOptions({ handleScroll: true, handleScale: true });
-      saveTrendlines();
+      // saveTrendlines(); // 暫時註解，等後端API實作
+    }
+  }
+
+  function handleChartMouseDown(param) {
+    if (!param || !param.point || !param.time || drawingActive) return;
+    
+    const price = candlestickSeries.coordinateToPrice(param.point.y);
+    if (!price) return;
+
+    // 檢查是否點擊在已選中的線條上
+    if (selectedLineIndex !== null) {
+      const line = drawnLines[selectedLineIndex];
+      const p1Y = candlestickSeries.priceToCoordinate(line.p1.price);
+      const p1X = chart.timeScale().timeToCoordinate(line.p1.time);
+      const p2Y = candlestickSeries.priceToCoordinate(line.p2.price);
+      const p2X = chart.timeScale().timeToCoordinate(line.p2.time);
+
+      // 計算點到線段的距離
+      const A = param.point.x - p1X;
+      const B = param.point.y - p1Y;
+      const C = p2X - p1X;
+      const D = p2Y - p1Y;
+      const dot = A * C + B * D;
+      const len_sq = C * C + D * D;
+      let param_t = -1;
+      if (len_sq !== 0) param_t = dot / len_sq;
+      let xx, yy;
+      if (param_t < 0) { xx = p1X; yy = p1Y; }
+      else if (param_t > 1) { xx = p2X; yy = p2Y; }
+      else { xx = p1X + param_t * C; yy = p1Y + param_t * D; }
+      const dx = param.point.x - xx;
+      const dy = param.point.y - yy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 10) {
+        // 開始拖曳整條線
+        isDraggingLine = true;
+        dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
+        chart.applyOptions({ handleScroll: false, handleScale: false });
+      }
     }
   }
 
