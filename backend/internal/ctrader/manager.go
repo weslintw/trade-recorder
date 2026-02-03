@@ -842,8 +842,8 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 	case res := <-resChan:
 		log.Printf("[cTrader Manager Communication] RECEIVED Type: %d (for Request %s), Took: %v", res.PayloadType, msg.ClientMsgID, time.Since(startTime))
 		return res, nil
-	case <-time.After(15 * time.Second):
-		log.Printf("[cTrader Manager Communication] TIMEOUT for Request %s (Type %d) after 15s", msg.ClientMsgID, msg.PayloadType)
+	case <-time.After(30 * time.Second):
+		log.Printf("[cTrader Manager Communication] TIMEOUT for Request %s (Type %d) after 30s", msg.ClientMsgID, msg.PayloadType)
 		return nil, fmt.Errorf("request timeout (managed)")
 	}
 }

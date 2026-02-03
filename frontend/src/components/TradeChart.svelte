@@ -57,8 +57,6 @@
   let selectedPeriod = '';
   const periods = [
     { value: '', label: 'Auto' },
-    { value: 't10', label: '10T' },
-    { value: 't20', label: '20T' },
     { value: 'm1', label: '1m' },
     { value: 'm5', label: '5m' },
     { value: 'm15', label: '15m' },
@@ -100,7 +98,14 @@
     if (trade && trade.chart_config) {
       try {
         const config = JSON.parse(trade.chart_config);
-        if (config.period) selectedPeriod = config.period;
+        if (config.period) {
+          // 檢查載入的週期是否還在選單中 (處理已移除的 10T, 20T)
+          if (periods.find(p => p.value === config.period)) {
+            selectedPeriod = config.period;
+          } else {
+            selectedPeriod = ''; // 不存在則回退到 Auto
+          }
+        }
       } catch (e) {}
     }
     initChart();

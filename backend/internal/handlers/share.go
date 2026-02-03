@@ -420,14 +420,6 @@ func GetSharedChart(db *sql.DB) gin.HandlerFunc {
 				period = 4
 				m_min = 5
 				tf = "5分"
-			case "t10":
-				period = 105
-				m_min = 1
-				tf = "10T"
-			case "t20":
-				period = 106
-				m_min = 1
-				tf = "20T"
 			case "m15":
 				period = 5
 				m_min = 15
@@ -475,15 +467,9 @@ func GetSharedChart(db *sql.DB) gin.HandlerFunc {
 
 		// 計算範圍
 		totalVisibleMin := 1200 * m_min
-		if period >= 100 {
-			totalVisibleMin = 180
-		}
 		paddingMin := (totalVisibleMin - durationMin) / 2
 		if paddingMin < 20*m_min {
 			paddingMin = 20 * m_min
-		}
-		if period >= 100 && paddingMin > 60 {
-			paddingMin = 60
 		}
 
 		fromTS := t.EntryTime.Add(time.Duration(-paddingMin) * time.Minute).UnixMilli()
