@@ -7,6 +7,9 @@ export default defineConfig({
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('zh-TW', { hour12: false }))
   },
+  build: {
+    emptyOutDir: true
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
