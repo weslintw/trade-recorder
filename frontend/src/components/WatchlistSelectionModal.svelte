@@ -1,5 +1,6 @@
 <script>
   import { fade, scale } from 'svelte/transition';
+  import { formatDate } from '../lib/utils';
 
   export let show = false;
   export let trades = []; // 這些應該是 type='observation' 的單子
@@ -22,15 +23,6 @@
     }
   }
 
-  function formatDate(dateStr) {
-    return new Date(dateStr).toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
 
   // 格式化策略名稱
   function formatStrategy(strategy) {

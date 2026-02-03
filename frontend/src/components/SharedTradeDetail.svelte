@@ -1,5 +1,5 @@
 <script>
-  import { getStrategyLabel, determineMarketSession, calculateBulletSize } from '../lib/utils';
+  import { getStrategyLabel, determineMarketSession, calculateBulletSize, formatDate } from '../lib/utils';
   import Sparkline from './Sparkline.svelte';
   import { imagesAPI } from '../lib/api';
 
@@ -15,22 +15,6 @@
     }
   }
 
-  function formatDate(dateStr) {
-    if (!dateStr) return '';
-    try {
-      return new Date(dateStr).toLocaleString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
-    } catch (e) {
-      return dateStr;
-    }
-  }
 
   function calculateDuration(start, end) {
     if (!start || !end) return '';

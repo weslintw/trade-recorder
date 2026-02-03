@@ -4,7 +4,7 @@
   import { Link, navigate } from 'svelte-routing';
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
-  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize, toTradingDateString } from '../lib/utils';
+  import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize, toTradingDateString, formatDate } from '../lib/utils';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   let showAnnotator = false;
@@ -189,15 +189,6 @@
     loadTrades();
   }
 
-  function formatDate(dateString) {
-    return new Date(dateString).toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
 
 
   function openImageModal(imagePath, title = '查看圖片', context = null, originalPath = null) {

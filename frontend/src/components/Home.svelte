@@ -11,6 +11,7 @@
     parseJSONSafe,
     calculateBulletSize,
     toTradingDateString,
+    formatDate,
   } from '../lib/utils';
   import AccountModal from './AccountModal.svelte';
   import Sparkline from './Sparkline.svelte';
@@ -1426,20 +1427,6 @@
     console.log(`[Pagination] Switched to page ${newPage}`);
   }
 
-  function formatDate(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    return date.toLocaleString('zh-TW', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  }
 
   function calculateDuration(start, end) {
     if (!start || !end) return '';

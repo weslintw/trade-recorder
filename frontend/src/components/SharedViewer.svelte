@@ -8,6 +8,7 @@
     calculateDuration,
     calculateBulletSize,
     toTradingDateString,
+    formatDate,
   } from '../lib/utils';
   import 'quill/dist/quill.snow.css';
   import Sparkline from './Sparkline.svelte';
@@ -167,21 +168,6 @@ import ImageAnnotator from './ImageAnnotator.svelte';
     return `${fmt(min)} ~ ${fmt(max)}`;
   }
 
-  function formatDate(dateStr) {
-    if (!dateStr) return '';
-    try {
-      return new Date(dateStr).toLocaleString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-    } catch (e) {
-      return dateStr;
-    }
-  }
 
   function formatTime(dateStr) {
     if (!dateStr) return '';

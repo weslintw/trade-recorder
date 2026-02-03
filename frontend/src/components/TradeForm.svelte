@@ -15,14 +15,8 @@
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
   import Sparkline from './Sparkline.svelte';
   import TradeChart from './TradeChart.svelte';
-  import {
-    determineMarketSession,
-    getStrategyLabel,
-    parseJSONSafe,
-    getSymbolMultiplier,
-    getSymbolPointValue,
-    calculateBulletSize,
     toTradingDateString,
+    formatDate,
   } from '../lib/utils';
 
   export let id = null;
@@ -240,7 +234,7 @@
 
     if (
       confirm(
-        `確定要將實單 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步進場價格、手數與盈虧，並將本紀錄轉為「實單」。`
+        `確定要將實單 (${formatDate(sourceTrade.entry_time)}) 的交易資料併入這筆觀察記錄嗎？\n這將會同步進場價格、手數與盈虧，並將本紀錄轉為「實單」。`
       )
     ) {
       // 同步實單的核心數據
