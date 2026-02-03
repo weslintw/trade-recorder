@@ -2837,7 +2837,7 @@
                           </div>
                         {/if}
 
-                        {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].journal || timeGroup.trades[0].exit_reason || timeGroup.trades[0].notes}
+                        {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].journal && timeGroup.trades[0].journal.trim()) || (timeGroup.trades[0].exit_reason && timeGroup.trades[0].exit_reason.trim()) || (timeGroup.trades[0].notes && timeGroup.trades[0].notes.trim())}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === timeGroup.trades[0].id}
                                 <div class="card-notes-header">
@@ -2847,7 +2847,7 @@
                             {/if}
 
                             <!-- 復盤日記 (對應 DB: notes) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].notes}
+                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].notes && timeGroup.trades[0].notes.trim())}
                               <div class="note-block">
                                 <div class="note-label">📝 復盤日記</div>
                                 <div 
@@ -2859,7 +2859,7 @@
                             {/if}
 
                             <!-- 平倉理由 (對應 DB: exit_reason) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].exit_reason}
+                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].exit_reason && timeGroup.trades[0].exit_reason.trim())}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
                                 <div 
@@ -2871,7 +2871,7 @@
                             {/if}
                             
                             <!-- 記事備註 (對應 DB: journal) -->
-                            {#if editingTradeId === timeGroup.trades[0].id || timeGroup.trades[0].journal}
+                            {#if editingTradeId === timeGroup.trades[0].id || (timeGroup.trades[0].journal && timeGroup.trades[0].journal.trim())}
                               <div class="note-block">
                                 <div class="note-label">📌 記事備註</div>
                                 <div 
@@ -3094,7 +3094,7 @@
                         {/if}
                         
                         <!-- 只在編輯模式或有任何內容時才顯示筆記區塊 -->
-                        {#if editingTradeId === trade.id || trade.journal || trade.exit_reason || trade.notes}
+                        {#if editingTradeId === trade.id || (trade.journal && trade.journal.trim()) || (trade.exit_reason && trade.exit_reason.trim()) || (trade.notes && trade.notes.trim())}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === trade.id}
                                 <div class="card-notes-header">

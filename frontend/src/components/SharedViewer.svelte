@@ -874,21 +874,21 @@ import ImageAnnotator from './ImageAnnotator.svelte';
                               </div>
                             {/if}
 
-                            {#if trade.journal || trade.exit_reason || trade.notes}
+                            {#if (trade.journal && trade.journal.trim()) || (trade.exit_reason && trade.exit_reason.trim()) || (trade.notes && trade.notes.trim())}
                               <div class="card-notes-section">
-                                {#if trade.journal}
+                                {#if trade.journal && trade.journal.trim()}
                                   <div class="note-block">
                                     <div class="note-label">📌 記事備註</div>
                                     <div class="note-content">{@html trade.journal}</div>
                                   </div>
                                 {/if}
-                                {#if trade.exit_reason}
+                                {#if trade.exit_reason && trade.exit_reason.trim()}
                                   <div class="note-block">
                                     <div class="note-label">🚪 平倉理由</div>
                                     <div class="note-content">{@html trade.exit_reason}</div>
                                   </div>
                                 {/if}
-                                {#if trade.notes}
+                                {#if trade.notes && trade.notes.trim()}
                                   <div class="note-block">
                                     <div class="note-label">📝 復盤日記</div>
                                     <div class="note-content">{@html trade.notes}</div>
