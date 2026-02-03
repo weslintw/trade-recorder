@@ -569,16 +569,18 @@
     const tMax = Math.max(p1.time, p2.time);
     const xMax = chart.timeScale().timeToCoordinate(tMax);
     
+    const containerWidth = chartContainer.clientWidth;
     FIB_LEVELS.forEach((level, i) => {
       const price = p2.price + diff * level.level;
       const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
       fibPreviewLines[i].setData(data);
 
-      if (xMax !== null) {
-        const y = candlestickSeries.priceToCoordinate(price);
-        if (y !== null) {
-          fibLabels.push({ x: xMax + 5, y: y - 10, text: level.label, color: level.color });
-        }
+      let xPos = xMax !== null ? xMax + 5 : containerWidth - 50;
+      if (xPos > containerWidth - 50) xPos = containerWidth - 50;
+
+      const y = candlestickSeries.priceToCoordinate(price);
+      if (y !== null) {
+        fibLabels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
       }
     });
     fibLabels = fibLabels;
@@ -798,16 +800,18 @@
         const tMax = Math.max(line.p1.time, line.p2.time);
         const xMax = chart.timeScale().timeToCoordinate(tMax);
         
+        const containerWidth = chartContainer.clientWidth;
+        let xPos = xMax !== null ? xMax + 5 : containerWidth - 50;
+        if (xPos > containerWidth - 50) xPos = containerWidth - 50;
+
         const labels = [];
-        if (xMax !== null) {
-          FIB_LEVELS.forEach(level => {
-            const price = line.p2.price + diff * level.level;
-            const y = candlestickSeries.priceToCoordinate(price);
-            if (y !== null) {
-              labels.push({ x: xMax + 5, y: y - 10, text: level.label, color: level.color });
-            }
-          });
-        }
+        FIB_LEVELS.forEach(level => {
+          const price = line.p2.price + diff * level.level;
+          const y = candlestickSeries.priceToCoordinate(price);
+          if (y !== null) {
+            labels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
+          }
+        });
         fibLabels = labels;
       } else {
         fibLabels = [];
