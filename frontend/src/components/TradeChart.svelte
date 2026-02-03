@@ -36,7 +36,7 @@
   // Drawing style options
   let selectedColor = '#f59e0b';
   let selectedLineWidth = 2;
-  const colorOptions = ['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#ec4899'];
+  const colorOptions = ['#f59e0b', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#FACC15', '#4ADE80', '#60A5FA'];
   const lineWidthOptions = [1, 2, 3, 4];
   let showStyleMenu = false;
 
@@ -734,8 +734,9 @@
       
       <!-- 樣式選擇器 -->
       <div class="style-selector">
-        <button class="tool-button style-button" on:click={() => showStyleMenu = !showStyleMenu} title="線條樣式">
-          <span class="icon">🎨</span>
+        <button class="tool-button style-button" on:click={() => showStyleMenu = !showStyleMenu} title="線條樣式" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+          <div style="width: 16px; height: 3px; background-color: {selectedColor}; border-radius: 2px;"></div>
         </button>
         {#if showStyleMenu}
           <div class="style-menu">
