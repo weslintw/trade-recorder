@@ -702,19 +702,19 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			legacyTicket := fmt.Sprintf("ctrader-%d", d.PositionID)
 
 			var oldTradeID int64
-			var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, oldNotes, legImages sql.NullString
+			var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, oldNotes, legImages, trendlines sql.NullString
 			var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
 			var oldInitialSL sql.NullFloat64
 
 			// 使用交易事務進行查詢
 			targetQuery := `SELECT id, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
-				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, initial_sl
+				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, initial_sl, trendlines
 				FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`
 
 			row := tx.QueryRow(targetQuery, accountID, posTicket, legacyTicket)
 			row.Scan(
 				&oldTradeID, &journal, &entryReason, &entryStrategy, &entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern, &trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &oldNotes,
-				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL)
+				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL, &trendlines)
 
 			finalNotes := ""
 			// 只有當原有筆記不包含自動生成的字串，且不是空的時候，才保留原有筆記 (即保留使用者手動輸入的內容)
@@ -733,13 +733,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 			insertSQL := `INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
 				journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag,
-				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
+				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, trendlines)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 			res, err := tx.Exec(insertSQL,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries,
 				journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag,
-				legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
+				legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages, trendlines)
 
 			if err != nil {
 				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
