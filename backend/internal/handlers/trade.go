@@ -166,9 +166,10 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 			}
 
 			imgQuery := `
-				SELECT id, trade_id, image_type, image_path, file_size, created_at
+				SELECT id, trade_id, image_type, image_path, file_size, image_order, description, created_at
 				FROM trade_images 
 				WHERE trade_id IN (%s)
+				ORDER BY image_order ASC, created_at ASC
 			`
 			imgQuery = fmt.Sprintf(imgQuery, strings.Join(placeholders, ","))
 
@@ -177,7 +178,7 @@ func GetTrades(db *sql.DB) gin.HandlerFunc {
 				defer imgRows.Close()
 				for imgRows.Next() {
 					var img models.Image
-					if err := imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt); err == nil {
+					if err := imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.ImageOrder, &img.Description, &img.CreatedAt); err == nil {
 						if t, ok := tradeMap[img.TradeID]; ok {
 							t.Images = append(t.Images, img)
 						}
@@ -411,8 +412,8 @@ func CreateTrade(db *sql.DB) gin.HandlerFunc {
 
 		// 插入圖片
 		for _, img := range req.Images {
-			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size) VALUES (?, ?, ?, ?)",
-				tradeID, img.ImageType, img.ImagePath, img.FileSize)
+			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, image_order, description) VALUES (?, ?, ?, ?, ?, ?)",
+				tradeID, img.ImageType, img.ImagePath, img.FileSize, img.ImageOrder, img.Description)
 		}
 
 		if err := tx.Commit(); err != nil {
@@ -511,8 +512,8 @@ func UpdateTrade(db *sql.DB) gin.HandlerFunc {
 		// 更新圖片（先刪除再插入）
 		tx.Exec("DELETE FROM trade_images WHERE trade_id = ?", id)
 		for _, img := range req.Images {
-			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size) VALUES (?, ?, ?, ?)",
-				id, img.ImageType, img.ImagePath, img.FileSize)
+			tx.Exec("INSERT INTO trade_images (trade_id, image_type, image_path, file_size, image_order, description) VALUES (?, ?, ?, ?, ?, ?)",
+				id, img.ImageType, img.ImagePath, img.FileSize, img.ImageOrder, img.Description)
 		}
 
 		if err := tx.Commit(); err != nil {
@@ -635,14 +636,15 @@ func SyncSingleTrade(db *sql.DB) gin.HandlerFunc {
 func loadTradeRelations(ctx context.Context, db *sql.DB, trade *models.Trade) {
 	// 載入圖片
 	imgRows, _ := db.QueryContext(ctx, `
-		SELECT id, trade_id, image_type, image_path, file_size, created_at
+		SELECT id, trade_id, image_type, image_path, file_size, image_order, description, created_at
 		FROM trade_images WHERE trade_id = ?
+		ORDER BY image_order ASC, created_at ASC
 	`, trade.ID)
 	if imgRows != nil {
 		defer imgRows.Close()
 		for imgRows.Next() {
 			var img models.Image
-			imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.CreatedAt)
+			imgRows.Scan(&img.ID, &img.TradeID, &img.ImageType, &img.ImagePath, &img.FileSize, &img.ImageOrder, &img.Description, &img.CreatedAt)
 			trade.Images = append(trade.Images, img)
 		}
 	}

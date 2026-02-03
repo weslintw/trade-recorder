@@ -15,9 +15,18 @@
   import LegendStrategy from './trade-form/LegendStrategy.svelte';
   import Sparkline from './Sparkline.svelte';
   import TradeChart from './TradeChart.svelte';
+  import {
+    determineMarketSession,
+    getStrategyLabel,
+    parseJSONSafe,
+    getSymbolMultiplier,
+    getSymbolPointValue,
+    calculateBulletSize,
     toTradingDateString,
     formatDate,
   } from '../lib/utils';
+  import { dndzone } from 'svelte-dnd-action';
+  import { flip } from 'svelte/animate';
 
   export let id = null;
   const symbols = SYMBOLS;
@@ -131,7 +140,7 @@
 
     if (
       confirm(
-        `確定要併入圖面紀錄 (${new Date(sourceTrade.entry_time).toLocaleString()}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`
+        `確定要併入圖面紀錄 (${formatDate(sourceTrade.entry_time)}) 的分析資料嗎？\n這將會覆蓋目前的進/出場分析與標籤。`
       )
     ) {
       // 1. 併入進場分析 (Entry Analysis)
@@ -556,7 +565,10 @@
         legend_images: parseJSONSafe(response.data.legend_images, []),
         expert_images: parseJSONSafe(response.data.expert_images, []),
         elite_images: parseJSONSafe(response.data.elite_images, []),
-        images: response.data.images || [],
+        images: (response.data.images || []).map(img => ({
+          ...img,
+          id: img.id || Math.random().toString(36).substr(2, 9),
+        })),
       };
 
       // --- 圖片相容性遷移邏輯 (Legacy Migration) ---
@@ -567,6 +579,7 @@
       const addMigrationImage = (path, type) => {
         if (path && !path.startsWith('data:') && !existingPaths.has(path)) {
           migratedImages.push({
+            id: 'migrated-' + Math.random().toString(36).substr(2, 9),
             image_path: path,
             image_type: type || 'general',
             file_size: 0,
@@ -696,6 +709,29 @@
     return imagesAPI.getUrl(src);
   }
 
+  // --- 圖片拖拽與命名處理 ---
+  function handleDndConsider(e) {
+    formData.images = e.detail.items;
+  }
+
+  async function handleDndFinalize(e) {
+    formData.images = e.detail.items.map((img, i) => ({ ...img, image_order: i }));
+    formData = formData;
+    if (id) {
+      const submitData = getSubmitData();
+      await tradesAPI.update(id, submitData);
+      console.log('[DEBUG] Image order auto-saved');
+    }
+  }
+
+  async function handleImageNameBlur() {
+    if (id) {
+      const submitData = getSubmitData();
+      await tradesAPI.update(id, submitData);
+      console.log('[DEBUG] Image name auto-saved');
+    }
+  }
+
   // 放大查看圖片
   let enlargedOriginalImage = null; // 保存當前放大圖片的原始版本
 
@@ -762,12 +798,14 @@
     // 集結所有具備 MinIO 路徑的圖片，以便後端紀錄在 trade_images 表中進行空間統計
     const allImages = [];
     const addedPaths = new Set();
-    const addImage = (path, type, size = 0) => {
+    const addImage = (path, type, size = 0, order = 0, description = '') => {
       if (path && !path.startsWith('data:') && !addedPaths.has(path)) {
         allImages.push({
           image_type: type,
           image_path: path,
           file_size: size || 0,
+          image_order: order,
+          description: description,
         });
         addedPaths.add(path);
       }
@@ -830,9 +868,15 @@
     }
     // 一般圖片
     if (formData.images) {
-      formData.images.forEach(img => {
+      formData.images.forEach((img, idx) => {
         if (img && img.image_path)
-          addImage(img.image_path, img.image_type || 'general', img.file_size);
+          addImage(
+            img.image_path,
+            img.image_type || 'general',
+            img.file_size,
+            img.image_order !== undefined ? img.image_order : idx,
+            img.description || ''
+          );
       });
     }
 
@@ -1118,9 +1162,12 @@
       formData.images = [
         ...formData.images,
         {
+          id: Math.random().toString(36).substr(2, 9),
           image_path: res.data.path,
           image_type: 'general',
           file_size: res.data.size,
+          image_order: formData.images.length,
+          description: '',
         },
       ];
       formData = formData;
@@ -1146,8 +1193,8 @@
     e.target.value = ''; // Reset
   }
 
-  function removeGeneralImage(index) {
-    formData.images = formData.images.filter((_, i) => i !== index);
+  function removeGeneralImage(imgId) {
+    formData.images = formData.images.filter(img => img.id !== imgId);
     formData = formData;
   }
 
@@ -1626,12 +1673,7 @@
                 <div class="item-time">
                   平倉 {i + 1}:
                   <strong
-                    >{new Date(t.exit_time).toLocaleString('zh-TW', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}</strong
-                  >
+                  <strong>{formatDate(t.exit_time)}</strong>
                   <span class="duration-mini"
                     >({calculateDuration(formData.entry_time, t.exit_time)})</span
                   >
@@ -1773,21 +1815,35 @@
         <!-- 一般截圖區塊 -->
         <div class="form-group general-images-section">
           <label>📸 進場與平倉截圖 (General Images)</label>
-          <div class="general-images-grid">
-            {#each formData.images as img, idx}
-              <div class="image-thumb-container">
-                <img
-                  src={getImageUrl(img.image_path)}
-                  alt="Trade Screenshot"
-                  class="trade-thumb"
-                  on:click={() =>
-                    enlargeImage(img.image_path, '交易截圖', { type: 'general', index: idx })}
+          <div
+            class="general-images-grid"
+            use:dndzone={{ items: formData.images, flipDurationMs: 300, dragDisabled: false }}
+            on:consider={handleDndConsider}
+            on:finalize={handleDndFinalize}
+          >
+            {#each formData.images as img (img.id)}
+              <div class="image-thumb-wrapper" animate:flip={{ duration: 300 }}>
+                <div class="image-thumb-container">
+                  <img
+                    src={getImageUrl(img.image_path)}
+                    alt="Trade Screenshot"
+                    class="trade-thumb"
+                    on:click={() => enlargeImage(img.image_path, '交易截圖', { type: 'general' })}
+                  />
+                  <button
+                    type="button"
+                    class="remove-thumb-btn"
+                    on:click={() => removeGeneralImage(img.id)}>×</button
+                  >
+                </div>
+                <input
+                  type="text"
+                  class="image-name-input"
+                  placeholder="命名圖片..."
+                  bind:value={img.description}
+                  on:blur={handleImageNameBlur}
+                  on:click|stopPropagation
                 />
-                <button
-                  type="button"
-                  class="remove-thumb-btn"
-                  on:click={() => removeGeneralImage(idx)}>×</button
-                >
               </div>
             {/each}
             <div class="general-upload-container">
@@ -2258,15 +2314,44 @@
       grid-template-columns: repeat(auto-fill, minmax(140px, 140px));
       gap: 1rem;
       margin-top: 0.75rem;
+      min-height: 140px; /* 為空時保持一定高度以便拖入 */
+    }
+
+    .image-thumb-wrapper {
+      display: flex;
+      flex-direction: column;
+      width: 140px;
     }
 
     .image-thumb-container {
       position: relative;
-      aspect-ratio: 1;
+      width: 140px;
+      height: 140px;
       border-radius: 8px;
       overflow: hidden;
       border: 2px solid var(--border-color);
       transition: all 0.2s;
+      background-color: var(--card-bg);
+    }
+
+    .image-name-input {
+      margin-top: 0.5rem;
+      width: 100%;
+      border: 1px dashed var(--border-color);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.75rem;
+      background: transparent;
+      text-align: center;
+      color: var(--text-main);
+      transition: all 0.2s;
+    }
+
+    .image-name-input:focus {
+      border-style: solid;
+      border-color: var(--primary);
+      outline: none;
+      background: var(--bg-main);
     }
 
     .image-thumb-container:hover {

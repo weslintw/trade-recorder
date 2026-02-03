@@ -24,6 +24,7 @@
     "chart.js": "^4.4.1",
     "lightweight-charts": "^5.1.0",
     "quill": "^2.0.3",
+    "svelte-dnd-action": "^0.9.69",
     "svelte-routing": "^2.12.0"
   }
 }

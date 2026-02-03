@@ -5,12 +5,12 @@
   import { tradesAPI, tagsAPI, imagesAPI, dailyPlansAPI } from '../lib/api';
   import { SYMBOLS, MARKET_SESSIONS } from '../lib/constants';
   import { determineMarketSession, getStrategyLabel, parseJSONSafe, calculateBulletSize, toTradingDateString, formatDate } from '../lib/utils';
+  import { selectedSymbol, selectedAccountId, tradedSymbols } from '../lib/stores';
   import ImageAnnotator from './ImageAnnotator.svelte';
 
   let showAnnotator = false;
   let enlargedOriginalImage = null;
   let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
-  import { selectedSymbol, selectedAccountId, tradedSymbols } from '../lib/stores';
 
   export let isCompact = false;
 
@@ -706,7 +706,9 @@
                     }}
                   />
                   <span class="image-label">
-                    {#if image.image_type === 'entry'}
+                    {#if image.description}
+                      {image.description}
+                    {:else if image.image_type === 'entry'}
                       📈 進場
                     {:else if image.image_type === 'exit'}
                       📉 平倉

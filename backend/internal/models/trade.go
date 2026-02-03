@@ -57,12 +57,14 @@ type Trade struct {
 
 // Image 圖片模型
 type Image struct {
-	ID        int64     `json:"id"`
-	TradeID   int64     `json:"trade_id"`
-	ImageType string    `json:"image_type"` // "entry" 或 "exit"
-	ImagePath string    `json:"image_path"`
-	FileSize  int64     `json:"file_size"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	TradeID     int64     `json:"trade_id"`
+	ImageType   string    `json:"image_type"` // "entry" 或 "exit"
+	ImagePath   string    `json:"image_path"`
+	FileSize    int64     `json:"file_size"`
+	ImageOrder  int       `json:"image_order"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // Tag 標籤模型
@@ -121,9 +123,11 @@ type TradeCreate struct {
 
 // ImageUpload 圖片上傳資料
 type ImageUpload struct {
-	ImageType string `json:"image_type" binding:"required,oneof=entry exit"`
-	ImagePath string `json:"image_path" binding:"required"`
-	FileSize  int64  `json:"file_size"`
+	ImageType   string `json:"image_type" binding:"required,oneof=entry exit"`
+	ImagePath   string `json:"image_path" binding:"required"`
+	FileSize    int64  `json:"file_size"`
+	ImageOrder  int    `json:"image_order"`
+	Description string `json:"description"`
 }
 
 // TradeQuery 查詢參數
