@@ -15,8 +15,8 @@
   let error = null;
   let timeframe = '';
   let copying = false;
-  let drawingMode = null; // null, 'trendline', 'arrow'
-  let drawingActive = false; // keep for backward compatibility in some logic or replace it
+  let drawingMode = null; // null, 'trendline', 'arrow', 'fib'
+  let drawingActive = false;
   let firstPoint = null;
   let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, color, lineWidth }
   let isFullscreen = false;
@@ -28,7 +28,17 @@
   let selectedLineIndex = null;
   let rafId = null;
 
-  // New interactive handles
+  const FIB_LEVELS = [
+    { level: 0, color: '#f59e0b', label: '0' },
+    { level: 0.382, color: '#d97706', label: '0.382' },
+    { level: 0.5, color: '#22c55e', label: '0.5' },
+    { level: 0.618, color: '#15803d', label: '0.618' },
+    { level: 0.702, color: '#3b82f6', label: '0.702' },
+    { level: 0.786, color: '#06b6d4', label: '0.786' },
+    { level: 1, color: '#94a3b8', label: '1' }
+  ];
+  let fibPreviewLines = [];
+  let fibLabels = []; // { x, y, text, color }
   let cp1 = { x: -1000, y: -1000 };
   let cp2 = { x: -1000, y: -1000 };
   let isDraggingCP = false;
@@ -115,9 +125,13 @@
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(updateControlPoints);
     chart.timeScale().subscribeVisibleTimeRangeChange(function() {
+      // Update arrows/fib on zoom/scroll to maintain arrowhead shape and size
       drawnLines.forEach(function(line) {
         if (line.type === 'arrow') updateLineWings(line);
+        if (line.type === 'fib') updateFibLevels(line);
       });
+      // Update labels positioning
+      updateControlPoints();
     });
 
     chart.subscribeClick(handleChartClick);
@@ -395,6 +409,8 @@
       const secondPoint = { time: param.time, price: price };
       if (drawingMode === 'arrow') {
         addArrow(firstPoint, secondPoint);
+      } else if (drawingMode === 'fib') {
+        addFib(firstPoint, secondPoint);
       } else {
         addTrendline(firstPoint, secondPoint);
       }
@@ -449,11 +465,16 @@
         lineData.sort(function(a, b) { return a.time - b.time; });
         previewLine.setData(lineData);
 
-        // Update arrow preview wings
+        // Update arrow/fib preview
         if (drawingMode === 'arrow') {
           updateArrowPreviewWings(firstPoint, { time: param.time, price: price });
+          hideFibPreview();
+        } else if (drawingMode === 'fib') {
+          updateFibPreview(firstPoint, { time: param.time, price: price });
+          hideArrowPreviewWings();
         } else {
           hideArrowPreviewWings();
+          hideFibPreview();
         }
       }
     });
@@ -525,6 +546,58 @@
     }
   }
 
+  function updateFibPreview(p1, p2) {
+    if (!candlestickSeries || !chart) return;
+    const diff = p1.price - p2.price;
+    
+    if (fibPreviewLines.length === 0) {
+      FIB_LEVELS.forEach(level => {
+        const series = chart.addSeries(LineSeries, {
+          color: level.color,
+          lineWidth: 1,
+          lineStyle: 2, // Dashed
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        fibPreviewLines.push(series);
+      });
+    }
+
+    fibLabels = [];
+    const tMin = Math.min(p1.time, p2.time);
+    const tMax = Math.max(p1.time, p2.time);
+    const xMax = chart.timeScale().timeToCoordinate(tMax);
+    
+    FIB_LEVELS.forEach((level, i) => {
+      const price = p2.price + diff * level.level;
+      const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
+      fibPreviewLines[i].setData(data);
+
+      if (xMax !== null) {
+        const y = candlestickSeries.priceToCoordinate(price);
+        if (y !== null) {
+          fibLabels.push({ x: xMax + 5, y: y - 10, text: level.label, color: level.color });
+        }
+      }
+    });
+    fibLabels = fibLabels;
+  }
+
+  function hideFibPreview() {
+    if (fibPreviewLines.length > 0) {
+      fibPreviewLines.forEach(s => chart.removeSeries(s));
+      fibPreviewLines = [];
+    }
+    fibLabels = [];
+  }
+
+  function addFib(p1, p2) {
+    const lineObj = addLineObject(p1, p2, 'fib');
+    updateFibLevels(lineObj);
+    saveTrendlines();
+  }
+
   function addArrow(p1, p2) {
     const lineObj = addLineObject(p1, p2, 'arrow');
     updateLineWings(lineObj);
@@ -538,8 +611,9 @@
 
   function addLineObject(p1, p2, type = 'trendline') {
     const series = chart.addSeries(LineSeries, {
-      color: selectedColor,
-      lineWidth: selectedLineWidth,
+      color: type === 'fib' ? 'rgba(255, 255, 255, 0.2)' : selectedColor,
+      lineWidth: type === 'fib' ? 1 : selectedLineWidth,
+      lineStyle: type === 'fib' ? 2 : 0,
       lastValueVisible: false,
       priceLineVisible: false,
       crosshairMarkerVisible: false,
@@ -567,6 +641,33 @@
     selectedLineIndex = drawnLines.length - 1;
     updateSelectedStyles();
     return lineObj;
+  }
+
+  function updateFibLevels(line) {
+    if (line.type !== 'fib') return;
+    const diff = line.p1.price - line.p2.price;
+    const tMin = Math.min(line.p1.time, line.p2.time);
+    const tMax = Math.max(line.p1.time, line.p2.time);
+    
+    if (line.wings.length === 0) {
+      FIB_LEVELS.forEach(level => {
+        const series = chart.addSeries(LineSeries, {
+          color: level.color,
+          lineWidth: 1,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        line.wings.push(series);
+      });
+    }
+
+    FIB_LEVELS.forEach((level, i) => {
+      const price = line.p2.price + diff * level.level;
+      const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
+      data.sort((a,b) => a.time - b.time);
+      line.wings[i].setData(data);
+    });
   }
 
   function updateLineWings(line) {
@@ -627,6 +728,7 @@
     line.color = selectedColor;
     line.lineWidth = selectedLineWidth;
     if (line.type === 'arrow') updateLineWings(line);
+    if (line.type === 'fib') updateFibLevels(line);
     updateSelectedStyles();
     saveTrendlines();
   }
@@ -645,6 +747,9 @@
       if (line.type === 'arrow' && line.wings && line.wings.length === 2) {
         line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
         line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+      }
+      if (line.type === 'fib' && line.wings) {
+        line.wings.forEach(s => s.applyOptions({ lineWidth: isSelected ? 2 : 1 }));
       }
     }
     updateControlPoints();
@@ -684,6 +789,27 @@
       } else {
         cp1 = { x: x1, y: y1 };
         cp2 = { x: x2, y: y2 };
+      }
+
+      // Handle Fibonacci Labels
+      if (line.type === 'fib') {
+        const diff = line.p1.price - line.p2.price;
+        const tMax = Math.max(line.p1.time, line.p2.time);
+        const xMax = chart.timeScale().timeToCoordinate(tMax);
+        
+        const labels = [];
+        if (xMax !== null) {
+          FIB_LEVELS.forEach(level => {
+            const price = line.p2.price + diff * level.level;
+            const y = candlestickSeries.priceToCoordinate(price);
+            if (y !== null) {
+              labels.push({ x: xMax + 5, y: y - 10, text: level.label, color: level.color });
+            }
+          });
+        }
+        fibLabels = labels;
+      } else {
+        fibLabels = [];
       }
     } else {
       cp1 = { x: -1000, y: -1000 };
@@ -730,6 +856,7 @@
         lineData.sort(function(a, b) { return a.time - b.time; });
         line.series.setData(lineData);
         if (line.type === 'arrow') updateLineWings(line);
+        if (line.type === 'fib') updateFibLevels(line);
         updateControlPoints();
       }
     });
@@ -787,6 +914,8 @@
     }
 
     if (!drawingActive) {
+      hideFibPreview();
+      hideArrowPreviewWings();
       if (previewLine) {
         chart.removeSeries(previewLine);
         previewLine = null;
@@ -849,8 +978,9 @@
       for (const lineData of linesData) {
         const type = lineData.type || 'trendline';
         const series = chart.addSeries(LineSeries, {
-          color: lineData.color || '#f59e0b',
-          lineWidth: lineData.lineWidth || 2,
+          color: type === 'fib' ? 'rgba(255, 255, 255, 0.2)' : (lineData.color || '#f59e0b'),
+          lineWidth: type === 'fib' ? 1 : (lineData.lineWidth || 2),
+          lineStyle: type === 'fib' ? 2 : 0,
           lastValueVisible: false,
           priceLineVisible: false,
           crosshairMarkerVisible: false,
@@ -875,6 +1005,7 @@
         
         drawnLines.push(lineObj);
         if (type === 'arrow') updateLineWings(lineObj);
+        if (type === 'fib') updateFibLevels(lineObj);
       }
       drawnLines = drawnLines;
     } catch (e) {
@@ -1091,6 +1222,18 @@
         </span>
       </button>
 
+      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'fib'} on:click={() => toggleDrawing('fib')} title="斐波那契工具">
+        <span class="icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="17" cy="12" r="2.5"/>
+            <circle cx="7" cy="18" r="2.5"/>
+          </svg>
+        </span>
+      </button>
+
       <button class="copy-button" on:click={copyChartImage} disabled={copying} title="複製圖表截圖">
         {#if copying}
           <span class="icon">✅</span>
@@ -1138,6 +1281,12 @@
 
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div bind:this={chartContainer} class="chart-container" on:mouseup={handleChartMouseUp}></div>
+
+  {#each fibLabels as label}
+    <div class="fib-label" style="left: {label.x}px; top: {label.y}px; color: {label.color};">
+      {label.text}
+    </div>
+  {/each}
 
   {#if selectedLineIndex !== null && !useSharedAPI}
     <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -1339,6 +1488,16 @@
     border-top-color: #3b82f6;
     border-radius: 50%;
     animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .fib-label {
+    position: absolute;
+    pointer-events: none;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: bold;
+    text-shadow: 0 0 3px rgba(0,0,0,0.8);
+    z-index: 15;
   }
 
   @keyframes spin {
