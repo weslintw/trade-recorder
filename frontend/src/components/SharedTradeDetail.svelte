@@ -836,7 +836,7 @@
   }
   
   .chart-container-shared {
-    height: 500px;
+    height: 420px;
     margin-bottom: 2rem;
     border-radius: 12px;
     overflow: hidden;

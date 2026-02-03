@@ -290,10 +290,10 @@
         
         // 計算顯示範圍
         // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
-        const rightOffset = trade.exit_time ? 15 : 30;
+        const rightOffset = 80;
         
         // 最小顯示根數，確保視野不會縮太小
-        const minVisibleBars = 120;
+        const minVisibleBars = 400;
         
         let to = exitIdx + rightOffset;
         let from = entryIdx - 30; // 左側預設留白 30 根
@@ -311,8 +311,8 @@
         // 無交易數據時的 Fallback：顯示最後 100 根
         const totalLen = uniqueData.length;
         chart.timeScale().setVisibleLogicalRange({
-          from: totalLen - 100,
-          to: totalLen + 10,
+          from: totalLen - 400,
+          to: totalLen + 50,
         });
       }
 
@@ -950,7 +950,7 @@
   .chart-wrapper {
     position: relative;
     width: 100%;
-    height: 450px;
+    height: 400px;
     background: #0f172a;
     border-radius: 16px;
     overflow: hidden;
