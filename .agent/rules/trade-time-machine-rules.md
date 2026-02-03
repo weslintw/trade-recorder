@@ -25,9 +25,10 @@ SQLite 為核心：目前使用 SQLite 作為主要資料庫，應確保 SQL 語
 平倉後：無論持倉時間長短，都會立即嘗試抓取一次完整的歷史曲線，確保紀錄的完整性。
 
 7. 部署安全與本地驗證 🚀
-推名前必檢 (Pre-push Check)：在執行 `git push` 之前，必須在 `frontend` 目錄下執行 `npx svelte-check --threshold error`。若有任何 Error，絕對禁止推送。
-編譯模擬 (Build Simulation)：若涉及複雜的結構調整或新套件引用，應先在本地端執行 `npm run build` 確保 Vite 編譯成功，以避免 Zeabur 部署失敗。
-重複宣告檢查：嚴格檢查 Svelte 檔案中的 Reactive 宣告 (`$:`)，避免變數名稱重複定義導致編譯錯誤。
+- 推名前必檢 (Pre-push Check)：執行 `git push` 之前，必須在 `frontend` 目錄下執行 `npx svelte-check --threshold error`。若有任何 Error，絕對禁止推送。
+- 編譯與 Lockfile 檢查：若涉及 `package.json` 修改（如新增套件），必須先在本地執行 `pnpm install` 更新 `pnpm-lock.yaml` 並提交。
+- 編譯模擬 (Build Simulation)：在執行 `git push` 之前，強烈建議先在本地端執行 `npm run build`。若 Vite 編譯失敗，嚴禁推送，這可以提前攔截 90% 的部署失敗（如語法錯誤或 Unicode 轉義問題）。
+- 重複宣告檢查：嚴格檢查 Svelte 檔案中的 Reactive 宣告 (`$:`)，避免變數名稱重複定義導致編譯錯誤。
 
 8. 指令授權 (Command Authorization) 🛡️
 自動執行授權：`findstr`、`grep`、`Get-Content`、`type`、`git` 相關指令、`npm run build` 以及 `npx vite build` 允許直接執行，不需再次詢問使用者。
