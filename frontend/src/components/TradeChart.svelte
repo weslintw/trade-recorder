@@ -535,6 +535,11 @@
         line.p2.time += deltaTime;
         line.p2.price += deltaPrice;
         
+        if (line.p3) {
+          line.p3.time += deltaTime;
+          line.p3.price += deltaPrice;
+        }
+        
         const lineData = [
           { time: line.p1.time, value: line.p1.price },
           { time: line.p2.time, value: line.p2.price }
@@ -542,6 +547,8 @@
         lineData.sort(function(a, b) { return a.time - b.time; });
         line.series.setData(lineData);
         if (line.type === 'arrow') updateLineWings(line);
+        if (line.type === 'fib') updateFibLevels(line);
+        if (line.type === 'channel') updateChannelLines(line);
         
         dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
         updateControlPoints();
@@ -660,18 +667,16 @@
       const options = {
         color: selectedColor,
         lineWidth: selectedLineWidth,
-        lineStyle: 2, // Dashed
+        lineStyle: 0, // Solid
         lastValueVisible: false,
         priceLineVisible: false,
         crosshairMarkerVisible: false,
       };
       channelPreviewWings = [
-        chart.addSeries(LineSeries, options),
-        chart.addSeries(LineSeries, { ...options, lineStyle: 3 })
+        chart.addSeries(LineSeries, options)
       ];
     } else {
       channelPreviewWings[0].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
-      channelPreviewWings[1].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
     }
     
     const dt = p2.time - p1.time;
@@ -686,10 +691,6 @@
     channelPreviewWings[0].setData([
       { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset },
       { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset }
-    ]);
-    channelPreviewWings[1].setData([
-      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset / 2 },
-      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset / 2 }
     ]);
   }
 
@@ -933,8 +934,7 @@
     
     if (line.wings.length === 0) {
       line.wings = [
-        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false }),
-        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineStyle: 3 })
+        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
       ];
     }
     
@@ -955,19 +955,13 @@
       { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset },
       { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset }
     ];
-    const midlineData = [
-      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset / 2 },
-      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset / 2 }
-    ];
     
     line.wings[0].setData(parallelData);
-    line.wings[1].setData(midlineData);
     
     const isSelected = selectedLineIndex !== null && drawnLines[selectedLineIndex] === line;
     const effectiveLineWidth = isSelected ? line.lineWidth + 2 : line.lineWidth;
     
     line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
-    line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth, lineStyle: 3 });
   }
 
 
@@ -1001,9 +995,8 @@
       if (line.type === 'fib' && line.wings) {
         line.wings.forEach(function(s) { s.applyOptions({ lineWidth: isSelected ? 2 : 1 }); });
       }
-      if (line.type === 'channel' && line.wings && line.wings.length === 2) {
+      if (line.type === 'channel' && line.wings && line.wings.length >= 1) {
         line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
-        line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth, lineStyle: 3 });
       }
     }
     updateControlPoints();
