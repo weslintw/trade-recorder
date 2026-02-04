@@ -667,7 +667,7 @@
       const options = {
         color: selectedColor,
         lineWidth: selectedLineWidth,
-        lineStyle: 0, // Solid
+        lineStyle: 2, // Dashed
         lastValueVisible: false,
         priceLineVisible: false,
         crosshairMarkerVisible: false,
@@ -816,7 +816,7 @@
     const series = chart.addSeries(LineSeries, {
       color: type === 'fib' ? 'rgba(0, 0, 0, 0)' : selectedColor,
       lineWidth: type === 'fib' ? 1 : selectedLineWidth,
-      lineStyle: type === 'fib' ? 2 : 0,
+      lineStyle: (type === 'fib' || type === 'channel') ? 2 : 0,
       lastValueVisible: false,
       priceLineVisible: false,
       crosshairMarkerVisible: false,
@@ -922,7 +922,7 @@
       // Sync wing styles
       const wingOptions = {
         color: line.color,
-        lineWidth: selectedLineIndex !== null && drawnLines[selectedLineIndex] === line ? line.lineWidth + 2 : line.lineWidth
+        lineWidth: line.lineWidth
       };
       line.wings[0].applyOptions(wingOptions);
       line.wings[1].applyOptions(wingOptions);
@@ -934,7 +934,7 @@
     
     if (line.wings.length === 0) {
       line.wings = [
-        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false })
+        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineStyle: 2 })
       ];
     }
     
@@ -958,10 +958,7 @@
     
     line.wings[0].setData(parallelData);
     
-    const isSelected = selectedLineIndex !== null && drawnLines[selectedLineIndex] === line;
-    const effectiveLineWidth = isSelected ? line.lineWidth + 2 : line.lineWidth;
-    
-    line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+    line.wings[0].applyOptions({ color: line.color, lineWidth: line.lineWidth });
   }
 
 
@@ -981,7 +978,7 @@
     for (let i = 0; i < drawnLines.length; i++) {
       const line = drawnLines[i];
       const isSelected = i === selectedLineIndex;
-      const effectiveLineWidth = isSelected ? (line.lineWidth || 2) + 2 : (line.lineWidth || 2);
+      const effectiveLineWidth = line.lineWidth || 2;
       
       line.series.applyOptions({
         color: line.type === 'fib' ? 'rgba(0, 0, 0, 0)' : (line.color || '#f59e0b'),
@@ -993,7 +990,7 @@
         line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
       }
       if (line.type === 'fib' && line.wings) {
-        line.wings.forEach(function(s) { s.applyOptions({ lineWidth: isSelected ? 2 : 1 }); });
+        line.wings.forEach(function(s) { s.applyOptions({ lineWidth: 1 }); });
       }
       if (line.type === 'channel' && line.wings && line.wings.length >= 1) {
         line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
@@ -1237,7 +1234,7 @@
         const series = chart.addSeries(LineSeries, {
           color: type === 'fib' ? 'rgba(0, 0, 0, 0)' : (lineData.color || '#f59e0b'),
           lineWidth: type === 'fib' ? 1 : (lineData.lineWidth || 2),
-          lineStyle: type === 'fib' ? 2 : 0,
+          lineStyle: (type === 'fib' || type === 'channel') ? 2 : 0,
           lastValueVisible: false,
           priceLineVisible: false,
           crosshairMarkerVisible: false,
