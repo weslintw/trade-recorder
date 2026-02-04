@@ -15,10 +15,11 @@
   let error = null;
   let timeframe = '';
   let copying = false;
-  let drawingMode = null; // null, 'trendline', 'arrow', 'fib'
+  let drawingMode = null; // null, 'trendline', 'arrow', 'fib', 'channel'
   let drawingActive = false;
   let firstPoint = null;
-  let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, color, lineWidth }
+  let secondPoint = null; // For 3-point tools like channel
+  let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, p3: {time, price}, color, lineWidth }
   let isFullscreen = false;
   let chartWrapper;
   
@@ -41,6 +42,7 @@
   let fibLabels = []; // { x, y, text, color }
   let cp1 = { x: -1000, y: -1000 };
   let cp2 = { x: -1000, y: -1000 };
+  let cp3 = { x: -1000, y: -1000 };
   let lastFibPreviewPoints = null; // Store preview points for label sync
   let isDraggingCP = false;
   let activeCPIndex = null; // 0 or 1
@@ -100,7 +102,14 @@
         const config = JSON.parse(trade.chart_config);
         if (config.period) {
           // 檢查載入的週期是否還在選單中 (處理已移除的 10T, 20T)
-          if (periods.find(p => p.value === config.period)) {
+          let found = false;
+          for (let i = 0; i < periods.length; i++) {
+            if (periods[i].value === config.period) {
+              found = true;
+              break;
+            }
+          }
+          if (found) {
             selectedPeriod = config.period;
           } else {
             selectedPeriod = ''; // 不存在則回退到 Auto
@@ -171,10 +180,11 @@
     });
     chart.timeScale().subscribeVisibleTimeRangeChange(function() {
       // Update arrows/fib on zoom/scroll to maintain arrowhead shape and size
-      drawnLines.forEach(function(line) {
+      for (let i = 0; i < drawnLines.length; i++) {
+        const line = drawnLines[i];
         if (line.type === 'arrow') updateLineWings(line);
         if (line.type === 'fib') updateFibLevels(line);
-      });
+      }
       // Update labels positioning
       updateControlPoints();
     });
@@ -317,7 +327,12 @@
         // 尋找進場點的索引
         let entryIdx = -1;
         // 先嘗試精確匹配 (誤差 5 分鐘內)
-        entryIdx = uniqueData.findIndex(d => Math.abs(d.time - entryTs) < 300);
+        for (let i = 0; i < uniqueData.length; i++) {
+          if (Math.abs(uniqueData[i].time - entryTs) < 300) {
+            entryIdx = i;
+            break;
+          }
+        }
         
         // 如果找不到，找最接近的
         if (entryIdx === -1) {
@@ -335,7 +350,13 @@
         let exitIdx = uniqueData.length - 1;
         if (trade.exit_time) {
             const exitTs = Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET;
-            let foundExit = uniqueData.findIndex(d => Math.abs(d.time - exitTs) < 300);
+            let foundExit = -1;
+            for (let i = 0; i < uniqueData.length; i++) {
+              if (Math.abs(uniqueData[i].time - exitTs) < 300) {
+                foundExit = i;
+                break;
+              }
+            }
             if(foundExit !== -1) {
               exitIdx = foundExit;
             } else {
@@ -402,7 +423,10 @@
 
     } catch (e) {
       console.error('[Chart Error]', e);
-      const errorMsg = e.response && e.response.data && e.response.data.error ? e.response.data.error : e.message;
+      let errorMsg = e.message;
+      if (e.response && e.response.data && e.response.data.error) {
+        errorMsg = e.response.data.error;
+      }
       error = "載入失敗: " + errorMsg;
     } finally {
       loading = false;
@@ -469,18 +493,22 @@
         priceLineVisible: false,
         crosshairMarkerVisible: false,
       });
+    } else if (drawingMode === 'channel' && !secondPoint) {
+      secondPoint = { time: param.time, price: price };
+      // Establishing baseline, previewLine remains between p1-p2
     } else {
-      const secondPoint = { time: param.time, price: price };
+      const currentPoint = { time: param.time, price: price };
       if (drawingMode === 'arrow') {
-        addArrow(firstPoint, secondPoint);
+        addArrow(firstPoint, currentPoint);
       } else if (drawingMode === 'fib') {
-        addFib(firstPoint, secondPoint);
+        addFib(firstPoint, currentPoint);
+      } else if (drawingMode === 'channel') {
+        addChannel(firstPoint, secondPoint, currentPoint);
       } else {
-        addTrendline(firstPoint, secondPoint);
+        addTrendline(firstPoint, currentPoint);
       }
       
-      console.log('[Chart] Line completed, exiting drawing mode');
-      // Use the central toggle function to ensure all states are reset properly
+      console.log('[Chart] Drawing completed');
       toggleDrawing(drawingMode); 
     }
   }
@@ -522,23 +550,37 @@
 
       // Drawing preview
       if (drawingActive && firstPoint && previewLine) {
-        const lineData = [
-          { time: firstPoint.time, value: firstPoint.price },
-          { time: param.time, value: price }
-        ];
-        lineData.sort(function(a, b) { return a.time - b.time; });
-        previewLine.setData(lineData);
-
-        // Update arrow/fib preview
-        if (drawingMode === 'arrow') {
-          updateArrowPreviewWings(firstPoint, { time: param.time, price: price });
-          hideFibPreview();
-        } else if (drawingMode === 'fib') {
-          updateFibPreview(firstPoint, { time: param.time, price: price });
-          hideArrowPreviewWings();
+        if (drawingMode === 'channel' && secondPoint) {
+            // Already have baseline, p3 is at cursor
+            updateChannelPreview(firstPoint, secondPoint, { time: param.time, price: price });
+            hideFibPreview();
+            hideArrowPreviewWings();
         } else {
-          hideArrowPreviewWings();
-          hideFibPreview();
+            const lineData = [
+              { time: firstPoint.time, value: firstPoint.price },
+              { time: param.time, value: price }
+            ];
+            lineData.sort(function(a, b) { return a.time - b.time; });
+            previewLine.setData(lineData);
+
+            // Update arrow/fib preview
+            if (drawingMode === 'arrow') {
+              updateArrowPreviewWings(firstPoint, { time: param.time, price: price });
+              hideFibPreview();
+              hideChannelPreview();
+            } else if (drawingMode === 'fib') {
+              updateFibPreview(firstPoint, { time: param.time, price: price });
+              hideArrowPreviewWings();
+              hideChannelPreview();
+            } else if (drawingMode === 'channel') {
+              hideArrowPreviewWings();
+              hideFibPreview();
+              hideChannelPreview();
+            } else {
+              hideArrowPreviewWings();
+              hideFibPreview();
+              hideChannelPreview();
+            }
         }
       }
     });
@@ -595,8 +637,8 @@
       
       const d1 = [{ time: p2.time, value: p2.price }, { time: t3, value: v3 }];
       const d2 = [{ time: p2.time, value: p2.price }, { time: t4, value: v4 }];
-      d1.sort((a,b) => a.time - b.time);
-      d2.sort((a,b) => a.time - b.time);
+      d1.sort(function(a, b) { return a.time - b.time; });
+      d2.sort(function(a, b) { return a.time - b.time; });
       arrowPreviewWings[0].setData(d1);
       arrowPreviewWings[1].setData(d2);
     }
@@ -610,12 +652,63 @@
     }
   }
 
+  let channelPreviewWings = [];
+  function updateChannelPreview(p1, p2, p3) {
+    if (!p1 || !p2 || !p3 || !chart) return;
+    
+    if (channelPreviewWings.length === 0) {
+      const options = {
+        color: selectedColor,
+        lineWidth: selectedLineWidth,
+        lineStyle: 2, // Dashed
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      };
+      channelPreviewWings = [
+        chart.addSeries(LineSeries, options),
+        chart.addSeries(LineSeries, { ...options, lineStyle: 3 })
+      ];
+    } else {
+      channelPreviewWings[0].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
+      channelPreviewWings[1].applyOptions({ color: selectedColor, lineWidth: selectedLineWidth });
+    }
+    
+    const dt = p2.time - p1.time;
+    if (dt === 0) return;
+    
+    const m = (p2.price - p1.price) / dt;
+    const offset = p3.price - (m * (p3.time - p1.time) + p1.price);
+    
+    const tMin = Math.min(p1.time, p2.time);
+    const tMax = Math.max(p1.time, p2.time);
+    
+    channelPreviewWings[0].setData([
+      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset },
+      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset }
+    ]);
+    channelPreviewWings[1].setData([
+      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset / 2 },
+      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset / 2 }
+    ]);
+  }
+
+  function hideChannelPreview() {
+    if (channelPreviewWings.length > 0) {
+      for (let i = 0; i < channelPreviewWings.length; i++) {
+        chart.removeSeries(channelPreviewWings[i]);
+      }
+      channelPreviewWings = [];
+    }
+  }
+
   function updateFibPreview(p1, p2) {
     if (!candlestickSeries || !chart) return;
     const diff = p1.price - p2.price;
     
     if (fibPreviewLines.length === 0) {
-      FIB_LEVELS.forEach(level => {
+      for (let i = 0; i < FIB_LEVELS.length; i++) {
+        const level = FIB_LEVELS[i];
         const series = chart.addSeries(LineSeries, {
           color: level.color,
           lineWidth: 1,
@@ -625,24 +718,27 @@
           crosshairMarkerVisible: false,
         });
         fibPreviewLines.push(series);
-      });
+      }
     }
 
     const tMin = Math.min(p1.time, p2.time);
     const tMax = Math.max(p1.time, p2.time);
     
-    FIB_LEVELS.forEach((level, i) => {
+    for (let i = 0; i < FIB_LEVELS.length; i++) {
+      const level = FIB_LEVELS[i];
       const price = p2.price + diff * level.level;
       const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
       fibPreviewLines[i].setData(data);
-    });
+    }
 
     lastFibPreviewPoints = { p1, p2 };
     syncFibLabels();
   }
 
   function hideFibPreview() {
-    fibPreviewLines.forEach(s => s.setData([]));
+    for (let i = 0; i < fibPreviewLines.length; i++) {
+      fibPreviewLines[i].setData([]);
+    }
     lastFibPreviewPoints = null;
     syncFibLabels();
   }
@@ -656,7 +752,7 @@
     const containerWidth = chartContainer.clientWidth;
     const labels = [];
 
-    const addLineLabels = (p1, p2) => {
+    function addLineLabels(p1, p2) {
       const diff = p1.price - p2.price;
       const tMax = Math.max(p1.time, p2.time);
       const xMax = chart.timeScale().timeToCoordinate(tMax);
@@ -665,19 +761,21 @@
       if (xPos > containerWidth - 50) xPos = containerWidth - 50;
       if (xPos < 5) xPos = 5;
 
-      FIB_LEVELS.forEach(level => {
+      for (let i = 0; i < FIB_LEVELS.length; i++) {
+        const level = FIB_LEVELS[i];
         const price = p2.price + diff * level.level;
         const y = candlestickSeries.priceToCoordinate(price);
         if (y !== null) {
           labels.push({ x: xPos, y: y - 10, text: level.label, color: level.color });
         }
-      });
-    };
+      }
+    }
 
     // 1. Existing drawings
-    drawnLines.forEach(line => {
+    for (let i = 0; i < drawnLines.length; i++) {
+      const line = drawnLines[i];
       if (line.type === 'fib') addLineLabels(line.p1, line.p2);
-    });
+    }
 
     // 2. Preview
     if (drawingActive && drawingMode === 'fib' && lastFibPreviewPoints) {
@@ -706,6 +804,13 @@
     saveTrendlines();
   }
 
+  function addChannel(p1, p2, p3) {
+    const lineObj = addLineObject(p1, p2, 'channel');
+    lineObj.p3 = p3;
+    updateChannelLines(lineObj);
+    saveTrendlines();
+  }
+
   function addLineObject(p1, p2, type = 'trendline') {
     const series = chart.addSeries(LineSeries, {
       color: type === 'fib' ? 'rgba(0, 0, 0, 0)' : selectedColor,
@@ -727,10 +832,11 @@
       series: series, 
       p1: p1, 
       p2: p2,
+      p3: null, // For channel
       type: type,
       color: selectedColor,
       lineWidth: selectedLineWidth,
-      wings: [] // For arrow type
+      wings: [] // For arrow, fib, channel type
     };
     
     drawnLines.push(lineObj);
@@ -747,7 +853,8 @@
     const tMax = Math.max(line.p1.time, line.p2.time);
     
     if (line.wings.length === 0) {
-      FIB_LEVELS.forEach(level => {
+      for (let i = 0; i < FIB_LEVELS.length; i++) {
+        const level = FIB_LEVELS[i];
         const series = chart.addSeries(LineSeries, {
           color: level.color,
           lineWidth: 1,
@@ -757,15 +864,16 @@
           crosshairMarkerVisible: false,
         });
         line.wings.push(series);
-      });
+      }
     }
 
-    FIB_LEVELS.forEach((level, i) => {
+    for (let i = 0; i < FIB_LEVELS.length; i++) {
+      const level = FIB_LEVELS[i];
       const price = line.p2.price + diff * level.level;
       const data = [{ time: tMin, value: price }, { time: tMax, value: price }];
-      data.sort((a,b) => a.time - b.time);
+      data.sort(function(a, b) { return a.time - b.time; });
       line.wings[i].setData(data);
-    });
+    }
   }
 
   function updateLineWings(line) {
@@ -805,8 +913,8 @@
       
       const d1 = [{ time: line.p2.time, value: line.p2.price }, { time: t3, value: v3 }];
       const d2 = [{ time: line.p2.time, value: line.p2.price }, { time: t4, value: v4 }];
-      d1.sort((a,b) => a.time - b.time);
-      d2.sort((a,b) => a.time - b.time);
+      d1.sort(function(a, b) { return a.time - b.time; });
+      d2.sort(function(a, b) { return a.time - b.time; });
       line.wings[0].setData(d1);
       line.wings[1].setData(d2);
       
@@ -820,6 +928,49 @@
     }
   }
 
+  function updateChannelLines(line) {
+    if (line.type !== 'channel' || !line.p3 || !chart) return;
+    
+    if (line.wings.length === 0) {
+      line.wings = [
+        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false }),
+        chart.addSeries(LineSeries, { color: line.color, lineWidth: line.lineWidth, lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false, lineStyle: 3 })
+      ];
+    }
+    
+    const p1 = line.p1;
+    const p2 = line.p2;
+    const p3 = line.p3;
+    
+    const dt = p2.time - p1.time;
+    if (dt === 0) return;
+    
+    const m = (p2.price - p1.price) / dt;
+    const offset = p3.price - (m * (p3.time - p1.time) + p1.price);
+    
+    const tMin = Math.min(p1.time, p2.time);
+    const tMax = Math.max(p1.time, p2.time);
+    
+    const parallelData = [
+      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset },
+      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset }
+    ];
+    const midlineData = [
+      { time: tMin, value: (m * (tMin - p1.time) + p1.price) + offset / 2 },
+      { time: tMax, value: (m * (tMax - p1.time) + p1.price) + offset / 2 }
+    ];
+    
+    line.wings[0].setData(parallelData);
+    line.wings[1].setData(midlineData);
+    
+    const isSelected = selectedLineIndex !== null && drawnLines[selectedLineIndex] === line;
+    const effectiveLineWidth = isSelected ? line.lineWidth + 2 : line.lineWidth;
+    
+    line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+    line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth, lineStyle: 3 });
+  }
+
+
   function updateActiveLineStyle() {
     if (selectedLineIndex === null || !drawnLines[selectedLineIndex]) return;
     const line = drawnLines[selectedLineIndex];
@@ -827,6 +978,7 @@
     line.lineWidth = selectedLineWidth;
     if (line.type === 'arrow') updateLineWings(line);
     if (line.type === 'fib') updateFibLevels(line);
+    if (line.type === 'channel') updateChannelLines(line);
     updateSelectedStyles();
     saveTrendlines();
   }
@@ -847,7 +999,11 @@
         line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
       }
       if (line.type === 'fib' && line.wings) {
-        line.wings.forEach(s => s.applyOptions({ lineWidth: isSelected ? 2 : 1 }));
+        line.wings.forEach(function(s) { s.applyOptions({ lineWidth: isSelected ? 2 : 1 }); });
+      }
+      if (line.type === 'channel' && line.wings && line.wings.length === 2) {
+        line.wings[0].applyOptions({ color: line.color, lineWidth: effectiveLineWidth });
+        line.wings[1].applyOptions({ color: line.color, lineWidth: effectiveLineWidth, lineStyle: 3 });
       }
     }
     updateControlPoints();
@@ -864,13 +1020,19 @@
     const y1 = candlestickSeries.priceToCoordinate(line.p1.price);
     const x2 = chart.timeScale().timeToCoordinate(line.p2.time);
     const y2 = candlestickSeries.priceToCoordinate(line.p2.price);
+    
+    let x3 = null, y3 = null;
+    if (line.type === 'channel' && line.p3) {
+      x3 = chart.timeScale().timeToCoordinate(line.p3.time);
+      y3 = candlestickSeries.priceToCoordinate(line.p3.price);
+    }
 
     // 計算線條角度並將控制點放在線條外側
     if (x1 != null && y1 != null && x2 != null && y2 != null) {
       const dx = x2 - x1;
       const dy = y2 - y1;
       const length = Math.sqrt(dx * dx + dy * dy);
-      const offsetDistance = 6; // 控制點偏移距離（減少以更靠近線條）
+      const offsetDistance = 6; 
       
       if (length > 0) {
         const unitX = dx / length;
@@ -888,9 +1050,16 @@
         cp1 = { x: x1, y: y1 };
         cp2 = { x: x2, y: y2 };
       }
+      
+      if (x3 != null && y3 != null) {
+        cp3 = { x: x3, y: y3 };
+      } else {
+        cp3 = { x: -1000, y: -1000 };
+      }
     } else {
       cp1 = { x: -1000, y: -1000 };
       cp2 = { x: -1000, y: -1000 };
+      cp3 = { x: -1000, y: -1000 };
     }
 
     syncFibLabels();
@@ -924,8 +1093,10 @@
         const line = drawnLines[selectedLineIndex];
         if (activeCPIndex === 0) {
           line.p1 = { time, price };
-        } else {
+        } else if (activeCPIndex === 1) {
           line.p2 = { time, price };
+        } else if (activeCPIndex === 2) {
+          line.p3 = { time, price };
         }
         
         const lineData = [
@@ -936,6 +1107,7 @@
         line.series.setData(lineData);
         if (line.type === 'arrow') updateLineWings(line);
         if (line.type === 'fib') updateFibLevels(line);
+        if (line.type === 'channel') updateChannelLines(line);
         updateControlPoints();
       }
     });
@@ -954,13 +1126,16 @@
 
   function handleMouseDownCP0(e) { startDragCP(e, 0); }
   function handleMouseDownCP1(e) { startDragCP(e, 1); }
+  function handleMouseDownCP2(e) { startDragCP(e, 2); }
 
   function deleteSelectedLine() {
     if (selectedLineIndex === null || useSharedAPI) return; // Disable for shared mode
     const line = drawnLines[selectedLineIndex];
     chart.removeSeries(line.series);
     if (line.wings) {
-      line.wings.forEach(s => chart.removeSeries(s));
+      for (let i = 0; i < line.wings.length; i++) {
+        chart.removeSeries(line.wings[i]);
+      }
     }
     drawnLines.splice(selectedLineIndex, 1);
     drawnLines = drawnLines;
@@ -995,11 +1170,13 @@
     if (!drawingActive) {
       hideFibPreview();
       hideArrowPreviewWings();
+      hideChannelPreview();
       if (previewLine) {
         chart.removeSeries(previewLine);
         previewLine = null;
       }
       firstPoint = null;
+      secondPoint = null;
     }
     draggingPoint = null;
     chart.applyOptions({ handleScroll: true, handleScale: true });
@@ -1010,7 +1187,11 @@
     for (let i = 0; i < drawnLines.length; i++) {
         const line = drawnLines[i];
         chart.removeSeries(line.series);
-        if (line.wings) line.wings.forEach(s => chart.removeSeries(s));
+        if (line.wings) {
+          for (let j = 0; j < line.wings.length; j++) {
+            chart.removeSeries(line.wings[j]);
+          }
+        }
     }
     if (previewLine) {
       chart.removeSeries(previewLine);
@@ -1018,6 +1199,7 @@
     }
     drawnLines = [];
     firstPoint = null;
+    secondPoint = null;
     drawingActive = false;
     draggingPoint = null;
     selectedLineIndex = null;
@@ -1028,13 +1210,16 @@
   async function saveTrendlines() {
     if (!tradeId || drawnLines.length === 0 || useSharedAPI) return; // Disable for shared mode
     try {
-      const linesData = drawnLines.map(line => ({
-        p1: { time: line.p1.time, price: line.p1.price },
-        p2: { time: line.p2.time, price: line.p2.price },
-        type: line.type || 'trendline',
-        color: line.color,
-        lineWidth: line.lineWidth
-      }));
+      const linesData = drawnLines.map(function(line) {
+        return {
+          p1: { time: line.p1.time, price: line.p1.price },
+          p2: { time: line.p2.time, price: line.p2.price },
+          p3: line.p3 ? { time: line.p3.time, price: line.p3.price } : null,
+          type: line.type || 'trendline',
+          color: line.color,
+          lineWidth: line.lineWidth
+        };
+      });
       await tradesAPI.saveTrendlines(tradeId, linesData);
     } catch (e) {
       console.error('[Chart] Failed to save trendlines:', e);
@@ -1069,13 +1254,14 @@
           { time: lineData.p1.time, value: lineData.p1.price },
           { time: lineData.p2.time, value: lineData.p2.price }
         ];
-        data.sort((a, b) => a.time - b.time);
+        data.sort(function(a, b) { return a.time - b.time; });
         series.setData(data);
         
         const lineObj = {
           series: series,
           p1: lineData.p1,
           p2: lineData.p2,
+          p3: lineData.p3,
           type: type,
           color: lineData.color || '#f59e0b',
           lineWidth: lineData.lineWidth || 2,
@@ -1085,6 +1271,7 @@
         drawnLines.push(lineObj);
         if (type === 'arrow') updateLineWings(lineObj);
         if (type === 'fib') updateFibLevels(lineObj);
+        if (type === 'channel') updateChannelLines(lineObj);
       }
       drawnLines = drawnLines;
       syncFibLabels();
@@ -1208,9 +1395,43 @@
     }, 100);
   }
 
+  function toggleStyleMenu() { showStyleMenu = !showStyleMenu; }
+  function selectColor(color) {
+    selectedColor = color;
+    updateActiveLineStyle();
+    showStyleMenu = false;
+  }
+  function selectLineWidth(width) {
+    selectedLineWidth = width;
+    updateActiveLineStyle();
+    showStyleMenu = false;
+  }
+  function handlePeriodChange() {
+    loadData();
+    debounceSaveConfig();
+  }
+
+  function isModeActive(mode, active, currentMode) {
+    return active && currentMode === mode;
+  }
+
+  function canDelete(index, active, shared) {
+    if (index === null) return false;
+    if (active) return false;
+    if (shared) return false;
+    return true;
+  }
+
+  function isChannel(index, lines) {
+    if (index === null) return false;
+    const line = lines[index];
+    if (!line) return false;
+    return line.type === 'channel';
+  }
+
   function handleKeydown(e) {
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (selectedLineIndex !== null && !drawingActive && !useSharedAPI) { // Disable for shared mode
+      if (canDelete(selectedLineIndex, drawingActive, useSharedAPI)) {
         deleteSelectedLine();
       }
     }
@@ -1225,7 +1446,7 @@
       <span class="timeframe-tag">{timeframe}</span>
       <span class="timezone-tag">時區: UTC+8 (Local)</span>
       
-      <select class="period-select" bind:value={selectedPeriod} on:change={() => { loadData(); debounceSaveConfig(); }}>
+      <select class="period-select" bind:value={selectedPeriod} on:change={handlePeriodChange}>
         {#each periods as p}
           <option value={p.value}>{p.label}</option>
         {/each}
@@ -1238,15 +1459,17 @@
         <button class="tool-button clear-button" on:click={deleteSelectedLine} title="刪除選中線條">
           <span class="icon">🗑️</span>
         </button>
-      {:else if drawnLines.length > 0}
-        <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
-          <span class="icon">🗑️</span>
-        </button>
+      {:else}
+        {#if drawnLines.length > 0}
+          <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
+            <span class="icon">🗑️</span>
+          </button>
+        {/if}
       {/if}
       
       <!-- 樣式選擇器 -->
       <div class="style-selector">
-        <button class="tool-button style-button" on:click={() => showStyleMenu = !showStyleMenu} title="線條樣式" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+        <button class="tool-button style-button" on:click={toggleStyleMenu} title="線條樣式" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
           <div style="width: 16px; height: 3px; background-color: {selectedColor}; border-radius: 2px;"></div>
         </button>
@@ -1260,7 +1483,7 @@
                     class="color-btn" 
                     class:active={selectedColor === color}
                     style="background: {color}"
-                    on:click={() => { selectedColor = color; updateActiveLineStyle(); showStyleMenu = false; }}
+                    on:click={function() { selectColor(color); }}
                   ></button>
                 {/each}
               </div>
@@ -1272,7 +1495,7 @@
                   <button 
                     class="width-btn" 
                     class:active={selectedLineWidth === width}
-                    on:click={() => { selectedLineWidth = width; updateActiveLineStyle(); showStyleMenu = false; }}
+                    on:click={function() { selectLineWidth(width); }}
                   >
                     {width}px
                   </button>
@@ -1283,7 +1506,7 @@
         {/if}
       </div>
       
-      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'trendline'} on:click={() => toggleDrawing('trendline')} title="趨勢線工具">
+      <button class="tool-button draw-button" class:active={isModeActive('trendline', drawingActive, drawingMode)} on:click={function() { toggleDrawing('trendline'); }} title="趨勢線工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="19" cy="5" r="3"/>
@@ -1293,7 +1516,7 @@
         </span>
       </button>
 
-      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'arrow'} on:click={() => toggleDrawing('arrow')} title="箭頭工具">
+      <button class="tool-button draw-button" class:active={isModeActive('arrow', drawingActive, drawingMode)} on:click={function() { toggleDrawing('arrow'); }} title="箭頭工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="5" cy="19" r="3"/>
@@ -1303,7 +1526,7 @@
         </span>
       </button>
 
-      <button class="tool-button draw-button" class:active={drawingActive && drawingMode === 'fib'} on:click={() => toggleDrawing('fib')} title="斐波那契工具">
+      <button class="tool-button draw-button" class:active={isModeActive('fib', drawingActive, drawingMode)} on:click={function() { toggleDrawing('fib'); }} title="斐波那契工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
@@ -1311,6 +1534,16 @@
             <line x1="4" y1="18" x2="20" y2="18"/>
             <circle cx="17" cy="12" r="2.5"/>
             <circle cx="7" cy="18" r="2.5"/>
+          </svg>
+        </span>
+      </button>
+
+
+      <button class="tool-button draw-button" class:active={isModeActive('channel', drawingActive, drawingMode)} on:click={function() { toggleDrawing('channel'); }} title="平行通道線">
+        <span class="icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="16" x2="21" y2="8" />
+            <line x1="3" y1="21" x2="21" y2="13" />
           </svg>
         </span>
       </button>
@@ -1369,19 +1602,28 @@
     </div>
   {/each}
 
-  {#if selectedLineIndex !== null && !useSharedAPI}
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div 
-      class="control-point-handle" 
-      style="left: {cp1.x}px; top: {cp1.y}px;"
-      on:mousedown={handleMouseDownCP0}
-    ></div>
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div 
-      class="control-point-handle" 
-      style="left: {cp2.x}px; top: {cp2.y}px;"
-      on:mousedown={handleMouseDownCP1}
-    ></div>
+  {#if selectedLineIndex !== null}
+    {#if !useSharedAPI}
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div 
+        class="control-point-handle" 
+        style="left: {cp1.x}px; top: {cp1.y}px;"
+        on:mousedown={handleMouseDownCP0}
+      ></div>
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div 
+        class="control-point-handle" 
+        style="left: {cp2.x}px; top: {cp2.y}px;"
+        on:mousedown={handleMouseDownCP1}
+      ></div>
+      {#if isChannel(selectedLineIndex, drawnLines)}
+        <div 
+          class="control-point-handle" 
+          style="left: {cp3.x}px; top: {cp3.y}px;"
+          on:mousedown={handleMouseDownCP2}
+        ></div>
+      {/if}
+    {/if}
   {/if}
 </div>
 
