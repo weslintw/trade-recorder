@@ -8,7 +8,8 @@ export default defineConfig({
     __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('zh-TW', { hour12: false }))
   },
   build: {
-    emptyOutDir: true
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 2048
   },
   server: {
     host: '0.0.0.0',

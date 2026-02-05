@@ -83,10 +83,18 @@
 
   async function saveChartConfig() {
     if (!chart || !tradeId || useSharedAPI) return;
-    const range = chart.timeScale().getVisibleLogicalRange();
+    const timeScale = chart.timeScale();
+    const priceScale = chart.priceScale('right');
+    
+    const range = timeScale.getVisibleLogicalRange();
+    const priceRange = priceScale.getVisibleRange();
+    const priceScaleOpts = priceScale.options();
+    
     const config = {
       period: selectedPeriod,
-      range: range
+      range: range,
+      priceRange: priceRange,
+      autoScale: priceScaleOpts.autoScale
     };
     try {
       await tradesAPI.saveChartConfig(tradeId, { chart_config: JSON.stringify(config) });
@@ -376,9 +384,28 @@
         if (trade && trade.chart_config && !configApplied) {
           try {
             const config = JSON.parse(trade.chart_config);
+            let applied = false;
+            
             if (config.range) {
-              console.log('[Chart] Applying saved range:', config.range);
+              console.log('[Chart] Applying saved time range:', config.range);
               chart.timeScale().setVisibleLogicalRange(config.range);
+              applied = true;
+            }
+            
+            if (config.priceRange) {
+              console.log('[Chart] Applying saved price range:', config.priceRange);
+              const priceScale = chart.priceScale('right');
+              
+              if (config.autoScale === false) {
+                priceScale.applyOptions({ autoScale: false });
+                priceScale.setVisibleRange(config.priceRange);
+              } else {
+                priceScale.applyOptions({ autoScale: true });
+              }
+              applied = true;
+            }
+            
+            if (applied) {
               configApplied = true;
             } else {
               applyDefaultFocus();
@@ -1275,10 +1302,11 @@
       isDraggingLine = false;
       dragStartPoint = null;
       chart.applyOptions({ handleScroll: true, handleScale: true });
-      if (!useSharedAPI) { // Only save if not in shared mode
+      if (!useSharedAPI) {
         saveTrendlines();
       }
     }
+    debounceSaveConfig();
   }
 
   function handleChartMouseDown(param) {
@@ -1447,12 +1475,12 @@
     <div class="tools-group">
       {#if selectedLineIndex !== null}
         <button class="tool-button clear-button" on:click={deleteSelectedLine} title="刪除選中線條">
-          <span class="icon">🗑️</span>
+          <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
         </button>
       {:else}
         {#if drawnLines.length > 0}
           <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
-            <span class="icon">🗑️</span>
+            <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>
           </button>
         {/if}
       {/if}
@@ -1473,7 +1501,7 @@
                     class="color-btn" 
                     class:active={selectedColor === color}
                     style="background: {color}"
-                    on:click={function() { selectColor(color); }}
+                    on:click={() => selectColor(color)}
                   ></button>
                 {/each}
               </div>
@@ -1485,7 +1513,7 @@
                   <button 
                     class="width-btn" 
                     class:active={selectedLineWidth === width}
-                    on:click={function() { selectLineWidth(width); }}
+                    on:click={() => selectLineWidth(width)}
                   >
                     {width}px
                   </button>
@@ -1496,7 +1524,7 @@
         {/if}
       </div>
       
-      <button class="tool-button draw-button" class:active={isModeActive('trendline', drawingActive, drawingMode)} on:click={function() { toggleDrawing('trendline'); }} title="趨勢線工具">
+      <button class="tool-button draw-button" class:active={isModeActive('trendline', drawingActive, drawingMode)} on:click={() => toggleDrawing('trendline')} title="趨勢線工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="19" cy="5" r="3"/>
@@ -1506,7 +1534,7 @@
         </span>
       </button>
 
-      <button class="tool-button draw-button" class:active={isModeActive('arrow', drawingActive, drawingMode)} on:click={function() { toggleDrawing('arrow'); }} title="箭頭工具">
+      <button class="tool-button draw-button" class:active={isModeActive('arrow', drawingActive, drawingMode)} on:click={() => toggleDrawing('arrow')} title="箭頭工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="5" cy="19" r="3"/>
@@ -1516,7 +1544,7 @@
         </span>
       </button>
 
-      <button class="tool-button draw-button" class:active={isModeActive('fib', drawingActive, drawingMode)} on:click={function() { toggleDrawing('fib'); }} title="斐波那契工具">
+      <button class="tool-button draw-button" class:active={isModeActive('fib', drawingActive, drawingMode)} on:click={() => toggleDrawing('fib')} title="斐波那契工具">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="4" y1="6" x2="20" y2="6"/>
@@ -1529,7 +1557,7 @@
       </button>
 
 
-      <button class="tool-button draw-button" class:active={isModeActive('channel', drawingActive, drawingMode)} on:click={function() { toggleDrawing('channel'); }} title="平行通道線">
+      <button class="tool-button draw-button" class:active={isModeActive('channel', drawingActive, drawingMode)} on:click={() => toggleDrawing('channel')} title="平行通道線">
         <span class="icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="16" x2="21" y2="8" />
@@ -1540,7 +1568,7 @@
 
       <button class="copy-button" on:click={copyChartImage} disabled={copying} title="複製圖表截圖">
         {#if copying}
-          <span class="icon">✅</span>
+          <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
         {:else}
           <span class="icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1577,7 +1605,7 @@
   {#if error}
     <div class="status-overlay error">
       <div class="error-box">
-        <span class="icon">⚠️</span>
+        <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
         <span class="msg">{error}</span>
       </div>
     </div>
