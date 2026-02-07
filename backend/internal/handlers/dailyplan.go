@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"strconv"
+	"trade-journal/internal/ctrader"
 	"trade-journal/internal/database"
 	"trade-journal/internal/models"
 	"trade-journal/internal/ws"
@@ -349,5 +351,112 @@ func DeleteDailyPlan(db *sql.DB) gin.HandlerFunc {
 		} else {
 			ws.GlobalHub.BroadcastUpdate(0, "TRADE_UPDATE")
 		}
+	}
+}
+
+// GetPlanningChartData 取得規劃圖表數據
+func GetPlanningChartData(db *sql.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		accountIDStr := c.Query("account_id")
+		symbol := c.Query("symbol")
+		periodStr := c.Query("period")
+		userID := c.GetInt64("user_id")
+
+		accountID, _ := strconv.ParseInt(accountIDStr, 10, 64)
+		if accountID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "需要 account_id"})
+			return
+		}
+
+		// 權限檢查
+		var exists int
+		db.QueryRow("SELECT 1 FROM accounts WHERE id = ? AND user_id = ?", accountID, userID).Scan(&exists)
+		if exists == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "無權限存取此帳號"})
+			return
+		}
+
+		// 解析 period
+		period := 4 // 預設 M5
+		m_min := 5
+		tf := "5分"
+		if periodStr != "" {
+			switch periodStr {
+			case "m1":
+				period = 1
+				m_min = 1
+				tf = "1分"
+			case "m5":
+				period = 4
+				m_min = 5
+				tf = "5分"
+			case "m15":
+				period = 5
+				m_min = 15
+				tf = "15分"
+			case "m30":
+				period = 6
+				m_min = 30
+				tf = "30分"
+			case "h1":
+				period = 7
+				m_min = 60
+				tf = "1小時"
+			case "h4":
+				period = 8
+				m_min = 240
+				tf = "4小時"
+			case "d1":
+				period = 9
+				m_min = 1440
+				tf = "天"
+			}
+		}
+
+		// 判斷是否可用該帳號自己的 cTrader 連線
+		sid, err := ctrader.GlobalManager.GetSymbolID(accountID, symbol)
+		useGeneric := false
+		if err != nil {
+			useGeneric = true
+		}
+
+		// 計算範圍：顯示最近的 1200 根 K 棒
+		toTime := time.Now()
+		fromTime := toTime.Add(time.Duration(-1200*m_min) * time.Minute)
+
+		fromTS := fromTime.UnixMilli()
+		toTS := toTime.UnixMilli()
+
+		var payload json.RawMessage
+		var digits int = 2
+
+		if useGeneric {
+			payload, digits, err = ctrader.GlobalManager.GetTrendbarsGeneric(symbol, period, fromTS, toTS)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "目前無法顯示圖表：品種 '" + symbol + "' 不在您的任何活躍 cTrader 帳號中"})
+				return
+			}
+		} else {
+			payload, err = ctrader.GlobalManager.GetTrendbars(accountID, sid, period, fromTS, toTS)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "cTrader 請求失敗: " + err.Error()})
+				return
+			}
+			if d, err := ctrader.GlobalManager.GetSymbolDigits(sid); err == nil {
+				digits = d
+			}
+		}
+
+		var tbRes json.RawMessage
+		if err := json.Unmarshal(payload, &tbRes); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "解析 cTrader 響應失敗"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"data":      tbRes,
+			"digits":    digits,
+			"timeframe": tf,
+		})
 	}
 }

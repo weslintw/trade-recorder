@@ -8,6 +8,7 @@
   import PlanSelectionModal from './PlanSelectionModal.svelte';
   import ShareModal from './ShareModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
+  import TradeChart from './TradeChart.svelte';
 
   import { determineMarketSession, toTradingDateString, formatDate } from '../lib/utils';
 
@@ -52,6 +53,8 @@
         short: createDirectionData(),
         image: '',
         originalImage: '',
+        chart_config: null,
+        trendlines: [],
         // 為了向後兼容，保留舊欄位名稱但主要使用上述結構
       };
     });
@@ -323,6 +326,8 @@
             }
             if (!t.long) t.long = createDirectionData();
             if (!t.short) t.short = createDirectionData();
+            if (!t.chart_config) t.chart_config = null;
+            if (!t.trendlines) t.trendlines = [];
 
             // 遷移舊資料到 long 或 short 下 (如果舊資料有 direction)
             if (t.direction && t.direction !== 'both') {
@@ -699,9 +704,7 @@
       // 切換到目標分頁，讓使用者立刻看到結果
       activeSession = targetSession;
 
-      alert(
-        `已成功將 ${formatDate(lastPlan.plan_date)} 的內容複製到 ${targetSession} 時段！`
-      );
+      alert(`已成功將 ${formatDate(lastPlan.plan_date)} 的內容複製到 ${targetSession} 時段！`);
     } else {
       alert('該筆規劃沒有詳細內容可複製。');
     }
@@ -764,6 +767,22 @@
     european: hasSessionData('european', formData),
     us: hasSessionData('us', formData),
   };
+
+  // 儲存規劃圖表配置
+  function handleChartConfigSave(timeframe, config) {
+    if (!currentTrends[timeframe]) return;
+    currentTrends[timeframe].chart_config = config;
+    // 這裡我們不強制請求後端，交由最後的 handleSubmit 統一儲存，
+    // 但為了讓 Svelte 偵測到深層變動，我們觸發一次參考更新
+    formData = formData;
+  }
+
+  // 儲存規劃趨勢線
+  function handleTrendlinesSave(timeframe, lines) {
+    if (!currentTrends[timeframe]) return;
+    currentTrends[timeframe].trendlines = lines;
+    formData = formData;
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -916,6 +935,20 @@
                   on:paste={e => handleTrendImagePaste(e, timeframe)}
                 >
                   <label class="timeframe-label">{timeframe}</label>
+
+                  <!-- cTrader K線圖表 -->
+                  <div class="planning-chart-container">
+                    <TradeChart
+                      mode="plan"
+                      accountId={$selectedAccountId}
+                      symbol={formData.symbol}
+                      planTimeframe={timeframe}
+                      initialConfig={currentTrends[timeframe]?.chart_config}
+                      initialTrendlines={currentTrends[timeframe]?.trendlines || []}
+                      onSaveConfig={config => handleChartConfigSave(timeframe, config)}
+                      onSaveTrendlines={lines => handleTrendlinesSave(timeframe, lines)}
+                    />
+                  </div>
 
                   <!-- 多空選擇 -->
                   <div class="trend-options">
@@ -1454,8 +1487,8 @@
 
     .trend-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr); /* 固定 5 列，對應 M5, M15, H1, H4, D1 */
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+      gap: 1.5rem;
     }
 
     .trend-item {
@@ -1476,6 +1509,16 @@
       outline: none;
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .planning-chart-container {
+      width: 100%;
+      height: 320px;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+      background: #0f172a; /* 配合 Lightweight Charts 背景 */
     }
 
     .timeframe-label {

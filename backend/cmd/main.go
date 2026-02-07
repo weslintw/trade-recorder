@@ -160,6 +160,7 @@ func main() {
 			{
 				dailyPlans.GET("", handlers.GetDailyPlans(db))
 				dailyPlans.GET("/:id", handlers.GetDailyPlan(db))
+				dailyPlans.GET("/chart", handlers.GetPlanningChartData(db))
 				dailyPlans.POST("", handlers.CreateDailyPlan(db))
 				dailyPlans.PUT("/:id", handlers.UpdateDailyPlan(db))
 				dailyPlans.DELETE("/:id", handlers.DeleteDailyPlan(db))

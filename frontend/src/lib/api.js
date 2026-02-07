@@ -38,11 +38,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => {
     const duration = performance.now() - response.config.metadata.startTime;
-    console.log(`✅ [API] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration.toFixed(2)}ms`);
+    console.log(
+      `✅ [API] ${response.config.method.toUpperCase()} ${response.config.url} - ${duration.toFixed(2)}ms`
+    );
     return response;
   },
   error => {
-    const duration = error.config?.metadata ? (performance.now() - error.config.metadata.startTime).toFixed(2) : 'unknown';
+    const duration = error.config?.metadata
+      ? (performance.now() - error.config.metadata.startTime).toFixed(2)
+      : 'unknown';
     console.error(`❌ [API Error] ${error.config?.url} - ${duration}ms - ${error.message}`);
     return Promise.reject(error);
   }
@@ -82,7 +86,8 @@ export const tradesAPI = {
   delete: id => api.delete(`/trades/${id}`),
   sync: id => api.post(`/trades/${id}/sync`),
   getUsedSymbols: (params, signal) => api.get('/trades/symbols', { params, signal }),
-  getChartData: (id, period, signal) => api.get(`/trades/${id}/chart`, { params: { period }, signal }),
+  getChartData: (id, period, signal) =>
+    api.get(`/trades/${id}/chart`, { params: { period }, signal }),
   saveTrendlines: (id, data) => api.put(`/trades/${id}/trendlines`, data),
   getTrendlines: (id, signal) => api.get(`/trades/${id}/trendlines`, { signal }),
   saveChartConfig: (id, data) => api.put(`/trades/${id}/chart-config`, data),
@@ -106,13 +111,10 @@ export const imagesAPI = {
 // 統計相關
 export const statsAPI = {
   getSummary: (params, signal) => api.get('/stats/summary', { params, signal }),
-  getEquityCurve: (params, signal) =>
-    api.get('/stats/equity-curve', { params, signal }),
+  getEquityCurve: (params, signal) => api.get('/stats/equity-curve', { params, signal }),
   getBySymbol: (params, signal) => api.get('/stats/by-symbol', { params, signal }),
-  getByStrategy: (params, signal) =>
-    api.get('/stats/by-strategy', { params, signal }),
-  getByColorTag: (params, signal) =>
-    api.get('/stats/by-color', { params, signal }),
+  getByStrategy: (params, signal) => api.get('/stats/by-strategy', { params, signal }),
+  getByColorTag: (params, signal) => api.get('/stats/by-color', { params, signal }),
 };
 
 // 標籤相關
@@ -127,6 +129,7 @@ export const dailyPlansAPI = {
   create: data => api.post('/daily-plans', data),
   update: (id, data) => api.put(`/daily-plans/${id}`, data),
   delete: id => api.delete(`/daily-plans/${id}`),
+  getChartData: (params, signal) => api.get('/daily-plans/chart', { params, signal }),
 };
 
 // 帳號管理相關
@@ -150,8 +153,10 @@ export const accountsAPI = {
 export const sharesAPI = {
   create: data => api.post('/shares', data),
   getPublic: (token, signal) => api.get(`/shares/public/${token}`, { signal }),
-  getChartData: (token, tradeId, period, signal) => api.get(`/shares/public/${token}/chart/${tradeId}`, { params: { period }, signal }),
-  getTrendlines: (token, tradeId, signal) => api.get(`/shares/public/${token}/trendlines/${tradeId}`, { signal }),
+  getChartData: (token, tradeId, period, signal) =>
+    api.get(`/shares/public/${token}/chart/${tradeId}`, { params: { period }, signal }),
+  getTrendlines: (token, tradeId, signal) =>
+    api.get(`/shares/public/${token}/trendlines/${tradeId}`, { signal }),
 };
 
 // 管理員相關
