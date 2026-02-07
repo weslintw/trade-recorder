@@ -31,9 +31,19 @@ type AccountConn struct {
 	StopChan         chan struct{}
 	Waiters          map[string]chan *CTraderMessage
 	WaitMu           sync.Mutex
+	WriteMu          sync.Mutex
 	Mu               sync.RWMutex
 	SymbolMap        map[int64]string
 	SymbolLotSizeMap map[int64]int64
+}
+
+func (ac *AccountConn) WriteJSON(v interface{}) error {
+	ac.WriteMu.Lock()
+	defer ac.WriteMu.Unlock()
+	if ac.Conn == nil {
+		return fmt.Errorf("connection is nil")
+	}
+	return ac.Conn.WriteJSON(v)
 }
 
 var GlobalManager *Manager
@@ -139,12 +149,6 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 	defer conn.Close()
 
 	ctid, _ := strconv.ParseInt(ctidStr, 10, 64)
-	m.mu.Lock()
-	if ac, ok := m.connections[accountID]; ok {
-		ac.Conn = conn
-		ac.CTID = ctid
-	}
-	m.mu.Unlock()
 	defer func() {
 		m.mu.Lock()
 		if ac, ok := m.connections[accountID]; ok {
@@ -399,6 +403,13 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		}
 	}
 
+	m.mu.Lock()
+	if ac, ok := m.connections[accountID]; ok {
+		ac.Conn = conn
+		ac.CTID = ctid
+	}
+	m.mu.Unlock()
+
 	conn.SetReadDeadline(time.Time{})
 	heartbeat := time.NewTicker(25 * time.Second)
 	defer heartbeat.Stop()
@@ -456,7 +467,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		case err := <-errChan:
 			return err
 		case <-heartbeat.C:
-			if conn.WriteJSON(CTraderMessage{PayloadType: PayloadHeartbeatEvent, Payload: json.RawMessage("{}")}) != nil {
+			if ac.WriteJSON(CTraderMessage{PayloadType: PayloadHeartbeatEvent, Payload: json.RawMessage("{}")}) != nil {
 				return err
 			}
 		}
@@ -620,7 +631,7 @@ func (m *Manager) handleExecutionEvent(accountID int64, payload json.RawMessage,
 							targetAc, ok := m.connections[accID]
 							m.mu.RUnlock()
 							if ok && targetAc != nil && targetAc.Conn != nil {
-								targetAc.Conn.WriteJSON(CTraderMessage{
+								targetAc.WriteJSON(CTraderMessage{
 									ClientMsgID: fmt.Sprintf("unsub-%d", time.Now().UnixNano()),
 									PayloadType: PayloadUnsubscribeSpotsReq,
 									Payload:     json.RawMessage(fmt.Sprintf(`{"ctidTraderAccountId": %d, "symbolId": [%d]}`, ctid, sid)),
@@ -833,7 +844,7 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 
 	log.Printf("[cTrader Manager Communication] SENDING Type: %d, ID: %s", msg.PayloadType, msg.ClientMsgID)
 
-	if err := ac.Conn.WriteJSON(msg); err != nil {
+	if err := ac.WriteJSON(msg); err != nil {
 		log.Printf("[cTrader Manager Communication] SEND ERROR Type: %d, ID: %s, Error: %v", msg.PayloadType, msg.ClientMsgID, err)
 		return nil, err
 	}
