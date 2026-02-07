@@ -300,6 +300,7 @@
       }
       // Update labels positioning
       updateControlPoints();
+      syncFibLabels();
     });
 
     chart.subscribeClick(handleChartClick);
