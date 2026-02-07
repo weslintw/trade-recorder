@@ -392,7 +392,9 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 							// Ensure we use the current connection handle, or skip if not ready
 							ac.Mu.RLock()
 							currentConn := ac.Conn
+							symbolName := ac.SymbolMap[sid]
 							ac.Mu.RUnlock()
+
 							if currentConn == nil {
 								log.Printf("[cTrader Manager] Sparkline fetch skipped: connection not yet active")
 								return
