@@ -1706,6 +1706,7 @@
       <div class="tools-group">
         {#if selectedLineIndex !== null}
           <button
+            type="button"
             class="tool-button clear-button"
             on:click={deleteSelectedLine}
             title="刪除選中線條"
@@ -1727,7 +1728,12 @@
             >
           </button>
         {:else if drawnLines.length > 0}
-          <button class="tool-button clear-button" on:click={clearDrawings} title="清除所有線條">
+          <button
+            type="button"
+            class="tool-button clear-button"
+            on:click={clearDrawings}
+            title="清除所有線條"
+          >
             <span class="icon"
               ><svg
                 width="16"
@@ -1749,6 +1755,7 @@
         <!-- 樣式選擇器 -->
         <div class="style-selector">
           <button
+            type="button"
             class="tool-button style-button"
             on:click={toggleStyleMenu}
             title="線條樣式"
@@ -1778,6 +1785,7 @@
                 <div class="color-options">
                   {#each colorOptions as color}
                     <button
+                      type="button"
                       class="color-btn"
                       class:active={selectedColor === color}
                       style="background: {color}"
@@ -1791,6 +1799,7 @@
                 <div class="width-options">
                   {#each lineWidthOptions as width}
                     <button
+                      type="button"
                       class="width-btn"
                       class:active={selectedLineWidth === width}
                       on:click={() => selectLineWidth(width)}
@@ -1805,6 +1814,7 @@
         </div>
 
         <button
+          type="button"
           class="tool-button draw-button"
           class:active={isModeActive('trendline', drawingActive, drawingMode)}
           on:click={() => toggleDrawing('trendline')}
@@ -1829,6 +1839,7 @@
         </button>
 
         <button
+          type="button"
           class="tool-button draw-button"
           class:active={isModeActive('arrow', drawingActive, drawingMode)}
           on:click={() => toggleDrawing('arrow')}
@@ -1853,6 +1864,7 @@
         </button>
 
         <button
+          type="button"
           class="tool-button draw-button"
           class:active={isModeActive('fib', drawingActive, drawingMode)}
           on:click={() => toggleDrawing('fib')}
@@ -1879,6 +1891,7 @@
         </button>
 
         <button
+          type="button"
           class="tool-button draw-button"
           class:active={isModeActive('channel', drawingActive, drawingMode)}
           on:click={() => toggleDrawing('channel')}
@@ -1900,6 +1913,7 @@
         </button>
 
         <button
+          type="button"
           class="copy-button"
           on:click={copyChartImage}
           disabled={copying}
@@ -1940,6 +1954,7 @@
         </button>
 
         <button
+          type="button"
           class="tool-button fullscreen-button"
           on:click={toggleFullscreen}
           title={isFullscreen ? '退出全螢幕' : '全螢幕檢視'}

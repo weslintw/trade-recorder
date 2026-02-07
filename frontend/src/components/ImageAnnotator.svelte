@@ -34,7 +34,7 @@
     '#00ffff', // 青
     '#000000', // 黑
     '#ffffff', // 白
-    '#ffa500'  // 橙
+    '#ffa500', // 橙
   ];
 
   // 線條粗度選項（移除最大的三個）
@@ -54,21 +54,21 @@
 
     console.log('ImageAnnotator: 開始載入圖片', imageSrc.substring(0, 50) + '...');
     image = new Image();
-    
+
     // 只有非 Base64 圖片才需要跨域設定
     if (!imageSrc.startsWith('data:')) {
       image.crossOrigin = 'anonymous';
     }
-    
+
     image.onload = () => {
       console.log('ImageAnnotator: 圖片載入成功', image.width, 'x', image.height);
       // 設定 canvas 實際尺寸（用於繪圖，保持原始圖片尺寸）
       canvas.width = image.width;
       canvas.height = image.height;
-      
+
       // 繪製原始圖片
       ctx.drawImage(image, 0, 0);
-      
+
       // 保存原始圖片數據（不含標註）
       try {
         originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -78,7 +78,7 @@
         // 如果失敗，則依賴 image 對象本身來重繪
       }
     };
-    image.onerror = (err) => {
+    image.onerror = err => {
       console.error('ImageAnnotator: 圖片載入失敗:', imageSrc);
       console.error('Error detail:', err);
     };
@@ -109,35 +109,35 @@
 
   function startDrawing(e) {
     if (!canvas || !ctx) return;
-    
+
     // 文字工具：點擊設置文字位置
     if (tool === 'text') {
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      
+
       textPosition = {
         x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
+        y: (e.clientY - rect.top) * scaleY,
       };
       return;
     }
-    
+
     isDrawing = true;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     lastX = (e.clientX - rect.left) * scaleX;
     lastY = (e.clientY - rect.top) * scaleY;
     startX = lastX;
     startY = lastY;
-    
+
     // 線條模式：在開始繪製前，保存當前狀態（包括已繪製的線條）
     if (tool === 'line') {
       savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     }
-    
+
     // 畫筆模式：在開始點畫一個點
     if (tool === 'brush') {
       ctx.strokeStyle = color;
@@ -157,7 +157,7 @@
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     const currentX = (e.clientX - rect.left) * scaleX;
     const currentY = (e.clientY - rect.top) * scaleY;
 
@@ -178,7 +178,7 @@
       // 更新最後位置
       lastX = currentX;
       lastY = currentY;
-      
+
       // 線條模式：預覽線條
       // 先恢復原始圖片和已繪製的內容（不包括當前預覽線條）
       if (savedImageData) {
@@ -187,7 +187,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0);
       }
-      
+
       // 繪製預覽線條
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
@@ -205,13 +205,13 @@
       isDrawing = false;
       return;
     }
-    
+
     if (tool === 'line') {
       // 線條模式：確定線條
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
-      
+
       let endX, endY;
       if (e && e.clientX !== undefined && e.clientY !== undefined) {
         endX = (e.clientX - rect.left) * scaleX;
@@ -221,7 +221,7 @@
         endX = lastX;
         endY = lastY;
       }
-      
+
       // 恢復保存的狀態（包括已繪製的線條，不包括預覽線條）
       if (savedImageData) {
         ctx.putImageData(savedImageData, 0, 0);
@@ -229,7 +229,7 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(image, 0, 0);
       }
-      
+
       // 繪製最終線條（永久保存）
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
@@ -239,14 +239,14 @@
       ctx.moveTo(startX, startY);
       ctx.lineTo(endX, endY);
       ctx.stroke();
-      
+
       // 立即更新保存的圖片數據（包含新繪製的線條）
       savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     } else if (tool === 'brush') {
       // 畫筆模式：更新保存的圖片數據
       savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     }
-    
+
     isDrawing = false;
   }
 
@@ -259,7 +259,7 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(image, 0, 0);
     }
-    
+
     // 更新保存的圖片數據
     try {
       savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -270,7 +270,7 @@
 
   function resetToOriginal() {
     if (!ctx || !canvas) return;
-    
+
     // 如果有提供 originalImageSrc，則加載它
     if (originalImageSrc && originalImageSrc !== imageSrc) {
       const originalImage = new Image();
@@ -281,11 +281,11 @@
         // 設置 canvas 尺寸為原始圖片尺寸
         canvas.width = originalImage.width;
         canvas.height = originalImage.height;
-        
+
         // 繪製原始圖片
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(originalImage, 0, 0);
-        
+
         // 更新保存的圖片數據
         try {
           originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -314,7 +314,7 @@
 
   function saveImage() {
     if (!canvas) return;
-    
+
     const dataURL = canvas.toDataURL('image/png');
     if (onSave) {
       onSave(dataURL);
@@ -335,18 +335,18 @@
 
   function addText() {
     if (!ctx || !canvas || !textPosition || !textInput.trim()) return;
-    
+
     // 設置文字樣式
     ctx.fillStyle = color;
     ctx.font = `${lineWidth * 8}px Arial`; // 根據粗度調整文字大小
     ctx.textBaseline = 'top';
-    
+
     // 繪製文字
     ctx.fillText(textInput, textPosition.x, textPosition.y);
-    
+
     // 更新保存的圖片數據
     savedImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
+
     // 清空輸入和位置
     textInput = '';
     textPosition = null;
@@ -356,7 +356,6 @@
     textInput = '';
     textPosition = null;
   }
-
 </script>
 
 <div class="annotator-container">
@@ -365,24 +364,27 @@
     <div class="tool-group">
       <span class="tool-label">工具：</span>
       <div class="tool-buttons">
-        <button 
-          class="tool-btn" 
+        <button
+          type="button"
+          class="tool-btn"
           class:active={tool === 'brush'}
           on:click={() => setTool('brush')}
           title="畫筆"
         >
           ✏️
         </button>
-        <button 
-          class="tool-btn" 
+        <button
+          type="button"
+          class="tool-btn"
           class:active={tool === 'line'}
           on:click={() => setTool('line')}
           title="線條"
         >
           📏
         </button>
-        <button 
-          class="tool-btn" 
+        <button
+          type="button"
+          class="tool-btn"
           class:active={tool === 'text'}
           on:click={() => setTool('text')}
           title="文字"
@@ -398,6 +400,7 @@
       <div class="color-picker">
         {#each colors as c}
           <button
+            type="button"
             class="color-btn"
             class:active={color === c}
             style="background-color: {c}; border-color: {c === '#ffffff' ? '#ccc' : c};"
@@ -405,12 +408,7 @@
             title={c}
           />
         {/each}
-        <input 
-          type="color" 
-          class="color-input"
-          bind:value={color}
-          title="自訂顏色"
-        />
+        <input type="color" class="color-input" bind:value={color} title="自訂顏色" />
       </div>
     </div>
 
@@ -420,12 +418,16 @@
       <div class="line-width-selector">
         {#each lineWidths as w}
           <button
+            type="button"
             class="width-btn"
             class:active={lineWidth === w}
             on:click={() => setLineWidth(w)}
             title="{w}px"
           >
-            <span class="width-indicator" style="width: {w * 2}px; height: {w * 2}px; background: {color};"></span>
+            <span
+              class="width-indicator"
+              style="width: {w * 2}px; height: {w * 2}px; background: {color};"
+            ></span>
           </button>
         {/each}
       </div>
@@ -433,14 +435,19 @@
 
     <!-- 操作按鈕 -->
     <div class="tool-group actions">
-      <button class="action-btn reset" on:click={resetToOriginal} title="重置到原始圖片">
+      <button
+        type="button"
+        class="action-btn reset"
+        on:click={resetToOriginal}
+        title="重置到原始圖片"
+      >
         🔄
       </button>
-      <button class="action-btn clear" on:click={clearCanvas} title="清除所有標註">
+      <button type="button" class="action-btn clear" on:click={clearCanvas} title="清除所有標註">
         🗑️
       </button>
       {#if showSaveButton}
-        <button class="action-btn save" on:click={saveImage} title="保存標註">
+        <button type="button" class="action-btn save" on:click={saveImage} title="保存標註">
           💾
         </button>
       {/if}
@@ -450,11 +457,11 @@
   <!-- 文字輸入對話框 -->
   {#if textPosition}
     <div class="text-input-dialog">
-      <input 
-        type="text" 
-        bind:value={textInput} 
+      <input
+        type="text"
+        bind:value={textInput}
         placeholder="輸入文字..."
-        on:keydown={(e) => {
+        on:keydown={e => {
           if (e.key === 'Enter') addText();
           if (e.key === 'Escape') cancelText();
         }}
@@ -473,26 +480,26 @@
       on:mousemove|preventDefault={draw}
       on:mouseup|preventDefault={stopDrawing}
       on:mouseleave|preventDefault={stopDrawing}
-      on:touchstart|preventDefault={(e) => {
+      on:touchstart|preventDefault={e => {
         const touch = e.touches[0];
         const rect = canvas.getBoundingClientRect();
         const fakeEvent = {
           clientX: touch.clientX,
           clientY: touch.clientY,
-          preventDefault: () => {}
+          preventDefault: () => {},
         };
         startDrawing(fakeEvent);
       }}
-      on:touchmove|preventDefault={(e) => {
+      on:touchmove|preventDefault={e => {
         const touch = e.touches[0];
         const fakeEvent = {
           clientX: touch.clientX,
           clientY: touch.clientY,
-          preventDefault: () => {}
+          preventDefault: () => {},
         };
         draw(fakeEvent);
       }}
-      on:touchend|preventDefault={(e) => {
+      on:touchend|preventDefault={e => {
         stopDrawing();
       }}
     />
@@ -519,7 +526,7 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 
   .tool-group {
@@ -774,4 +781,3 @@
     -ms-user-select: none;
   }
 </style>
-

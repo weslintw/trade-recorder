@@ -1278,10 +1278,10 @@
         <div class="image-modal-header">
           <h3>{enlargedImageTitle}</h3>
           <div class="image-modal-actions">
-            <button class="modal-action-btn" on:click={toggleAnnotator}>
+            <button type="button" class="modal-action-btn" on:click={toggleAnnotator}>
               {showAnnotator ? '👁️ 查看' : '✏️ 標註'}
             </button>
-            <button class="image-modal-close" on:click={closeEnlargedImage}>×</button>
+            <button type="button" class="image-modal-close" on:click={closeEnlargedImage}>×</button>
           </div>
         </div>
 
