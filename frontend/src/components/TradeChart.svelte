@@ -29,6 +29,7 @@
   let chartContainer;
   let chart;
   let candlestickSeries;
+  let lastKnownData = [];
   let loading = true;
   let error = null;
   let timeframe = '';
@@ -266,10 +267,10 @@
       const rect = chartContainer.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      const time = chart.timeScale().coordinateToTime(x);
-      const price = candlestickSeries.coordinateToPrice(y);
-      if (time && price) {
-        handleChartMouseDown({ point: { x, y }, time });
+      const t = chart.timeScale().coordinateToTime(x);
+      const point = getEffectivePoint({ point: { x, y }, time: t });
+      if (point) {
+        handleChartMouseDown({ point: { x, y }, time: point.time });
       }
     });
 
@@ -370,6 +371,7 @@
 
       if (candlestickSeries) {
         candlestickSeries.setData(uniqueData);
+        lastKnownData = uniqueData;
       }
 
       // 設置標註 (Markers)
@@ -547,10 +549,9 @@
   }
 
   function handleChartClick(param) {
-    if (!param || !param.point || !param.time) return;
-
-    const price = candlestickSeries.coordinateToPrice(param.point.y);
-    if (!price) return;
+    const point = getEffectivePoint(param);
+    if (!point) return;
+    const { time, price } = point;
 
     // --- Dragging & Selection Logic (Outside drawing mode) ---
     if (!drawingActive) {
@@ -602,7 +603,7 @@
 
     // --- Drawing Logic ---
     if (!firstPoint) {
-      firstPoint = { time: param.time, price: price };
+      firstPoint = { time, price };
       // Create preview line
       previewLine = chart.addSeries(LineSeries, {
         color: drawingMode === 'fib' ? 'rgba(0, 0, 0, 0)' : 'rgba(245, 158, 11, 0.5)',
@@ -613,10 +614,10 @@
         crosshairMarkerVisible: false,
       });
     } else if (drawingMode === 'channel' && !secondPoint) {
-      secondPoint = { time: param.time, price: price };
+      secondPoint = { time, price };
       // Establishing baseline, previewLine remains between p1-p2
     } else {
-      const currentPoint = { time: param.time, price: price };
+      const currentPoint = { time, price };
       if (drawingMode === 'arrow') {
         addArrow(firstPoint, currentPoint);
       } else if (drawingMode === 'fib') {
@@ -633,20 +634,16 @@
   }
 
   function handleCrosshairMove(param) {
-    if (!param || !param.point || !param.time) return;
-
-    // Use requestAnimationFrame to avoid "Maximum call stack size exceeded"
-    // which can happen if setData triggers a layout change that triggers crosshairMove.
     if (rafId) cancelAnimationFrame(rafId);
-
     rafId = requestAnimationFrame(function () {
-      const price = candlestickSeries.coordinateToPrice(param.point.y);
-      if (!price) return;
+      const point = getEffectivePoint(param);
+      if (!point) return;
+      const { time, price } = point;
 
       // 拖曳整條線（只在按住時才拖動）
       if (isDraggingLine && dragStartPoint && selectedLineIndex !== null) {
         const line = drawnLines[selectedLineIndex];
-        const deltaTime = param.time - dragStartPoint.time;
+        const deltaTime = time - dragStartPoint.time;
         const deltaPrice = price - dragStartPoint.price;
 
         line.p1.time += deltaTime;
@@ -671,7 +668,7 @@
         if (line.type === 'fib') updateFibLevels(line);
         if (line.type === 'channel') updateChannelLines(line);
 
-        dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
+        dragStartPoint = { time, price, x: param.point.x, y: param.point.y };
         updateControlPoints();
         return;
       }
@@ -680,13 +677,13 @@
       if (drawingActive && firstPoint && previewLine) {
         if (drawingMode === 'channel' && secondPoint) {
           // Already have baseline, p3 is at cursor
-          updateChannelPreview(firstPoint, secondPoint, { time: param.time, price: price });
+          updateChannelPreview(firstPoint, secondPoint, { time, price });
           hideFibPreview();
           hideArrowPreviewWings();
         } else {
           const lineData = [
             { time: firstPoint.time, value: firstPoint.price },
-            { time: param.time, value: price },
+            { time, value: price },
           ];
           lineData.sort(function (a, b) {
             return a.time - b.time;
@@ -695,11 +692,11 @@
 
           // Update arrow/fib preview
           if (drawingMode === 'arrow') {
-            updateArrowPreviewWings(firstPoint, { time: param.time, price: price });
+            updateArrowPreviewWings(firstPoint, { time, price });
             hideFibPreview();
             hideChannelPreview();
           } else if (drawingMode === 'fib') {
-            updateFibPreview(firstPoint, { time: param.time, price: price });
+            updateFibPreview(firstPoint, { time, price });
             hideArrowPreviewWings();
             hideChannelPreview();
           } else if (drawingMode === 'channel') {
@@ -1247,10 +1244,9 @@
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      const time = chart.timeScale().coordinateToTime(x);
-      const price = candlestickSeries.coordinateToPrice(y);
-
-      if (time && price) {
+      const point = getEffectivePoint({ point: { x, y } });
+      if (point) {
+        const { time, price } = point;
         const line = drawnLines[selectedLineIndex];
         if (activeCPIndex === 0) {
           line.p1 = { time, price };
@@ -1518,6 +1514,47 @@
     }
   }
 
+  function getEffectivePoint(param) {
+    if (!param || !param.point || !candlestickSeries || !chart || lastKnownData.length === 0)
+      return null;
+
+    const price = candlestickSeries.coordinateToPrice(param.point.y);
+    if (price === null) return null;
+
+    // 如果 param 有 time 直接用
+    let time = param.time;
+    if (time !== null && time !== undefined) {
+      return { time, price };
+    }
+
+    // 否則嘗試根據邏輯座標推算 (支持在無 K 線區域繪圖)
+    const logical = chart.timeScale().coordinateToLogical(param.point.x);
+    if (logical === null) return null;
+
+    const lastIndex = lastKnownData.length - 1;
+    const lastBar = lastKnownData[lastIndex];
+
+    // 計算間隔
+    let interval = 300; // 預設 M5 (300秒)
+    if (lastKnownData.length >= 2) {
+      interval = lastKnownData[lastIndex].time - lastKnownData[lastIndex - 1].time;
+    } else {
+      // 根據 timeframe 字串回退
+      if (timeframe.includes('1分')) interval = 60;
+      else if (timeframe.includes('5分')) interval = 300;
+      else if (timeframe.includes('15分')) interval = 900;
+      else if (timeframe.includes('30分')) interval = 1800;
+      else if (timeframe.includes('1小時')) interval = 3600;
+      else if (timeframe.includes('4小時')) interval = 14400;
+      else if (timeframe.includes('天')) interval = 86400;
+    }
+
+    const offset = logical - lastIndex;
+    time = lastBar.time + Math.round(offset * interval);
+
+    return { time, price };
+  }
+
   function handleChartMouseUp() {
     if (isDraggingLine) {
       isDraggingLine = false;
@@ -1531,10 +1568,11 @@
   }
 
   function handleChartMouseDown(param) {
-    if (!param || !param.point || !param.time || drawingActive || useSharedAPI) return; // Disable for shared mode
+    if (!param || !param.point || drawingActive || useSharedAPI) return; // Disable for shared mode
 
-    const price = candlestickSeries.coordinateToPrice(param.point.y);
-    if (!price) return;
+    const point = getEffectivePoint(param);
+    if (!point) return;
+    const { time, price } = point;
 
     // 檢查是否點擊在已選中的線條上
     if (selectedLineIndex !== null) {
@@ -1571,7 +1609,7 @@
       if (dist < 10) {
         // 開始拖曳整條線
         isDraggingLine = true;
-        dragStartPoint = { time: param.time, price: price, x: param.point.x, y: param.point.y };
+        dragStartPoint = { time, price, x: param.point.x, y: param.point.y };
         chart.applyOptions({ handleScroll: false, handleScale: false });
       }
     }
