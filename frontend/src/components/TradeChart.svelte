@@ -30,6 +30,7 @@
   let chartContainer;
   let chart;
   let candlestickSeries;
+  let timeExtensionSeries;
   let lastKnownData = [];
   let loading = true;
   let error = null;
@@ -259,6 +260,13 @@
       },
     });
 
+    timeExtensionSeries = chart.addSeries(LineSeries, {
+      color: 'rgba(0, 0, 0, 0)',
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    });
+
     chart.timeScale().subscribeVisibleLogicalRangeChange(function () {
       updateControlPoints();
       debounceSaveConfig();
@@ -387,6 +395,23 @@
       if (candlestickSeries) {
         candlestickSeries.setData(uniqueData);
         lastKnownData = uniqueData;
+      }
+
+      // 延伸時間軸：添加未來 288 根 K 棒 (M5 的一天份量) 作為 whitespace
+      if (timeExtensionSeries && uniqueData.length > 0) {
+        const lastBar = uniqueData[uniqueData.length - 1];
+        let interval = 300;
+        if (uniqueData.length >= 2) {
+          interval =
+            uniqueData[uniqueData.length - 1].time - uniqueData[uniqueData.length - 2].time;
+        }
+        const extensionData = [];
+        // 保留最後一根有進去，以便連接
+        extensionData.push({ time: lastBar.time, value: lastBar.close });
+        for (let k = 1; k <= 288; k++) {
+          extensionData.push({ time: lastBar.time + k * interval });
+        }
+        timeExtensionSeries.setData(extensionData);
       }
 
       // 設置標註 (Markers)
@@ -524,7 +549,7 @@
         function applyDefaultFocus() {
           // 計算顯示範圍
           // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
-          const rightOffset = 80;
+          const rightOffset = 150;
 
           // 最小顯示根數，確保視野不會縮太小
           const minVisibleBars = 400;
@@ -547,7 +572,7 @@
         const totalLen = uniqueData.length;
         chart.timeScale().setVisibleLogicalRange({
           from: totalLen - 400,
-          to: totalLen + 50,
+          to: totalLen + 200,
         });
       }
     } catch (e) {
