@@ -1539,8 +1539,8 @@
 
     .planning-chart-container {
       width: 100%;
-      height: 550px; /* 增加高度以配合寬度 */
-      margin-bottom: 1.5rem;
+      height: 750px; /* 增加高度以配合寬度，讓圖面更飽滿 */
+      margin-bottom: 1rem;
       border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border-color);

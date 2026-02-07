@@ -293,7 +293,6 @@
 
   // 市場時段判別已由 utils.js 的 determineMarketSession 處理
 
-
   // 盈虧點數與風險指標自動計算
   $: {
     const { trade_type, entry_price, exit_price, lot_size, initial_sl, symbol, side } = formData;
@@ -1672,8 +1671,7 @@
               <div class="timeline-item-mini">
                 <div class="item-time">
                   平倉 {i + 1}:
-                  <strong
-                  <strong>{formatDate(t.exit_time)}</strong>
+                  <strong <strong>{formatDate(t.exit_time)}</strong>
                   <span class="duration-mini"
                     >({calculateDuration(formData.entry_time, t.exit_time)})</span
                   >
@@ -1860,7 +1858,10 @@
                     src={getImageUrl(img.image_path)}
                     alt="Trade Screenshot"
                     class="trade-thumb"
-                    on:click={() => enlargeImage(img.image_path, img.description || '交易截圖', { type: 'general' })}
+                    on:click={() =>
+                      enlargeImage(img.image_path, img.description || '交易截圖', {
+                        type: 'general',
+                      })}
                   />
                   <button
                     type="button"
@@ -2601,6 +2602,11 @@
       font-weight: 700;
       white-space: nowrap;
       font-size: 0.8rem;
+    }
+
+    .chart-section {
+      margin: 1.5rem 0 2.5rem 0;
+      width: 100%;
     }
 
     .session-tag.asian {

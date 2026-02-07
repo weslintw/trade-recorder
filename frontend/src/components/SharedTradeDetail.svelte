@@ -1,5 +1,11 @@
 <script>
-  import { getStrategyLabel, determineMarketSession, calculateBulletSize, formatDate, isHTMLNoteEmpty } from '../lib/utils';
+  import {
+    getStrategyLabel,
+    determineMarketSession,
+    calculateBulletSize,
+    formatDate,
+    isHTMLNoteEmpty,
+  } from '../lib/utils';
   import Sparkline from './Sparkline.svelte';
   import { imagesAPI } from '../lib/api';
   import TradeChart from './TradeChart.svelte';
@@ -16,7 +22,6 @@
       return defaultValue;
     }
   }
-
 
   function calculateDuration(start, end) {
     if (!start || !end) return '';
@@ -451,7 +456,12 @@
                           `${expertSignals[sigName] || sigName} - 圖 ${imgIdx + 1}`
                         )}
                     >
-                      <img src={getImageUrl(img.image)} alt={sigName} class="tag-icon" loading="lazy" />
+                      <img
+                        src={getImageUrl(img.image)}
+                        alt={sigName}
+                        class="tag-icon"
+                        loading="lazy"
+                      />
                       {expertSignals[sigName] || sigName}
                       {#if allImages.length > 1}({imgIdx + 1}){/if}
                     </span>
@@ -493,7 +503,12 @@
                       on:click={() =>
                         openModal(getImageUrl(img.image), `${patName} - 圖 ${imgIdx + 1}`)}
                     >
-                      <img src={getImageUrl(img.image)} alt={patName} class="tag-icon" loading="lazy" />
+                      <img
+                        src={getImageUrl(img.image)}
+                        alt={patName}
+                        class="tag-icon"
+                        loading="lazy"
+                      />
                       {patName}
                       {#if allImages.length > 1}({imgIdx + 1}){/if}
                     </span>
@@ -834,9 +849,9 @@
     font-weight: 600;
     white-space: nowrap;
   }
-  
+
   .chart-container-shared {
-    height: 420px;
+    height: 550px;
     margin-bottom: 2rem;
     border-radius: 12px;
     overflow: hidden;

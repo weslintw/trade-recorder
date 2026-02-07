@@ -2058,12 +2058,12 @@
   .chart-wrapper {
     position: relative;
     width: 100%;
-    height: 400px;
+    height: 100%;
+    min-height: 500px;
     background: #0f172a;
     border-radius: 16px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    margin: 1rem 0;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
   }
 
