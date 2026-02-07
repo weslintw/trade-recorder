@@ -11,7 +11,7 @@
   let selectedPlanId = null;
   let selectedSourceSession = null;
   let selectedTargetSession = activeSession;
-  
+
   // 用來儲存解析後的當前選中規劃的 Session 資料
   let currentPlanSessions = [];
 
@@ -19,7 +19,7 @@
   $: if (plans && plans.length > 0 && !selectedPlanId) {
     selectedPlanId = plans[0].id;
   }
-  
+
   // 當選中的 Plan 改變時，解析其內容以供選擇來源時段
   $: if (selectedPlanId) {
     const plan = plans.find(p => p.id === selectedPlanId);
@@ -27,7 +27,7 @@
       parsePlanSessions(plan);
     }
   }
-  
+
   // 當 activeSession 改變時（例如外部傳入），同步更新 target
   $: if (activeSession) {
     selectedTargetSession = activeSession;
@@ -39,11 +39,11 @@
 
     try {
       const analysis = JSON.parse(plan.trend_analysis);
-      
+
       // 檢查是否為新格式 (包含 asian, european, us)
       const sessionKeys = ['asian', 'european', 'us'];
       let hasSessions = false;
-      
+
       // 倒序檢查，這樣預設可以選中最後一個有資料的時段（通常是最相關的）
       // 但顯示時我們還是照時間順序
       const availableSessions = [];
@@ -57,7 +57,7 @@
             availableSessions.push({
               key: key,
               label: MARKET_SESSIONS.find(s => s.value === key)?.label || key,
-              data: analysis[key]
+              data: analysis[key],
             });
           }
         }
@@ -67,25 +67,31 @@
         currentPlanSessions = availableSessions;
         // 預設選中最後一個有資料的時段 (例如昨天最後是美盤，通常會想延續美盤的圖)
         if (availableSessions.length > 0) {
-           selectedSourceSession = availableSessions[availableSessions.length - 1].key;
+          selectedSourceSession = availableSessions[availableSessions.length - 1].key;
         }
       } else {
         // 舊格式或未知格式，整包當作一個來源
         currentPlanSessions = [{ key: 'all', label: '完整內容 (舊格式)', data: analysis }];
         selectedSourceSession = 'all';
       }
-
     } catch (e) {
-      console.error("解析規劃失敗", e);
+      console.error('解析規劃失敗', e);
       currentPlanSessions = [];
     }
   }
 
   function checkSessionHasContent(sessionData) {
     if (!sessionData.trends) return false;
-    // 檢查任意時區是否有方向、圖片或訊號
-    return Object.values(sessionData.trends).some(t => 
-      t.direction || t.image || t.has_signals || t.has_wave || t.notes
+    // 檢查任意時區是否有方向、圖片、訊號、圖表配置或趨勢線
+    return Object.values(sessionData.trends).some(
+      t =>
+        t.direction ||
+        t.image ||
+        t.has_signals ||
+        t.has_wave ||
+        t.notes ||
+        t.chart_config ||
+        (t.trendlines && t.trendlines.length > 0)
     );
   }
 
@@ -95,22 +101,22 @@
       // 找出選中的 source content
       let sourceContent = null;
       if (selectedSourceSession === 'all') {
-         // 舊格式：可能是直接的 trends 物件，或是不分 session 的結構
-         // 我們需要父層做相容性處理，這裡直接傳回原始解析資料
-         try {
-            sourceContent = JSON.parse(plan.trend_analysis);
-         } catch(e) {}
+        // 舊格式：可能是直接的 trends 物件，或是不分 session 的結構
+        // 我們需要父層做相容性處理，這裡直接傳回原始解析資料
+        try {
+          sourceContent = JSON.parse(plan.trend_analysis);
+        } catch (e) {}
       } else {
-         // 新格式：從解析出的陣列中拿
-         const sessionObj = currentPlanSessions.find(s => s.key === selectedSourceSession);
-         if (sessionObj) sourceContent = sessionObj.data; // 這裡的 data 應該是 { notes:..., trends:... }
+        // 新格式：從解析出的陣列中拿
+        const sessionObj = currentPlanSessions.find(s => s.key === selectedSourceSession);
+        if (sessionObj) sourceContent = sessionObj.data; // 這裡的 data 應該是 { notes:..., trends:... }
       }
 
       onConfirm({
         plan: plan,
         sourceContent: sourceContent,
         targetSession: selectedTargetSession,
-        sourceSessionKey: selectedSourceSession // 傳回來源 key 方便除錯或標記
+        sourceSessionKey: selectedSourceSession, // 傳回來源 key 方便除錯或標記
       });
       onClose();
     }
@@ -134,24 +140,18 @@
       </div>
 
       <div class="modal-body">
-        
         <!-- 步驟 1: 選擇規劃日期 -->
         <h4 class="step-title">1. 選擇來源日期</h4>
         <div class="plan-list">
           {#each plans as plan}
             <label class="plan-item" class:selected={selectedPlanId === plan.id}>
-              <input
-                type="radio"
-                name="selectedPlan"
-                value={plan.id}
-                bind:group={selectedPlanId}
-              />
+              <input type="radio" name="selectedPlan" value={plan.id} bind:group={selectedPlanId} />
               <div class="plan-info">
                 <div class="plan-date">{formatDate(plan.plan_date)}</div>
                 <div class="plan-summary">
-                   {#if plan.symbol}
-                     <span class="badge detail">{plan.symbol}</span>
-                   {/if}
+                  {#if plan.symbol}
+                    <span class="badge detail">{plan.symbol}</span>
+                  {/if}
                 </div>
               </div>
             </label>
@@ -166,7 +166,7 @@
               <div class="radio-group-vertical">
                 {#each currentPlanSessions as sess}
                   <label class="radio-label">
-                    <input type="radio" bind:group={selectedSourceSession} value={sess.key}>
+                    <input type="radio" bind:group={selectedSourceSession} value={sess.key} />
                     {sess.label}
                   </label>
                 {/each}
@@ -174,34 +174,33 @@
             </div>
 
             <!-- 箭頭 -->
-            <div class="arrow-col">
-               ➔ 複製到 ➔
-            </div>
+            <div class="arrow-col">➔ 複製到 ➔</div>
 
             <!-- 步驟 3: 選擇目標時段 -->
             <div class="selection-col">
               <h4 class="step-title">3. 選擇目標時段</h4>
               <div class="radio-group-vertical">
-                 {#each MARKET_SESSIONS as ms}
-                   <label class="radio-label">
-                     <input type="radio" bind:group={selectedTargetSession} value={ms.value}>
-                     {ms.label} (今天)
-                   </label>
-                 {/each}
+                {#each MARKET_SESSIONS as ms}
+                  <label class="radio-label">
+                    <input type="radio" bind:group={selectedTargetSession} value={ms.value} />
+                    {ms.label} (今天)
+                  </label>
+                {/each}
               </div>
             </div>
           </div>
         {:else}
-           <div class="empty-sessions">
-             該規劃無有效內容可供複製。
-           </div>
+          <div class="empty-sessions">該規劃無有效內容可供複製。</div>
         {/if}
-
       </div>
 
       <div class="modal-footer">
         <button class="btn btn-secondary" on:click={onClose}>取消</button>
-        <button class="btn btn-primary" on:click={handleConfirm} disabled={!selectedPlanId || !selectedSourceSession}>
+        <button
+          class="btn btn-primary"
+          on:click={handleConfirm}
+          disabled={!selectedPlanId || !selectedSourceSession}
+        >
           確認覆蓋
         </button>
       </div>
@@ -304,7 +303,7 @@
     background: #ebf8ff;
   }
 
-  .plan-item input[type="radio"] {
+  .plan-item input[type='radio'] {
     margin-right: 0.75rem;
   }
 
@@ -327,7 +326,7 @@
     background: #edf2f7;
     color: #4a5568;
   }
-  
+
   .badge.detail {
     background: #e6fffa;
     color: #2c7a7b;
@@ -417,7 +416,7 @@
   .btn-primary:hover {
     background: #3182ce;
   }
-  
+
   .btn-primary:disabled {
     background: #a0aec0;
     cursor: not-allowed;

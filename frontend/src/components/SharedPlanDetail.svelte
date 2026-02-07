@@ -36,6 +36,8 @@
       if (t.directions && t.directions.length > 0) return true;
       if (t.direction) return true;
       if (t.image || t.signals_image || t.wave_image) return true;
+      if (t.chart_config) return true;
+      if (t.trendlines && t.trendlines.length > 0) return true;
       if (
         t.long &&
         (t.long.has_signals ||
@@ -198,24 +200,9 @@
 
             <!-- 多空顯示 -->
             <div class="trend-options-view">
-              <div
-                class="trend-option-box long"
-                class:active={isLongActive(trend)}
-              >
-                多
-              </div>
-              <div
-                class="trend-option-box neutral"
-                class:active={isNeutralActive(trend)}
-              >
-                整
-              </div>
-              <div
-                class="trend-option-box short"
-                class:active={isShortActive(trend)}
-              >
-                空
-              </div>
+              <div class="trend-option-box long" class:active={isLongActive(trend)}>多</div>
+              <div class="trend-option-box neutral" class:active={isNeutralActive(trend)}>整</div>
+              <div class="trend-option-box short" class:active={isShortActive(trend)}>空</div>
             </div>
 
             <!-- 分析區塊 (支持多個方向) -->
@@ -357,7 +344,8 @@
                             <div class="signal-mini-label">{sig.name} 示意圖</div>
                             <div
                               class="trend-image-preview"
-                              on:click={() => openModal(getImageUrl(sig.image), `${tf} 預期訊號: ${sig.name}`)}
+                              on:click={() =>
+                                openModal(getImageUrl(sig.image), `${tf} 預期訊號: ${sig.name}`)}
                             >
                               <img src={getImageUrl(sig.image)} alt={sig.name} loading="lazy" />
                             </div>
@@ -765,7 +753,13 @@
     flex-shrink: 0;
   }
 
-  .tag-mini.established { background: #475569; }
-  .tag-mini.expected { background: #8b5cf6; }
-  .tag-mini.wave-tag { background: #0ea5e9; }
+  .tag-mini.established {
+    background: #475569;
+  }
+  .tag-mini.expected {
+    background: #8b5cf6;
+  }
+  .tag-mini.wave-tag {
+    background: #0ea5e9;
+  }
 </style>

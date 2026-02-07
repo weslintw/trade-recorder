@@ -413,6 +413,9 @@ func GetPlanningChartData(db *sql.DB) gin.HandlerFunc {
 			}
 		}
 
+		dateStr := c.Query("date")
+		session := c.Query("session")
+
 		// 判斷是否可用該帳號自己的 cTrader 連線
 		sid, err := ctrader.GlobalManager.GetSymbolID(accountID, symbol)
 		useGeneric := false
@@ -420,9 +423,39 @@ func GetPlanningChartData(db *sql.DB) gin.HandlerFunc {
 			useGeneric = true
 		}
 
-		// 計算範圍：顯示最近的 1200 根 K 棒
-		toTime := time.Now()
-		fromTime := toTime.Add(time.Duration(-1200*m_min) * time.Minute)
+		// 計算範圍：以規劃日期的時段開盤為中心，前後各 600 根 K 棒 (總共 1200 根)
+		baseTime := time.Now()
+		if dateStr != "" {
+			// 解析日期 (預期格式 2006-01-02)
+			parsedDate, err := time.Parse("2006-01-02", dateStr)
+			if err == nil {
+				// 假設用戶在 UTC+8 時區
+				loc := time.FixedZone("UTC+8", 8*3600)
+				baseTime = time.Date(parsedDate.Year(), parsedDate.Month(), parsedDate.Day(), 0, 0, 0, 0, loc)
+
+				// 根據時段設定基準時間 (開盤時間)
+				switch session {
+				case "asian":
+					baseTime = baseTime.Add(8 * time.Hour)
+				case "european":
+					baseTime = baseTime.Add(15 * time.Hour)
+				case "us":
+					baseTime = baseTime.Add(21 * time.Hour)
+				default:
+					baseTime = baseTime.Add(8 * time.Hour) // 預設亞盤
+				}
+			}
+		}
+
+		// 前後各 600 根
+		fromTime := baseTime.Add(time.Duration(-600*m_min) * time.Minute)
+		toTime := baseTime.Add(time.Duration(600*m_min) * time.Minute)
+
+		// 如果 toTime 超過當前時間，則 limit 到 time.Now() (cTrader 無法提供未來數據)
+		now := time.Now()
+		if toTime.After(now) {
+			toTime = now
+		}
 
 		fromTS := fromTime.UnixMilli()
 		toTS := toTime.UnixMilli()

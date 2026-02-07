@@ -87,6 +87,8 @@
       for (let tf in currentTrends) {
         if (!currentTrends[tf].long) currentTrends[tf].long = createDirectionData();
         if (!currentTrends[tf].short) currentTrends[tf].short = createDirectionData();
+        if (currentTrends[tf].chart_config === undefined) currentTrends[tf].chart_config = null;
+        if (currentTrends[tf].trendlines === undefined) currentTrends[tf].trendlines = [];
       }
     }
   }
@@ -745,6 +747,10 @@
         // 檢查圖片 (頂層)
         if (trend.image) return true;
 
+        // 檢查圖表配置與線條
+        if (trend.chart_config) return true;
+        if (trend.trendlines && trend.trendlines.length > 0) return true;
+
         // 檢查多/空具體內容
         for (const dir of ['long', 'short']) {
           const dData = trend[dir];
@@ -943,6 +949,8 @@
                       accountId={$selectedAccountId}
                       symbol={formData.symbol}
                       planTimeframe={timeframe}
+                      planDate={formData.plan_date ? formData.plan_date.slice(0, 10) : null}
+                      planSession={activeSession}
                       initialConfig={currentTrends[timeframe]?.chart_config}
                       initialTrendlines={currentTrends[timeframe]?.trendlines || []}
                       onSaveConfig={config => handleChartConfigSave(timeframe, config)}

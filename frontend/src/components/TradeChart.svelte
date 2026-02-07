@@ -23,6 +23,8 @@
   export let initialTrendlines = [];
   export let onSaveConfig = null; // (config) => void
   export let onSaveTrendlines = null; // (lines) => void
+  export let planDate = null;
+  export let planSession = null;
 
   let chartContainer;
   let chart;
@@ -306,6 +308,8 @@
           account_id: accountId,
           symbol: symbol,
           period: selectedPeriod,
+          date: planDate,
+          session: planSession,
         });
       } else if (useSharedAPI && shareToken) {
         res = await sharesAPI.getChartData(shareToken, tradeId, selectedPeriod);
