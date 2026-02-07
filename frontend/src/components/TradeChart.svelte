@@ -25,6 +25,7 @@
   export let onSaveTrendlines = null; // (lines) => void
   export let planDate = null;
   export let planSession = null;
+  export let lazy = false;
 
   let chartContainer;
   let chart;
@@ -188,7 +189,21 @@
     }
 
     initChart();
-    loadData();
+
+    if (lazy && 'IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        entries => {
+          if (entries[0].isIntersecting) {
+            loadData();
+            observer.disconnect();
+          }
+        },
+        { threshold: 0.1 }
+      );
+      observer.observe(chartContainer);
+    } else {
+      loadData();
+    }
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     document.addEventListener('webkitfullscreenchange', handleFullscreenChange);

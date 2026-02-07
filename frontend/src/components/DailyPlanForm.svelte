@@ -955,6 +955,7 @@
                       initialTrendlines={currentTrends[timeframe]?.trendlines || []}
                       onSaveConfig={config => handleChartConfigSave(timeframe, config)}
                       onSaveTrendlines={lines => handleTrendlinesSave(timeframe, lines)}
+                      lazy={true}
                     />
                   </div>
 
