@@ -565,8 +565,12 @@
 
   function handleChartClick(param) {
     const point = getEffectivePoint(param);
-    if (!point) return;
+    if (!point) {
+      console.log('[Chart] Click ignored: No effective point');
+      return;
+    }
     const { time, price } = point;
+    console.log('[Chart] Click at:', { time, price, originalTime: param.time });
 
     // --- Dragging & Selection Logic (Outside drawing mode) ---
     if (!drawingActive) {
@@ -643,7 +647,7 @@
         addTrendline(firstPoint, currentPoint);
       }
 
-      console.log('[Chart] Drawing completed');
+      console.log('[Chart] Drawing completed', { firstPoint, currentPoint });
       toggleDrawing(drawingMode);
     }
   }
@@ -1530,8 +1534,9 @@
   }
 
   function getEffectivePoint(param) {
-    if (!param || !param.point || !candlestickSeries || !chart || lastKnownData.length === 0)
+    if (!param || !param.point || !candlestickSeries || !chart || lastKnownData.length === 0) {
       return null;
+    }
 
     const price = candlestickSeries.coordinateToPrice(param.point.y);
     if (price === null) return null;
@@ -1539,7 +1544,7 @@
     // 如果 param 有 time 直接用
     let time = param.time;
     if (time !== null && time !== undefined) {
-      return { time, price };
+      return { time: Math.floor(time), price };
     }
 
     // 否則嘗試根據邏輯座標推算 (支持在無 K 線區域繪圖)
@@ -1555,19 +1560,22 @@
       interval = lastKnownData[lastIndex].time - lastKnownData[lastIndex - 1].time;
     } else {
       // 根據 timeframe 字串回退
-      if (timeframe.includes('1分')) interval = 60;
-      else if (timeframe.includes('5分')) interval = 300;
-      else if (timeframe.includes('15分')) interval = 900;
-      else if (timeframe.includes('30分')) interval = 1800;
-      else if (timeframe.includes('1小時')) interval = 3600;
-      else if (timeframe.includes('4小時')) interval = 14400;
-      else if (timeframe.includes('天')) interval = 86400;
+      const tf = timeframe.toLowerCase();
+      if (tf.includes('1分') || tf === 'm1') interval = 60;
+      else if (tf.includes('5分') || tf === 'm5') interval = 300;
+      else if (tf.includes('15分') || tf === 'm15') interval = 900;
+      else if (tf.includes('30分') || tf === 'm30') interval = 1800;
+      else if (tf.includes('1小時') || tf === 'h1') interval = 3600;
+      else if (tf.includes('4小時') || tf === 'h4') interval = 14400;
+      else if (tf.includes('天') || tf === 'd1') interval = 86400;
     }
 
     const offset = logical - lastIndex;
-    time = lastBar.time + Math.round(offset * interval);
+    const extrapolatedTime = Math.floor(lastBar.time + offset * interval);
 
-    return { time, price };
+    // console.log('[Chart] Extrapolated Point:', { logical, lastIndex, offset, interval, extrapolatedTime });
+
+    return { time: extrapolatedTime, price };
   }
 
   function handleChartMouseUp() {
