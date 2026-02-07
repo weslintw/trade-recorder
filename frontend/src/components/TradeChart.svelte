@@ -69,6 +69,8 @@
   let activeCPIndex = null; // 0 or 1
   let isDraggingLine = false;
   let dragStartPoint = null;
+  let internalUpdateLines = false;
+  let internalUpdateConfig = false;
 
   // Drawing style options
   let selectedColor = '#f59e0b';
@@ -107,17 +109,31 @@
     if (chart) loadData();
   }
 
-  let lastAppliedLines = null;
-  $: if (mode === 'plan' && initialTrendlines !== lastAppliedLines && chart && candlestickSeries) {
-    clearAllDrawnLines();
-    if (initialTrendlines) applyLinesData(initialTrendlines);
-    lastAppliedLines = initialTrendlines;
+  let lastAppliedLinesStr = '';
+  $: if (mode === 'plan' && chart && candlestickSeries) {
+    const linesStr = JSON.stringify(initialTrendlines || []);
+    if (linesStr !== lastAppliedLinesStr) {
+      if (internalUpdateLines) {
+        internalUpdateLines = false;
+      } else {
+        clearAllDrawnLines();
+        if (initialTrendlines) applyLinesData(initialTrendlines);
+      }
+      lastAppliedLinesStr = linesStr;
+    }
   }
 
-  let lastAppliedConfig = null;
-  $: if (mode === 'plan' && initialConfig !== lastAppliedConfig && chart) {
-    applyChartConfig(initialConfig);
-    lastAppliedConfig = initialConfig;
+  let lastAppliedConfigStr = '';
+  $: if (mode === 'plan' && chart) {
+    const configStr = JSON.stringify(initialConfig || {});
+    if (configStr !== lastAppliedConfigStr) {
+      if (internalUpdateConfig) {
+        internalUpdateConfig = false;
+      } else {
+        applyChartConfig(initialConfig);
+      }
+      lastAppliedConfigStr = configStr;
+    }
   }
 
   function debounceSaveConfig() {
@@ -147,7 +163,9 @@
     };
 
     if (mode === 'plan' && onSaveConfig) {
+      internalUpdateConfig = true;
       onSaveConfig(config);
+      lastAppliedConfigStr = JSON.stringify(config);
       return;
     }
 
@@ -1436,7 +1454,9 @@
       });
 
       if (mode === 'plan') {
+        internalUpdateLines = true;
         onSaveTrendlines(linesData);
+        lastAppliedLinesStr = JSON.stringify(linesData);
         return;
       }
 
