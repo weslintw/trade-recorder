@@ -31,6 +31,7 @@
   let chart;
   let candlestickSeries;
   let timeExtensionSeries;
+  let lastExtensionTime = 0;
   let lastKnownData = [];
   let loading = true;
   let error = null;
@@ -416,21 +417,26 @@
         lastKnownData = uniqueData;
       }
 
-      // 延伸時間軸：添加未來 288 根 K 棒 (M5 的一天份量) 作為 whitespace
+      // 延伸時間軸：添加未來 100 根 K 棒作為 whitespace（只在數據真正改變時更新）
       if (timeExtensionSeries && uniqueData.length > 0) {
         const lastBar = uniqueData[uniqueData.length - 1];
-        let interval = 300;
-        if (uniqueData.length >= 2) {
-          interval =
-            uniqueData[uniqueData.length - 1].time - uniqueData[uniqueData.length - 2].time;
+
+        // 只有當最後一根 K 線的時間改變時才更新延伸
+        if (lastBar.time !== lastExtensionTime) {
+          let interval = 300;
+          if (uniqueData.length >= 2) {
+            interval =
+              uniqueData[uniqueData.length - 1].time - uniqueData[uniqueData.length - 2].time;
+          }
+          const extensionData = [];
+          // 保留最後一根有進去，以便連接
+          extensionData.push({ time: lastBar.time, value: lastBar.close });
+          for (let k = 1; k <= 100; k++) {
+            extensionData.push({ time: lastBar.time + k * interval });
+          }
+          timeExtensionSeries.setData(extensionData);
+          lastExtensionTime = lastBar.time;
         }
-        const extensionData = [];
-        // 保留最後一根有進去，以便連接
-        extensionData.push({ time: lastBar.time, value: lastBar.close });
-        for (let k = 1; k <= 288; k++) {
-          extensionData.push({ time: lastBar.time + k * interval });
-        }
-        timeExtensionSeries.setData(extensionData);
       }
 
       // 設置標註 (Markers)
