@@ -126,7 +126,7 @@
   let lastAppliedConfigStr = '';
   $: if (mode === 'plan' && chart) {
     const configStr = JSON.stringify(initialConfig || {});
-    if (configStr !== lastAppliedConfigStr) {
+    if (configStr !== lastAppliedConfigStr && configStr !== '{}' && configStr !== '') {
       if (internalUpdateConfig) {
         internalUpdateConfig = false;
       } else {
@@ -137,7 +137,8 @@
   }
 
   function debounceSaveConfig() {
-    if (useSharedAPI || !tradeId) return;
+    if (useSharedAPI || mode === 'plan') return;
+    if (!tradeId) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(saveChartConfig, 2000);
   }
