@@ -389,9 +389,16 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 							if d, ok := m.symbolDigitsMap.Load(sid); ok {
 								digits = d.(int)
 							}
-							log.Printf("[cTrader Manager] Initial Sparkline Fetch for %s (Digits: %d, Vol: %d)", tStr, digits, vol)
-							symbolName := ac.SymbolMap[sid]
-							newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
+							// Ensure we use the current connection handle, or skip if not ready
+							ac.Mu.RLock()
+							currentConn := ac.Conn
+							ac.Mu.RUnlock()
+							if currentConn == nil {
+								log.Printf("[cTrader Manager] Sparkline fetch skipped: connection not yet active")
+								return
+							}
+
+							newSeriesStr := fetchPnLSeries(ac, currentConn, accID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
 							if newSeriesStr != "" {
 								m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 							}
@@ -467,7 +474,8 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		case err := <-errChan:
 			return err
 		case <-heartbeat.C:
-			if ac.WriteJSON(CTraderMessage{PayloadType: PayloadHeartbeatEvent, Payload: json.RawMessage("{}")}) != nil {
+			if err := ac.WriteJSON(CTraderMessage{PayloadType: PayloadHeartbeatEvent, Payload: json.RawMessage("{}")}); err != nil {
+				log.Printf("[cTrader Manager] Heartbeat SEND ERROR for Account %d: %v", accountID, err)
 				return err
 			}
 		}

@@ -221,7 +221,13 @@
       return [];
     }
   })();
-  $: isAllMode = activeFilterType === 'all' && !activeSubFilter && activeDateRange === 'all' && !activeColorFilter && activeExitFilter === 'all' && activeSideFilter === 'all';
+  $: isAllMode =
+    activeFilterType === 'all' &&
+    !activeSubFilter &&
+    activeDateRange === 'all' &&
+    !activeColorFilter &&
+    activeExitFilter === 'all' &&
+    activeSideFilter === 'all';
   $: statsLabel = isAllMode ? '全部統計：' : '篩選統計：';
   $: activeStrategyLabel = getStrategyLabel(activeFilterType) || '';
 
@@ -630,10 +636,11 @@
 
     const lastKey = window._lastLoadKey || '';
     const currentKey = `acc_${$selectedAccountId}_sym_${$selectedSymbol}`;
-    
-    // 如果短時間(1秒內)載入同一個帳號/品種，且不是強制作動，則跳過
-    if (!silent && now - (window._lastLoadDataTime || 0) < 1000 && lastKey === currentKey) {
-      console.log(`[${INSTANCE_ID}] loadData #${callId} skipped: identical request within 1s.`);
+
+    // 針對相同 Key 的請求執行節流 (Throttle)
+    // 無論是否 silent，1秒內同樣的請求都應該合併或跳過
+    if (now - (window._lastLoadDataTime || 0) < 1000 && lastKey === currentKey) {
+      console.log(`[${INSTANCE_ID}] loadData #${callId} throttled: identical request within 1s.`);
       return;
     }
 
@@ -688,20 +695,21 @@
       // 1. 完全命中：Key 一致且未過期
       // 2. 範圍命中：如果 Cache 中已經有該帳號、該品種 'all' (全部) 的資料，那無論現在選什麼日期範圍，都直接用 Cache
       const isExactMatch = dataCache.key === cacheKey;
-      
+
       // 修復：必須檢查 ID 與 Symbol 是否匹配，否則切換帳號時會誤用上一個帳號的快取
       const prefix = `${$selectedAccountId}_${symbol}_`;
-      const isSupersetMatch = dataCache.scope === 'all' && 
-                             dataCache.trades.length > 0 && 
-                             dataCache.key && 
-                             dataCache.key.startsWith(prefix);
+      const isSupersetMatch =
+        dataCache.scope === 'all' &&
+        dataCache.trades.length > 0 &&
+        dataCache.key &&
+        dataCache.key.startsWith(prefix);
 
       const isCacheValid =
         (isExactMatch || isSupersetMatch) &&
         dataCache.timestamp &&
         Date.now() - dataCache.timestamp < 300000; // 5分鐘有效期
 
-      let needsFetch = !isCacheValid; 
+      let needsFetch = !isCacheValid;
 
       console.log(
         `[${INSTANCE_ID}] Cache check: key=${cacheKey}, curKey=${dataCache.key}, valid=${isCacheValid}, scope=${dataCache.scope}, isSuperset=${isSupersetMatch}`
@@ -875,65 +883,71 @@
                     const bgSeenTickets = new Set();
                     const bgUniqueTrades = [];
                     trades.forEach(t => {
-                        if (t.ticket && bgSeenTickets.has(t.ticket)) return;
-                        if (t.ticket) bgSeenTickets.add(t.ticket);
-                        bgUniqueTrades.push(t);
+                      if (t.ticket && bgSeenTickets.has(t.ticket)) return;
+                      if (t.ticket) bgSeenTickets.add(t.ticket);
+                      bgUniqueTrades.push(t);
                     });
 
                     const bgDateMap = {};
                     bgDateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
                     plans.forEach(plan => {
-                        plan.trendData = parseJSONSafe(plan.trend_analysis, {});
-                        if (!plan.plan_date) return;
-                        try {
+                      plan.trendData = parseJSONSafe(plan.trend_analysis, {});
+                      if (!plan.plan_date) return;
+                      try {
                         const d = new Date(plan.plan_date);
                         if (isNaN(d.getTime())) return;
                         const ds = toTradingDateString(d);
-                        if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
+                        if (!bgDateMap[ds])
+                          bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
                         bgDateMap[ds].plans.push(plan);
-                        } catch (e) {}
+                      } catch (e) {}
                     });
 
                     bgUniqueTrades.forEach(trade => {
-                        if (!trade.entry_time) return;
-                        try {
+                      if (!trade.entry_time) return;
+                      try {
                         const d = new Date(trade.entry_time);
                         if (isNaN(d.getTime())) return;
                         const ds = toTradingDateString(d);
-                        if (!bgDateMap[ds]) bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
+                        if (!bgDateMap[ds])
+                          bgDateMap[ds] = { date: ds, plans: [], groupedTrades: [] };
 
                         const entryTimeKey = trade.entry_time;
-                        let timeGroup = bgDateMap[ds].groupedTrades.find(g => g.entry_time === entryTimeKey);
+                        let timeGroup = bgDateMap[ds].groupedTrades.find(
+                          g => g.entry_time === entryTimeKey
+                        );
                         if (!timeGroup) {
-                            timeGroup = {
+                          timeGroup = {
                             entry_time: entryTimeKey,
                             trades: [],
                             summary: {
-                                totalPnl: 0,
-                                totalLot: 0,
-                                symbol: trade.symbol,
-                                entry_price: trade.entry_price,
-                                side: trade.side,
+                              totalPnl: 0,
+                              totalLot: 0,
+                              symbol: trade.symbol,
+                              entry_price: trade.entry_price,
+                              side: trade.side,
                             },
-                            };
-                            bgDateMap[ds].groupedTrades.push(timeGroup);
+                          };
+                          bgDateMap[ds].groupedTrades.push(timeGroup);
                         }
                         timeGroup.trades.push(trade);
                         timeGroup.summary.totalPnl += trade.pnl || 0;
                         timeGroup.summary.totalLot += trade.lot_size || 0;
-                        } catch (e) {}
+                      } catch (e) {}
                     });
 
-                    const bgSortedResult = Object.values(bgDateMap).sort((a, b) => b.date.localeCompare(a.date));
+                    const bgSortedResult = Object.values(bgDateMap).sort((a, b) =>
+                      b.date.localeCompare(a.date)
+                    );
                     bgSortedResult.forEach(day => {
-                        day.groupedTrades.sort((a, b) => {
+                      day.groupedTrades.sort((a, b) => {
                         const getT = g =>
-                            g.trades.some(t => !t.exit_time)
+                          g.trades.some(t => !t.exit_time)
                             ? Infinity
                             : Math.max(...g.trades.map(t => new Date(t.exit_time || 0).getTime()));
                         return getT(b) - getT(a);
-                        });
+                      });
                     });
 
                     // 這裡的賦值會觸發 Svelte 更新 UI
@@ -990,6 +1004,14 @@
             }
           }
         }
+      }
+
+      // 修復：如果請求已被取消或有更新的請求正在進行，則不要執行耗時的分組邏輯
+      if (signal.aborted || activeLoadCallId !== callId) {
+        console.log(
+          `[${INSTANCE_ID}] loadData #${callId} aborted/stale before processing, skipping grouping.`
+        );
+        return;
       }
 
       // 數據過濾與去重
@@ -1177,8 +1199,14 @@
             }
             // 強制讓 cache 失效並重新載入
             if (dataCache) dataCache.timestamp = 0;
-            loadData(true);
-            refreshAccounts();
+            // WebSocket 更新增加 1 秒防抖，避免連續成交事件撐爆連線池
+            if (activeLoadCallId % 10 === 0)
+              console.log('🚀 [Realtime] Frequent updates, debouncing...');
+            if (window._wsUpdateTimer) clearTimeout(window._wsUpdateTimer);
+            window._wsUpdateTimer = setTimeout(() => {
+              loadData(true);
+              refreshAccounts(true);
+            }, 1000);
           }
         } else if (msg.type === 'PRICE_UPDATE') {
           if (!msg.account_id || msg.account_id === $selectedAccountId) {
@@ -1324,11 +1352,13 @@
     );
     const accountExists = $accounts.some(a => a.id == $selectedAccountId);
     if ($accounts.length > 0) {
-      if (($selectedAccountId === null || $selectedAccountId === undefined) || !accountExists) {
+      if ($selectedAccountId === null || $selectedAccountId === undefined || !accountExists) {
         console.log(`[onMount] Auto-selecting first account: ${$accounts[0].id}`);
         selectedAccountId.set($accounts[0].id);
       } else {
-        console.log(`[onMount] Account ${$selectedAccountId} is valid, triggering initial loadData()`);
+        console.log(
+          `[onMount] Account ${$selectedAccountId} is valid, triggering initial loadData()`
+        );
         loadData();
       }
     } else {
@@ -1427,7 +1457,6 @@
     // Client-side pagination: no need to reload data
     console.log(`[Pagination] Switched to page ${newPage}`);
   }
-
 
   function calculateDuration(start, end) {
     if (!start || !end) return '';
@@ -1683,10 +1712,10 @@
       }
 
       await tradesAPI.update(tradeId, payload);
-      
+
       // 更新局部狀態
       selectedImage = imagesAPI.getUrl(serverPath); // 立即更新 modal 顯示
-      
+
       // 更新 groupedData 裡的資料，讓背景的卡片也同步更新
       groupedData = groupedData.map(day => {
         return {
@@ -1700,15 +1729,15 @@
                   return { ...t, ...payload };
                 }
                 return t;
-              })
+              }),
             };
-          })
+          }),
         };
       });
-      
+
       // 同時更新 tradeDataCache，避免重新進入時看到舊圖
       if (dataCache && dataCache.trades) {
-        dataCache.trades = dataCache.trades.map(t => t.id === tradeId ? { ...t, ...payload } : t);
+        dataCache.trades = dataCache.trades.map(t => (t.id === tradeId ? { ...t, ...payload } : t));
         tradeDataCache.set(dataCache);
       }
     } catch (e) {
@@ -1724,9 +1753,9 @@
 
   function toggleEditNotes(tradeId) {
     if (editingTradeId === tradeId) {
-        editingTradeId = null;
+      editingTradeId = null;
     } else {
-        editingTradeId = tradeId;
+      editingTradeId = tradeId;
     }
   }
 
@@ -1739,45 +1768,44 @@
     // UI Label Swap Mapping:
     // UI: "記事備註" -> save to DB: journal
     // UI: "復盤日記" -> save to DB: notes
-    
+
     // 這裡我們讀取的時候要小心，因為 HTML ID 是根據資料庫欄位命名的，還是根據 UI 命名的？
     // 建議 HTML ID 根據資料庫欄位命名，這樣比較不會亂。
     // 即：編輯 "📌 記事備註" 的 div id="note-journal-..."
     //    編輯 "📝 復盤日記" 的 div id="note-notes-..."
 
-    const newJournal = journalEl ? journalEl.innerHTML : (trade.journal || '');
-    const newNotes = notesEl ? notesEl.innerHTML : (trade.notes || ''); 
-    const newExitReason = exitReasonEl ? exitReasonEl.innerHTML : (trade.exit_reason || '');
+    const newJournal = journalEl ? journalEl.innerHTML : trade.journal || '';
+    const newNotes = notesEl ? notesEl.innerHTML : trade.notes || '';
+    const newExitReason = exitReasonEl ? exitReasonEl.innerHTML : trade.exit_reason || '';
 
     // 更新 trade 物件（本地樂觀更新）
     trade.journal = newJournal;
     trade.notes = newNotes;
     trade.exit_reason = newExitReason;
-    
+
     // 強制 Svelte 更新
     trades = trades;
 
     try {
-        // 必須傳送完整的 trade 物件，因為後端 UpdateTrade API 有必填欄位校驗 (binding:"required")
-        // 使用展開運算符複製所有欄位，並覆蓋筆記欄位
-        const payload = { 
-            ...trade,
-            journal: newJournal,
-            notes: newNotes,
-            exit_reason: newExitReason,
-            // 確保 images 是一個陣列，避免 null 導致後端錯誤
-            images: trade.images || []
-        };
+      // 必須傳送完整的 trade 物件，因為後端 UpdateTrade API 有必填欄位校驗 (binding:"required")
+      // 使用展開運算符複製所有欄位，並覆蓋筆記欄位
+      const payload = {
+        ...trade,
+        journal: newJournal,
+        notes: newNotes,
+        exit_reason: newExitReason,
+        // 確保 images 是一個陣列，避免 null 導致後端錯誤
+        images: trade.images || [],
+      };
 
-        await tradesAPI.update(trade.id, payload);
-        // alert('筆記已儲存！'); // 不打擾使用者
-        editingTradeId = null; 
+      await tradesAPI.update(trade.id, payload);
+      // alert('筆記已儲存！'); // 不打擾使用者
+      editingTradeId = null;
     } catch (err) {
-        console.error('Save notes failed:', err);
-        alert('儲存失敗：' + (err.response?.data?.error || err.message));
+      console.error('Save notes failed:', err);
+      alert('儲存失敗：' + (err.response?.data?.error || err.message));
     }
   }
-
 
   function closeImageModal() {
     selectedImage = null;
@@ -2142,12 +2170,12 @@
               } else {
                 activeDateRange = 'custom';
                 // Set default custom range if empty
-                  if (!customStartDate) {
-                    const d = new Date();
-                    d.setDate(d.getDate() - 7);
-                    customStartDate = toTradingDateString(d);
-                    customEndDate = toTradingDateString(new Date());
-                  }
+                if (!customStartDate) {
+                  const d = new Date();
+                  d.setDate(d.getDate() - 7);
+                  customStartDate = toTradingDateString(d);
+                  customEndDate = toTradingDateString(new Date());
+                }
                 // Don't auto-load, let user pick dates
               }
             }}
@@ -2194,15 +2222,25 @@
             {#if displayedSummary.has_floating || displayedSummary.floating_pnl !== 0}
               <span class="stats-sep">|</span>
               <span class="stats-label">浮動</span>
-              <span class="stats-value pnl" class:profit={displayedSummary.floating_pnl > 0.001} class:loss={displayedSummary.floating_pnl < -0.001}>
-                {(displayedSummary.floating_pnl > 0 ? '+' : '') + (displayedSummary.floating_pnl || 0).toFixed(2)}
+              <span
+                class="stats-value pnl"
+                class:profit={displayedSummary.floating_pnl > 0.001}
+                class:loss={displayedSummary.floating_pnl < -0.001}
+              >
+                {(displayedSummary.floating_pnl > 0 ? '+' : '') +
+                  (displayedSummary.floating_pnl || 0).toFixed(2)}
               </span>
             {/if}
 
             <span class="stats-sep">|</span>
             <span class="stats-label">已實現</span>
-            <span class="stats-value pnl" class:profit={(displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0.001} class:loss={(displayedSummary.realized_pnl || displayedSummary.total_pnl) < -0.001}>
-              {((displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0 ? '+' : '') + (displayedSummary.realized_pnl || displayedSummary.total_pnl || 0).toFixed(2)}
+            <span
+              class="stats-value pnl"
+              class:profit={(displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0.001}
+              class:loss={(displayedSummary.realized_pnl || displayedSummary.total_pnl) < -0.001}
+            >
+              {((displayedSummary.realized_pnl || displayedSummary.total_pnl) > 0 ? '+' : '') +
+                (displayedSummary.realized_pnl || displayedSummary.total_pnl || 0).toFixed(2)}
             </span>
 
             <div class="stats-color-groups">
@@ -2522,7 +2560,10 @@
                       class:profit={dailyStats.realizedPnl > 0.001}
                       class:loss={dailyStats.realizedPnl < -0.001}
                     >
-                      {Math.abs(dailyStats.realizedPnl) < 0.001 ? '0' : (dailyStats.realizedPnl > 0 ? '+' : '') + dailyStats.realizedPnl.toFixed(2)}
+                      {Math.abs(dailyStats.realizedPnl) < 0.001
+                        ? '0'
+                        : (dailyStats.realizedPnl > 0 ? '+' : '') +
+                          dailyStats.realizedPnl.toFixed(2)}
                     </span>
                   {/if}
                 </div>
@@ -2736,9 +2777,10 @@
                             </button>
                             <button
                               class="icon-btn edit-notes"
-                              on:click|stopPropagation={() => toggleEditNotes(timeGroup.trades[0].id)}
+                              on:click|stopPropagation={() =>
+                                toggleEditNotes(timeGroup.trades[0].id)}
                               title="編輯筆記"
-                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;" 
+                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;"
                             >
                               📝
                             </button>
@@ -2816,7 +2858,8 @@
                                 on:click|stopPropagation={() =>
                                   openImageModal(
                                     img.image_path,
-                                    img.description || `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    img.description ||
+                                      `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
                                     {
                                       tradeId:
                                         timeGroup.trades.find(t => (t.images || []).includes(img))
@@ -2829,7 +2872,11 @@
                                     }
                                   )}
                               >
-                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />
+                                <img
+                                  src={imagesAPI.getUrl(img.image_path)}
+                                  alt="trade"
+                                  loading="lazy"
+                                />
                               </div>
                             {/each}
                             {#if allImages.length > 3}
@@ -2841,21 +2888,30 @@
                         {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].journal) || !isHTMLNoteEmpty(timeGroup.trades[0].exit_reason) || !isHTMLNoteEmpty(timeGroup.trades[0].notes)}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === timeGroup.trades[0].id}
-                                <div class="card-notes-header">
-                                    <span style="font-size:0.8rem; font-weight:bold; color:var(--primary)">編輯模式</span>
-                                    <button class="save-notes-btn" on:click={() => saveCardNotes(timeGroup.trades[0])}>💾 儲存</button>
-                                </div>
+                              <div class="card-notes-header">
+                                <span
+                                  style="font-size:0.8rem; font-weight:bold; color:var(--primary)"
+                                  >編輯模式</span
+                                >
+                                <button
+                                  class="save-notes-btn"
+                                  on:click={() => saveCardNotes(timeGroup.trades[0])}
+                                  >💾 儲存</button
+                                >
+                              </div>
                             {/if}
 
                             <!-- 復盤日記 (對應 DB: notes) -->
                             {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].notes)}
                               <div class="note-block">
                                 <div class="note-label">📝 復盤日記</div>
-                                <div 
-                                    id="note-notes-{timeGroup.trades[0].id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
-                                >{@html timeGroup.trades[0].notes || ''}</div>
+                                <div
+                                  id="note-notes-{timeGroup.trades[0].id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >
+                                  {@html timeGroup.trades[0].notes || ''}
+                                </div>
                               </div>
                             {/if}
 
@@ -2863,23 +2919,27 @@
                             {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].exit_reason)}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
-                                <div 
-                                    id="note-exit-{timeGroup.trades[0].id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
-                                >{@html timeGroup.trades[0].exit_reason || ''}</div>
+                                <div
+                                  id="note-exit-{timeGroup.trades[0].id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >
+                                  {@html timeGroup.trades[0].exit_reason || ''}
+                                </div>
                               </div>
                             {/if}
-                            
+
                             <!-- 記事備註 (對應 DB: journal) -->
                             {#if editingTradeId === timeGroup.trades[0].id || !isHTMLNoteEmpty(timeGroup.trades[0].journal)}
                               <div class="note-block">
                                 <div class="note-label">📌 記事備註</div>
-                                <div 
-                                    id="note-journal-{timeGroup.trades[0].id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === timeGroup.trades[0].id}
-                                >{@html timeGroup.trades[0].journal || ''}</div>
+                                <div
+                                  id="note-journal-{timeGroup.trades[0].id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === timeGroup.trades[0].id}
+                                >
+                                  {@html timeGroup.trades[0].journal || ''}
+                                </div>
                               </div>
                             {/if}
                           </div>
@@ -3002,7 +3062,7 @@
                               class="icon-btn edit-notes"
                               on:click|stopPropagation={() => toggleEditNotes(trade.id)}
                               title="編輯筆記"
-                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;" 
+                              style="margin-left: 0.5rem; background: transparent; border: none; cursor: pointer; font-size: 1rem;"
                             >
                               📝
                             </button>
@@ -3081,11 +3141,16 @@
                                 on:click|stopPropagation={() =>
                                   openImageModal(
                                     img.image_path,
-                                    img.description || `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
+                                    img.description ||
+                                      `${img.image_type === 'entry' ? '進場' : img.image_type === 'exit' ? '平倉' : '圖片'}截圖`,
                                     { tradeId: trade.id, type: 'general', index: idx }
                                   )}
                               >
-                                <img src={imagesAPI.getUrl(img.image_path)} alt="trade" loading="lazy" />
+                                <img
+                                  src={imagesAPI.getUrl(img.image_path)}
+                                  alt="trade"
+                                  loading="lazy"
+                                />
                               </div>
                             {/each}
                             {#if trade.images.length > 3}<div class="more-imgs">
@@ -3093,26 +3158,33 @@
                               </div>{/if}
                           </div>
                         {/if}
-                        
+
                         <!-- 只在編輯模式或有任何內容時才顯示筆記區塊 -->
                         {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.journal) || !isHTMLNoteEmpty(trade.exit_reason) || !isHTMLNoteEmpty(trade.notes)}
                           <div class="card-notes-section" on:click|stopPropagation>
                             {#if editingTradeId === trade.id}
-                                <div class="card-notes-header">
-                                    <span style="font-size:0.8rem; font-weight:bold; color:var(--primary)">編輯模式</span>
-                                    <button class="save-notes-btn" on:click={() => saveCardNotes(trade)}>💾 儲存</button>
-                                </div>
+                              <div class="card-notes-header">
+                                <span
+                                  style="font-size:0.8rem; font-weight:bold; color:var(--primary)"
+                                  >編輯模式</span
+                                >
+                                <button class="save-notes-btn" on:click={() => saveCardNotes(trade)}
+                                  >💾 儲存</button
+                                >
+                              </div>
                             {/if}
 
                             <!-- 復盤日記 (對應 DB: notes) - 只在編輯模式或有內容時顯示 -->
                             {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.notes)}
                               <div class="note-block">
                                 <div class="note-label">📝 復盤日記</div>
-                                <div 
-                                    id="note-notes-{trade.id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === trade.id}
-                                >{@html trade.notes || ''}</div>
+                                <div
+                                  id="note-notes-{trade.id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === trade.id}
+                                >
+                                  {@html trade.notes || ''}
+                                </div>
                               </div>
                             {/if}
 
@@ -3120,23 +3192,27 @@
                             {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.exit_reason)}
                               <div class="note-block">
                                 <div class="note-label">🚪 平倉理由</div>
-                                <div 
-                                    id="note-exit-{trade.id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === trade.id}
-                                >{@html trade.exit_reason || ''}</div>
+                                <div
+                                  id="note-exit-{trade.id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === trade.id}
+                                >
+                                  {@html trade.exit_reason || ''}
+                                </div>
                               </div>
                             {/if}
-                            
+
                             <!-- 記事備註 (對應 DB: journal) - 只在編輯模式或有內容時顯示 -->
                             {#if editingTradeId === trade.id || !isHTMLNoteEmpty(trade.journal)}
                               <div class="note-block">
                                 <div class="note-label">📌 記事備註</div>
-                                <div 
-                                    id="note-journal-{trade.id}"
-                                    class="note-content" 
-                                    contenteditable={editingTradeId === trade.id}
-                                >{@html trade.journal || ''}</div>
+                                <div
+                                  id="note-journal-{trade.id}"
+                                  class="note-content"
+                                  contenteditable={editingTradeId === trade.id}
+                                >
+                                  {@html trade.journal || ''}
+                                </div>
                               </div>
                             {/if}
                           </div>
@@ -3312,8 +3388,8 @@
   .note-content :global(p) {
     margin: 0.25rem 0;
   }
-  
-  .note-content[contenteditable="true"] {
+
+  .note-content[contenteditable='true'] {
     background: var(--bg-main);
     border: 1px solid var(--primary);
     outline: none;
@@ -3321,20 +3397,20 @@
   }
 
   .card-notes-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
   }
-  
+
   .save-notes-btn {
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 0.2rem 0.6rem;
-      font-size: 0.8rem;
-      cursor: pointer;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.8rem;
+    cursor: pointer;
   }
   .note-content :global(p:first-child) {
     margin-top: 0;
