@@ -793,7 +793,7 @@
     <div class="loading-text">正在讀取規劃資料...</div>
   </div>
 {:else}
-  <div class="card">
+  <div class="card plan-form-card">
     <div class="card-header-actions">
       <h2>{id ? '編輯每日盤面規劃' : '新增每日盤面規劃'}</h2>
       <div class="header-btns">
@@ -1316,6 +1316,17 @@
   />
 
   <style>
+    /* 讓規劃頁面可以橫向擴張到全螢幕寬度 */
+    :global(.container:has(.plan-form-card)) {
+      max-width: 95% !important;
+      width: 95% !important;
+    }
+
+    .plan-form-card {
+      width: 100%;
+      max-width: 100%;
+    }
+
     .card-header-actions {
       display: flex;
       justify-content: space-between;
@@ -1352,6 +1363,12 @@
       gap: 1rem;
       margin-top: 2rem;
       min-height: 400px;
+    }
+
+    .trend-content-main {
+      flex: 1;
+      width: 0; /* 防止子元素撐破 flex 容器 */
+      min-width: 0;
     }
 
     .session-sidebar-vertical {
@@ -1432,7 +1449,7 @@
     .session-notes-area {
       margin-bottom: 2rem;
       background: var(--card-bg);
-      padding: 1rem;
+      padding: 1.5rem;
       border-radius: 12px;
       border: 1px solid var(--border-color);
     }
@@ -1486,9 +1503,10 @@
     }
 
     .trend-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-      gap: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      width: 100%;
     }
 
     .trend-item {
@@ -1513,9 +1531,9 @@
 
     .planning-chart-container {
       width: 100%;
-      height: 320px;
-      margin-bottom: 1rem;
-      border-radius: 8px;
+      height: 550px; /* 增加高度以配合寬度 */
+      margin-bottom: 1.5rem;
+      border-radius: 12px;
       overflow: hidden;
       border: 1px solid var(--border-color);
       background: #0f172a; /* 配合 Lightweight Charts 背景 */
