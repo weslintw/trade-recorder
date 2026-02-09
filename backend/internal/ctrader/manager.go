@@ -35,6 +35,7 @@ type AccountConn struct {
 	Mu               sync.RWMutex
 	SymbolMap        map[int64]string
 	SymbolLotSizeMap map[int64]int64
+	Token            string // Store token to detect changes
 }
 
 func (ac *AccountConn) WriteJSON(v interface{}) error {
@@ -74,19 +75,30 @@ func (m *Manager) reconcileConnections() {
 		if rows.Scan(&id, &ctid, &token, &cid, &secret, &env, &status) != nil {
 			continue
 		}
-		if status == "syncing" {
-			continue
-		}
+
 		activeIDs[id] = true
 		m.mu.RLock()
-		_, exists := m.connections[id]
+		ac, exists := m.connections[id]
 		m.mu.RUnlock()
+
 		if !exists {
-			log.Printf("[cTrader Reconcile] Starting listener for Account %d", id)
-			m.startListener(id, ctid, token, cid, secret, env)
+			// 如果沒有連線，且狀態不是正在同步中，則可以啟動監聽器
+			if status == "" || status == "success" || status == "failed" {
+				log.Printf("[cTrader Reconcile] Starting listener for Account %d", id)
+				m.startListener(id, ctid, token, cid, secret, env)
+			}
+		} else {
+			// 如果連線已存在，則檢查 Token 是否有變動 (不論狀態為何)
+			ac.Mu.RLock()
+			oldToken := ac.Token
+			ac.Mu.RUnlock()
+			if oldToken != token {
+				log.Printf("[cTrader Reconcile] Token changed for Account %d, restarting listener with new token", id)
+				m.StopListener(id)
+				m.startListener(id, ctid, token, cid, secret, env)
+			}
 		}
 	}
-
 	m.mu.Lock()
 	for id, conn := range m.connections {
 		if !activeIDs[id] {
@@ -106,6 +118,7 @@ func (m *Manager) startListener(accountID int64, ctid, token, cid, secret, env s
 		Waiters:          make(map[string]chan *CTraderMessage),
 		SymbolMap:        make(map[int64]string),
 		SymbolLotSizeMap: make(map[int64]int64),
+		Token:            token,
 	}
 	m.mu.Unlock()
 	go m.listenerLoop(accountID, ctid, token, cid, secret, env, stopChan)
@@ -862,6 +875,14 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 	select {
 	case res := <-resChan:
 		log.Printf("[cTrader Manager Communication] RECEIVED Type: %d (for Request %s), Took: %v", res.PayloadType, msg.ClientMsgID, time.Since(startTime))
+		if res.PayloadType == PayloadErrorRes {
+			var errPayload struct {
+				ErrorCode   string `json:"errorCode"`
+				Description string `json:"description"`
+			}
+			json.Unmarshal(res.Payload, &errPayload)
+			return nil, fmt.Errorf("cTrader Error: %s (%s)", errPayload.ErrorCode, errPayload.Description)
+		}
 		return res, nil
 	case <-time.After(30 * time.Second):
 		log.Printf("[cTrader Manager Communication] TIMEOUT for Request %s (Type %d) after 30s", msg.ClientMsgID, msg.PayloadType)
