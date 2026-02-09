@@ -170,10 +170,10 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		m.mu.Unlock()
 	}()
 
-	if err := sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": cid, "clientSecret": secret}, PayloadAppAuthRes); err != nil {
+	if err := sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": cid, "clientSecret": secret}, PayloadAppAuthRes, accountID); err != nil {
 		return err
 	}
-	if err := sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": ctid, "accessToken": token}, PayloadAccountAuthRes); err != nil {
+	if err := sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": ctid, "accessToken": token}, PayloadAccountAuthRes, accountID); err != nil {
 		return err
 	}
 
@@ -185,7 +185,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 	}
 
 	// Pre-fetch ALL symbols (Light) to guarantee we have names
-	symListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": ctid})
+	symListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": ctid}, accountID)
 	if err == nil {
 		var p struct {
 			Symbols []struct {
@@ -216,7 +216,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 
 		// If we miss details (LotSize), fetch detailed info
 		log.Printf("[cTrader Manager] Fetching details for SymbolID: %d", sid)
-		resp, err := sendRequest(conn, PayloadSymbolByIdReq, map[string]interface{}{"ctidTraderAccountId": ctid, "symbolId": []int64{sid}})
+		resp, err := sendRequest(conn, PayloadSymbolByIdReq, map[string]interface{}{"ctidTraderAccountId": ctid, "symbolId": []int64{sid}}, accountID)
 		if err != nil {
 			log.Printf("[cTrader Manager] ERROR fetching symbol %d: %v", sid, err)
 			return nameIfFound
@@ -256,7 +256,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		return name
 	}
 
-	posResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": ctid})
+	posResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": ctid}, accountID)
 	if err == nil {
 		var p struct {
 			Position []struct {
@@ -364,12 +364,12 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 				"ctidTraderAccountId":      ctid,
 				"symbolId":                 ids,
 				"subscribeToSpotTimestamp": true,
-			})
+			}, accountID)
 			// Try Depth as well
 			sendRequest(conn, 2156, map[string]interface{}{
 				"ctidTraderAccountId": ctid,
 				"symbolId":            ids,
-			})
+			}, accountID)
 			if subErr != nil {
 				log.Printf("[cTrader Manager] Subscription FAILED: %v", subErr)
 			} else {
@@ -413,7 +413,11 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 								return
 							}
 
+<<<<<<< HEAD
 							newSeriesStr := fetchPnLSeries(ac, currentConn, accID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
+=======
+							newSeriesStr := fetchPnLSeries(ac, currentConn, ac.CTID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits, accountID)
+>>>>>>> f29a226 (feat: add account ID to cTrader communication logs for better traceability)
 							if newSeriesStr != "" {
 								m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 							}
@@ -865,27 +869,30 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 		ac.WaitMu.Unlock()
 	}()
 
-	log.Printf("[cTrader Manager Communication] SENDING Type: %d, ID: %s", msg.PayloadType, msg.ClientMsgID)
+	log.Printf("[cTrader Manager Communication] Acc: %d, SENDING Type: %d, ID: %s", ac.AccountID, msg.PayloadType, msg.ClientMsgID)
 
 	if err := ac.WriteJSON(msg); err != nil {
-		log.Printf("[cTrader Manager Communication] SEND ERROR Type: %d, ID: %s, Error: %v", msg.PayloadType, msg.ClientMsgID, err)
+		log.Printf("[cTrader Manager Communication] Acc: %d, SEND ERROR Type: %d, ID: %s, Error: %v", ac.AccountID, msg.PayloadType, msg.ClientMsgID, err)
 		return nil, err
 	}
 
 	select {
 	case res := <-resChan:
-		log.Printf("[cTrader Manager Communication] RECEIVED Type: %d (for Request %s), Took: %v", res.PayloadType, msg.ClientMsgID, time.Since(startTime))
 		if res.PayloadType == PayloadErrorRes {
 			var errPayload struct {
 				ErrorCode   string `json:"errorCode"`
 				Description string `json:"description"`
 			}
 			json.Unmarshal(res.Payload, &errPayload)
+			duration := time.Since(startTime)
+			log.Printf("[cTrader Communication] Acc: %d, RESPONSE ERROR Type: %d (for Request %s), Took: %v, Error: %s (%s)", ac.AccountID, res.PayloadType, msg.ClientMsgID, duration, errPayload.ErrorCode, errPayload.Description)
 			return nil, fmt.Errorf("cTrader Error: %s (%s)", errPayload.ErrorCode, errPayload.Description)
 		}
+		duration := time.Since(startTime)
+		log.Printf("[cTrader Manager Communication] Acc: %d, RECEIVED Type: %d (for Request %s), Took: %v", ac.AccountID, res.PayloadType, msg.ClientMsgID, duration)
 		return res, nil
 	case <-time.After(30 * time.Second):
-		log.Printf("[cTrader Manager Communication] TIMEOUT for Request %s (Type %d) after 30s", msg.ClientMsgID, msg.PayloadType)
+		log.Printf("[cTrader Manager Communication] Acc: %d, TIMEOUT for Request %s (Type %d) after 30s", ac.AccountID, msg.ClientMsgID, msg.PayloadType)
 		return nil, fmt.Errorf("request timeout (managed)")
 	}
 }
@@ -906,7 +913,7 @@ func (m *Manager) triggerSyncForTrade(accID int64, tStr string, ent float64, sta
 			digits = d.(int)
 		}
 
-		newSeriesStr := fetchPnLSeries(ac, ac.Conn, accID, sid, symbol, startMilli, endMilli, ent, v, sInt, digits)
+		newSeriesStr := fetchPnLSeries(ac, ac.Conn, ac.CTID, sid, symbol, startMilli, endMilli, ent, v, sInt, digits, accID)
 		if newSeriesStr != "" {
 			m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 		}
@@ -1365,7 +1372,7 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 			if d, ok := m.symbolDigitsMap.Load(symbolID); ok {
 				digits = d.(int)
 			}
-			newSeriesStr := fetchPnLSeries(ac, ac.Conn, ctid, symbolID, symbol, startMilli, endMilli, entryPrice, vol, sInt, digits)
+			newSeriesStr := fetchPnLSeries(ac, ac.Conn, ctid, symbolID, symbol, startMilli, endMilli, entryPrice, vol, sInt, digits, accID)
 			if newSeriesStr != "" {
 				m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, ticket)
 			}

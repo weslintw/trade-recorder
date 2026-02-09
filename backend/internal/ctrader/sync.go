@@ -141,12 +141,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	// 1. Auth sequence
 	db.Exec("UPDATE accounts SET sync_status = 'authenticating...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
-	if err = sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": clientID, "clientSecret": clientSecret}, PayloadAppAuthRes); err != nil {
+	if err = sendAndVerify(conn, PayloadAppAuthReq, map[string]string{"clientId": clientID, "clientSecret": clientSecret}, PayloadAppAuthRes, accountID); err != nil {
 		return err
 	}
 	db.Exec("UPDATE accounts SET sync_status = 'auth application success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
-	if err = sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": cTID, "accessToken": token}, PayloadAccountAuthRes); err != nil {
+	if err = sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": cTID, "accessToken": token}, PayloadAccountAuthRes, accountID); err != nil {
 		return err
 	}
 	db.Exec("UPDATE accounts SET sync_status = 'auth account success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
@@ -156,7 +156,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 	// 1a. Pre-fetch currently open positions to avoid deleting them during migration
 	openPositionsMap := make(map[int64]bool)
-	pRespPre, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID})
+	pRespPre, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID}, accountID)
 	if err == nil {
 		var pr struct {
 			Position []struct {
@@ -175,7 +175,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	// Populate symbol names
 	db.Exec("UPDATE accounts SET sync_status = 'fetching symbol list...', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
-	sListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": cTID})
+	sListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": cTID}, accountID)
 	if err == nil {
 		var p struct {
 			Symbol []struct {
@@ -203,7 +203,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
-		resp, err := sendRequest(conn, PayloadSymbolByIdReq, map[string]interface{}{"ctidTraderAccountId": cTID, "symbolId": needed})
+		resp, err := sendRequest(conn, PayloadSymbolByIdReq, map[string]interface{}{"ctidTraderAccountId": cTID, "symbolId": needed}, accountID)
 		if err == nil {
 			var p struct {
 				Symbol []struct {
@@ -262,7 +262,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		time.Sleep(300 * time.Millisecond)
 
 		// Fetch Deals
-		dResp, dErr := sendRequest(conn, PayloadDealListReq, map[string]interface{}{"ctidTraderAccountId": cTID, "fromTimestamp": from, "toTimestamp": to})
+		dResp, dErr := sendRequest(conn, PayloadDealListReq, map[string]interface{}{"ctidTraderAccountId": cTID, "fromTimestamp": from, "toTimestamp": to}, accountID)
 		if dErr == nil {
 			var p struct {
 				Deal []dealInfo `json:"deal"`
@@ -277,7 +277,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 		// Fetch Orders (Bulk fetch to avoid hundreds of individual calls)
 		time.Sleep(200 * time.Millisecond)
-		oResp, oErr := sendRequest(conn, PayloadOrderListReq, map[string]interface{}{"ctidTraderAccountId": cTID, "fromTimestamp": from, "toTimestamp": to})
+		oResp, oErr := sendRequest(conn, PayloadOrderListReq, map[string]interface{}{"ctidTraderAccountId": cTID, "fromTimestamp": from, "toTimestamp": to}, accountID)
 		if oErr == nil {
 			var p struct {
 				Order []orderInfo `json:"order"`
@@ -447,7 +447,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 		odResp, odErr := sendRequest(conn, PayloadOrderDetailsReq, map[string]interface{}{
 			"ctidTraderAccountId": cTID,
 			"orderId":             openingOrderID,
-		})
+		}, accountID)
 		if odErr == nil {
 			var od struct {
 				Order struct {
@@ -530,7 +530,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 				"positionId":          pid,
 				"fromTimestamp":       entryTime - 25*3600000,
 				"toTimestamp":         exitTime + 7200000,
-			})
+			}, accountID)
 			if olErr == nil {
 				var op struct {
 					Order []struct {
@@ -650,7 +650,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 
 					digits := getDigits(symbol)
-					pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, digits)
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, digits, accountID)
 
 					if pnlSeries != "" || betterSL {
 						db.Exec(`UPDATE trades SET 
@@ -695,7 +695,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			if d.TradeSide == 1 {
 				posSide = 2 // Sell/Short (Closing Buy means original was Short)
 			}
-			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2)
+			pnlSeries := fetchPnLSeries(nil, conn, cTID, d.SymbolID, symbol, entryTime, d.ExecutionTimestamp, d.ClosePositionDetail.EntryPrice, d.Volume, posSide, 2, accountID)
 
 			// Check for existing open position record to migrate context/images/tags
 			posTicket := fmt.Sprintf("ctrader-pos-%d", d.PositionID)
@@ -772,7 +772,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	// RECONCILIATION logic instead of blind delete
 	currentOpenTickets := make(map[string]bool)
 
-	pResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID})
+	pResp, err := sendRequest(conn, PayloadReconcileReq, map[string]interface{}{"ctidTraderAccountId": cTID}, accountID)
 	if err == nil {
 		var p struct {
 			Position []struct {
@@ -839,7 +839,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					"positionId":          pos.PositionID,
 					"fromTimestamp":       pos.TradeData.OpenTimestamp - 24*3600000,
 					"toTimestamp":         time.Now().UnixMilli() + 3600000,
-				})
+				}, accountID)
 				if olErr == nil {
 					var op struct {
 						Order []struct {
@@ -994,7 +994,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 
 					log.Printf("[cTrader Sync] Repairing ancient PnL for trade %d (%s)", t.ID, t.Ticket)
-					pnlSeries := fetchPnLSeries(nil, conn, cTID, sid, t.Symbol, t.EntryTime.UnixMilli(), t.ExitTime.Time.UnixMilli(), t.EntryPrice, rawVolume, posSide, getDigits(t.Symbol))
+					pnlSeries := fetchPnLSeries(nil, conn, cTID, sid, t.Symbol, t.EntryTime.UnixMilli(), t.ExitTime.Time.UnixMilli(), t.EntryPrice, rawVolume, posSide, getDigits(t.Symbol), accountID)
 					if pnlSeries != "" {
 						db.Exec("UPDATE trades SET pnl_series = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", pnlSeries, t.ID)
 						time.Sleep(50 * time.Millisecond) // Throttle repairs
@@ -1008,7 +1008,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	return nil
 }
 
-func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) (*CTraderMessage, error) {
+func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}, accountID int64) (*CTraderMessage, error) {
 	if conn == nil {
 		return nil, fmt.Errorf("websocket connection is nil")
 	}
@@ -1017,10 +1017,10 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 	payloadJSON, _ := json.Marshal(payload)
 	msg := CTraderMessage{ClientMsgID: clientMsgID, PayloadType: payloadType, Payload: payloadJSON}
 
-	log.Printf("[cTrader Communication] SENDING Type: %d, ID: %s, Payload: %s", payloadType, clientMsgID, string(payloadJSON))
+	log.Printf("[cTrader Communication] Acc: %d, SENDING Type: %d, ID: %s, Payload: %s", accountID, payloadType, clientMsgID, string(payloadJSON))
 
 	if err := conn.WriteJSON(msg); err != nil {
-		log.Printf("[cTrader Communication] SEND ERROR Type: %d, ID: %s, Error: %v", payloadType, clientMsgID, err)
+		log.Printf("[cTrader Communication] Acc: %d, SEND ERROR Type: %d, ID: %s, Error: %v", accountID, payloadType, clientMsgID, err)
 		return nil, err
 	}
 
@@ -1028,12 +1028,12 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 	for {
 		_, raw, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[cTrader Communication] READ ERROR for Request ID %s (Type %d): %v", clientMsgID, payloadType, err)
+			log.Printf("[cTrader Communication] Acc: %d, READ ERROR for Request ID %s (Type %d): %v", accountID, clientMsgID, payloadType, err)
 			return nil, err
 		}
 		var resp CTraderMessage
 		if err := json.Unmarshal(raw, &resp); err != nil {
-			log.Printf("[cTrader Communication] UNMARSHAL ERROR: %v, Raw: %s", err, string(raw))
+			log.Printf("[cTrader Communication] Acc: %d, UNMARSHAL ERROR: %v, Raw: %s", accountID, err, string(raw))
 			continue
 		}
 		if resp.PayloadType == PayloadHeartbeatEvent {
@@ -1043,8 +1043,13 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 		duration := time.Since(startTime)
 
 		if resp.PayloadType == PayloadErrorRes {
-			log.Printf("[cTrader Communication] RESPONSE ERROR Type: %d (for Request %d), ID: %s, Took: %v, Error: %s", resp.PayloadType, payloadType, resp.ClientMsgID, duration, string(resp.Payload))
-			return nil, fmt.Errorf("cTrader Error: %s", string(resp.Payload))
+			var errPayload struct {
+				ErrorCode   string `json:"errorCode"`
+				Description string `json:"description"`
+			}
+			json.Unmarshal(resp.Payload, &errPayload)
+			log.Printf("[cTrader Communication] Acc: %d, RESPONSE ERROR Type: %d (for Request %d), ID: %s, Took: %v, Error: %s (%s)", accountID, resp.PayloadType, payloadType, resp.ClientMsgID, duration, errPayload.ErrorCode, errPayload.Description)
+			return nil, fmt.Errorf("cTrader Error: %s (%s)", errPayload.ErrorCode, errPayload.Description)
 		}
 
 		match := resp.ClientMsgID == clientMsgID ||
@@ -1054,7 +1059,7 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 			(resp.PayloadType == PayloadOrderListByPositionIdRes && payloadType == PayloadOrderListByPositionIdReq)
 
 		if match {
-			log.Printf("[cTrader Communication] RECEIVED Type: %d (for Request %d), ID: %s, Took: %v, Payload Size: %d", resp.PayloadType, payloadType, resp.ClientMsgID, duration, len(resp.Payload))
+			log.Printf("[cTrader Communication] Acc: %d, RECEIVED Type: %d (for Request %d), ID: %s, Took: %v, Payload Size: %d", accountID, resp.PayloadType, payloadType, resp.ClientMsgID, duration, len(resp.Payload))
 			return &resp, nil
 		} else {
 			// This might be an unsolicited event (ExecutionEvent, SpotEvent, etc.)
@@ -1064,8 +1069,8 @@ func sendRequest(conn *websocket.Conn, payloadType uint32, payload interface{}) 
 	}
 }
 
-func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}, expected uint32) error {
-	resp, err := sendRequest(conn, payloadType, payload)
+func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}, expected uint32, accountID int64) error {
+	resp, err := sendRequest(conn, payloadType, payload, accountID)
 	if err != nil {
 		return err
 	}
@@ -1075,7 +1080,7 @@ func sendAndVerify(conn *websocket.Conn, payloadType uint32, payload interface{}
 	return nil
 }
 
-func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId int64, symbol string, from, to int64, entryPrice float64, volume int64, side int, digits int) string {
+func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId int64, symbol string, from, to int64, entryPrice float64, volume int64, side int, digits int, accountID int64) string {
 	duration := to - from
 	if duration <= 0 {
 		return ""
@@ -1117,7 +1122,7 @@ func fetchPnLSeries(ac *AccountConn, conn *websocket.Conn, ctid int64, symbolId 
 			"toTimestamp":         to,
 			"period":              period,
 			"symbolId":            symbolId,
-		})
+		}, accountID)
 	}
 
 	if err != nil {
@@ -1239,7 +1244,7 @@ func GetAccountListByToken(clientID, clientSecret, accessToken string) ([]struct
 		if err := sendAndVerify(conn, PayloadAppAuthReq, map[string]string{
 			"clientId":     clientID,
 			"clientSecret": clientSecret,
-		}, PayloadAppAuthRes); err != nil {
+		}, PayloadAppAuthRes, 0); err != nil {
 			lastErr = err
 			continue
 		}
@@ -1247,7 +1252,7 @@ func GetAccountListByToken(clientID, clientSecret, accessToken string) ([]struct
 		// 2. Request Account List
 		resp, err := sendRequest(conn, PayloadAccountListByTokenReq, map[string]string{
 			"accessToken": accessToken,
-		})
+		}, 0)
 		if err != nil {
 			lastErr = err
 			continue
