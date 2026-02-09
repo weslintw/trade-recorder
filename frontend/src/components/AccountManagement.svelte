@@ -305,6 +305,7 @@
               <span class="badge badge-utc"
                 >UTC{acc.timezone_offset >= 0 ? '+' : ''}{acc.timezone_offset}</span
               >
+              <span class="badge badge-id">System ID: {acc.id}</span>
             </div>
             <div class="storage-usage-info">
               <span class="icon">📊</span> 圖片占用：<strong>{formatBytes(acc.storage_usage)}</strong
@@ -557,6 +558,12 @@
     background: #f3f4f6;
     color: #4b5563;
     border: 1px solid #e5e7eb;
+  }
+ 
+  .badge-id {
+    background: #fdf2f8;
+    color: #db2777;
+    border: 1px solid #fbcfe8;
   }
 
   .mt5-detail,

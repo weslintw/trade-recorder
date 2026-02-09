@@ -26,6 +26,8 @@ type Manager struct {
 
 type AccountConn struct {
 	AccountID        int64
+	UserID           int64
+	Username         string
 	CTID             int64
 	Conn             *websocket.Conn
 	StopChan         chan struct{}
@@ -62,17 +64,25 @@ func (m *Manager) run() {
 }
 
 func (m *Manager) reconcileConnections() {
-	rows, err := m.db.Query("SELECT id, ctrader_account_id, ctrader_token, ctrader_client_id, ctrader_client_secret, ctrader_env, sync_status FROM accounts WHERE type = 'ctrader' AND ctrader_token != ''")
+	query := `
+		SELECT a.id, a.user_id, COALESCE(u.username, 'Unknown'), a.ctrader_account_id, a.ctrader_token, a.ctrader_client_id, a.ctrader_client_secret, a.ctrader_env, a.sync_status 
+		FROM accounts a
+		LEFT JOIN users u ON a.user_id = u.id
+		WHERE a.type = 'ctrader' AND a.ctrader_token != ''
+	`
+	rows, err := m.db.Query(query)
 	if err != nil {
+		log.Printf("[cTrader Reconcile] Error querying accounts: %v", err)
 		return
 	}
 	defer rows.Close()
 
 	activeIDs := make(map[int64]bool)
 	for rows.Next() {
-		var id int64
-		var ctid, token, cid, secret, env, status string
-		if rows.Scan(&id, &ctid, &token, &cid, &secret, &env, &status) != nil {
+		var id, userID int64
+		var username, ctid, token, cid, secret, env, status string
+		if err := rows.Scan(&id, &userID, &username, &ctid, &token, &cid, &secret, &env, &status); err != nil {
+			log.Printf("[cTrader Reconcile] Error scanning row: %v", err)
 			continue
 		}
 
@@ -84,8 +94,8 @@ func (m *Manager) reconcileConnections() {
 		if !exists {
 			// 如果沒有連線，且狀態不是正在同步中，則可以啟動監聽器
 			if status == "" || status == "success" || status == "failed" {
-				log.Printf("[cTrader Reconcile] Starting listener for Account %d", id)
-				m.startListener(id, ctid, token, cid, secret, env)
+				log.Printf("[cTrader Reconcile] Starting listener for Account %d (User: %s)", id, username)
+				m.startListener(id, userID, username, ctid, token, cid, secret, env)
 			}
 		} else {
 			// 如果連線已存在，則檢查 Token 是否有變動 (不論狀態為何)
@@ -93,15 +103,16 @@ func (m *Manager) reconcileConnections() {
 			oldToken := ac.Token
 			ac.Mu.RUnlock()
 			if oldToken != token {
-				log.Printf("[cTrader Reconcile] Token changed for Account %d, restarting listener with new token", id)
+				log.Printf("[cTrader Reconcile] Token changed for Account %d (User: %s), restarting listener with new token", id, username)
 				m.StopListener(id)
-				m.startListener(id, ctid, token, cid, secret, env)
+				m.startListener(id, userID, username, ctid, token, cid, secret, env)
 			}
 		}
 	}
 	m.mu.Lock()
 	for id, conn := range m.connections {
 		if !activeIDs[id] {
+			log.Printf("[cTrader Reconcile] Stopping listener for inactive Account %d", id)
 			close(conn.StopChan)
 			delete(m.connections, id)
 		}
@@ -109,11 +120,15 @@ func (m *Manager) reconcileConnections() {
 	m.mu.Unlock()
 }
 
-func (m *Manager) startListener(accountID int64, ctid, token, cid, secret, env string) {
+func (m *Manager) startListener(accountID, userID int64, username, ctid, token, cid, secret, env string) {
 	stopChan := make(chan struct{})
+	ctidInt, _ := strconv.ParseInt(ctid, 10, 64)
 	m.mu.Lock()
 	m.connections[accountID] = &AccountConn{
 		AccountID:        accountID,
+		UserID:           userID,
+		Username:         username,
+		CTID:             ctidInt,
 		StopChan:         stopChan,
 		Waiters:          make(map[string]chan *CTraderMessage),
 		SymbolMap:        make(map[int64]string),
@@ -121,10 +136,10 @@ func (m *Manager) startListener(accountID int64, ctid, token, cid, secret, env s
 		Token:            token,
 	}
 	m.mu.Unlock()
-	go m.listenerLoop(accountID, ctid, token, cid, secret, env, stopChan)
+	go m.listenerLoop(accountID, userID, username, ctid, token, cid, secret, env, stopChan)
 }
 
-func (m *Manager) listenerLoop(accountID int64, ctid, token, cid, secret, env string, stopChan chan struct{}) {
+func (m *Manager) listenerLoop(accountID, userID int64, username, ctid, token, cid, secret, env string, stopChan chan struct{}) {
 	for {
 		select {
 		case <-stopChan:
@@ -183,6 +198,8 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 	if ac == nil {
 		return fmt.Errorf("account connection lost")
 	}
+
+	log.Printf("[cTrader Manager] User: %s (Acc: %d), Connected and Authenticated", ac.Username, accountID)
 
 	// Pre-fetch ALL symbols (Light) to guarantee we have names
 	symListResp, err := sendRequest(conn, PayloadSymbolsListReq, map[string]interface{}{"ctidTraderAccountId": ctid}, accountID)
@@ -413,11 +430,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 								return
 							}
 
-<<<<<<< HEAD
-							newSeriesStr := fetchPnLSeries(ac, currentConn, accID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits)
-=======
 							newSeriesStr := fetchPnLSeries(ac, currentConn, ac.CTID, sid, symbolName, etMilli, time.Now().UnixMilli(), ent, vol, sideInt, digits, accountID)
->>>>>>> f29a226 (feat: add account ID to cTrader communication logs for better traceability)
 							if newSeriesStr != "" {
 								m.db.Exec("UPDATE trades SET pnl_series = ? WHERE ticket = ?", newSeriesStr, tStr)
 							}
@@ -444,7 +457,7 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
-				log.Printf("[cTrader Manager] Read error for Account %d: %v", accountID, err)
+				log.Printf("[cTrader Manager] User: %s (Acc: %d), Read error: %v", ac.Username, accountID, err)
 				errChan <- err
 				return
 			}
@@ -869,10 +882,10 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 		ac.WaitMu.Unlock()
 	}()
 
-	log.Printf("[cTrader Manager Communication] Acc: %d, SENDING Type: %d, ID: %s", ac.AccountID, msg.PayloadType, msg.ClientMsgID)
+	log.Printf("[cTrader Manager Communication] User: %s (Acc: %d), SENDING Type: %d, ID: %s", ac.Username, ac.AccountID, msg.PayloadType, msg.ClientMsgID)
 
 	if err := ac.WriteJSON(msg); err != nil {
-		log.Printf("[cTrader Manager Communication] Acc: %d, SEND ERROR Type: %d, ID: %s, Error: %v", ac.AccountID, msg.PayloadType, msg.ClientMsgID, err)
+		log.Printf("[cTrader Manager Communication] User: %s (Acc: %d), SEND ERROR Type: %d, ID: %s, Error: %v", ac.Username, ac.AccountID, msg.PayloadType, msg.ClientMsgID, err)
 		return nil, err
 	}
 
@@ -885,14 +898,14 @@ func (ac *AccountConn) SendRequest(msg CTraderMessage) (*CTraderMessage, error) 
 			}
 			json.Unmarshal(res.Payload, &errPayload)
 			duration := time.Since(startTime)
-			log.Printf("[cTrader Communication] Acc: %d, RESPONSE ERROR Type: %d (for Request %s), Took: %v, Error: %s (%s)", ac.AccountID, res.PayloadType, msg.ClientMsgID, duration, errPayload.ErrorCode, errPayload.Description)
+			log.Printf("[cTrader Communication] User: %s (Acc: %d), RESPONSE ERROR Type: %d (for Request %s), Took: %v, Error: %s (%s)", ac.Username, ac.AccountID, res.PayloadType, msg.ClientMsgID, duration, errPayload.ErrorCode, errPayload.Description)
 			return nil, fmt.Errorf("cTrader Error: %s (%s)", errPayload.ErrorCode, errPayload.Description)
 		}
 		duration := time.Since(startTime)
-		log.Printf("[cTrader Manager Communication] Acc: %d, RECEIVED Type: %d (for Request %s), Took: %v", ac.AccountID, res.PayloadType, msg.ClientMsgID, duration)
+		log.Printf("[cTrader Manager Communication] User: %s (Acc: %d), RECEIVED Type: %d (for Request %s), Took: %v", ac.Username, ac.AccountID, res.PayloadType, msg.ClientMsgID, duration)
 		return res, nil
 	case <-time.After(30 * time.Second):
-		log.Printf("[cTrader Manager Communication] Acc: %d, TIMEOUT for Request %s (Type %d) after 30s", ac.AccountID, msg.ClientMsgID, msg.PayloadType)
+		log.Printf("[cTrader Manager Communication] User: %s (Acc: %d), TIMEOUT for Request %s (Type %d) after 30s", ac.Username, ac.AccountID, msg.ClientMsgID, msg.PayloadType)
 		return nil, fmt.Errorf("request timeout (managed)")
 	}
 }
@@ -1008,8 +1021,6 @@ func (m *Manager) GetSymbolDigits(symbolID int64) (int, error) {
 }
 
 func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
-	log.Printf("[cTrader Manager] Manual sync requested for %s (Acc: %d)", ticket, accID)
-
 	m.mu.RLock()
 	ac, ok := m.connections[accID]
 	m.mu.RUnlock()
@@ -1017,6 +1028,8 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 		log.Printf("[cTrader Manager] Manual sync failed: connection not found for acc %d", accID)
 		return
 	}
+
+	log.Printf("[cTrader Manager] User: %s (Acc: %d), Manual sync requested for %s", ac.Username, accID, ticket)
 
 	// 1. Get Account Info (ctid)
 	var ctidStr string
