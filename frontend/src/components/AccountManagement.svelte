@@ -234,6 +234,7 @@
   {:else}
     <div class="account-grid">
       {#each $accounts as acc}
+        <div
           class="account-card card"
           class:ctrader={acc.type === 'ctrader'}
           class:expired={acc.sync_status === 'expired'}
