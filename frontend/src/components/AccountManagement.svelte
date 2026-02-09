@@ -234,9 +234,9 @@
   {:else}
     <div class="account-grid">
       {#each $accounts as acc}
-        <div
           class="account-card card"
           class:ctrader={acc.type === 'ctrader'}
+          class:expired={acc.sync_status === 'expired'}
           on:click={() => selectAccount(acc.id)}
           role="button"
           tabindex="0"
@@ -348,6 +348,15 @@
                 </div>
                 {#if acc.sync_status === 'failed' && acc.last_sync_error}
                   <div class="sync-error-msg">❌ {acc.last_sync_error}</div>
+                {/if}
+                {#if acc.sync_status === 'expired'}
+                  <div class="expired-warning">
+                    <span class="warn-icon">⚠️</span>
+                    <div class="warn-text">
+                      <strong>連線已過期</strong>
+                      <p>Token 已失效，請點擊「帳號設定」重新授權</p>
+                    </div>
+                  </div>
                 {/if}
               </div>
             {/if}
@@ -717,6 +726,51 @@
     padding: 0.5rem;
     border-radius: 4px;
     border: 1px solid #fee2e2;
+  }
+
+  .sync-badge.expired {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+
+  .expired-warning {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 8px;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    animation: shake 0.5s ease-in-out;
+  }
+
+  .account-card.expired {
+    border: 2px solid #ef4444 !important;
+    background: linear-gradient(to bottom right, #ffffff, #fff5f5);
+  }
+
+  .warn-icon {
+    font-size: 1.5rem;
+  }
+
+  .warn-text strong {
+    display: block;
+    color: #991b1b;
+    font-size: 0.9rem;
+  }
+
+  .warn-text p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #b91c1c;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
   }
 
   @keyframes pulse {

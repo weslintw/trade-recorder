@@ -189,6 +189,13 @@ func (m *Manager) connectAndListen(accountID int64, ctidStr, token, cid, secret,
 		return err
 	}
 	if err := sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": ctid, "accessToken": token}, PayloadAccountAuthRes, accountID); err != nil {
+		if strings.Contains(err.Error(), "CH_ACCESS_TOKEN_INVALID") {
+			log.Printf("[cTrader Manager] CRITICAL: Token expired for Account %d. Stopping listener and marking as expired.", accountID)
+			m.db.Exec("UPDATE accounts SET sync_status = 'expired', last_sync_error = ? WHERE id = ?", "Token expired, please re-authenticate", accountID)
+			// Returning nil or a specific error doesn't stop the loop unless we close StopChan
+			m.StopListener(accountID)
+			return err
+		}
 		return err
 	}
 

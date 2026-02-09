@@ -147,6 +147,9 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	db.Exec("UPDATE accounts SET sync_status = 'auth application success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
 	time.Sleep(500 * time.Millisecond)
 	if err = sendAndVerify(conn, PayloadAccountAuthReq, map[string]interface{}{"ctidTraderAccountId": cTID, "accessToken": token}, PayloadAccountAuthRes, accountID); err != nil {
+		if strings.Contains(err.Error(), "CH_ACCESS_TOKEN_INVALID") {
+			db.Exec("UPDATE accounts SET sync_status = 'expired', last_sync_error = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", "Token expired, please re-authenticate", accountID)
+		}
 		return err
 	}
 	db.Exec("UPDATE accounts SET sync_status = 'auth account success', updated_at = CURRENT_TIMESTAMP WHERE id = ?", accountID)
