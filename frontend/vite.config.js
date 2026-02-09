@@ -9,7 +9,9 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: true,
-    chunkSizeWarningLimit: 2048
+    chunkSizeWarningLimit: 2048,
+    minify: false,
+    sourcemap: false
   },
   server: {
     host: '0.0.0.0',
