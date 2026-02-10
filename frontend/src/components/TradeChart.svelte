@@ -1516,6 +1516,8 @@
         crosshairMarkerVisible: false,
       });
 
+      if (!lineData.p1 || !lineData.p2) continue;
+      
       const data = [
         { time: lineData.p1.time, value: lineData.p1.price },
         { time: lineData.p2.time, value: lineData.p2.price },
@@ -1653,6 +1655,8 @@
     // 檢查是否點擊在已選中的線條上
     if (selectedLineIndex !== null) {
       const line = drawnLines[selectedLineIndex];
+      if (!line || !line.p1 || !line.p2) return;
+      
       const p1Y = candlestickSeries.priceToCoordinate(line.p1.price);
       const p1X = chart.timeScale().timeToCoordinate(line.p1.time);
       const p2Y = candlestickSeries.priceToCoordinate(line.p2.price);

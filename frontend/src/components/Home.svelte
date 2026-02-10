@@ -294,6 +294,7 @@
 
     for (let i = 0; i < allTrades.length; i++) {
       const t = allTrades[i];
+      if (!t) continue;
       if (t.color_tag === 'green') stats.green++;
       else if (t.color_tag === 'yellow') stats.yellow++;
       else if (t.color_tag === 'red') stats.red++;
@@ -439,7 +440,9 @@
 
         const filteredGroupedTrades = day.groupedTrades
           .map(group => {
+            if (!group || !Array.isArray(group.trades)) return null;
             const filteredTrades = group.trades.filter(trade => {
+              if (!trade) return false;
               // TP/SL Filter
               if (exitFilter === 'tp') {
                 if (!(trade.pnl > 0)) return false;
@@ -494,15 +497,15 @@
               }
             });
 
-            if (filteredTrades.length === 0) return null;
+            if (!filteredTrades || filteredTrades.length === 0) return null;
 
             return {
               ...group,
               trades: filteredTrades,
               summary: {
                 ...group.summary,
-                totalPnl: filteredTrades.reduce((sum, t) => sum + (t.pnl || 0), 0),
-                totalLot: filteredTrades.reduce((sum, t) => sum + (t.lot_size || 0), 0),
+                totalPnl: filteredTrades.reduce((sum, t) => sum + (t?.pnl || 0), 0),
+                totalLot: filteredTrades.reduce((sum, t) => sum + (t?.lot_size || 0), 0),
               },
             };
           })
@@ -883,6 +886,7 @@
                     const bgSeenTickets = new Set();
                     const bgUniqueTrades = [];
                     trades.forEach(t => {
+                      if (!t) return;
                       if (t.ticket && bgSeenTickets.has(t.ticket)) return;
                       if (t.ticket) bgSeenTickets.add(t.ticket);
                       bgUniqueTrades.push(t);
@@ -892,6 +896,7 @@
                     bgDateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
                     plans.forEach(plan => {
+                      if (!plan) return;
                       plan.trendData = parseJSONSafe(plan.trend_analysis, {});
                       if (!plan.plan_date) return;
                       try {
@@ -905,7 +910,7 @@
                     });
 
                     bgUniqueTrades.forEach(trade => {
-                      if (!trade.entry_time) return;
+                      if (!trade || !trade.entry_time) return;
                       try {
                         const d = new Date(trade.entry_time);
                         if (isNaN(d.getTime())) return;
@@ -1018,6 +1023,7 @@
       const seenTickets = new Set();
       const uniqueTrades = [];
       trades.forEach(t => {
+        if (!t) return;
         if (t.ticket && seenTickets.has(t.ticket)) return;
         if (t.ticket) seenTickets.add(t.ticket);
         uniqueTrades.push(t);
@@ -1029,6 +1035,7 @@
       dateMap[todayString] = { date: todayString, plans: [], groupedTrades: [] };
 
       plans.forEach(plan => {
+        if (!plan) return;
         plan.trendData = parseJSONSafe(plan.trend_analysis, {});
         if (!plan.plan_date) return;
         try {
@@ -1041,7 +1048,7 @@
       });
 
       uniqueTrades.forEach(trade => {
-        if (!trade.entry_time) return;
+        if (!trade || !trade.entry_time) return;
         try {
           const d = new Date(trade.entry_time);
           if (isNaN(d.getTime())) return;
@@ -1243,9 +1250,12 @@
 
     // 遍歷所有日期組下的交易群組
     groupedData.forEach(day => {
+      if (!day || !Array.isArray(day.groupedTrades)) return;
       day.groupedTrades.forEach(group => {
+        if (!group || !Array.isArray(group.trades)) return;
         let groupUpdated = false;
         group.trades.forEach(trade => {
+          if (!trade) return;
           // 只針對未平倉位 (無平倉價格或平倉時間)
           if (!trade.exit_price && !trade.exit_time && trade.symbol) {
             const updateInfo = prices[trade.ticket] || prices[trade.symbol];
@@ -1424,7 +1434,7 @@
   });
 
   onDestroy(() => {
-    console.log('=== onDestroy: Cleaning up ===');
+    console.log('--- onDestroy: Cleaning up ---');
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
