@@ -105,9 +105,14 @@
   let configApplied = false;
   let saveTimer = null;
 
+  let lastLoadedTradeId = null;
   $: if (tradeId || (mode === 'plan' && (accountId || symbol))) {
-    configApplied = false; // Reset when trade changes
-    if (chart) loadData();
+    const currentId = mode === 'trade' ? tradeId : `${accountId}_${symbol}`;
+    if (currentId !== lastLoadedTradeId) {
+      configApplied = false; 
+      lastLoadedTradeId = currentId;
+      if (chart) loadData();
+    }
   }
 
   let lastAppliedLinesStr = '';
@@ -222,8 +227,6 @@
         { threshold: 0.1 }
       );
       observer.observe(chartContainer);
-    } else {
-      loadData();
     }
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -379,12 +382,19 @@
 
       for (let i = 0; i < data.trendbar.length; i++) {
         const bar = data.trendbar[i];
+        // 增加安全檢查，確保 bar 分鐘數據存在，若無則依序嘗試 seconds 或直接 skip
+        const minutes = bar.utcTimestampInMinutes;
+        if (typeof minutes !== 'number') {
+          console.warn('[Chart] Missing utcTimestampInMinutes for bar', i, bar);
+          continue;
+        }
+        
         chartData.push({
-          time: bar.utcTimestampInMinutes * 60 + TZ_OFFSET,
-          open: (bar.low + bar.deltaOpen) / scale,
-          high: (bar.low + bar.deltaHigh) / scale,
+          time: minutes * 60 + TZ_OFFSET,
+          open: (bar.low + (bar.deltaOpen || 0)) / scale,
+          high: (bar.low + (bar.deltaHigh || 0)) / scale,
           low: bar.low / scale,
-          close: (bar.low + bar.deltaClose) / scale,
+          close: (bar.low + (bar.deltaClose || 0)) / scale,
         });
       }
 
@@ -414,6 +424,7 @@
       }
 
       if (candlestickSeries) {
+        console.log(`[Chart] Setting candlestick data: ${uniqueData.length} bars`);
         candlestickSeries.setData(uniqueData);
         lastKnownData = uniqueData;
       }
@@ -540,7 +551,7 @@
             const config = configToApply;
             let applied = false;
 
-            if (config.range) {
+            if (config.range && typeof config.range.from === 'number' && typeof config.range.to === 'number') {
               console.log('[Chart] Applying saved time range:', config.range);
               chart.timeScale().setVisibleLogicalRange(config.range);
               applied = true;
@@ -1570,11 +1581,11 @@
         loadData();
       }
 
-      if (config.range) {
+      if (config.range && typeof config.range.from === 'number' && typeof config.range.to === 'number') {
         chart.timeScale().setVisibleLogicalRange(config.range);
       }
 
-      if (config.priceRange) {
+      if (config.priceRange && typeof config.priceRange.from === 'number') {
         const priceScale = chart.priceScale('right');
         if (config.autoScale === false) {
           priceScale.applyOptions({ autoScale: false });
@@ -1586,6 +1597,15 @@
     } catch (e) {
       console.error('[Chart] Failed to apply config:', e);
     }
+  }
+
+  function resetView() {
+    if (!chart || !candlestickSeries) return;
+    chart.timeScale().fitContent();
+    chart.priceScale('right').applyOptions({ autoScale: true });
+    // 清除已應用的標記，強制下一次 loadData 使用預設聚焦
+    configApplied = false;
+    debounceSaveConfig();
   }
 
   function getEffectivePoint(param) {
@@ -2093,6 +2113,29 @@
               />
             </svg>
           </span>
+        </button>
+
+        <button
+          type="button"
+          class="tool-button reset-button"
+          on:click={resetView}
+          title="重設視圖 (回到數據中心)"
+        >
+          <span class="icon"
+            ><svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
+                d="M3 3v5h5"
+              /></svg
+            ></span
+          >
         </button>
       </div>
     {:else}
