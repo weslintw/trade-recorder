@@ -220,9 +220,12 @@
       }
     }
 
-    initChart();
-    console.log('[Chart] Chart initialized in onMount, triggering initial data load');
-    loadData();
+    // Use requestAnimationFrame to ensure container has dimensions
+    requestAnimationFrame(() => {
+      initChart();
+      console.log('[Chart] Chart initialized in onMount, triggering initial data load');
+      loadData();
+    });
 
     if (lazy && 'IntersectionObserver' in window) {
       const observer = new IntersectionObserver(
@@ -375,17 +378,24 @@
 
     function handleResize() {
       if (chart && chartContainer) {
-        chart.applyOptions({ 
-          width: chartContainer.clientWidth,
-          height: chartContainer.clientHeight || 450
-        });
+        const width = chartContainer.clientWidth;
+        const height = chartContainer.clientHeight || 500;
+        if (width > 0 && height > 0) {
+          chart.resize(width, height);
+        }
       }
     }
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    resizeObserver.observe(chartContainer);
 
     window.addEventListener('resize', handleResize);
 
     return function () {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
     };
   }
 
@@ -496,6 +506,9 @@
         console.log(`[Chart] #${currentSeq} Setting data: ${uniqueData.length} bars`);
         candlestickSeries.setData(uniqueData);
         lastKnownData = uniqueData;
+        
+        // Force a resize after data is set to match container
+        requestAnimationFrame(() => handleResize());
       }
 
       // Time Extension
@@ -1630,10 +1643,19 @@
       console.warn('[Chart] Reset view failed: Chart or Series not ready');
       return;
     }
-    chart.timeScale().fitContent();
-    chart.priceScale('right').applyOptions({ autoScale: true });
+    
     // 清除已應用的標記，強制下一次 loadData 使用預設聚焦
     configApplied = false;
+    
+    // 強制重設
+    chart.priceScale('right').applyOptions({ autoScale: true });
+    chart.timeScale().fitContent();
+    
+    // 如果有數據，手動執行一次預設聚焦邏輯
+    if (lastKnownData.length > 0) {
+       loadData();
+    }
+    
     debounceSaveConfig();
     console.log('[Chart] View reset complete');
   }
