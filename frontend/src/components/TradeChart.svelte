@@ -356,19 +356,19 @@
 
     if (chart && typeof chart.addCandlestickSeries === 'function') {
       candlestickSeries = chart.addCandlestickSeries({
-        upColor: '#22c55e',
-        downColor: '#ef4444',
+        upColor: '#ef4444',
+        downColor: '#ffffff',
         borderVisible: false,
-        wickUpColor: '#22c55e',
-        wickDownColor: '#ef4444',
+        wickUpColor: '#ef4444',
+        wickDownColor: '#ffffff',
       });
     } else if (chart && typeof chart.addSeries === 'function') {
       candlestickSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#22c55e',
-        downColor: '#ef4444',
+        upColor: '#ef4444',
+        downColor: '#ffffff',
         borderVisible: false,
-        wickUpColor: '#22c55e',
-        wickDownColor: '#ef4444',
+        wickUpColor: '#ef4444',
+        wickDownColor: '#ffffff',
       });
     }
     
