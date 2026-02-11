@@ -2,9 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import {
     createChart,
-    CandlestickSeries,
-    LineSeries,
-    createSeriesMarkers,
+    ColorType,
   } from 'lightweight-charts';
   import { tradesAPI, sharesAPI, dailyPlansAPI } from '../lib/api';
   import { TIMEFRAMES } from '../lib/constants';
@@ -268,7 +266,7 @@
 
     chart = createChart(chartContainer, {
       layout: {
-        background: { color: '#0f172a' },
+        background: { type: ColorType.Solid, color: '#0f172a' },
         textColor: '#94a3b8',
       },
       grid: {
@@ -295,7 +293,7 @@
       },
     });
 
-    timeExtensionSeries = chart.addSeries(LineSeries, {
+    timeExtensionSeries = chart.addLineSeries({
       color: 'rgba(0, 0, 0, 0)',
       lastValueVisible: false,
       priceLineVisible: false,
@@ -333,7 +331,7 @@
       }
     });
 
-    candlestickSeries = chart.addSeries(CandlestickSeries, {
+    candlestickSeries = chart.addCandlestickSeries({
       upColor: '#22c55e',
       downColor: '#ef4444',
       borderVisible: false,
@@ -343,7 +341,10 @@
 
     function handleResize() {
       if (chart && chartContainer) {
-        chart.applyOptions({ width: chartContainer.clientWidth });
+        chart.applyOptions({ 
+          width: chartContainer.clientWidth,
+          height: chartContainer.clientHeight || 450
+        });
       }
     }
 
@@ -507,7 +508,7 @@
         }
 
         markers.sort((a, b) => a.time - b.time);
-        if (candlestickSeries) createSeriesMarkers(candlestickSeries, markers);
+        if (candlestickSeries) candlestickSeries.setMarkers(markers);
 
         // View Focus
         let entryIdx = -1;
