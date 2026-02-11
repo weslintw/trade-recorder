@@ -5,6 +5,7 @@
     ColorType,
     LineSeries,
     CandlestickSeries,
+    createSeriesMarkers,
   } from 'lightweight-charts';
   import { tradesAPI, sharesAPI, dailyPlansAPI } from '../lib/api';
   import { TIMEFRAMES } from '../lib/constants';
@@ -267,11 +268,12 @@
     if (!chartContainer) return;
 
     console.log('[Chart] Creating chart...');
-    chart = createChart(chartContainer, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#0f172a' },
-        textColor: '#94a3b8',
-      },
+    try {
+      chart = createChart(chartContainer, {
+        layout: {
+          background: { type: ColorType?.Solid || 'solid', color: '#0f172a' },
+          textColor: '#94a3b8',
+        },
       grid: {
         vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
         horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
@@ -294,38 +296,48 @@
       crosshair: {
         mode: 0,
       },
-    });
+      });
+    } catch (ie) {
+      console.error('[Chart] Failed during createChart:', ie);
+    }
+    console.log('[Chart] Chart instance created. Keys:', chart ? Object.keys(chart) : 'null');
 
-    console.log('[Chart] Chart created, adding series...');
-    if (typeof chart.addLineSeries !== 'function') {
-      console.warn('[Chart] addLineSeries missing, checking chart object:', chart);
+    if (chart && typeof chart.addLineSeries === 'function') {
+      timeExtensionSeries = chart.addLineSeries({
+        color: 'rgba(0, 0, 0, 0)',
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      });
+    } else if (chart && typeof chart.addSeries === 'function') {
+      timeExtensionSeries = chart.addSeries(LineSeries, {
+        color: 'rgba(0, 0, 0, 0)',
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false,
+      });
     }
 
-    timeExtensionSeries = chart.addSeries(LineSeries, {
-      color: 'rgba(0, 0, 0, 0)',
-      lastValueVisible: false,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-    });
+    if (chart) {
+      chart.timeScale().subscribeVisibleLogicalRangeChange(function () {
+        updateControlPoints();
+        debounceSaveConfig();
+      });
+      chart.timeScale().subscribeVisibleTimeRangeChange(function () {
+        // Update arrows/fib on zoom/scroll to maintain arrowhead shape and size
+        for (let i = 0; i < drawnLines.length; i++) {
+          const line = drawnLines[i];
+          if (line.type === 'arrow') updateLineWings(line);
+          if (line.type === 'fib') updateFibLevels(line);
+        }
+        // Update labels positioning
+        updateControlPoints();
+        syncFibLabels();
+      });
 
-    chart.timeScale().subscribeVisibleLogicalRangeChange(function () {
-      updateControlPoints();
-      debounceSaveConfig();
-    });
-    chart.timeScale().subscribeVisibleTimeRangeChange(function () {
-      // Update arrows/fib on zoom/scroll to maintain arrowhead shape and size
-      for (let i = 0; i < drawnLines.length; i++) {
-        const line = drawnLines[i];
-        if (line.type === 'arrow') updateLineWings(line);
-        if (line.type === 'fib') updateFibLevels(line);
-      }
-      // Update labels positioning
-      updateControlPoints();
-      syncFibLabels();
-    });
-
-    chart.subscribeClick(handleChartClick);
-    chart.subscribeCrosshairMove(handleCrosshairMove);
+      chart.subscribeClick(handleChartClick);
+      chart.subscribeCrosshairMove(handleCrosshairMove);
+    }
 
     // 添加mousedown事件以支援按住拖曳
     chartContainer.addEventListener('mousedown', function (e) {
@@ -339,13 +351,27 @@
       }
     });
 
-    candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
-    });
+    if (chart && typeof chart.addCandlestickSeries === 'function') {
+      candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+      });
+    } else if (chart && typeof chart.addSeries === 'function') {
+      candlestickSeries = chart.addSeries(CandlestickSeries, {
+        upColor: '#22c55e',
+        downColor: '#ef4444',
+        borderVisible: false,
+        wickUpColor: '#22c55e',
+        wickDownColor: '#ef4444',
+      });
+    }
+    
+    if (candlestickSeries) {
+      console.log('[Chart] Candlestick series created. Keys:', Object.keys(candlestickSeries));
+    }
 
     function handleResize() {
       if (chart && chartContainer) {
@@ -516,7 +542,19 @@
         }
 
         markers.sort((a, b) => a.time - b.time);
-        if (candlestickSeries) candlestickSeries.setMarkers(markers);
+        if (candlestickSeries) {
+          try {
+            if (typeof candlestickSeries.setMarkers === 'function') {
+              candlestickSeries.setMarkers(markers);
+            } else if (typeof createSeriesMarkers === 'function') {
+              createSeriesMarkers(candlestickSeries, markers);
+            } else {
+              console.warn('[Chart] No method found to set markers');
+            }
+          } catch (me) {
+            console.error('[Chart] Error setting markers:', me);
+          }
+        }
 
         // View Focus
         let entryIdx = -1;
