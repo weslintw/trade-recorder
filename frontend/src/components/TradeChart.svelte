@@ -3,6 +3,8 @@
   import {
     createChart,
     ColorType,
+    LineSeries,
+    CandlestickSeries,
   } from 'lightweight-charts';
   import { tradesAPI, sharesAPI, dailyPlansAPI } from '../lib/api';
   import { TIMEFRAMES } from '../lib/constants';
@@ -264,6 +266,7 @@
   function initChart() {
     if (!chartContainer) return;
 
+    console.log('[Chart] Creating chart...');
     chart = createChart(chartContainer, {
       layout: {
         background: { type: ColorType.Solid, color: '#0f172a' },
@@ -293,7 +296,12 @@
       },
     });
 
-    timeExtensionSeries = chart.addLineSeries({
+    console.log('[Chart] Chart created, adding series...');
+    if (typeof chart.addLineSeries !== 'function') {
+      console.warn('[Chart] addLineSeries missing, checking chart object:', chart);
+    }
+
+    timeExtensionSeries = chart.addSeries(LineSeries, {
       color: 'rgba(0, 0, 0, 0)',
       lastValueVisible: false,
       priceLineVisible: false,
@@ -331,7 +339,7 @@
       }
     });
 
-    candlestickSeries = chart.addCandlestickSeries({
+    candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#22c55e',
       downColor: '#ef4444',
       borderVisible: false,
