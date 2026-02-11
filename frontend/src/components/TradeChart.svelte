@@ -218,6 +218,8 @@
     }
 
     initChart();
+    console.log('[Chart] Chart initialized in onMount, triggering initial data load');
+    loadData();
 
     if (lazy && 'IntersectionObserver' in window) {
       const observer = new IntersectionObserver(
@@ -245,7 +247,9 @@
         cancelAnimationFrame(rafId);
       }
       if (chart) {
+        console.log('[Chart] Destroying chart instance');
         chart.remove();
+        chart = null;
       }
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
