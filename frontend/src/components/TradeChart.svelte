@@ -63,6 +63,15 @@
     { level: 0.786, color: '#06b6d4', label: '0.786' },
     { level: 1, color: '#94a3b8', label: '1' },
   ];
+  
+  //時區偏移 (秒)，用於將 UTC 轉為瀏覽器本地時間
+  const TZ_OFFSET = (new Date().getTimezoneOffset() * -60);
+  const getTZLabel = () => {
+    const offset = -new Date().getTimezoneOffset();
+    const hours = Math.floor(Math.abs(offset) / 60);
+    return `UTC${offset >= 0 ? '+' : '-'}${hours} (Local)`;
+  };
+  console.log('[Chart] Timezone offset:', TZ_OFFSET, 'seconds');
   let fibPreviewLines = [];
   let fibLabels = []; // { x, y, text, color }
   let cp1 = { x: -1000, y: -1000 };
@@ -472,7 +481,7 @@
         }
         
         chartData.push({
-          time: minutes * 60, // Remove TZ_OFFSET
+          time: (bar.utcTimestampInMinutes * 60) + TZ_OFFSET,
           open: (bar.low + (bar.deltaOpen || 0)) / scale,
           high: (bar.low + (bar.deltaHigh || 0)) / scale,
           low: bar.low / scale,
@@ -531,8 +540,8 @@
       // Markers
       if (trade && uniqueData.length > 0) {
         const markers = [];
-        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000);
-        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) : null;
+        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
+        const exitTs = trade.exit_time ? (Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET) : null;
 
         if (!isNaN(entryTs)) {
           markers.push({
@@ -1488,9 +1497,9 @@
     try {
       const linesData = drawnLines.map(function (line) {
         return {
-          p1: { time: line.p1.time, price: line.p1.price },
-          p2: { time: line.p2.time, price: line.p2.price },
-          p3: line.p3 ? { time: line.p3.time, price: line.p3.price } : null,
+          p1: { time: line.p1.time - TZ_OFFSET, price: line.p1.price },
+          p2: { time: line.p2.time - TZ_OFFSET, price: line.p2.price },
+          p3: line.p3 ? { time: line.p3.time - TZ_OFFSET, price: line.p3.price } : null,
           type: line.type || 'trendline',
           color: line.color,
           lineWidth: line.lineWidth,
@@ -1555,8 +1564,8 @@
       if (!lineData.p1 || !lineData.p2) continue;
       
       const data = [
-        { time: lineData.p1.time, value: lineData.p1.price },
-        { time: lineData.p2.time, value: lineData.p2.price },
+        { time: lineData.p1.time + TZ_OFFSET, value: lineData.p1.price },
+        { time: lineData.p2.time + TZ_OFFSET, value: lineData.p2.price },
       ];
       data.sort(function (a, b) {
         return a.time - b.time;
@@ -1565,9 +1574,9 @@
 
       const lineObj = {
         series: series,
-        p1: lineData.p1,
-        p2: lineData.p2,
-        p3: lineData.p3,
+        p1: { time: lineData.p1.time + TZ_OFFSET, price: lineData.p1.price },
+        p2: { time: lineData.p2.time + TZ_OFFSET, price: lineData.p2.price },
+        p3: lineData.p3 ? { time: lineData.p3.time + TZ_OFFSET, price: lineData.p3.price } : null,
         type: type,
         color: lineData.color || '#f59e0b',
         lineWidth: lineData.lineWidth || 2,
@@ -1883,7 +1892,7 @@
     <div class="tags-group">
       <span class="symbol-tag">{trade?.symbol || ''}</span>
       <span class="timeframe-tag">{timeframe}</span>
-      <span class="timezone-tag">時區: UTC+8 (Local)</span>
+      <span class="timezone-tag">時區: {getTZLabel()}</span>
 
       <select class="period-select" bind:value={selectedPeriod} on:change={handlePeriodChange}>
         {#each periods as p}
