@@ -544,19 +544,22 @@
         markers.sort((a, b) => a.time - b.time);
         if (candlestickSeries) {
           try {
-            if (typeof candlestickSeries.setMarkers === 'function') {
-              candlestickSeries.setMarkers(markers);
+            // 極度防禦：檢查所有可能的標記設置方法
+            const s = candlestickSeries;
+            if (typeof s.setMarkers === 'function') {
+              s.setMarkers(markers);
             } else if (typeof createSeriesMarkers === 'function') {
-              createSeriesMarkers(candlestickSeries, markers);
+              createSeriesMarkers(s, markers);
             } else {
-              console.warn('[Chart] No method found to set markers');
+              console.warn('[Chart] Could not find a valid method to set markers, skipping.');
             }
           } catch (me) {
             console.error('[Chart] Error setting markers:', me);
           }
         }
 
-        // View Focus
+        // View Focus Logic
+        console.log(`[Chart] #${currentSeq} Calculating focus for ${uniqueData.length} bars`);
         let entryIdx = -1;
         for (let i = 0; i < uniqueData.length; i++) {
           if (Math.abs(uniqueData[i].time - entryTs) < 300) {
@@ -1587,6 +1590,13 @@
     let applied = false;
     try {
       console.log('[Chart] Applying saved config:', config);
+      
+      // 檢查 saved config 是否合理 (防止價格區間跳掉)
+      if (config.priceRange && (config.priceRange.from <= 0 || config.priceRange.to <= 0)) {
+        console.warn('[Chart] Ignoring invalid saved price range:', config.priceRange);
+        return false;
+      }
+
       if (config.period && config.period !== selectedPeriod) {
         selectedPeriod = config.period;
         loadData();
