@@ -44,6 +44,8 @@
   let drawnLines = []; // Array of { series, p1: {time, price}, p2: {time, price}, p3: {time, price}, color, lineWidth }
   let isFullscreen = false;
   let chartWrapper;
+  let abortController = null;
+  let loadingSeq = 0;
 
   // Interactive drawing states
   let previewLine = null;
@@ -109,6 +111,7 @@
   $: if (tradeId || (mode === 'plan' && (accountId || symbol))) {
     const currentId = mode === 'trade' ? tradeId : `${accountId}_${symbol}`;
     if (currentId !== lastLoadedTradeId) {
+      console.log(`[Chart] Trade ID changed to ${currentId}, reloading...`);
       configApplied = false; 
       lastLoadedTradeId = currentId;
       if (chart) loadData();
@@ -235,6 +238,9 @@
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     window.addEventListener('keydown', handleKeydown);
     return function () {
+      if (abortController) {
+        abortController.abort();
+      }
       if (rafId) {
         cancelAnimationFrame(rafId);
       }
@@ -345,10 +351,19 @@
   async function loadData() {
     if (mode === 'trade' && !tradeId) return;
     if (mode === 'plan' && (!accountId || !symbol)) return;
+    if (!chart) return;
+
+    // Concurrency guard and Abort previous request
+    if (abortController) {
+      abortController.abort();
+    }
+    abortController = new AbortController();
+    const currentSeq = ++loadingSeq;
 
     try {
       loading = true;
       error = null;
+      console.log(`[Chart] #${currentSeq} Starting loadData for ${mode} ${tradeId || symbol}`);
 
       let res;
       if (mode === 'plan') {
@@ -358,34 +373,46 @@
           period: selectedPeriod,
           date: planDate,
           session: planSession,
-        });
+        }, abortController.signal);
       } else if (useSharedAPI && shareToken) {
-        res = await sharesAPI.getChartData(shareToken, tradeId, selectedPeriod);
+        res = await sharesAPI.getChartData(shareToken, tradeId, selectedPeriod, abortController.signal);
       } else {
-        res = await tradesAPI.getChartData(tradeId, selectedPeriod);
+        res = await tradesAPI.getChartData(tradeId, selectedPeriod, abortController.signal);
       }
 
-      const resData = res.data;
-      const data = resData.data;
-      const digits = resData.digits || 2;
-      timeframe = resData.timeframe || '';
-
-      if (!data || !data.trendbar || data.trendbar.length === 0) {
-        error = '無法獲取 K 線數據 (數據可能已過期或伺服器暫時無法連接)';
+      // Check if this is still the latest request
+      if (currentSeq !== loadingSeq) {
+        console.log(`[Chart] #${currentSeq} Discarding obsolete request result`);
         return;
       }
 
-      // cTrader 價格數據在 protobuf 中統一縮放 10^5
+      const resData = res.data;
+      if (!resData) throw new Error('API returned no data');
+
+      const data = resData.data;
+      const digits = resData.digits || 2;
+      timeframe = resData.timeframe || '';
+      console.log(`[Chart] #${currentSeq} Received data, timeframe: ${timeframe}, digits: ${digits}`);
+
+      if (!data || !data.trendbar || data.trendbar.length === 0) {
+        console.warn(`[Chart] #${currentSeq} No trendbar data`);
+        error = '無法獲獲 K 線數據 (數據可能已過期或該時段無交易)';
+        // 清空現有資料
+        if (candlestickSeries) candlestickSeries.setData([]);
+        return;
+      }
+
+      // cTrader Price Scale
       const scale = 100000;
       const chartData = [];
-      const TZ_OFFSET = 8 * 3600; // UTC+8 偏移 (秒)
+      const TZ_OFFSET = 8 * 3600;
 
       for (let i = 0; i < data.trendbar.length; i++) {
         const bar = data.trendbar[i];
-        // 增加安全檢查，確保 bar 分鐘數據存在，若無則依序嘗試 seconds 或直接 skip
         const minutes = bar.utcTimestampInMinutes;
-        if (typeof minutes !== 'number') {
-          console.warn('[Chart] Missing utcTimestampInMinutes for bar', i, bar);
+        
+        if (typeof minutes !== 'number' || !isFinite(minutes)) {
+          console.warn(`[Chart] Invalid timestamp at index ${i}`, bar);
           continue;
         }
         
@@ -398,7 +425,7 @@
         });
       }
 
-      // 設置價格精細度
+      // Apply price format options
       if (candlestickSeries) {
         candlestickSeries.applyOptions({
           priceFormat: {
@@ -409,14 +436,11 @@
         });
       }
 
-      // 排序並過濾重複時間點
-      chartData.sort(function (a, b) {
-        return a.time - b.time;
-      });
+      // Sort and Deduplicate
+      chartData.sort((a, b) => a.time - b.time);
       const uniqueData = [];
       let lastTime = 0;
-      for (let j = 0; j < chartData.length; j++) {
-        const d = chartData[j];
+      for (const d of chartData) {
         if (d.time > lastTime) {
           uniqueData.push(d);
           lastTime = d.time;
@@ -424,25 +448,20 @@
       }
 
       if (candlestickSeries) {
-        console.log(`[Chart] Setting candlestick data: ${uniqueData.length} bars`);
+        console.log(`[Chart] #${currentSeq} Setting data: ${uniqueData.length} bars`);
         candlestickSeries.setData(uniqueData);
         lastKnownData = uniqueData;
       }
 
-      // 延伸時間軸：添加未來 100 根 K 棒作為 whitespace（只在數據真正改變時更新）
+      // Time Extension
       if (timeExtensionSeries && uniqueData.length > 0) {
         const lastBar = uniqueData[uniqueData.length - 1];
-
-        // 只有當最後一根 K 線的時間改變時才更新延伸
         if (lastBar.time !== lastExtensionTime) {
           let interval = 300;
           if (uniqueData.length >= 2) {
-            interval =
-              uniqueData[uniqueData.length - 1].time - uniqueData[uniqueData.length - 2].time;
+            interval = uniqueData[uniqueData.length - 1].time - uniqueData[uniqueData.length - 2].time;
           }
-          const extensionData = [];
-          // 保留最後一根有進去，以便連接
-          extensionData.push({ time: lastBar.time, value: lastBar.close });
+          const extensionData = [{ time: lastBar.time, value: lastBar.close }];
           for (let k = 1; k <= 100; k++) {
             extensionData.push({ time: lastBar.time + k * interval });
           }
@@ -451,177 +470,95 @@
         }
       }
 
-      // 設置標註 (Markers)
-      const markers = [];
+      // Markers
       if (trade) {
+        const markers = [];
         const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
-        const exitTs = trade.exit_time
-          ? Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET
-          : null;
+        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET : null;
 
-        // 修正：確保標記的價格也符合縮放
-        markers.push({
-          time: entryTs,
-          position: 'belowBar', // 始終放在下方避免擋到 K 線
-          color: trade.side === 'long' ? '#10b981' : '#ef4444',
-          shape: trade.side === 'long' ? 'arrowUp' : 'arrowDown',
-          text: 'Entry @ ' + trade.entry_price,
-        });
+        if (!isNaN(entryTs)) {
+          markers.push({
+            time: entryTs,
+            position: 'belowBar',
+            color: trade.side === 'long' ? '#10b981' : '#ef4444',
+            shape: trade.side === 'long' ? 'arrowUp' : 'arrowDown',
+            text: 'Entry @ ' + trade.entry_price,
+          });
+        }
 
-        if (exitTs) {
+        if (exitTs && !isNaN(exitTs)) {
           markers.push({
             time: exitTs,
-            position: 'aboveBar', // 始終放在上方
+            position: 'aboveBar',
             color: '#3b82f6',
             shape: 'balloon',
             text: 'Exit @ ' + trade.exit_price,
           });
         }
+
+        markers.sort((a, b) => a.time - b.time);
+        if (candlestickSeries) createSeriesMarkers(candlestickSeries, markers);
       }
 
-      markers.sort(function (a, b) {
-        return a.time - b.time;
-      });
-      createSeriesMarkers(candlestickSeries, markers);
-
-      // 視野管理：智慧聚焦交易區間
+      // View Focus
       if (trade && uniqueData.length > 0) {
         const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
-
-        // 尋找進場點的索引
-        let entryIdx = -1;
-        // 先嘗試精確匹配 (誤差 5 分鐘內)
-        for (let i = 0; i < uniqueData.length; i++) {
-          if (Math.abs(uniqueData[i].time - entryTs) < 300) {
-            entryIdx = i;
-            break;
-          }
-        }
-
-        // 如果找不到，找最接近的
+        let entryIdx = uniqueData.findIndex(d => Math.abs(d.time - entryTs) < 300);
         if (entryIdx === -1) {
           let minDiff = Infinity;
-          for (let i = 0; i < uniqueData.length; i++) {
-            const diff = Math.abs(uniqueData[i].time - entryTs);
-            if (diff < minDiff) {
-              minDiff = diff;
-              entryIdx = i;
-            }
-          }
+          uniqueData.forEach((d, idx) => {
+            const diff = Math.abs(d.time - entryTs);
+            if (diff < minDiff) { minDiff = diff; entryIdx = idx; }
+          });
         }
 
-        // 設定視野終點：如果有出場，則以出場為準；如果沒有，以最新數據為準
         let exitIdx = uniqueData.length - 1;
         if (trade.exit_time) {
           const exitTs = Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET;
-          let foundExit = -1;
-          for (let i = 0; i < uniqueData.length; i++) {
-            if (Math.abs(uniqueData[i].time - exitTs) < 300) {
-              foundExit = i;
-              break;
-            }
-          }
-          if (foundExit !== -1) {
-            exitIdx = foundExit;
-          } else {
-            // 同樣找最接近的
-            let minDiff = Infinity;
-            for (let i = 0; i < uniqueData.length; i++) {
-              const diff = Math.abs(uniqueData[i].time - exitTs);
-              if (diff < minDiff) {
-                minDiff = diff;
-                exitIdx = i;
-              }
-            }
-          }
+          let foundExit = uniqueData.findIndex(d => Math.abs(d.time - exitTs) < 300);
+          if (foundExit !== -1) exitIdx = foundExit;
         }
 
-        // Apply chart config range if available
-        let configToApply = null;
-        if (mode === 'trade' && trade && trade.chart_config) {
-          try {
-            configToApply = JSON.parse(trade.chart_config);
-          } catch (e) {}
-        } else if (mode === 'plan' && initialConfig) {
-          configToApply = initialConfig;
-        }
+        const configToApply = mode === 'trade' ? (parseJSONSafe(trade.chart_config, null)) : initialConfig;
 
         if (configToApply && !configApplied) {
-          try {
-            const config = configToApply;
-            let applied = false;
-
-            if (config.range && typeof config.range.from === 'number' && typeof config.range.to === 'number') {
-              console.log('[Chart] Applying saved time range:', config.range);
-              chart.timeScale().setVisibleLogicalRange(config.range);
-              applied = true;
-            }
-
-            if (config.priceRange) {
-              console.log('[Chart] Applying saved price range:', config.priceRange);
-              const priceScale = chart.priceScale('right');
-
-              if (config.autoScale === false) {
-                priceScale.applyOptions({ autoScale: false });
-                priceScale.setVisibleRange(config.priceRange);
-              } else {
-                priceScale.applyOptions({ autoScale: true });
-              }
-              applied = true;
-            }
-
-            if (applied) {
-              configApplied = true;
-            } else {
-              applyDefaultFocus();
-            }
-          } catch (e) {
-            console.error('[Chart] Failed to apply config range:', e);
-            applyDefaultFocus();
-          }
+          applyChartConfig(configToApply);
+          configApplied = true;
         } else if (!configApplied) {
-          applyDefaultFocus();
-        }
-
-        function applyDefaultFocus() {
-          // 計算顯示範圍
-          // 右側留白：如果是進行中交易留多一點(30)，歷史交易留少一點(15)
           const rightOffset = 150;
-
-          // 最小顯示根數，確保視野不會縮太小
           const minVisibleBars = 400;
-
           let to = exitIdx + rightOffset;
-          let from = entryIdx - 30; // 左側預設留白 30 根
+          let from = Math.max(0, entryIdx - 30);
+          if (to - from < minVisibleBars) from = Math.max(0, to - minVisibleBars);
 
-          // 如果區間太小，向左擴展以滿足最小顯示根數
-          if (to - from < minVisibleBars) {
-            from = to - minVisibleBars;
-          }
-
-          chart.timeScale().setVisibleLogicalRange({
-            from: from,
-            to: to,
-          });
+          chart.timeScale().setVisibleLogicalRange({ from, to });
         }
-      } else {
-        // 無交易數據時的 Fallback：顯示最後 100 根
+      } else if (uniqueData.length > 0) {
         const totalLen = uniqueData.length;
-        chart.timeScale().setVisibleLogicalRange({
-          from: totalLen - 400,
-          to: totalLen + 200,
-        });
+        chart.timeScale().setVisibleLogicalRange({ from: totalLen - 400, to: totalLen + 200 });
       }
+
     } catch (e) {
-      console.error('[Chart Error]', e);
-      let errorMsg = e.message;
-      if (e.response && e.response.data && e.response.data.error) {
-        errorMsg = e.response.data.error;
+      if (e.name === 'AbortError') {
+        console.log(`[Chart] #${currentSeq} Request aborted`);
+        return; // Don't hide loading yet if another one is coming
       }
-      error = '載入失敗: ' + errorMsg;
+      console.error(`[Chart] #${currentSeq} Error:`, e);
+      error = '載入失敗: ' + (e.response?.data?.error || e.message);
     } finally {
-      loading = false;
-      loadTrendlines();
+      if (currentSeq === loadingSeq) {
+        loading = false;
+        console.log(`[Chart] #${currentSeq} Finished loading`);
+        loadTrendlines();
+      }
+    }
+  }
+
+  function parseJSONSafe(str, fallback) {
+    try {
+      return str ? JSON.parse(str) : fallback;
+    } catch (e) {
+      return fallback;
     }
   }
 
