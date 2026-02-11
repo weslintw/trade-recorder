@@ -737,7 +737,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			insertSQL := `INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
 				journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag,
 				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, trendlines)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 			res, err := tx.Exec(insertSQL,
 				accountID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, vol, pnl, time.UnixMilli(entryTime), time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, ticket, initialSL, exitSL, bullet, rr, string(slHistoryJSON), pnlSeries,

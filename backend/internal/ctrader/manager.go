@@ -1292,19 +1292,19 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 							var journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, notes sql.NullString
 							var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages sql.NullString
 							var preservedSL sql.NullFloat64
-							var preservedSeries sql.NullString
+							var preservedSeries, preservedSLHistory, preservedTrendlines sql.NullString
 
 							m.db.QueryRow(`SELECT id, journal, entry_reason, entry_strategy, 
 								entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, 
 								trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
 								legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images,
-								initial_sl, pnl_series
+								initial_sl, pnl_series, sl_history, trendlines
 								FROM trades WHERE ticket = ? AND account_id = ?`, ticket, accID).Scan(
 								&tradeID, &journal, &entryReason, &entryStrategy,
 								&entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern,
 								&trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &notes,
 								&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages,
-								&preservedSL, &preservedSeries)
+								&preservedSL, &preservedSeries, &preservedSLHistory, &preservedTrendlines)
 
 							finalNotes := notes.String
 							if finalNotes == "cTrader Push: Initial Sync" || finalNotes == "cTrader Push: Open Position" || finalNotes == "cTrader Sync: Recovered Closed Position" {
@@ -1333,9 +1333,9 @@ func (m *Manager) ManualSyncTrade(accID int64, ticket string) {
 							var exists int
 							m.db.QueryRow("SELECT 1 FROM trades WHERE ticket = ? AND account_id = ?", dealTicket, accID).Scan(&exists)
 							if exists == 0 {
-								res, ierr := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images)
-									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-									accID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, dealVol, dealPnl, entryTime, time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, dealTicket, preservedSL, d.ExecutionPrice, bullet, rr, preservedSeries.String, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages)
+								res, ierr := m.db.Exec(`INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, trendlines)
+									VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+									accID, symbol, side, d.ClosePositionDetail.EntryPrice, d.ExecutionPrice, dealVol, dealPnl, entryTime, time.UnixMilli(d.ExecutionTimestamp), "actual", finalNotes, dealTicket, preservedSL, d.ExecutionPrice, bullet, rr, preservedSLHistory, preservedSeries.String, journal, entryReason, entryStrategy, entryStrategyImg, entryStrategyImgOrig, entrySignals, entryChecklist, entryPattern, trendAnalysis, entryTimeframe, trendType, marketSession, colorTag, legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF, legImages, preservedTrendlines)
 
 								if ierr == nil {
 									newID, _ := res.LastInsertId()
