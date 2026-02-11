@@ -108,13 +108,15 @@
   let saveTimer = null;
 
   let lastLoadedTradeId = null;
-  $: if (tradeId || (mode === 'plan' && (accountId || symbol))) {
-    const currentId = mode === 'trade' ? tradeId : `${accountId}_${symbol}`;
-    if (currentId !== lastLoadedTradeId) {
-      console.log(`[Chart] Trade ID changed to ${currentId}, reloading...`);
-      configApplied = false; 
-      lastLoadedTradeId = currentId;
-      if (chart) loadData();
+  $: {
+    if (tradeId || (mode === 'plan' && (accountId && symbol))) {
+      const currentId = mode === 'trade' ? tradeId : `${accountId}_${symbol}`;
+      if (currentId !== lastLoadedTradeId) {
+        console.log(`[Chart] Trade ID changed to ${currentId}, reloading...`);
+        configApplied = false; 
+        lastLoadedTradeId = currentId;
+        if (chart) loadData();
+      }
     }
   }
 
@@ -332,11 +334,11 @@
     });
 
     candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#ef4444',
-      downColor: '#ffffff',
+      upColor: '#22c55e',
+      downColor: '#ef4444',
       borderVisible: false,
-      wickUpColor: '#ef4444',
-      wickDownColor: '#ffffff',
+      wickUpColor: '#22c55e',
+      wickDownColor: '#ef4444',
     });
 
     function handleResize() {
@@ -409,7 +411,11 @@
       // cTrader Price Scale
       const scale = 100000;
       const chartData = [];
-      const TZ_OFFSET = 8 * 3600;
+      
+      if (data.trendbar.length > 0) {
+        const first = data.trendbar[0];
+        console.log(`[Chart] #${currentSeq} Raw Scale Sample: low=${first.low}, deltaClose=${first.deltaClose}`);
+      }
 
       for (let i = 0; i < data.trendbar.length; i++) {
         const bar = data.trendbar[i];
@@ -421,7 +427,7 @@
         }
         
         chartData.push({
-          time: minutes * 60 + TZ_OFFSET,
+          time: minutes * 60, // Remove TZ_OFFSET
           open: (bar.low + (bar.deltaOpen || 0)) / scale,
           high: (bar.low + (bar.deltaHigh || 0)) / scale,
           low: bar.low / scale,
@@ -475,10 +481,10 @@
       }
 
       // Markers
-      if (trade) {
+      if (trade && uniqueData.length > 0) {
         const markers = [];
-        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
-        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET : null;
+        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000);
+        const exitTs = trade.exit_time ? Math.floor(new Date(trade.exit_time).getTime() / 1000) : null;
 
         if (!isNaN(entryTs)) {
           markers.push({
@@ -502,31 +508,44 @@
 
         markers.sort((a, b) => a.time - b.time);
         if (candlestickSeries) createSeriesMarkers(candlestickSeries, markers);
-      }
 
-      // View Focus
-      if (trade && uniqueData.length > 0) {
-        const entryTs = Math.floor(new Date(trade.entry_time).getTime() / 1000) + TZ_OFFSET;
-        let entryIdx = uniqueData.findIndex(d => Math.abs(d.time - entryTs) < 300);
+        // View Focus
+        let entryIdx = -1;
+        for (let i = 0; i < uniqueData.length; i++) {
+          if (Math.abs(uniqueData[i].time - entryTs) < 300) {
+            entryIdx = i;
+            break;
+          }
+        }
+        
         if (entryIdx === -1) {
           let minDiff = Infinity;
-          uniqueData.forEach((d, idx) => {
-            const diff = Math.abs(d.time - entryTs);
-            if (diff < minDiff) { minDiff = diff; entryIdx = idx; }
-          });
+          for (let i = 0; i < uniqueData.length; i++) {
+            const diff = Math.abs(uniqueData[i].time - entryTs);
+            if (diff < minDiff) { minDiff = diff; entryIdx = i; }
+          }
         }
 
         let exitIdx = uniqueData.length - 1;
-        if (trade.exit_time) {
-          const exitTs = Math.floor(new Date(trade.exit_time).getTime() / 1000) + TZ_OFFSET;
-          let foundExit = uniqueData.findIndex(d => Math.abs(d.time - exitTs) < 300);
+        if (trade.exit_time && !isNaN(exitTs)) {
+          let foundExit = -1;
+          for (let i = 0; i < uniqueData.length; i++) {
+            if (Math.abs(uniqueData[i].time - exitTs) < 300) {
+              foundExit = i;
+              break;
+            }
+          }
           if (foundExit !== -1) exitIdx = foundExit;
         }
 
         const configToApply = mode === 'trade' ? (parseJSONSafe(trade.chart_config, null)) : initialConfig;
 
+        let applied = false;
         if (configToApply && !configApplied) {
-          applyChartConfig(configToApply);
+          applied = applyChartConfig(configToApply);
+        }
+        
+        if (applied) {
           configApplied = true;
         } else if (!configApplied) {
           const rightOffset = 150;
@@ -535,7 +554,9 @@
           let from = Math.max(0, entryIdx - 30);
           if (to - from < minVisibleBars) from = Math.max(0, to - minVisibleBars);
 
+          console.log(`[Chart] #${currentSeq} Setting default focus: from=${from}, to=${to}`);
           chart.timeScale().setVisibleLogicalRange({ from, to });
+          configApplied = true;
         }
       } else if (uniqueData.length > 0) {
         const totalLen = uniqueData.length;
@@ -1515,15 +1536,19 @@
   }
 
   function applyChartConfig(config) {
-    if (!chart || !config) return;
+    if (!chart || !config) return false;
+    let applied = false;
     try {
+      console.log('[Chart] Applying saved config:', config);
       if (config.period && config.period !== selectedPeriod) {
         selectedPeriod = config.period;
         loadData();
+        applied = true;
       }
 
       if (config.range && typeof config.range.from === 'number' && typeof config.range.to === 'number') {
         chart.timeScale().setVisibleLogicalRange(config.range);
+        applied = true;
       }
 
       if (config.priceRange && typeof config.priceRange.from === 'number') {
@@ -1534,19 +1559,26 @@
         } else {
           priceScale.applyOptions({ autoScale: true });
         }
+        applied = true;
       }
     } catch (e) {
       console.error('[Chart] Failed to apply config:', e);
     }
+    return applied;
   }
 
   function resetView() {
-    if (!chart || !candlestickSeries) return;
+    console.log('[Chart] Resetting view...');
+    if (!chart || !candlestickSeries) {
+      console.warn('[Chart] Reset view failed: Chart or Series not ready');
+      return;
+    }
     chart.timeScale().fitContent();
     chart.priceScale('right').applyOptions({ autoScale: true });
     // 清除已應用的標記，強制下一次 loadData 使用預設聚焦
     configApplied = false;
     debounceSaveConfig();
+    console.log('[Chart] View reset complete');
   }
 
   function getEffectivePoint(param) {
