@@ -336,39 +336,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 	insertedCount := 0
 	skippedExisting := 0
 	skippedDeleted := 0
-	updateInterval := 25 // 減少 DB 寫入壓力
-
-	// 開始交易：分批處理提高性能並減少鎖定
-	var tx *sql.Tx
-	startTX := func() {
-		if tx == nil {
-			var err error
-			tx, err = db.Begin()
-			if err != nil {
-				log.Printf("[cTrader Sync] Failed to start transaction: %v", err)
-			}
-		}
-	}
-	commitTX := func() {
-		if tx != nil {
-			if err := tx.Commit(); err != nil {
-				log.Printf("[cTrader Sync] Failed to commit transaction: %v", err)
-			}
-			tx = nil
-		}
-	}
-
-	startTX()
+	updateInterval := 10 // 頻繁一點更新狀態，但也讓出鎖
 
 	for pid, deals := range posGroups {
 		count++
 
-		// 每 100 筆資料提交一次交易，避免單個交易過大，也給其他請求喘息空間
-		if count%100 == 0 {
-			commitTX()
-			time.Sleep(100 * time.Millisecond) // 給其他 API 請求留一點空隙
-			startTX()
-		}
+		// === BREATHING SPACE FOR DATABASE ===
+		// Commit at the end of each iteration instead of holding for 100
 
 		// === BREATHING SPACE FOR DATABASE ===
 		// Every batch of positions, sleep briefly to allow other web requests to use the DB
@@ -709,12 +683,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			var legKingHTF, legKingImg, legKingImgOrig, legHTF, legHTFImg, legHTFImgOrig, legDeHTF sql.NullString
 			var oldInitialSL sql.NullFloat64
 
-			// 使用交易事務進行查詢
+			// 在開始事務前先查詢舊資料 (避免在事務中進行過多查詢)
 			targetQuery := `SELECT id, journal, entry_reason, entry_strategy, entry_strategy_image, entry_strategy_image_original, entry_signals, entry_checklist, entry_pattern, trend_analysis, entry_timeframe, trend_type, market_session, color_tag, notes,
 				legend_king_htf, legend_king_image, legend_king_image_original, legend_htf, legend_htf_image, legend_htf_image_original, legend_de_htf, legend_images, initial_sl, trendlines
 				FROM trades WHERE account_id = ? AND (ticket = ? OR ticket = ?)`
 
-			row := tx.QueryRow(targetQuery, accountID, posTicket, legacyTicket)
+			row := db.QueryRow(targetQuery, accountID, posTicket, legacyTicket)
 			row.Scan(
 				&oldTradeID, &journal, &entryReason, &entryStrategy, &entryStrategyImg, &entryStrategyImgOrig, &entrySignals, &entryChecklist, &entryPattern, &trendAnalysis, &entryTimeframe, &trendType, &marketSession, &colorTag, &oldNotes,
 				&legKingHTF, &legKingImg, &legKingImgOrig, &legHTF, &legHTFImg, &legHTFImgOrig, &legDeHTF, &legImages, &oldInitialSL, &trendlines)
@@ -732,6 +706,13 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 			// If we found a manual initial SL in the old record, and our sync didn't find one, use the old one
 			if initialSL == 0 && oldInitialSL.Valid && oldInitialSL.Float64 > 0 {
 				initialSL = oldInitialSL.Float64
+			}
+
+			// 現在所有網路請求都完成了，開啟一個極短的事務進行 DB 寫入
+			tx, err := db.Begin()
+			if err != nil {
+				log.Printf("[cTrader Sync] Failed to start task transaction: %v", err)
+				continue
 			}
 
 			insertSQL := `INSERT INTO trades (account_id, symbol, side, entry_price, exit_price, lot_size, pnl, entry_time, exit_time, trade_type, notes, ticket, initial_sl, exit_sl, bullet_size, rr_ratio, sl_history, pnl_series,
@@ -764,11 +745,12 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 						log.Printf("[cTrader Sync] Position %d is still open, preserving POS record", d.PositionID)
 					}
 				}
+				tx.Commit()
+			} else {
+				tx.Rollback()
 			}
 		}
 	}
-
-	commitTX() // 最後提交一次
 
 	// 4. Open Positions Sync
 	log.Printf("[cTrader Sync] Step 4: Open Positions (Refined - Non-destructive)...")
