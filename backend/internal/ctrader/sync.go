@@ -727,6 +727,7 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 
 			if err != nil {
 				log.Printf("[cTrader Sync] Insert trade failed (TradeID: %d): %v", d.DealID, err)
+				tx.Rollback()
 			} else {
 				insertedCount++
 				newID, _ := res.LastInsertId()
@@ -746,8 +747,6 @@ func internalSync(db *sql.DB, accountID int64, cTraderAccountIDStr string, token
 					}
 				}
 				tx.Commit()
-			} else {
-				tx.Rollback()
 			}
 		}
 	}
