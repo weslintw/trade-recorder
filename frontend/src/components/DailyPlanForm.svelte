@@ -8,7 +8,6 @@
   import PlanSelectionModal from './PlanSelectionModal.svelte';
   import ShareModal from './ShareModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
-  import TradeChart from './TradeChart.svelte';
 
   import { determineMarketSession, toTradingDateString, formatDate } from '../lib/utils';
 
@@ -773,22 +772,6 @@
     european: hasSessionData('european', formData),
     us: hasSessionData('us', formData),
   };
-
-  // 儲存規劃圖表配置
-  function handleChartConfigSave(timeframe, config) {
-    if (!currentTrends[timeframe]) return;
-    currentTrends[timeframe].chart_config = config;
-    // 這裡我們不強制請求後端，交由最後的 handleSubmit 統一儲存，
-    // 但為了讓 Svelte 偵測到深層變動，我們觸發一次參考更新
-    formData = formData;
-  }
-
-  // 儲存規劃趨勢線
-  function handleTrendlinesSave(timeframe, lines) {
-    if (!currentTrends[timeframe]) return;
-    currentTrends[timeframe].trendlines = lines;
-    formData = formData;
-  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -941,23 +924,6 @@
                   on:paste={e => handleTrendImagePaste(e, timeframe)}
                 >
                   <label class="timeframe-label">{timeframe}</label>
-
-                  <!-- cTrader K線圖表 -->
-                  <div class="planning-chart-container">
-                    <TradeChart
-                      mode="plan"
-                      accountId={$selectedAccountId}
-                      symbol={formData.symbol}
-                      planTimeframe={timeframe}
-                      planDate={formData.plan_date ? formData.plan_date.slice(0, 10) : null}
-                      planSession={activeSession}
-                      initialConfig={currentTrends[timeframe]?.chart_config}
-                      initialTrendlines={currentTrends[timeframe]?.trendlines || []}
-                      onSaveConfig={config => handleChartConfigSave(timeframe, config)}
-                      onSaveTrendlines={lines => handleTrendlinesSave(timeframe, lines)}
-                      lazy={true}
-                    />
-                  </div>
 
                   <!-- 多空選擇 -->
                   <div class="trend-options">
@@ -1536,16 +1502,6 @@
       outline: none;
       border-color: #667eea;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .planning-chart-container {
-      width: 100%;
-      height: 750px; /* 增加高度以配合寬度，讓圖面更飽滿 */
-      margin-bottom: 1rem;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      background: #0f172a; /* 配合 Lightweight Charts 背景 */
     }
 
     .timeframe-label {
