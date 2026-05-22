@@ -160,10 +160,15 @@ type StatsSummary struct {
 	ProfitFactor  float64 `json:"profit_factor"`
 }
 
-// EquityPoint 淨值曲線點
+// EquityPoint 淨值曲線點（每筆交易一個點）
 type EquityPoint struct {
-	Date   string  `json:"date"`
-	Equity float64 `json:"equity"`
+	Time   string  `json:"time"`   // 平倉時間 (ISO8601)
+	Date   string  `json:"date"`   // 平倉日期 (相容舊欄位)
+	Equity float64 `json:"equity"` // 累積盈虧
+	PnL    float64 `json:"pnl"`    // 該筆盈虧
+	Result string  `json:"result"` // "tp" | "sl" | "be"
+	Symbol string  `json:"symbol"` // 品種
+	Side   string  `json:"side"`   // long / short
 }
 
 // SymbolStats 品種統計

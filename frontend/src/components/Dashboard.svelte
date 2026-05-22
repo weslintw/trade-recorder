@@ -166,12 +166,9 @@
     <div class="dashboard-body">
       <!-- 左側欄位 -->
       <div class="main-column">
-        <!-- 淨值曲線 -->
+        <!-- 收益走勢圖 -->
         {#if equityCurve && equityCurve.length > 0}
-          <div class="chart-section glass-card">
-            <div class="section-header">
-              <h3>📉 淨值曲線 (Equity)</h3>
-            </div>
+          <div class="equity-chart-section">
             <EquityChart data={equityCurve} />
           </div>
         {/if}
@@ -446,6 +443,13 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
     border: 1px solid #edf2f7;
     margin-bottom: 2rem;
+  }
+
+  .equity-chart-section {
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    border-radius: 16px;
+    overflow: hidden;
   }
 
   .section-header {

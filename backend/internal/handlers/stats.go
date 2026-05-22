@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"time"
 
 	"trade-journal/internal/models"
 
@@ -89,11 +90,10 @@ func GetEquityCurve(db *sql.DB) gin.HandlerFunc {
 		}
 
 		rows, err := db.Query(`
-			SELECT DATE(exit_time) as date, SUM(pnl) as daily_pnl
+			SELECT exit_time, pnl, symbol, side
 			FROM trades
 			WHERE account_id = ? AND exit_time IS NOT NULL AND pnl IS NOT NULL
-			GROUP BY DATE(exit_time)
-			ORDER BY date ASC
+			ORDER BY exit_time ASC, id ASC
 		`, accountID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -105,14 +105,30 @@ func GetEquityCurve(db *sql.DB) gin.HandlerFunc {
 		cumulativeEquity := 0.0
 
 		for rows.Next() {
-			var date string
-			var dailyPnL float64
-			rows.Scan(&date, &dailyPnL)
+			var exitTime time.Time
+			var pnl float64
+			var symbol, side string
+			if err := rows.Scan(&exitTime, &pnl, &symbol, &side); err != nil {
+				continue
+			}
 
-			cumulativeEquity += dailyPnL
+			cumulativeEquity += pnl
+
+			result := "be"
+			if pnl > 0 {
+				result = "tp"
+			} else if pnl < 0 {
+				result = "sl"
+			}
+
 			equityCurve = append(equityCurve, models.EquityPoint{
-				Date:   date,
+				Time:   exitTime.Format(time.RFC3339),
+				Date:   exitTime.Format("2006-01-02"),
 				Equity: cumulativeEquity,
+				PnL:    pnl,
+				Result: result,
+				Symbol: symbol,
+				Side:   side,
 			})
 		}
 
