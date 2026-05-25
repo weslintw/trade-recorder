@@ -282,7 +282,6 @@
         <LazyRoute path="/dashboard" loader={() => import('./components/Dashboard.svelte')} />
         <LazyRoute path="/accounts" loader={() => import('./components/AccountManagement.svelte')} />
         <LazyRoute path="/admin/dashboard" loader={() => import('./components/AdminDashboard.svelte')} />
-        <LazyRoute path="/backtest" loader={() => import('./components/Backtest.svelte')} />
       {:else if !window.location.pathname.startsWith('/shared/')}
         <!-- 未登入且不是分享頁面時，顯示登入頁 -->
         <Login />
