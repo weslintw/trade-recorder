@@ -29,6 +29,7 @@
   let chartEl;
   let chartInstance;
   let resizeObserver;
+  let themeObserver;
 
   $: chartOption = buildOption(data);
   $: if (chartInstance && chartOption) {
@@ -44,10 +45,21 @@
       chartInstance && chartInstance.resize();
     });
     resizeObserver.observe(chartEl);
+
+    // 監聽 body class 變化 (dark-mode toggle)，及時重繪
+    if (typeof document !== 'undefined') {
+      themeObserver = new MutationObserver(() => {
+        if (chartInstance) {
+          chartInstance.setOption(buildOption(data), { notMerge: true });
+        }
+      });
+      themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    }
   });
 
   onDestroy(() => {
     if (resizeObserver) resizeObserver.disconnect();
+    if (themeObserver) themeObserver.disconnect();
     if (chartInstance) {
       chartInstance.dispose();
       chartInstance = null;
@@ -300,13 +312,39 @@
 </div>
 
 <style>
+  /* Light mode 為預設值，dark mode 透過 :global(body.dark-mode) 覆寫 */
   .equity-chart-card {
+    --eq-bg: #ffffff;
+    --eq-text: #1e293b;
+    --eq-subtitle: #64748b;
+    --eq-hint: #94a3b8;
+    --eq-tag-inner: #ffffff;
+    --eq-border: 1px solid #e2e8f0;
+    --eq-btn-bg: rgba(99, 102, 241, 0.08);
+    --eq-btn-color: #4f46e5;
+    --eq-btn-border: rgba(99, 102, 241, 0.3);
+    --eq-btn-hover-bg: rgba(99, 102, 241, 0.16);
+
     width: 100%;
-    background: #0f172a;
+    background: var(--eq-bg);
+    border: var(--eq-border);
     border-radius: 16px;
     padding: 1rem 1.25rem 0.5rem;
-    color: #f1f5f9;
+    color: var(--eq-text);
     position: relative;
+  }
+
+  :global(body.dark-mode) .equity-chart-card {
+    --eq-bg: #0f172a;
+    --eq-text: #f1f5f9;
+    --eq-subtitle: #94a3b8;
+    --eq-hint: #64748b;
+    --eq-tag-inner: #0f172a;
+    --eq-border: 1px solid #1e293b;
+    --eq-btn-bg: rgba(99, 102, 241, 0.15);
+    --eq-btn-color: #818cf8;
+    --eq-btn-border: rgba(99, 102, 241, 0.4);
+    --eq-btn-hover-bg: rgba(99, 102, 241, 0.25);
   }
 
   .chart-header {
@@ -334,7 +372,7 @@
     content: '';
     position: absolute;
     inset: 3px;
-    background: #0f172a;
+    background: var(--eq-tag-inner);
     border-radius: 2px;
   }
 
@@ -342,12 +380,12 @@
     font-size: 1.1rem;
     font-weight: 800;
     margin: 0;
-    color: #f1f5f9;
+    color: var(--eq-text);
   }
 
   .subtitle {
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--eq-subtitle);
     font-weight: 500;
     margin-left: 0.4rem;
   }
@@ -355,13 +393,13 @@
   .hint {
     margin: 0 0 0.25rem;
     font-size: 0.75rem;
-    color: #64748b;
+    color: var(--eq-hint);
   }
 
   .reset-btn {
-    background: rgba(99, 102, 241, 0.15);
-    color: #818cf8;
-    border: 1px solid rgba(99, 102, 241, 0.4);
+    background: var(--eq-btn-bg);
+    color: var(--eq-btn-color);
+    border: 1px solid var(--eq-btn-border);
     border-radius: 8px;
     padding: 0.35rem 0.75rem;
     font-size: 0.8rem;
@@ -373,7 +411,7 @@
     transition: background 0.15s ease;
   }
   .reset-btn:hover {
-    background: rgba(99, 102, 241, 0.25);
+    background: var(--eq-btn-hover-bg);
   }
   .reset-icon {
     font-size: 0.95rem;
@@ -383,14 +421,4 @@
     width: 100%;
     height: 420px;
   }
-
-  /* Light mode 沿用深色背景以與附圖一致；若想跟著主題切換，把下面打開 */
-  /*
-  :global(body:not(.dark-mode)) .equity-chart-card {
-    background: #ffffff;
-    color: #1e293b;
-  }
-  :global(body:not(.dark-mode)) .title { color: #1e293b; }
-  :global(body:not(.dark-mode)) .title-tag::after { background: #ffffff; }
-  */
 </style>

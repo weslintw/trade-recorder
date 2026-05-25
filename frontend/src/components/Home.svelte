@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import { navigate, Link } from 'svelte-routing';
-  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI, statsAPI } from '../lib/api';
+  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts, tradeDataCache } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import {
@@ -27,8 +27,6 @@
   let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
 
   let groupedData = [];
-  let equityCurve = [];
-  let equityCurveLoading = false;
   let loading = true;
   let loadError = null; // 新增：錯誤狀態
   let pagination = {
@@ -586,25 +584,42 @@
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
   $: timeGroupedTrades = (groupedData || []).flatMap(day => day.groupedTrades || []);
 
-  // 響應式：帳號改變時載入收益走勢圖資料 (帳號層級，與 symbol/日期篩選無關)
-  let lastEquityAccountId = null;
-  $: if ($selectedAccountId && $selectedAccountId !== lastEquityAccountId) {
-    lastEquityAccountId = $selectedAccountId;
-    loadEquityCurve($selectedAccountId);
-  }
+  // 響應式：從 filteredGroupedData 即時派生收益走勢圖資料
+  // 這樣 chart 會自動跟著篩選 (日期 / 策略 / 顏色 / TP-SL / 多空) 同步變動
+  $: equityCurve = deriveEquityCurve(filteredGroupedData);
 
-  async function loadEquityCurve(accountId) {
-    if (!accountId) return;
-    equityCurveLoading = true;
-    try {
-      const res = await statsAPI.getEquityCurve({ account_id: accountId });
-      equityCurve = res?.data || [];
-    } catch (e) {
-      console.error('載入收益走勢圖失敗:', e);
-      equityCurve = [];
-    } finally {
-      equityCurveLoading = false;
+  function deriveEquityCurve(grouped) {
+    if (!grouped || grouped.length === 0) return [];
+
+    const closed = [];
+    for (const day of grouped) {
+      if (!day || !day.groupedTrades) continue;
+      for (const group of day.groupedTrades) {
+        if (!group || !group.trades) continue;
+        for (const t of group.trades) {
+          if (t && t.exit_time && typeof t.pnl === 'number') {
+            closed.push(t);
+          }
+        }
+      }
     }
+
+    closed.sort((a, b) => new Date(a.exit_time) - new Date(b.exit_time));
+
+    let equity = 0;
+    return closed.map(t => {
+      equity += t.pnl;
+      const result = t.pnl > 0 ? 'tp' : t.pnl < 0 ? 'sl' : 'be';
+      return {
+        time: t.exit_time,
+        date: String(t.exit_time).slice(0, 10),
+        equity,
+        pnl: t.pnl,
+        result,
+        symbol: t.symbol || '',
+        side: t.side || '',
+      };
+    });
   }
 
   function navigateWithScroll(path) {
@@ -1858,10 +1873,11 @@
     }
   }
 
-  function sanitizeTradePayload(fullTrade, newColor) {
+  // 重整 trade 給 PUT API 的完整 payload；overrides 用來覆寫指定欄位
+  function sanitizeTradePayload(fullTrade, overrides = {}) {
     const payload = {
       ...fullTrade,
-      color_tag: newColor !== undefined ? newColor || '' : fullTrade.color_tag || '',
+      color_tag: fullTrade.color_tag || '',
       account_id: fullTrade.account_id,
       trade_type: fullTrade.trade_type || 'actual',
       symbol: fullTrade.symbol,
@@ -1895,6 +1911,7 @@
         fullTrade.timezone_offset !== null && fullTrade.timezone_offset !== undefined
           ? fullTrade.timezone_offset
           : 0,
+      ...overrides, // 套用覆寫
     };
 
     if (fullTrade.images) {
@@ -1911,20 +1928,25 @@
     return payload;
   }
 
-  async function toggleColorTag(trade, color) {
-    const newColor = trade.color_tag === color ? '' : color;
+  // 通用：更新 trade 的任意欄位並送出 (用於卡片上的 inline picker)
+  async function updateTradeField(trade, overrides, errorLabel = '更新') {
     try {
       const fullTradeRes = await tradesAPI.getOne(trade.id);
       const fullTrade = fullTradeRes.data;
-      const payload = sanitizeTradePayload(fullTrade, newColor);
+      const payload = sanitizeTradePayload(fullTrade, overrides);
       await tradesAPI.update(trade.id, payload);
-      trade.color_tag = newColor;
+      Object.assign(trade, overrides);
       groupedData = groupedData;
     } catch (e) {
-      console.error('Failed to update color tag', e);
+      console.error(`Failed to update trade field (${errorLabel})`, e);
       const errMsg = e.response?.data?.error || e.message || 'Unknown error';
-      alert(`更新顏色標記失敗: ${errMsg}`);
+      alert(`${errorLabel}失敗: ${errMsg}`);
     }
+  }
+
+  async function toggleColorTag(trade, color) {
+    const newColor = trade.color_tag === color ? '' : color;
+    await updateTradeField(trade, { color_tag: newColor }, '更新顏色標記');
   }
 
   async function toggleColorTagForGroup(timeGroup, color) {
@@ -1933,11 +1955,10 @@
     const newColor = firstTrade.color_tag === color ? '' : color;
 
     try {
-      // Update all trades in the group
       for (const trade of timeGroup.trades) {
         const fullTradeRes = await tradesAPI.getOne(trade.id);
         const fullTrade = fullTradeRes.data;
-        const payload = sanitizeTradePayload(fullTrade, newColor);
+        const payload = sanitizeTradePayload(fullTrade, { color_tag: newColor });
         await tradesAPI.update(trade.id, payload);
         trade.color_tag = newColor;
       }
@@ -1947,6 +1968,18 @@
       const errMsg = e.response?.data?.error || e.message || 'Unknown error';
       alert(`更新組合單顏色標記失敗: ${errMsg}`);
     }
+  }
+
+  // 卡片 inline picker: 策略 (達/菁/傳)
+  async function toggleStrategy(trade, strategy) {
+    const newValue = trade.entry_strategy === strategy ? '' : strategy;
+    await updateTradeField(trade, { entry_strategy: newValue }, '更新策略');
+  }
+
+  // 卡片 inline picker: 進場時區 (M5/M15/H1/H4/D1)
+  async function setTimeframe(trade, tf) {
+    const newValue = trade.entry_timeframe === tf ? '' : tf;
+    await updateTradeField(trade, { entry_timeframe: newValue }, '更新時區');
   }
 
   async function deletePlan(id) {
@@ -3019,16 +3052,44 @@
                                   determineMarketSession(trade.entry_time)}"
                                 >{getMarketSessionLabel(trade)}</span
                               >
-                              {#if trade.entry_strategy}<span
-                                  class="strategy-tag {trade.entry_strategy}"
-                                  >{getStrategyLabel(trade.entry_strategy)}</span
-                                >{/if}
                               <span class="side-tag {trade.side}"
                                 >{trade.side === 'long' ? '📈 做多' : '📉 做空'}</span
                               >
                               {#if trade.trade_type === 'observation'}
                                 <span class="journal-tag">📓 記事</span>
                               {/if}
+                            </div>
+                            <!-- 卡片內 inline 編輯：策略 + 進場時區 (auto-save) -->
+                            <div class="inline-pickers" on:click|stopPropagation>
+                              <div
+                                class="picker-group strategy-picker"
+                                title="進場種類 (達人/菁英/傳奇)"
+                              >
+                                {#each [{ v: 'expert', label: '達' }, { v: 'elite', label: '菁' }, { v: 'legend', label: '傳' }] as opt}
+                                  <button
+                                    class="picker-chip strat-{opt.v} {trade.entry_strategy ===
+                                    opt.v
+                                      ? 'active'
+                                      : ''}"
+                                    on:click={() => toggleStrategy(trade, opt.v)}
+                                    title={getStrategyLabel(opt.v)}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                {/each}
+                              </div>
+                              <div class="picker-group timeframe-picker" title="進場時區">
+                                {#each TIMEFRAMES as tf}
+                                  <button
+                                    class="picker-chip tf-chip {trade.entry_timeframe === tf
+                                      ? 'active'
+                                      : ''}"
+                                    on:click={() => setTimeframe(trade, tf)}
+                                  >
+                                    {tf}
+                                  </button>
+                                {/each}
+                              </div>
                             </div>
                             {#if trade.ticket}<div class="ticket-tag">#{trade.ticket}</div>{/if}
                           </div>
@@ -4424,6 +4485,79 @@
     background: #78350f;
     color: white;
     border: none;
+  }
+
+  /* 卡片 inline picker (策略 + 進場時區) */
+  .inline-pickers {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+  }
+
+  .picker-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: rgba(148, 163, 184, 0.08);
+    border-radius: 6px;
+  }
+
+  .picker-chip {
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s;
+  }
+
+  .picker-chip:hover {
+    background: rgba(99, 102, 241, 0.12);
+    color: #4f46e5;
+  }
+
+  /* 策略 chip 啟用時用對應顏色 */
+  .picker-chip.strat-expert.active {
+    background: #059669;
+    color: white;
+  }
+  .picker-chip.strat-elite.active {
+    background: #1e3a8a;
+    color: white;
+  }
+  .picker-chip.strat-legend.active {
+    background: #78350f;
+    color: white;
+  }
+
+  /* 時區 chip 啟用時用藍紫色 */
+  .picker-chip.tf-chip.active {
+    background: #6366f1;
+    color: white;
+  }
+
+  /* Dark mode 覆寫 */
+  :global(body.dark-mode) .picker-group {
+    background: rgba(148, 163, 184, 0.12);
+  }
+  :global(body.dark-mode) .picker-chip {
+    color: #94a3b8;
+  }
+  :global(body.dark-mode) .picker-chip:hover {
+    background: rgba(99, 102, 241, 0.2);
+    color: #c7d2fe;
   }
 
   /* 交易時間分組樣式 */

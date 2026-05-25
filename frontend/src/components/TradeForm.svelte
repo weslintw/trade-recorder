@@ -406,6 +406,17 @@
   let tagInput = '';
   let saving = false;
 
+  // === 自動儲存狀態 ===
+  // 僅在編輯模式 (id 存在) 下啟用，建立模式仍需手動按按鈕
+  let autoSaveStatus = 'idle'; // 'idle' | 'saving' | 'saved' | 'error'
+  let lastSavedAt = null;
+  let autoSaveError = '';
+  let autoSaveTimer = null;
+  let autoSaveInFlight = false;
+  let autoSavePending = false; // 儲存中又有新變動，存完要再存一次
+
+  const AUTO_SAVE_DEBOUNCE_MS = 1000;
+
   // 富文本編輯器引用
   let entryReasonEditor;
   let exitReasonEditor;
@@ -1200,6 +1211,11 @@
   async function handleSubmit() {
     try {
       saving = true;
+      // 若有 pending 的 auto-save，先取消，避免重複送
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+      }
       const submitData = getSubmitData();
 
       if (id) {
@@ -1224,6 +1240,8 @@
           await tradesAPI.update(id, submitData);
         }
         tradeDataCache.update(c => ({ ...c, stale: true }));
+        autoSaveStatus = 'saved';
+        lastSavedAt = new Date();
         alert('交易紀錄更新成功！');
       } else {
         await tradesAPI.create(submitData);
@@ -1240,6 +1258,78 @@
     } finally {
       saving = false;
     }
+  }
+
+  // === 自動儲存：1 秒 debounce，僅編輯模式生效 ===
+  function triggerAutoSave() {
+    if (!id) return; // 建立模式不自動存
+    if (isLoadingTrade) return; // 初始載入中不存
+    if (autoSaveTimer) clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(performAutoSave, AUTO_SAVE_DEBOUNCE_MS);
+  }
+
+  async function performAutoSave() {
+    if (!id) return;
+    if (autoSaveInFlight) {
+      // 上一輪還在送，標記等送完再存
+      autoSavePending = true;
+      return;
+    }
+    autoSaveInFlight = true;
+    autoSaveStatus = 'saving';
+    autoSaveError = '';
+    try {
+      const submitData = getSubmitData();
+      if (isGroup) {
+        for (const sibling of groupTrades) {
+          const siblingData = {
+            ...submitData,
+            id: sibling.id,
+            exit_time: sibling.exit_time,
+            exit_price: sibling.exit_price,
+            lot_size: sibling.lot_size,
+            pnl: sibling.pnl,
+            pnl_points: sibling.pnl_points,
+            ticket: sibling.ticket,
+            exit_sl: sibling.exit_sl,
+            exit_reason: sibling.exit_reason,
+          };
+          await tradesAPI.update(sibling.id, siblingData);
+        }
+      } else {
+        await tradesAPI.update(id, submitData);
+      }
+      tradeDataCache.update(c => ({ ...c, stale: true }));
+      autoSaveStatus = 'saved';
+      lastSavedAt = new Date();
+    } catch (e) {
+      console.error('自動儲存失敗:', e);
+      autoSaveStatus = 'error';
+      autoSaveError = e.response?.data?.error || e.message || 'Unknown error';
+    } finally {
+      autoSaveInFlight = false;
+      // 若儲存期間又有新變動，再排程一次
+      if (autoSavePending) {
+        autoSavePending = false;
+        triggerAutoSave();
+      }
+    }
+  }
+
+  // 反應式：formData 任意變動 → 觸發 debounced 自動儲存
+  // bind:value 會自動 reassign formData，這個 reactive block 就會 fire
+  $: if (id && !isLoadingTrade && formData) {
+    // 觸發 reactive dependency 後立即排 debounce
+    formData;
+    triggerAutoSave();
+  }
+
+  function formatSaveTime(d) {
+    if (!d) return '';
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
   }
 
   function handleKeydown(e) {
@@ -1952,11 +2042,35 @@
 
       <div class="form-actions">
         <button type="button" class="btn" on:click={() => navigate('/')}>返回</button>
+        {#if id}
+          <span class="autosave-indicator autosave-{autoSaveStatus}">
+            {#if autoSaveStatus === 'saving'}
+              <span class="dot pulse"></span> 自動儲存中…
+            {:else if autoSaveStatus === 'saved'}
+              <span class="dot ok"></span> 已自動儲存 {formatSaveTime(lastSavedAt)}
+            {:else if autoSaveStatus === 'error'}
+              <span class="dot err"></span>
+              <span class="err-text">儲存失敗：{autoSaveError}</span>
+              <button
+                type="button"
+                class="retry-btn"
+                on:click={() => {
+                  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+                  performAutoSave();
+                }}
+              >
+                重試
+              </button>
+            {:else}
+              <span class="dot idle"></span> 自動儲存就緒
+            {/if}
+          </span>
+        {/if}
         <button type="submit" class="btn btn-primary" disabled={saving}>
           {#if saving}
             儲存中...
           {:else}
-            {id ? '更新' : '建立'}交易
+            {id ? '立即儲存' : '建立'}交易
           {/if}
         </button>
       </div>
@@ -3757,10 +3871,66 @@
     .form-actions {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       gap: 1rem;
       margin-top: 2rem;
       padding-top: 2rem;
       border-top: 2px solid #e2e8f0;
+    }
+
+    /* 自動儲存狀態指示器 */
+    .autosave-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-right: auto; /* 推到左邊，與按鈕分開 */
+      font-size: 0.85rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .autosave-saving { color: #6366f1; }
+    .autosave-saved { color: #059669; }
+    .autosave-error { color: #dc2626; }
+    .autosave-idle { color: #94a3b8; }
+
+    .autosave-indicator .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .autosave-indicator .dot.idle { background: #cbd5e1; }
+    .autosave-indicator .dot.ok { background: #10b981; }
+    .autosave-indicator .dot.err { background: #ef4444; }
+    .autosave-indicator .dot.pulse {
+      background: #6366f1;
+      animation: autosave-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes autosave-pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.15); }
+    }
+
+    .autosave-indicator .err-text {
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .autosave-indicator .retry-btn {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: 0.25rem;
+    }
+    .autosave-indicator .retry-btn:hover {
+      background: #fecaca;
     }
 
     textarea.form-control {
