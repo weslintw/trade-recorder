@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import { navigate, Link } from 'svelte-routing';
-  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI } from '../lib/api';
+  import { tradesAPI, dailyPlansAPI, imagesAPI, sharesAPI, accountsAPI, statsAPI } from '../lib/api';
   import { selectedSymbol, selectedAccountId, accounts, tradeDataCache } from '../lib/stores';
   import { MARKET_SESSIONS, SYMBOLS, TIMEFRAMES } from '../lib/constants';
   import {
@@ -20,12 +20,15 @@
   import SyncOptionsModal from './SyncOptionsModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
+  import EquityChart from './EquityChart.svelte';
 
   let showAnnotator = false;
   let enlargedOriginalImage = null;
   let enlargedImageContext = null; // { tradeId, imageIndex, type: 'general' | 'expert' | ... }
 
   let groupedData = [];
+  let equityCurve = [];
+  let equityCurveLoading = false;
   let loading = true;
   let loadError = null; // 新增：錯誤狀態
   let pagination = {
@@ -582,6 +585,27 @@
 
   // 響應式派生交易清單 (供 polling 檢查有無未平倉)
   $: timeGroupedTrades = (groupedData || []).flatMap(day => day.groupedTrades || []);
+
+  // 響應式：帳號改變時載入收益走勢圖資料 (帳號層級，與 symbol/日期篩選無關)
+  let lastEquityAccountId = null;
+  $: if ($selectedAccountId && $selectedAccountId !== lastEquityAccountId) {
+    lastEquityAccountId = $selectedAccountId;
+    loadEquityCurve($selectedAccountId);
+  }
+
+  async function loadEquityCurve(accountId) {
+    if (!accountId) return;
+    equityCurveLoading = true;
+    try {
+      const res = await statsAPI.getEquityCurve({ account_id: accountId });
+      equityCurve = res?.data || [];
+    } catch (e) {
+      console.error('載入收益走勢圖失敗:', e);
+      equityCurve = [];
+    } finally {
+      equityCurveLoading = false;
+    }
+  }
 
   function navigateWithScroll(path) {
     sessionStorage.setItem('home_scroll_pos', window.scrollY);
@@ -2390,6 +2414,13 @@
       {/if}
     </div>
   </div>
+
+  <!-- 收益走勢圖：放在篩選卡片下方 -->
+  {#if equityCurve && equityCurve.length > 0}
+    <div class="home-equity-chart">
+      <EquityChart data={equityCurve} />
+    </div>
+  {/if}
 
   {#if selectionMode}
     <div class="selection-bar">
@@ -5255,6 +5286,13 @@
     margin: 0.5rem 0 1.5rem 0;
     padding: 0 1rem;
     z-index: 10;
+  }
+
+  .home-equity-chart {
+    margin: 0 1rem 1.5rem;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
   }
 
   .filter-glass-container {

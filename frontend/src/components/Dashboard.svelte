@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { statsAPI } from '../lib/api';
   import { selectedAccountId } from '../lib/stores';
-  import EquityChart from './EquityChart.svelte';
 
   let summary = {
     total_trades: 0,
@@ -19,7 +18,6 @@
   let symbolStats = [];
   let strategyStats = [];
   let colorStats = [];
-  let equityCurve = [];
   let loading = true;
 
   $: if ($selectedAccountId) {
@@ -31,18 +29,16 @@
       loading = true;
       const params = { account_id: $selectedAccountId };
 
-      const [summaryRes, symbolRes, strategyRes, equityRes, colorRes] = await Promise.all([
+      const [summaryRes, symbolRes, strategyRes, colorRes] = await Promise.all([
         statsAPI.getSummary(params).catch(e => ({ data: summary })),
         statsAPI.getBySymbol(params).catch(e => ({ data: [] })),
         statsAPI.getByStrategy(params).catch(e => ({ data: [] })),
-        statsAPI.getEquityCurve(params).catch(e => ({ data: [] })),
         statsAPI.getByColorTag(params).catch(e => ({ data: [] })),
       ]);
 
       summary = summaryRes?.data || summary;
       symbolStats = symbolRes?.data || [];
       strategyStats = strategyRes?.data || [];
-      equityCurve = equityRes?.data || [];
       colorStats = colorRes?.data || [];
     } catch (error) {
       console.error('載入統計資料失敗:', error);
@@ -166,13 +162,6 @@
     <div class="dashboard-body">
       <!-- 左側欄位 -->
       <div class="main-column">
-        <!-- 收益走勢圖 -->
-        {#if equityCurve && equityCurve.length > 0}
-          <div class="equity-chart-section">
-            <EquityChart data={equityCurve} />
-          </div>
-        {/if}
-
         <!-- 品種統計 -->
         {#if symbolStats && symbolStats.length > 0}
           <div class="table-section glass-card">
@@ -443,13 +432,6 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
     border: 1px solid #edf2f7;
     margin-bottom: 2rem;
-  }
-
-  .equity-chart-section {
-    margin-bottom: 2rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-    border-radius: 16px;
-    overflow: hidden;
   }
 
   .section-header {
