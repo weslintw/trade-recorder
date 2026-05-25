@@ -59,6 +59,15 @@ func main() {
 	// 設置Gin路由
 	r := gin.Default()
 
+	// 關閉 HTTP/3 (QUIC)：Zeabur edge 預設會 advertise HTTP/3，但某些使用者
+	// 的網路 (家用路由器 / ISP middlebox) 對 UDP 不友善，會導致每個 request
+	// 都先嘗試 QUIC、失敗、fallback 到 TCP，造成嚴重卡頓。
+	// 用 Alt-Svc: clear 告訴瀏覽器清掉 cached HTTP/3 advertisement。
+	r.Use(func(c *gin.Context) {
+		c.Header("Alt-Svc", "clear")
+		c.Next()
+	})
+
 	// CORS設定
 	config := cors.DefaultConfig()
 
