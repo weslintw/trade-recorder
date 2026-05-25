@@ -1,16 +1,12 @@
 <script>
   import { Router, Route, Link, navigate } from 'svelte-routing';
   import { onMount, onDestroy } from 'svelte';
-  import TradeForm from './components/TradeForm.svelte';
-  import TradeList from './components/TradeList.svelte';
-  import Dashboard from './components/Dashboard.svelte';
-  import DailyPlanList from './components/DailyPlanList.svelte';
-  import DailyPlanForm from './components/DailyPlanForm.svelte';
+  // 主要落地頁與通用元件保持 eager import，第一次載入即可
   import Home from './components/Home.svelte';
   import AccountSelector from './components/AccountSelector.svelte';
-  import AccountManagement from './components/AccountManagement.svelte';
-  import SharedViewer from './components/SharedViewer.svelte';
-  import AdminDashboard from './components/AdminDashboard.svelte';
+  import LazyRoute from './components/LazyRoute.svelte';
+  // 其他路由的元件透過 LazyRoute 動態載入，避免進首頁就被迫下載
+  // TradeForm (含 quill + lightweight-charts)、Backtest (含 lightweight-charts) 等
   import { SYMBOLS, MARKET_SESSIONS } from './lib/constants';
   import { determineMarketSession } from './lib/utils';
   import { selectedSymbol, isDarkMode, selectedAccountId, tradedSymbols } from './lib/stores';
@@ -23,6 +19,8 @@
   let currentTime = new Date();
   let timer;
   let showChangePassword = false;
+  let sidebarOpen = false;
+  let activeSidebarItem = 'ttm'; // 'ttm' | 'backtest'
   const buildTime = __BUILD_TIME__;
   
   async function loadTradedSymbols() {
@@ -90,13 +88,73 @@
       logout();
     }
   }
+
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+  }
+
+  function selectSidebarItem(item) {
+    activeSidebarItem = item;
+    sidebarOpen = false;
+    if (item === 'ttm') {
+      navigate('/');
+    } else if (item === 'backtest') {
+      navigate('/backtest');
+    }
+  }
 </script>
 
 <Router>
+  <!-- Sidebar Overlay -->
+  {#if sidebarOpen}
+    <div class="sidebar-overlay" on:click={() => (sidebarOpen = false)} role="presentation"></div>
+  {/if}
+
+  <!-- Sidebar -->
+  <div class="sidebar" class:sidebar-open={sidebarOpen}>
+    <div class="sidebar-header">
+      <span class="sidebar-logo">⚙️</span>
+      <span class="sidebar-title">工具切換</span>
+      <button class="sidebar-close" on:click={() => (sidebarOpen = false)}>✕</button>
+    </div>
+    <nav class="sidebar-nav">
+      <button
+        class="sidebar-item"
+        class:active={activeSidebarItem === 'ttm'}
+        on:click={() => selectSidebarItem('ttm')}
+      >
+        <span class="sidebar-item-icon">⏰</span>
+        <div class="sidebar-item-text">
+          <span class="sidebar-item-name">Trade Time Machine</span>
+          <span class="sidebar-item-desc">交易記錄與分析</span>
+        </div>
+      </button>
+
+      <button
+        class="sidebar-item"
+        class:active={activeSidebarItem === 'backtest'}
+        on:click={() => selectSidebarItem('backtest')}
+      >
+        <span class="sidebar-item-icon">🔬</span>
+        <div class="sidebar-item-text">
+          <span class="sidebar-item-name">策略歷史回測</span>
+          <span class="sidebar-item-desc">Python 第三方回測框架</span>
+        </div>
+      </button>
+    </nav>
+  </div>
+
   <div class="app">
     {#if !window.location.pathname.startsWith('/shared/')}
       <nav class="navbar" class:not-auth={!$auth.isAuthenticated}>
         <div class="navbar-content">
+          {#if $auth.isAuthenticated}
+            <button class="hamburger-btn" on:click={toggleSidebar} title="選單">
+              <span class="hamburger-line"></span>
+              <span class="hamburger-line"></span>
+              <span class="hamburger-line"></span>
+            </button>
+          {/if}
           <Link to="/" class="nav-brand" on:click={() => (activeNav = 'home')}>
             <div class="logo-image-container">
               {#if $isDarkMode}
@@ -210,20 +268,21 @@
 
     <main class="container">
       <!-- 所有路由定義 -->
-      <Route path="/shared/:token" component={SharedViewer} />
+      <LazyRoute path="/shared/:token" loader={() => import('./components/SharedViewer.svelte')} />
 
       {#if $auth.isAuthenticated}
-        <!-- 登入後的私有路由 -->
+        <!-- 登入後的私有路由：Home 保持 eager (預設落地頁)，其餘 lazy -->
         <Route path="/" component={Home} />
-        <Route path="/trades" component={TradeList} />
-        <Route path="/plans" component={DailyPlanList} />
-        <Route path="/plans/new" component={DailyPlanForm} />
-        <Route path="/plans/edit/:id" component={DailyPlanForm} />
-        <Route path="/new" component={TradeForm} />
-        <Route path="/edit/:id" component={TradeForm} />
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/accounts" component={AccountManagement} />
-        <Route path="/admin/dashboard" component={AdminDashboard} />
+        <LazyRoute path="/trades" loader={() => import('./components/TradeList.svelte')} />
+        <LazyRoute path="/plans" loader={() => import('./components/DailyPlanList.svelte')} />
+        <LazyRoute path="/plans/new" loader={() => import('./components/DailyPlanForm.svelte')} />
+        <LazyRoute path="/plans/edit/:id" loader={() => import('./components/DailyPlanForm.svelte')} />
+        <LazyRoute path="/new" loader={() => import('./components/TradeForm.svelte')} />
+        <LazyRoute path="/edit/:id" loader={() => import('./components/TradeForm.svelte')} />
+        <LazyRoute path="/dashboard" loader={() => import('./components/Dashboard.svelte')} />
+        <LazyRoute path="/accounts" loader={() => import('./components/AccountManagement.svelte')} />
+        <LazyRoute path="/admin/dashboard" loader={() => import('./components/AdminDashboard.svelte')} />
+        <LazyRoute path="/backtest" loader={() => import('./components/Backtest.svelte')} />
       {:else if !window.location.pathname.startsWith('/shared/')}
         <!-- 未登入且不是分享頁面時，顯示登入頁 -->
         <Login />
@@ -988,5 +1047,155 @@
   /* Hidden desktop nav when on mobile */
   .mobile-bottom-nav {
     display: none;
+  }
+
+  /* Hamburger & Sidebar Styles */
+  .hamburger-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+    margin-right: 0.5rem;
+  }
+
+  .hamburger-btn:hover {
+    background-color: var(--nav-group-bg);
+  }
+
+  .hamburger-line {
+    width: 20px;
+    height: 2px;
+    background-color: var(--text-main);
+    margin: 2px 0;
+    transition: all 0.3s ease;
+    border-radius: 2px;
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 1050;
+    backdrop-filter: blur(2px);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 320px;
+    height: 100vh;
+    background-color: var(--card-bg);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+    z-index: 1100;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+  }
+
+  .sidebar.sidebar-open {
+    left: 0;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .sidebar-logo {
+    font-size: 1.5rem;
+    margin-right: 0.75rem;
+  }
+
+  .sidebar-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-main);
+    flex: 1;
+  }
+
+  .sidebar-close {
+    background: transparent;
+    border: none;
+    font-size: 1.25rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+  }
+
+  .sidebar-close:hover {
+    color: var(--text-main);
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    gap: 0.5rem;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+  }
+
+  .sidebar-item:hover {
+    background: var(--nav-group-bg);
+  }
+
+  .sidebar-item.active {
+    background: var(--nav-group-bg);
+    border-color: var(--border-color);
+    box-shadow: inset 4px 0 0 var(--primary);
+  }
+
+  .sidebar-item-icon {
+    font-size: 1.5rem;
+    margin-right: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+  }
+
+  .sidebar-item-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-item-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 0.2rem;
+  }
+
+  .sidebar-item-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
   }
 </style>

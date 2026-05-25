@@ -21,7 +21,6 @@
   "dependencies": {
     "@types/quill": "^2.0.14",
     "axios": "^1.6.5",
-    "chart.js": "^4.4.1",
     "echarts": "^6.1.0",
     "lightweight-charts": "^5.1.0",
     "quill": "^2.0.3",

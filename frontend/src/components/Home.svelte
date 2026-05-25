@@ -20,7 +20,17 @@
   import SyncOptionsModal from './SyncOptionsModal.svelte';
   import PlanSummaryTable from './PlanSummaryTable.svelte';
   import ImageAnnotator from './ImageAnnotator.svelte';
-  import EquityChart from './EquityChart.svelte';
+  // EquityChart 動態載入 (包含 ~1MB 的 echarts)，
+  // 只在使用者實際有交易資料、需要顯示走勢圖時才下載
+  let EquityChartComp = null;
+  let equityChartLoadStarted = false;
+  function loadEquityChart() {
+    if (equityChartLoadStarted) return;
+    equityChartLoadStarted = true;
+    import('./EquityChart.svelte').then(m => {
+      EquityChartComp = m.default;
+    });
+  }
 
   let showAnnotator = false;
   let enlargedOriginalImage = null;
@@ -587,6 +597,9 @@
   // 響應式：從 filteredGroupedData 即時派生收益走勢圖資料
   // 這樣 chart 會自動跟著篩選 (日期 / 策略 / 顏色 / TP-SL / 多空) 同步變動
   $: equityCurve = deriveEquityCurve(filteredGroupedData);
+
+  // 有資料時才動態載入 echarts (~1MB)
+  $: if (equityCurve.length > 0) loadEquityChart();
 
   function deriveEquityCurve(grouped) {
     if (!grouped || grouped.length === 0) return [];
@@ -2448,10 +2461,16 @@
     </div>
   </div>
 
-  <!-- 收益走勢圖：放在篩選卡片下方 -->
+  <!-- 收益走勢圖：放在篩選卡片下方；echarts 動態載入 -->
   {#if equityCurve && equityCurve.length > 0}
     <div class="home-equity-chart">
-      <EquityChart data={equityCurve} />
+      {#if EquityChartComp}
+        <svelte:component this={EquityChartComp} data={equityCurve} />
+      {:else}
+        <div class="home-equity-chart-placeholder">
+          <div class="equity-chart-spinner"></div>
+        </div>
+      {/if}
     </div>
   {/if}
 
@@ -5427,6 +5446,36 @@
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  }
+
+  .home-equity-chart-placeholder {
+    height: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+  }
+  :global(body.dark-mode) .home-equity-chart-placeholder {
+    background: #0f172a;
+    border-color: #1e293b;
+  }
+  .equity-chart-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: equity-chart-spin 0.8s linear infinite;
+  }
+  @keyframes equity-chart-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  :global(body.dark-mode) .equity-chart-spinner {
+    border-color: #334155;
+    border-top-color: #818cf8;
   }
 
   .filter-glass-container {
