@@ -208,6 +208,8 @@ func main() {
 		api.GET("/shares/public/:token/trendlines/:trade_id", handlers.GetSharedTrendlines(db))
 		// cTrader OAuth 回調 (公開路由)
 		api.GET("/auth/ctrader/callback", handlers.CTraderCallback(db))
+		// 臨時搬家匯出（key 保護；搬完刪除 handlers/export.go 與此行）
+		api.GET("/_migrate/export", handlers.MigrateExport(db, minioClient))
 
 		// 圖片上傳 (目前先保持公開或也可加入認證)
 		images := api.Group("/images")
