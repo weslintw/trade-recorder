@@ -1,7 +1,8 @@
 # Stage 1: Build Frontend
 FROM node:18-alpine AS frontend-builder
 WORKDIR /app/frontend
-RUN npm install -g pnpm
+# 鎖版本：新版 pnpm 會把「忽略相依套件 build script」當錯誤（ERR_PNPM_IGNORED_BUILDS）
+RUN npm install -g pnpm@10
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ .
