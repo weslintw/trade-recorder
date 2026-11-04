@@ -48,7 +48,9 @@ func main() {
 	// 初始化MinIO
 	minioClient, err := minio.InitMinIO()
 	if err != nil {
-		log.Fatal("無法初始化MinIO:", err)
+		// 搬家期間：MinIO 起不來不要讓整個後端死掉（圖片功能回 503，其餘照常；匯出改抓原始資料夾）
+		log.Printf("[WARN] 無法初始化MinIO（圖片功能暫停）: %v", err)
+		minioClient = nil
 	}
 
 	// 啟動 cTrader 背景監聽管理器

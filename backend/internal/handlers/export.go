@@ -108,14 +108,26 @@ func MigrateExport(db *sql.DB, client *miniogo.Client) gin.HandlerFunc {
 		if st, err := os.Stat(dbPath); err == nil {
 			dbSize = st.Size()
 		}
-		objs, objBytes, err := migrateListObjects(ctx, client)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "list objects: " + err.Error()})
-			return
+		var objs []migrateObj
+		var objBytes int64
+		rawDir := ""
+		if client != nil {
+			var err error
+			objs, objBytes, err = migrateListObjects(ctx, client)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "list objects: " + err.Error()})
+				return
+			}
+		} else {
+			// MinIO 沒起來：改把它的原始資料夾整個帶走（新機用同版 MinIO 指到這個資料夾即可讀）
+			rawDir = os.Getenv("MINIO_DATA_DIR")
+			if rawDir == "" {
+				rawDir = "/app/data/minio"
+			}
 		}
 		summary := gin.H{
 			"db_path": dbPath, "db_bytes": dbSize,
-			"minio_objects": len(objs), "minio_bytes": objBytes,
+			"minio_objects": len(objs), "minio_bytes": objBytes, "minio_raw_dir": rawDir, "minio_via_s3": client != nil,
 			"env": migrateEnvSnapshot()["all_names"],
 			"cwd": func() string { d, _ := os.Getwd(); return d }(),
 		}
@@ -140,7 +152,7 @@ func MigrateExport(db *sql.DB, client *miniogo.Client) gin.HandlerFunc {
 
 		// 2) 打包到磁碟
 		tarPath := filepath.Join(tmpDir, "export.tar.gz")
-		if err := migrateBuildTar(ctx, client, tarPath, snapPath, objs); err != nil {
+		if err := migrateBuildTar(ctx, client, tarPath, snapPath, objs, rawDir); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "build tar: " + err.Error()})
 			return
 		}
@@ -158,7 +170,7 @@ func MigrateExport(db *sql.DB, client *miniogo.Client) gin.HandlerFunc {
 	}
 }
 
-func migrateBuildTar(ctx context.Context, client *miniogo.Client, tarPath, snapPath string, objs []migrateObj) error {
+func migrateBuildTar(ctx context.Context, client *miniogo.Client, tarPath, snapPath string, objs []migrateObj, rawDir string) error {
 	f, err := os.Create(tarPath)
 	if err != nil {
 		return err
@@ -198,6 +210,13 @@ func migrateBuildTar(ctx context.Context, client *miniogo.Client, tarPath, snapP
 	}
 	sf.Close()
 
+	// MinIO 沒起來：原始資料夾 → minio_raw/...
+	if rawDir != "" {
+		if err := migrateAddDir(tw, rawDir, "minio_raw"); err != nil {
+			return err
+		}
+	}
+
 	// MinIO 物件：以物件名稱存成 minio/<key>，新機用 S3 client 重新上傳即可，不依賴 MinIO 磁碟格式
 	manifest := make([]map[string]interface{}, 0, len(objs))
 	for _, o := range objs {
@@ -232,4 +251,33 @@ func migrateBuildTar(ctx context.Context, client *miniogo.Client, tarPath, snapP
 		return err
 	}
 	return gz.Close()
+}
+
+func migrateAddDir(tw *tar.Writer, root, prefix string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil || rel == "." {
+			return nil
+		}
+		name := prefix + "/" + filepath.ToSlash(rel)
+		if info.IsDir() {
+			return tw.WriteHeader(&tar.Header{Name: name + "/", Mode: 0700, Typeflag: tar.TypeDir, ModTime: info.ModTime()})
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0600, Size: info.Size(), ModTime: info.ModTime()}); err != nil {
+			return err
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(tw, f)
+		return err
+	})
 }

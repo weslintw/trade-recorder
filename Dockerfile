@@ -18,9 +18,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/main.g
 FROM alpine:3.20
 RUN apk update && apk --no-cache add ca-certificates sqlite-libs bash curl wget
 
-# 下載 MinIO
-RUN wget https://dl.min.io/server/minio/release/linux-amd64/minio -O /usr/local/bin/minio && \
-    chmod +x /usr/local/bin/minio
+# MinIO：dl.min.io 已停止提供二進位（410 Gone），改從 Chainguard 的映像複製（靜態連結，alpine 可直接跑）
+COPY --from=cgr.dev/chainguard/minio:latest /usr/bin/minio /usr/local/bin/minio
 
 WORKDIR /app
 
@@ -60,7 +59,6 @@ else \
 fi && \
 echo '[4/4] Starting services...' && \
 echo '--- Starting MinIO ---' && \
-/usr/local/bin/minio server /app/data/minio --console-address ':9001' > /app/data/minio_startup.log 2>&1 & \
-sleep 10 && \
+if [ -x /usr/local/bin/minio ]; then /usr/local/bin/minio server /app/data/minio --console-address ':9001' > /app/data/minio_startup.log 2>&1 & sleep 10; else echo 'minio binary missing, skip'; fi && \
 echo '--- Starting Trade Recorder Backend ---' && \
 ./main 2>&1"]

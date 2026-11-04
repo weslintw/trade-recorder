@@ -18,6 +18,10 @@ import (
 // UploadImage 上傳圖片到MinIO
 func UploadImage(client *miniogo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if client == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "圖片儲存服務未啟動"})
+			return
+		}
 		file, header, err := c.Request.FormFile("image")
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "請選擇圖片檔案"})
@@ -71,6 +75,10 @@ func UploadImage(client *miniogo.Client) gin.HandlerFunc {
 // GetImage 從MinIO取得圖片
 func GetImage(client *miniogo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if client == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "圖片儲存服務未啟動"})
+			return
+		}
 		filename := c.Param("filename")
 		if filename == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "檔案名稱不能為空"})
